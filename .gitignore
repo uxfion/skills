@@ -1,0 +1,4 @@
+.DS_Store
+__MACOSX
+.env
+/sub2api-usage/snapshot.json
