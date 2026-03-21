@@ -157,8 +157,18 @@ def save_snapshot(data: dict):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def compute_delta(current: dict, previous: dict) -> dict:
-    """计算两次快照之间的 token 和费用变化，用于周期报告。"""
+def compute_delta(current: dict, previous: dict) -> "dict | None":
+    """计算两次快照之间的 token 和费用变化，用于周期报告。
+
+    当快照跨日时，today_* 字段已重置，差值无意义，返回 None。
+    """
+    cur_date  = current.get("date")
+    prev_date = previous.get("date")
+
+    # 跨日：today 计数器已重置，delta 无法计算
+    if cur_date != prev_date:
+        return None
+
     prev_keys = {k["id"]: k for k in previous.get("keys", [])}
     deltas = []
     for k in current["keys"]:
@@ -203,7 +213,15 @@ def main():
     if args.report:
         previous = load_snapshot()
         if previous:
-            result["delta"] = compute_delta(current, previous)
+            delta = compute_delta(current, previous)
+            if delta is not None:
+                result["delta"] = delta
+            else:
+                result["delta"] = None
+                result["delta_note"] = (
+                    f"快照跨日（上次 {previous.get('date')}，本次 {current['date']}），"
+                    "today 计数器已重置，delta 无法计算，请以今日累计数据为准"
+                )
         else:
             result["delta"] = None
             result["delta_note"] = "无历史快照，本次为首次记录"
