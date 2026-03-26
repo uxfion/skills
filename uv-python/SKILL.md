@@ -30,9 +30,9 @@ Use PEP 723 inline metadata to declare dependencies inside the script:
 # ///
 ```
 
+- Or add dep: `uv add <package> --script <script>.py`
+- Or remove dep: `uv remove <package> --script <script>.py`
 - Run: `uv run <script>.py`
-- Add dep: `uv add <package> --script <script>.py`
-- Remove dep: `uv remove <package> --script <script>.py`
 
 ## One-Off Code (no file, temporary execution)
 
