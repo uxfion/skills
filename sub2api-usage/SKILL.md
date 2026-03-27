@@ -33,7 +33,7 @@ uv run sub2api-usage/scripts/fetch_usage.py --report
 
 ## 环境变量
 
-脚本从 `sub2api-usage/.env` 加载配置，需要以下变量：
+脚本按优先级加载配置：先读 `~/.openclaw/.env`（全局），再读 `sub2api-usage/.env`（技能目录，优先级更高可覆盖全局值）。需要以下变量：
 
 | 变量 | 说明 |
 |------|------|

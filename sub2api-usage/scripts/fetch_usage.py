@@ -24,9 +24,12 @@ import httpx
 
 # ── 环境变量加载 ──────────────────────────────────────────────
 script_dir = Path(__file__).parent
-# .env 与 SKILL.md 同级（scripts/ 的上一级）
+# 先加载全局 .env（优先级低），再加载技能目录 .env（优先级高，覆盖全局）
+global_env = Path.home() / ".openclaw" / ".env"
+if global_env.exists():
+    load_dotenv(dotenv_path=global_env)
 skill_env = script_dir.parent / ".env"
-load_dotenv(dotenv_path=skill_env if skill_env.exists() else find_dotenv())
+load_dotenv(dotenv_path=skill_env if skill_env.exists() else find_dotenv(), override=True)
 
 BASE_URL = os.environ.get("SUB2API_URL", "").rstrip("/")
 ADMIN_KEY = os.environ.get("SUB2API_ADMIN_KEY", "")

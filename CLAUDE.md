@@ -28,7 +28,7 @@ uv run sub2api-usage/scripts/fetch_usage.py --report
 ## Skills
 
 ### sub2api-usage
-Queries Sub2API for token usage, costs, and rate limits. Requires `SUB2API_URL`, `SUB2API_ADMIN_KEY`, and `SUB2API_USER_ID` in `sub2api-usage/.env`. Main script outputs JSON; `--report` mode compares against a saved snapshot for delta reporting. Delta is only valid within the same day — cross-day snapshots yield `delta: null` with a `delta_note` explanation.
+Queries Sub2API for token usage, costs, and rate limits. Requires `SUB2API_URL`, `SUB2API_ADMIN_KEY`, and `SUB2API_USER_ID`. Loads `~/.openclaw/.env` (global) first, then `sub2api-usage/.env` (local, overrides global). Main script outputs JSON; `--report` mode compares against a saved snapshot for delta reporting. Delta is only valid within the same day — cross-day snapshots yield `delta: null` with a `delta_note` explanation.
 
 ### uv-python
 Reference skill documenting `uv` commands for Python package management and script execution. Contains only a `SKILL.md` with no scripts.
