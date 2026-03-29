@@ -1,7 +1,7 @@
 ---
 name: opencli
 description: "OpenCLI — Make any website or Electron App your CLI. Zero risk, AI-powered, reuse Chrome login."
-version: 1.4.1
+version: 1.5.5
 author: jackwener
 tags: [cli, browser, web, chrome-extension, cdp, bilibili, zhihu, twitter, github, v2ex, hackernews, reddit, xiaohongshu, xueqiu, youtube, boss, coupang, yollomi, AI, agent]
 ---
@@ -286,6 +286,8 @@ opencli chaoxing exams                   # 考试列表
 opencli douban search "三体"              # 搜索 (query positional)
 opencli douban top250                     # 豆瓣 Top 250
 opencli douban subject 1234567            # 条目详情 (id positional)
+opencli douban photos 30382501            # 图片列表 / 直链（默认海报）
+opencli douban download 30382501          # 下载海报 / 剧照
 opencli douban marks --limit 10           # 我的标记
 opencli douban reviews --limit 10         # 短评
 
@@ -423,7 +425,7 @@ opencli pixiv detail 12345               # 插画详情 (id positional)
 opencli pixiv download 12345             # 下载插画 (illust-id positional)
 
 # Web (browser)
-opencli web read --url "https://..."     # 抓取任意网页并导出为 Markdown
+opencli web read --url "https://..."     # 抓取任意网页并导出为 Markdown，注意终端输出仅为抓取状态，详细内容保存在运行目录的`web-articles`文件夹中
 
 # 微信公众号 Weixin (browser)
 opencli weixin download --url "https://mp.weixin.qq.com/s/xxx"  # 下载公众号文章为 Markdown
