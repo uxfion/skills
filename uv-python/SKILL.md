@@ -1,11 +1,11 @@
 ---
 name: uv-python
-description: Use uv exclusively for all Python package management, environment setup, and script execution. Trigger whenever the user installs/removes Python packages, runs Python scripts, manages dependencies, creates Python projects, or mentions python/python3/pip/pip3/poetry/conda/pip-tools/virtualenv.
+description: Use uv exclusively for all Python package management, environment setup, and script execution. Trigger whenever the user installs/removes Python packages, runs Python scripts, manages dependencies, creates Python projects, or mentions python/python3/pip/pip3/poetry/conda/pip-tools/virtualenv. Also trigger when running any temporary/inline/quick-check/throwaway Python snippets (e.g. `python -c`).
 ---
 
 # Use Python with uv
 
-Use `uv` exclusively. Never use pip, pip3, pip-tools, poetry, virtualenv or conda for dependency management. Never use `python` or `python3` directly to run scripts.
+Use `uv` exclusively. Never use pip, pip3, pip-tools, poetry, virtualenv or conda for dependency management. Never invoke `python` or `python3` directly, including `python -c`.
 
 ## Choosing the Right Approach
 
@@ -48,18 +48,15 @@ Use PEP 723 inline metadata to declare dependencies inside the script:
 Use instead of `python -c "code"`:
 
 ```bash
+echo 'print("hello")' | uv run -
+```
+
+For multi-line code, use a heredoc:
+
+```bash
 uv run - <<'EOF'
 <script>
 EOF
-```
-
-On Windows (PowerShell), use a temp file instead since heredoc is not supported:
-
-```powershell
-$code = @'
-<script>
-'@
-$code | uv run -
 ```
 
 ## Other Commands
