@@ -1,11 +1,21 @@
 ---
 name: uv-python
-description: Use uv exclusively for all Python package management, environment setup, and script execution. Trigger whenever the user installs/removes Python packages, runs Python scripts, manages dependencies, creates Python projects, or mentions python/pip/poetry/conda/pip-tools.
+description: Use uv exclusively for all Python package management, environment setup, and script execution. Trigger whenever the user installs/removes Python packages, runs Python scripts, manages dependencies, creates Python projects, or mentions python/python3/pip/pip3/poetry/conda/pip-tools.
 ---
 
-# Python Package Management with uv
+# Use Python with uv
 
-Use `uv` exclusively. Never use pip, pip-tools, poetry, virtualenv or conda for dependency management.
+Use `uv` exclusively. Never use pip, pip3, pip-tools, poetry, virtualenv or conda for dependency management.
+
+Use `uv run <script>.py` instead of `python <script>.py`.
+
+Use one-off code instead of `python -c "code"`.
+
+```bash
+uv run - <<'EOF'
+<script>
+EOF
+```
 
 ## Project (has `pyproject.toml` or `requirements.txt`)
 
