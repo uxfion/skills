@@ -33,6 +33,9 @@ Queries Sub2API for token usage, costs, and rate limits. Requires `SUB2API_URL`,
 ### uv-python
 Reference skill documenting `uv` commands for Python package management and script execution. Contains only a `SKILL.md` with no scripts.
 
+### wx-cli
+Guide for querying local WeChat 4.x data via the external `wx` CLI (a Rust binary, installed separately — not a Python script). Covers sessions / chat history / search / contacts / group members / favorites / Moments / official-account articles / image-attachment extraction, the background daemon + SQLCipher decryption model, and the `meta.status` freshness check. Contains only a `SKILL.md` with no scripts.
+
 ## Conventions
 
 - Environment variables are loaded from a `.env` file in the skill's root directory
