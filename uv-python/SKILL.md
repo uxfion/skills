@@ -54,9 +54,9 @@ echo 'print("hello")' | uv run -
 For multi-line code, use a heredoc:
 
 ```bash
-uv run - <<'EOF'
+uv run - <<'PY'
 <script>
-EOF
+PY
 ```
 
 ## Other Commands
