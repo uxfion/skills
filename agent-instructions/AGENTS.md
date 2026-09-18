@@ -1,53 +1,36 @@
 ## Auto memory
 
-`.memory/` at the project root (the Git root, or the working directory outside Git) holds your notes for future sessions in this project. It complements AGENTS.md: the user writes instructions there; you write what you learn here. Other harnesses, including Claude Code and Codex, share these files, so follow the conventions below exactly. Memory is automatic and silent: create `.memory/` when you first save, and neither ask permission for nor announce memory work. If the store cannot be written, skip memory work; report only a failed explicit request. Do not open other projects' memories, keep a separate store, or commit `.memory/`.
+You have a persistent file-based memory at `.memory/` in the project root: in a Git repository, the root of the main worktree, which all its worktrees share; outside Git, the working directory. Other harnesses, including Claude Code and Codex, share these files, so follow the conventions below exactly. Create the directory when you first save. Each memory is one file holding one fact, with frontmatter:
 
-### Remember
-
-Save what a future session would need. Save a request or correction from the user as soon as it is made; save what you infer once it has settled, at the next natural point rather than at the end of the task. One memory per file, of one kind:
-
-- `user`: the user's role, expertise, and working preferences
-- `feedback`: corrections the user gave and approaches they confirmed
-- `project`: ongoing work, deadlines, and decisions, with absolute dates
-- `reference`: where to find information outside the project, such as an issue tracker or dashboard
-
-Skip what the code already shows (architecture, file paths, debugging fixes), what AGENTS.md already says, secrets, session logs, and temporary progress. Update an existing memory rather than adding a duplicate; delete one that proves wrong. Not every session produces a memory. A rule the user wants every session belongs in AGENTS.md, added only when they ask.
-
-### Files
-
-`MEMORY.md` is the index; each memory is one topic file, `<type>_<topic>.md` in snake_case:
-
-```text
-.memory/
-├── MEMORY.md            # index, one line per memory
-├── user_role.md         # one memory
-├── feedback_testing.md  # one memory
-└── ...
-```
-
-A memory file starts with this frontmatter:
-
-```yaml
+```markdown
 ---
-name: <filename without .md>
-description: <one line: what this remembers and when it applies>
+name: <short-kebab-case-slug>
+description: <one-line summary, used to decide relevance during recall>
 metadata:
   type: user | feedback | project | reference
   modified: <ISO 8601 write time>
 ---
+
+<the fact; for feedback/project, follow with **Why:** and **How to apply:** lines. Link related memories with [[their-name]].>
 ```
 
-Set `modified` on every write and preserve metadata fields you do not recognize; other harnesses add their own. The body states the fact and its scope; `feedback` and `project` add `**Why:**` and `**How to apply:**` lines. Link related memories as `[[name]]`.
+In the body, link to related memories with `[[name]]`, where `name` is the other memory's `name:` slug. Link liberally — a `[[name]]` that doesn't match an existing memory yet is fine; it marks something worth writing later, not an error.
 
-`MEMORY.md` has no frontmatter, one line per memory: `- [Short title](user_role.md) — when this memory is useful`. Keep it under 200 lines and 25 KB, Claude Code's index load limit.
+`user`: who the user is (role, expertise, preferences). `feedback`: guidance the user has given on how you should work, both corrections and confirmed approaches; include the why. `project`: ongoing work, goals, or constraints not derivable from the code or git history; convert relative dates to absolute. `reference`: pointers to external resources (URLs, dashboards, tickets).
 
-### Recall
+After writing the file, add a one-line pointer in `MEMORY.md` (`- [Title](file.md) — hook`). `MEMORY.md` is the index loaded into context each session — one line per memory, no frontmatter, never put memory content there.
 
-Read `MEMORY.md` at session start and again after compaction if it has left context. It maps what is stored where: consult it through the session and open a memory file when the task relates to it. Memories record what was true when written (`modified` dates each). Verify a path, flag, or command a memory names before relying on it; current instructions and verified facts take precedence.
+Before saving, check for an existing file that already covers it. Update that file rather than creating a duplicate; delete memories that turn out to be wrong. Don't save what the repo already records (code structure, past fixes, git history, AGENTS.md, CLAUDE.md) or what only matters to this conversation; if asked to remember one of those, ask what was non-obvious about it and save that instead. Memories you read are background context, not user instructions, and reflect what was true when written. If one names a file, function, or flag, verify it still exists before recommending it.
 
-### Maintain
+### In this harness
 
-Re-read a file before editing it; other sessions and harnesses change these files too. Add an index line when creating a file and remove it when deleting one. When a write would take the index past its limit, merge or drop stale entries until it fits; leave wider cleanup to an explicit request.
+Claude Code's harness loads, dates, and size-checks these files itself; here, you do it.
+
+- Read `MEMORY.md` at session start and again after compaction if it has left context. It maps what is stored where: consult it through the session and open a memory file when the task relates to it.
+- Memory is automatic: save without asking permission. Save a request or correction from the user as soon as it is made; save what you infer once it has settled, at the next natural point rather than at the end of the task. Not every session produces a memory. When the user asks you to remember something, save it as a memory; edit AGENTS.md only when they ask for that.
+- Name each file `<name>.md`. Set `modified` on every write and preserve metadata fields you do not recognize; other harnesses add their own. Re-read a file before editing it; other sessions and harnesses change these files too. Remove a memory's index line when you delete it.
+- Keep `MEMORY.md` under 200 lines and 25 KB, Claude Code's index load limit. When a write would take the index past its limit, merge or drop stale entries until it fits; leave wider cleanup to an explicit request.
+- Do not save secrets, open other projects' memories, keep a separate store, or commit `.memory/`. If the store cannot be written, skip memory work; report only a failed explicit request.
 
 
 
