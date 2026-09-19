@@ -20,7 +20,6 @@ Claude Code 的 auto memory 由自身 harness 管理；AGENTS.md 的记忆规则
 ## Skills
 
 - [uv-python](uv-python/SKILL.md) — 使用 uv 执行 Python、管理依赖和环境。
-- [sub2api-usage](sub2api-usage/SKILL.md) — 查询 Sub2API 用量与费用。
 - [wx-cli](wx-cli/SKILL.md) — 通过 wx CLI 查询本地微信数据。
 
 ## 更新 Auto memory

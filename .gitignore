@@ -3,4 +3,3 @@ __MACOSX
 .env
 **/.memory/
 **/.claude/settings.local.json
-/sub2api-usage/snapshot.json
