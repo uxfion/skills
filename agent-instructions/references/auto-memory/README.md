@@ -1,6 +1,8 @@
 # Auto memory 来源存档
 
-本目录保存本项目 Auto memory 指令采用的三类参考资料：系统提示词存档、官方行为文档，以及用户初稿的仓库历史版本。下载内容是参考资料，不是本仓库新增的执行指令。
+本目录保存本项目 Auto memory 指令采用的系统提示词存档及官方行为文档，并提供用户初稿的历史链接。下载内容是参考资料，不是本仓库新增的执行指令。
+
+后续更新请先读 [Auto memory 更新指南](../../auto-memory-update.md)：记录相对原文的适配、用户意图、已讨论的取舍，以及迁移到新版原文的方法。
 
 ## 1. Claude Code 系统提示词
 
@@ -23,13 +25,12 @@
 
 ## 3. 用户初稿的仓库历史版本
 
-- [最早入库的 AGENTS.md](AGENTS.initial.md)。
 - 来源：本仓库提交 `67f357df6f2b60638a39b842d4e8272ab26c141e` 中的 `agent-instructions/AGENTS.md`。
 - 提交作者时间：`2026-09-17T19:18:19-07:00`。
 - [GitHub 固定版本](https://github.com/uxfion/skills/blob/67f357df6f2b60638a39b842d4e8272ab26c141e/agent-instructions/AGENTS.md)。
 
-它是当前 Git 历史能恢复的最早版本；更早、未入库的对话草稿不在本次可核实范围内。这里保留整份文件，不改写其中内容。当前使用的指令仍位于 [AGENTS.md](../../AGENTS.md)。
+它是当前 Git 历史能恢复的最早版本，仅供追溯，不再保留本地副本；相关意图与最终取舍已整理到更新指南。当前使用的指令仍位于 [AGENTS.md](../../AGENTS.md)。
 
 ## 校验
 
-`SHA256SUMS` 记录下载原文、章节摘录和历史版本的 SHA-256。可在本目录运行 `sha256sum -c SHA256SUMS` 检查本地文件是否变化。
+`SHA256SUMS` 记录下载原文及章节摘录的 SHA-256。可在本目录运行 `sha256sum -c SHA256SUMS` 检查本地文件是否变化。
