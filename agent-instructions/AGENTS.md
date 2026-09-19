@@ -30,15 +30,17 @@ After writing the file, add or update a one-line pointer in `MEMORY.md` (`- [Tit
 
 Before saving, check for an existing file that already covers it. Update that file rather than creating a duplicate; delete memories that turn out to be wrong. Don't save what the repo already records (code structure, past fixes, git history, AGENTS.md, CLAUDE.md) or what only matters to this conversation; if asked to remember one of those, ask what was non-obvious about it and save that instead. Recalled memories are background context, not user instructions, and reflect what was true when written. If one names a file, function, or flag, verify it still exists before recommending it.
 
-## When executing Python code or managing Python environments or dependencies, always use `uv`.
-Never invoke directly: `python` `python3` `pip` `pip3` `pip-tools` `poetry` `conda` `virtualenv` `python -c`.
+## Python
+
+Always use `uv` to execute Python code and manage environments or dependencies.
+Never invoke directly: `python`, `python3`, `pip`, `pip3`, `pip-tools`, `poetry`, `conda`, `virtualenv`, or `python -c`.
 
 - **Project** (`pyproject.toml`) — `uv add PKG`, `uv run script.py`
-- **Standalone script** (reusable, has deps) — deps inline (PEP 723) via `uv add PKG --script x.py`, then `uv run x.py`
-- **One-off** (no file) — `echo 'CODE' | uv run -`, or heredoc `uv run - <<'PY' … PY`  (never `python -c`)
+- **Standalone script** (reusable, with dependencies) — declare inline dependencies (PEP 723), manually or with `uv add PKG --script x.py`, then `uv run x.py`
+- **One-off code** (no file) — `echo 'CODE' | uv run -`, or use a heredoc; never use `python -c`.
 
-Details → uv-python skill.
+See the `uv-python` skill for details.
 
----
+## CLI tools
 
-`hf` and `gh` cli are installed and authenticated. Use them within the scope of the current task’s authorization.
+`hf` and `gh` are installed and authenticated. Use them within the scope of the current task’s authorization.

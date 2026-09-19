@@ -106,9 +106,9 @@ After writing the file, add or update a one-line pointer in `MEMORY.md` (`- [Tit
 
 单文件单事实、frontmatter 的名称与描述、四类记忆、`Why` / `How to apply`、wiki 链接、允许尚不存在的链接目标、去重、删除错误记忆、不存临时内容以及召回校验，都沿用原文。不要在更新时无理由改成另一套结构。
 
-复原时将标题 `## Memory` 替换为 `## Auto memory`；段落间保留一个空行。以上操作只生成 Auto memory 章节。要复原整份 AGENTS.md，接上已确认版本中从 `## When executing Python…` 开始的原有后半部分；这部分不是 Claude Memory 原文或本次适配生成的。
+复原时将标题 `## Memory` 替换为 `## Auto memory`；段落间保留一个空行。以上操作只生成 Auto memory 章节。应用到当前 AGENTS.md 时，保留从 `## Python` 开始的后半部分；这部分不是 Claude Memory 原文或本次适配生成的。复原历史基准 `238b36a` 时，则使用该提交中从 `## When executing Python…` 开始的后半部分。
 
-2026-09-19 已验证：以存档原文为输入，应用本指南六个文字块及上述替换，生成的 Memory 章节与 `238b36a` 一致；接上该提交未改动的后半部分后，整份文件与当前 AGENTS.md 逐字节一致。整份文件的 SHA-256 为 `a14f80ad97c710484fc00f3e7cc27de4b3b1770aa255b47c68684d23a404e5e7`。这验证了本次基准可复原，不代表未来新版原文可以不经判断直接套用。
+2026-09-19 已验证：以存档原文为输入，应用本指南六个文字块及上述替换，生成的 Memory 章节与 `238b36a` 一致；接上该提交未改动的后半部分后，整份文件与该历史基准逐字节一致。该历史文件的 SHA-256 为 `a14f80ad97c710484fc00f3e7cc27de4b3b1770aa255b47c68684d23a404e5e7`。这验证了本次基准可复原，不代表未来新版原文可以不经判断直接套用。
 
 ## 讨论过但最终没有加入的规则
 
