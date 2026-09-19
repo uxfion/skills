@@ -37,7 +37,7 @@ Never invoke directly: `python`, `python3`, `pip`, `pip3`, `pip-tools`, `poetry`
 
 - **Project** (`pyproject.toml`) — `uv add PKG`, `uv run script.py`
 - **Standalone script** (reusable, with dependencies) — declare inline dependencies (PEP 723), manually or with `uv add PKG --script x.py`, then `uv run x.py`
-- **One-off code** (no file) — `echo 'CODE' | uv run -`, or use a heredoc; never use `python -c`.
+- **One-off code** (no file) — `echo 'CODE' | uv run -`, or heredoc `uv run - <<'PY' CODE PY`  (never `python -c`)
 
 See the `uv-python` skill for details.
 
