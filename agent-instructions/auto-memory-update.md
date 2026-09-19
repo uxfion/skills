@@ -82,6 +82,8 @@ Set `metadata.modified` on every write to the current UTC time from `date -u +%Y
 
 这里有三个不同来源：原文提供 `metadata.type` 模板；官方文档快照说明 Claude Code harness 会写入 ISO 8601 `modified`；初稿采用 `metadata.modified`，当前保留此约定。官方文档没有要求这个嵌套位置或必须使用 UTC，Fable Memory 章节也没有时间字段。不要把本项目的约定误称为官方完整格式。
 
+2026-09-19 在 Claude Code v2.1.278 实测：harness 写入带 frontmatter 的记忆文件时，时间戳落在 `metadata.modified`（UTC，毫秒精度，如 `2026-09-19T14:00:32.271Z`），并同时写入 `metadata.node_type` 和 `metadata.originSessionId`。本项目的嵌套位置因此与 harness 的实际行为一致，`preserve other metadata fields` 也是保住这些字段所必需；Codex 按 `date -u` 写入的秒级时间与之并存无碍。这是对单一版本的观察，不是官方规范；上游变化时重新核对。
+
 用户讨论后同意保留 UTC 时间戳。它记录写入时间，不是要求正文里所有日期都用 UTC；曾出现过正文的本地“今天”与 UTC 日期混淆的担忧。当前没有增加专门的时区处理流程，原文的相对日期转绝对日期要求仍保留。
 
 ### 5. 索引大小与维护
