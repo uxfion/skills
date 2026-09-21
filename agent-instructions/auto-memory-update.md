@@ -11,9 +11,12 @@
 - [Fable 5.1 原始提示词：固定提交](https://github.com/asgeirtj/system_prompts_leaks/blob/c7b2c31df51e64784603f5740a251b445fd88c46/Anthropic/claude-code/claude-code-fable-5.1.md)。这是本次比较与复原的基准；另有 [本地完整存档](references/auto-memory/claude-code-fable-5.1.md)。
 - [提示词目录：查找后续版本](https://github.com/asgeirtj/system_prompts_leaks/tree/main/Anthropic/claude-code)。目录内容会变化，下次选定新版本后记录对应提交，不以 `main` 作为可复原的版本标识。
 - [Claude Code 官方 auto memory 文档](https://code.claude.com/docs/en/memory#auto-memory)。本次判断依据的是 [2026-09-18 下载的快照](references/auto-memory/claude-code-memory-docs.md)，不是假定当前网页永远不变。
+- [Claude Code 官方 CHANGELOG：固定提交](https://github.com/anthropics/claude-code/blob/bf7d404e26a5fb6167d21b46c93a2bf6c22ab274/CHANGELOG.md)（2026-09-21 查阅，最新条目为 2.1.278）。核对 harness 行为时文档与 changelog 都要看；机制何时引入、如何变动以 changelog 为准，它逐版本记录变更，文档只描述当前状态。
 - [用户初稿：固定提交](https://github.com/uxfion/skills/blob/67f357df6f2b60638a39b842d4e8272ab26c141e/agent-instructions/AGENTS.md)。仅在追溯设计来源时查阅，无需将整份旧稿作为更新输入，也不保留额外副本。
 
 提示词来自第三方存档，文件名沿用其命名；不将其称为 Anthropic 官方发布，也不以存档本身证明真实性。获取时间及 [SHA-256 清单](references/auto-memory/SHA256SUMS)见 [来源索引](references/auto-memory/README.md)。Opus 5 也曾用于交叉比较，其 Memory 章节与 Fable 5.1 的实质规则相同。
+
+2026-09-21 在 Claude Code v2.1.278 的 Fable 5.1 会话中，由模型将自身系统提示词的 Memory 章节与 [Fable 5.1 Memory 摘录](references/auto-memory/fable-5.1-memory-section.md)逐句比对：除记忆目录路径和标题层级（`# Memory`）外文字一致。这是单一版本、单次会话的观察，只说明该基准当时与运行中的提示词相符，不改变存档的第三方性质。
 
 ## 目标与原则
 
@@ -80,7 +83,7 @@ Save user-provided information worth retaining as soon as it is given; save infe
 Set `metadata.modified` on every write to the current UTC time from `date -u +%Y-%m-%dT%H:%M:%SZ`; preserve other metadata fields.
 ```
 
-这里有三个不同来源：原文提供 `metadata.type` 模板；官方文档快照说明 Claude Code harness 会写入 ISO 8601 `modified`；初稿采用 `metadata.modified`，当前保留此约定。官方文档没有要求这个嵌套位置或必须使用 UTC，Fable Memory 章节也没有时间字段。不要把本项目的约定误称为官方完整格式。
+这里有三个不同来源：原文提供 `metadata.type` 模板；官方文档快照说明 Claude Code harness 会写入 ISO 8601 `modified`，官方 changelog 在 2.1.214 记有 `Added an ISO modified timestamp to memory file frontmatter`，与文档所述版本一致（更早的 2.1.75 另有 `Added last-modified timestamps to memory files`，未提 frontmatter）；初稿采用 `metadata.modified`，当前保留此约定。时间戳由 harness 写入而非模型按提示词写入，因此无需向 Claude Code 的 `CLAUDE.md` 补这条规则。官方文档和 changelog 都没有要求这个嵌套位置或必须使用 UTC，Fable Memory 章节也没有时间字段。不要把本项目的约定误称为官方完整格式。
 
 2026-09-19 在 Claude Code v2.1.278 实测：harness 写入带 frontmatter 的记忆文件时，时间戳落在 `metadata.modified`（UTC，毫秒精度，如 `2026-09-19T14:00:32.271Z`），并同时写入 `metadata.node_type` 和 `metadata.originSessionId`。本项目的嵌套位置因此与 harness 的实际行为一致，`preserve other metadata fields` 也是保住这些字段所必需；Codex 按 `date -u` 写入的秒级时间与之并存无碍。这是对单一版本的观察，不是官方规范；上游变化时重新核对。
 

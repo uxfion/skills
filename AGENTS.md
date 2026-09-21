@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 Personal agent skills plus the source files for global agent instructions. See README.md for the layout.
 
