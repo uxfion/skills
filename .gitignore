@@ -3,3 +3,4 @@ __MACOSX
 .env
 **/.memory/
 **/.claude/settings.local.json
+__pycache__/
