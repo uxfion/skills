@@ -76,7 +76,7 @@ uv run scripts/check_item.py --item item.json
 
 Revise the draft: the item type (LNCS/MICCAI/ECCV chapters arrive as `bookSection` and are usually `conferencePaper`; a NeurIPS/ICLR paper drafted from its arXiv DOI takes the venue fields from its landing page, with the arXiv id in `extra`); the abstract, from `openalex work` / `pubmed search` + `pubmed article <pmid> --full-abstract` (journal articles) / `semanticscholar paper` / `hf paper` before opening the article page; fields that only the article page has. A value without a source stays out; a PMID from PubMed goes into `extra` as `PMID: <n>`.
 
-Tags go in `tags.json` as `[{"tag": …, "type": 0|1}]`: the source's own keywords — the **author keywords** from the article page, PubMed or OpenAlex, and arXiv categories from `arxiv paper`; not MeSH terms, not IEEE index terms — as type 1, your curated tags per [references/tagging.md](references/tagging.md) as type 0, chosen against the existing vocabulary from `zotero tags`.
+Tags go in `tags.json` as `[{"tag": …, "type": 0|1}]`: the source's own keywords — the **author keywords** from the article page, PubMed or OpenAlex, and arXiv categories from `arxiv paper`; not MeSH terms, not IEEE index terms — as type 1, your curated tags per [references/tagging.md](references/tagging.md) as type 0, spelled like the existing tags from `zotero tags` where a concept already has one, new where it does not.
 
 No DOI record at all (`no_csl_record`, old papers, pages that ignore content negotiation): see *No DOI record* under Rules.
 
@@ -177,7 +177,15 @@ The second entry: the user asks for their tags or collections to be tidied. Read
 uv run scripts/file_and_tag.py --batch changes.json --dry-run
 ```
 
-Only after the user confirms, run it without `--dry-run`. The first batch calibrates the scheme with the user; later batches follow it.
+Only after the user confirms, run it without `--dry-run`. The first batch calibrates the scheme with the user; later batches follow it. An item that only needs tags or a collection *added* takes `add_tags` / `add_collection` in its entry (single item: `--add-tags-file` / `--add-collection`), which leave the rest as it is.
+
+A field fix — wrong item type, missing date, venue or DOI — goes through `update_item.py`, shown first, written after the user agrees:
+
+```bash
+uv run scripts/update_item.py --key <item key> --set itemType=conferencePaper --set "publicationTitle=…" --set date=2023 --dry-run
+```
+
+Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra, and the result shows any value Zotero normalized. Tags and collections stay with `file_and_tag.py`.
 
 ## Limits
 

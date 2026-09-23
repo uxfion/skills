@@ -10,7 +10,9 @@ again and verify. Batch mode (--batch): the same diff per item, then one POST
 per chunk of 50 objects, each carrying its version; per-key results.
 
 Targets are absolute: the tag file is the COMPLETE desired tag set, and the
-collection becomes exactly the one given. Re-running is a no-op.
+collection becomes exactly the one given — except with --add-collection /
+--add-tags-file (batch: "add_collection" / "add_tags"), which add to what the
+item has and touch nothing else. Re-running is a no-op.
 
 stdout: exactly one JSON object with a stable `code` (`ok` on success);
 diagnostics go to stderr. Exit 0 = done, 1 = not done (the agent decides),
@@ -187,13 +189,35 @@ def parse_collection(value, null_clears=False):
     return [value]
 
 
+def parse_add_collection(value):
+    """A collection key to add; 'none' makes no sense here."""
+    if not isinstance(value, str) or not KEY_RE.match(value.strip()):
+        raise Stop("invalid_collection", 1, "An added collection is an 8-character key from the collection tree.", collection=value)
+    return value.strip()
+
+
 def tag_map(tags):
     return {t.get("tag"): t.get("type", 0) for t in tags or [] if isinstance(t, dict)}
 
 
-def plan_item(item, target_collection, target_tags):
-    """Diff one item against its targets; returns the readable change record plus the patch body."""
+def resolve(item, spec):
+    """Absolute targets for one item: the spec's collection/tags as given, or its add_collection/add_tags merged into what the item has."""
     data = item.get("data") or {}
+    target_collection, target_tags = spec.get("collection"), spec.get("tags")
+    if spec.get("add_collection"):
+        current = list(data.get("collections") or [])
+        target_collection = current + [k for k in spec["add_collection"] if k not in current]
+    if spec.get("add_tags") is not None:
+        merged = tag_map(data.get("tags"))
+        merged.update(tag_map(spec["add_tags"]))
+        target_tags = [{"tag": t, "type": ty} for t, ty in merged.items()]
+    return target_collection, target_tags
+
+
+def plan_item(item, spec):
+    """Diff one item against its resolved targets; returns the readable change record, the patch body and the targets."""
+    data = item.get("data") or {}
+    target_collection, target_tags = resolve(item, spec)
     patch = {}
     current_coll = list(data.get("collections") or [])
     collection = None
@@ -208,8 +232,9 @@ def plan_item(item, target_collection, target_tags):
         if tags_added or tags_removed:
             patch["tags"] = target_tags
     title = (data.get("title") or "")[:80]
-    return {"key": item.get("key"), "title": title, "version": item.get("version"), "collection": collection,
-            "tags_added": tags_added, "tags_removed": tags_removed, "unchanged": not patch}, patch
+    return ({"key": item.get("key"), "title": title, "version": item.get("version"), "collection": collection,
+             "tags_added": tags_added, "tags_removed": tags_removed, "unchanged": not patch}, patch,
+            (target_collection, target_tags))
 
 
 def get_item(api, key):
@@ -252,17 +277,18 @@ def verify(data, target_collection, target_tags):
 
 
 def run_single(api, args, api_key, server_id):
-    target_collection = parse_collection(args.collection)
-    target_tags = load_tags_file(args.tags_file) if args.tags_file else None
+    spec = {"collection": parse_collection(args.collection),
+            "tags": load_tags_file(args.tags_file) if args.tags_file else None,
+            "add_collection": [parse_add_collection(k) for k in args.add_collection] if args.add_collection else None,
+            "add_tags": load_tags_file(args.add_tags_file) if args.add_tags_file else None}
     item = get_item(api, args.key)
     if item is None:
         raise Stop("item_not_found", 1, "No item with that key; check the key from find_in_library.py.", item_key=args.key)
-    if target_collection is not None and (item.get("data") or {}).get("parentItem"):
+    if (spec["collection"] is not None or spec["add_collection"]) and (item.get("data") or {}).get("parentItem"):
         raise Stop("not_a_parent", 1, "Only top-level items belong to collections; pass the parent item's key.",
                    item_key=args.key, parent_item=item["data"]["parentItem"])
-    if target_collection:
-        check_collections(api, target_collection)
-    change, patch = plan_item(item, target_collection, target_tags)
+    check_collections(api, set(spec["collection"] or []) | set(spec["add_collection"] or []))
+    change, patch, targets = plan_item(item, spec)
     if not patch:
         emit("ok", 0, item_key=args.key, unchanged=True, version=item.get("version"))
     if args.dry_run:
@@ -281,7 +307,7 @@ def run_single(api, args, api_key, server_id):
             item = get_item(api, args.key)
             if item is None:
                 raise Stop("item_not_found", 1, "The item disappeared while patching.", item_key=args.key)
-            change, patch = plan_item(item, target_collection, target_tags)
+            change, patch, targets = plan_item(item, spec)
             if not patch:
                 emit("ok", 0, item_key=args.key, unchanged=True, retried=True, version=item.get("version"))
             continue
@@ -295,7 +321,7 @@ def run_single(api, args, api_key, server_id):
     after = get_item(api, args.key)
     if after is None:
         raise Stop("item_not_found", 1, "The item disappeared after patching.", item_key=args.key)
-    filed, tags_ok = verify(after.get("data") or {}, target_collection, target_tags)
+    filed, tags_ok = verify(after.get("data") or {}, *targets)
     result = {"item_key": args.key, "unchanged": False, "collection": change["collection"], "tags_added": change["tags_added"],
               "tags_removed": change["tags_removed"], "filed": filed, "tags_ok": tags_ok,
               "version_before": item.get("version"), "version_after": after.get("version"), "retried": retried}
@@ -322,11 +348,22 @@ def load_batch(path):
         if e["key"] in seen:
             raise Stop("invalid_batch_file", 1, "Each key may appear once.", batch_file=str(p), index=i, key=e["key"])
         seen.add(e["key"])
-        if "collection" not in e and "tags" not in e:
-            raise Stop("invalid_batch_file", 1, "An entry needs \"collection\" and/or \"tags\".", batch_file=str(p), index=i, key=e["key"])
-        collection = parse_collection(e["collection"], null_clears=True) if "collection" in e else None
-        tags = normalize_tags(e["tags"], f"{p}[{i}].tags") if "tags" in e else None
-        entries.append({"key": e["key"], "collection": collection, "tags": tags})
+        if not any(k in e for k in ("collection", "tags", "add_collection", "add_tags")):
+            raise Stop("invalid_batch_file", 1, "An entry needs \"collection\" / \"add_collection\" and/or \"tags\" / \"add_tags\".",
+                       batch_file=str(p), index=i, key=e["key"])
+        if ("collection" in e and "add_collection" in e) or ("tags" in e and "add_tags" in e):
+            raise Stop("invalid_batch_file", 1, "An entry sets its collection either absolutely or by adding, not both; same for tags.",
+                       batch_file=str(p), index=i, key=e["key"])
+        add_coll = e.get("add_collection")
+        if isinstance(add_coll, str):
+            add_coll = [add_coll]
+        if add_coll is not None and not isinstance(add_coll, list):
+            raise Stop("invalid_batch_file", 1, "\"add_collection\" is a key or a list of keys.", batch_file=str(p), index=i, key=e["key"])
+        entries.append({"key": e["key"],
+                        "collection": parse_collection(e["collection"], null_clears=True) if "collection" in e else None,
+                        "tags": normalize_tags(e["tags"], f"{p}[{i}].tags") if "tags" in e else None,
+                        "add_collection": [parse_add_collection(k) for k in add_coll] if add_coll else None,
+                        "add_tags": normalize_tags(e["add_tags"], f"{p}[{i}].add_tags") if "add_tags" in e else None})
     return entries
 
 
@@ -339,20 +376,21 @@ def run_batch(api, args, api_key, server_id):
             missing.append(e["key"])
             continue
         items[e["key"]] = item
-        if e["collection"] is not None and (item.get("data") or {}).get("parentItem"):
+        if (e["collection"] is not None or e["add_collection"]) and (item.get("data") or {}).get("parentItem"):
             raise Stop("not_a_parent", 1, "Only top-level items belong to collections; use the parent item's key.",
                        item_key=e["key"], parent_item=item["data"]["parentItem"])
         colls.update(e["collection"] or [])
+        colls.update(e["add_collection"] or [])
     if missing:
         raise Stop("item_not_found", 1, "Remove or fix these keys in the batch file; nothing was written.", items_missing=missing)
     check_collections(api, colls)
 
     changes, objects = [], []
     for e in entries:
-        change, patch = plan_item(items[e["key"]], e["collection"], e["tags"])
+        change, patch, targets = plan_item(items[e["key"]], e)
         changes.append(change)
         if patch:
-            objects.append(({"key": e["key"], "version": items[e["key"]]["version"], **patch}, e))
+            objects.append(({"key": e["key"], "version": items[e["key"]]["version"], **patch}, e, targets))
     summary = {"total": len(entries), "to_write": len(objects), "unchanged": len(entries) - len(objects)}
     if args.dry_run or not objects:
         emit("ok", 0, dry_run=args.dry_run, **summary, changes=changes)
@@ -360,18 +398,18 @@ def run_batch(api, args, api_key, server_id):
     results, failures, chunks_written = [], [], 0
     for start in range(0, len(objects), CHUNK):
         chunk = objects[start:start + CHUNK]
-        status, _, body = api.request("POST", f"{LIB}/items", [o for o, _ in chunk], write_headers(api_key, server_id))
+        status, _, body = api.request("POST", f"{LIB}/items", [o for o, _, _ in chunk], write_headers(api_key, server_id))
         check_common(status, body)
         if status != 200:
             raise Stop("batch_failed", 1, "A whole chunk was rejected; earlier chunks are written. Fix the cause and re-run (unchanged items are skipped).",
                        status=status, body=text(body), chunk_index=start // CHUNK, chunks_written=chunks_written, results=results)
         resp = json.loads(body)
         successful, unchanged, failed = resp.get("successful") or {}, resp.get("unchanged") or {}, resp.get("failed") or {}
-        for i, (obj, e) in enumerate(chunk):
+        for i, (obj, e, targets) in enumerate(chunk):
             idx, title = str(i), items[e["key"]]["data"].get("title", "")[:80]
             if idx in successful:
                 data = successful[idx].get("data") or {}
-                filed, tags_ok = verify(data, e["collection"], e["tags"])
+                filed, tags_ok = verify(data, *targets)
                 ok = filed is not False and tags_ok is not False
                 results.append({"key": e["key"], "title": title, "result": "ok" if ok else "failed",
                                 "version": successful[idx].get("version"), "filed": filed, "tags_ok": tags_ok})
@@ -395,28 +433,38 @@ def run_batch(api, args, api_key, server_id):
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Set the collection and/or the complete tag set of existing Zotero items via the local write API.",
-        epilog="Targets are absolute and re-runs are no-ops. Exit 0 = done; 1 = not done, see code/hint; "
+        description="Set — or add to — the collections and tags of existing Zotero items via the local write API.",
+        epilog="Targets are absolute unless given as add-*; re-runs are no-ops. Exit 0 = done; 1 = not done, see code/hint; "
                "2 = cannot check (zotero_unreachable, local_api_disabled, no_key, key_rejected, server_mismatch). "
                "Output is one JSON object on stdout.")
     mode = p.add_mutually_exclusive_group(required=True)
     mode.add_argument("--key", metavar="ITEMKEY", help="single mode: key of the item to update")
     mode.add_argument("--batch", metavar="CHANGES.json",
-                      help="batch mode: JSON list of {\"key\", \"collection\": KEY|null|\"none\" (optional), \"tags\": [...] (optional)}")
+                      help="batch mode: JSON list of {\"key\", \"collection\": KEY|null|\"none\" (optional), \"tags\": [...] (optional)}; "
+                           "\"add_collection\": KEY|[KEYS] and \"add_tags\": [...] add instead of replacing")
     p.add_argument("--collection", metavar="COLLKEY",
                    help="single mode: the item's only collection becomes this key (a move); 'none' clears it; omitted = leave alone")
     p.add_argument("--tags-file", metavar="TAGS.json",
                    help="single mode: the COMPLETE desired tag set, a JSON list of {\"tag\", \"type\"} (type 0 manual, 1 automatic) "
                         "or plain strings (type 0); omitted = leave tags alone")
+    p.add_argument("--add-collection", metavar="COLLKEY", action="append",
+                   help="single mode: add the item to this collection, keeping its others (repeatable)")
+    p.add_argument("--add-tags-file", metavar="TAGS.json",
+                   help="single mode: tags to add to the item's existing ones, same format as --tags-file")
     p.add_argument("--dry-run", action="store_true", help="print the change list (per key: tags_added, tags_removed, collection from/to); write nothing")
     p.add_argument("--key-file", default=DEFAULT_KEY_FILE, metavar="PATH",
                    help="JSON file holding the local API key (default: %(default)s); env ZOTERO_LOCAL_API_KEY overrides")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="local API base URL (default: %(default)s)")
     args = p.parse_args()
-    if args.key and args.collection is None and args.tags_file is None:
-        p.error("--key needs --collection and/or --tags-file")
-    if args.batch and (args.collection is not None or args.tags_file is not None):
-        p.error("--collection / --tags-file belong to single mode; put them in the batch file")
+    single_opts = (args.collection, args.tags_file, args.add_collection, args.add_tags_file)
+    if args.key and all(o is None for o in single_opts):
+        p.error("--key needs --collection / --add-collection and/or --tags-file / --add-tags-file")
+    if args.batch and any(o is not None for o in single_opts):
+        p.error("--collection / --tags-file / --add-* belong to single mode; put them in the batch file")
+    if args.collection is not None and args.add_collection:
+        p.error("--collection (replace) and --add-collection (add) exclude each other")
+    if args.tags_file and args.add_tags_file:
+        p.error("--tags-file (the complete set) and --add-tags-file (add) exclude each other")
     if args.key and not KEY_RE.match(args.key):
         p.error("--key is an 8-character item key")
     return args

@@ -2,12 +2,14 @@
 
 Tags answer one question: *how would the user look for this paper?* They are not a summary of everything the paper is. Tag what you are **certain** of; a tag without a source, or one you cannot verify, is left off.
 
+This scheme is a starting point, not a closed list. The dimensions, the examples and the library's existing tags are what has been useful so far; a new paper may need a tag, a venue abbreviation or even a dimension that is not here yet — add it, and say so in the report so the user can keep or correct it. What the user changes in conversation is the rule from then on.
+
 ## Two kinds of tags on one item
 
 | Kind | Zotero type | Who writes it | What to do with it |
 | --- | --- | --- | --- |
 | Source keywords | automatic (1, shown orange) | the authors' own keywords (article page, PubMed, OpenAlex) and arXiv subject categories — not MeSH terms, not publisher index terms | Keep. They are the source's own words, and Zotero can hide or bulk-delete automatic tags at any time. |
-| Curated tags | manual (0) | the agent, by this file | Add. Reuse an existing tag whenever one fits; create a new one only when nothing fits, and list every new tag in the report. Manual tags from before this scheme stay as they are; fold them in (rename to the canonical form or replace) only when the user says so in the session. |
+| Curated tags | manual (0) | the agent, by this file | Add. The existing tags are the spelling reference, not a cap: a concept that already has a tag reuses that spelling, a concept without one gets a new tag — normal for a new paper. List every new tag in the report. Manual tags from before this scheme stay as they are; fold them in (rename to the canonical form or replace) only when the user says so in the session. |
 
 ## Curated tag forms
 
@@ -30,8 +32,8 @@ Rules per dimension:
 
 ## Choosing tags for one paper
 
-1. List the library's existing tags (the `zotero` skill's `tags` command) — that list is the vocabulary.
-2. From the item's title, abstract, venue and, when needed, the PDF's first page, pick the tags above. Prefer an existing tag; add a new one only for a concept the vocabulary lacks.
+1. List the library's existing tags (the `zotero` skill's `tags` command) — the spelling reference: one spelling per concept.
+2. From the item's title, abstract, venue and, when needed, the PDF's first page, pick the tags above — the existing spelling where the concept already has a tag, a new tag where it does not.
 3. Write source keywords as automatic tags and curated tags as manual tags, so the two stay distinguishable in Zotero.
 4. Report: the curated tags chosen, which of them are new to the library, and the source keywords kept.
 
