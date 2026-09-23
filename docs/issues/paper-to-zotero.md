@@ -127,3 +127,12 @@
 - 痛点：agent 看到 mismatch 不知道该信哪边；重跑能好，但原因不明。
 - 方向：先验证推断（改一条带 TLDR 的条目的 `extra`，隔 1–2 秒连读两次看版本号是否被第三方 +1）；若属实，`update_item` 的读回在 mismatch 时等一下再读一次，并报告"写入后被别的程序改了（version 跳了 N）"。
 - 状态：open
+
+### 15. 没有 DOI 的论文怎么定位、给别人什么链接
+
+- 来源：用户 · 2026-09-23
+- 用户原话："那我想知道那些不发DOI链接的，我应该怎么定位到它？现在我的文献库里面的检索，给别人的链接，一般都是用什么的？"
+- 背景：刚核对完 CC作业，GAN（NeurIPS 2014）没有 DOI，只有 `url`（proceedings.neurips.cc）和刚补上的 `extra: arXiv: 1406.2661`。全库统计（同日）：28 条没有 DOI——8 条是代码（computerProgram，GitHub 等，正常）；其余 20 条论文里，9 条 `url` 是 CVF Open Access（CVPR/ICCV 实际有 IEEE DOI，可补），4 条 NeurIPS、2 条 OpenReview（本来就无 DOI），4 条期刊论文没有 DOI（可疑），5 条连 `url` 都没有；只有 3 条带 arXiv 号。
+- 痛点：没有 DOI 时用户不知道该靠什么找到论文、分享给别人；库里这类条目的标识参差不齐。
+- 方向：定一条"每篇论文至少有一个可解析的标识"的规则写进 skill：有 DOI 用 DOI；没有就 `url` 指向官方页（NeurIPS proceedings / PMLR / OpenReview forum / ACL Anthology），并在 `extra` 写 arXiv 号（有的话）；导入时照此填，整理时作为 lint 的一项（见 7）。报告里给分享链接时按 DOI > 官方页 > arXiv 的顺序。
+- 状态：open（已口头回答用户；是否对库里这 20 条做一轮补全待用户定）
