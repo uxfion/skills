@@ -135,4 +135,5 @@
 - 背景：刚核对完 CC作业，GAN（NeurIPS 2014）没有 DOI，只有 `url`（proceedings.neurips.cc）和刚补上的 `extra: arXiv: 1406.2661`。全库统计（同日）：28 条没有 DOI——8 条是代码（computerProgram，GitHub 等，正常）；其余 20 条论文里，9 条 `url` 是 CVF Open Access（CVPR/ICCV 实际有 IEEE DOI，可补），4 条 NeurIPS、2 条 OpenReview（本来就无 DOI），4 条期刊论文没有 DOI（可疑），5 条连 `url` 都没有；只有 3 条带 arXiv 号。
 - 痛点：没有 DOI 时用户不知道该靠什么找到论文、分享给别人；库里这类条目的标识参差不齐。
 - 方向：定一条"每篇论文至少有一个可解析的标识"的规则写进 skill：有 DOI 用 DOI；没有就 `url` 指向官方页（NeurIPS proceedings / PMLR / OpenReview forum / ACL Anthology），并在 `extra` 写 arXiv 号（有的话）；导入时照此填，整理时作为 lint 的一项（见 7）。报告里给分享链接时按 DOI > 官方页 > arXiv 的顺序。
+- 追问（用户原话）："我不太清楚现在的行业通史，学术界比方说定位一篇文献文章，应该会用什么？我记得DOI是我见过最多的，然后arXiv也有"。补充事实（已验证）：arXiv 自 2022 年起给所有论文注册 DataCite DOI，`10.48550/arXiv.<id>`，老论文也有（`10.48550/arXiv.1406.2661` 302 到 arXiv abs 页，DataCite 登记于 2022-03-09）；但它指向预印本（标题 "Generative Adversarial Networks"），不是 NeurIPS 版（"…Nets"）。设计时可用：arXiv-only 的条目 DOI 字段可填这个。
 - 状态：open（已口头回答用户；是否对库里这 20 条做一轮补全待用户定）
