@@ -109,3 +109,12 @@
 - 为什么：提议里只有"删哪条"，没有两条的字段对照，也没有先把被删那条独有的信息并进保留的那条。本地 API 不能合并条目（合并只在客户端），skill 里也没有"处理重复"的步骤。
 - 方向：organize.md 加"重复条目"一节：先列字段对照，定保留哪条，用 `update_item` 把对方独有的字段并过来，分类和标签取并集（`tmp` 除外），最后才请用户删除另一条（或在 Zotero 里合并时选保留那条）。可做成脚本：`dedupe.py --keep K --drop K2 --dry-run`，只合并信息，不删除。
 - 状态：open
+
+### 13. `check_pdf` 对 CVF 版 StyleGAN 报 title_not_found（误报）
+
+- 来源：使用 · 2026-09-23
+- 现场：CC作业 删除前核对 12 篇的 PDF（把库里条目拼成记录，`check_pdf.py -i`）。`G9D6XEKQ` 的 CVF PDF 返回 `title_not_found`、`first_author_found: false`，`excerpt` 是乱码（自定义字体编码）；同一文件 `pdftotext -l 1` 读出来标题、作者都对。
+- 痛点：误报要人工再查一遍；提示里让去用 pdf skill，而机器上现成的 `pdftotext` 一步就能判。
+- 方向：`check_pdf` 自带解析失败或乱码时，若 PATH 上有 `pdftotext` 就用它再判一次，并在结果里注明用了哪个提取器。
+- 同次顺带：把库里条目当记录喂给 `check_item` / `check_pdf` 很好用（审计已有条目），但要自己拼记录（`item` 去掉 key/version/collections/tags、`file` 指向 storage 路径）；stdin 喂多个缩进的 JSON 对象时每一行都报一次 `invalid_json`（几百行），不如直接报"stdin 不是 JSONL / 数组"。可考虑 `read_library.py items --as-records`。
+- 状态：open
