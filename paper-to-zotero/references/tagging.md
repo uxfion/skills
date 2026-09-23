@@ -29,6 +29,7 @@ Rules per dimension:
 - **Common name** only when the community actually uses one — usually the model name (`CycleGAN`, `Restormer`), which is often absent from the title; when a paper is known under two names, give both (`Stable Diffusion` and `LDM`). Never coin a name.
 - **Venue** is the standard abbreviation without a year (the year is a field). A journal without a community abbreviation (beyond TMI, MedIA, JBHI, TIM, NC…) takes its NLM abbreviation as PubMed prints it *and* the initialism, e.g. `Comput Biol Med` and `CBM`, so both spellings find it. A preprint gets `arXiv`; an arXiv copy of a paper known to be published elsewhere gets both `arXiv` and the venue.
 - **Dataset** uses the dataset's own name as its authors write it.
+- **Not a dimension:** reading state, project priority or review progress (`to-read`, `P1`, `checked`) — those live in collections or notes, so the tag list keeps answering only what a paper *is*.
 
 ## Choosing tags for one paper
 
