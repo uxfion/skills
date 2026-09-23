@@ -136,7 +136,7 @@
 - 痛点：没有 DOI 时用户不知道该靠什么找到论文、分享给别人；库里这类条目的标识参差不齐。
 - 方向：定一条"每篇论文至少有一个可解析的标识"的规则写进 skill：有 DOI 用 DOI；没有就 `url` 指向官方页（NeurIPS proceedings / PMLR / OpenReview forum / ACL Anthology），并在 `extra` 写 arXiv 号（有的话）；导入时照此填，整理时作为 lint 的一项（见 7）。报告里给分享链接时按 DOI > 官方页 > arXiv 的顺序。
 - 追问（用户原话）："我不太清楚现在的行业通史，学术界比方说定位一篇文献文章，应该会用什么？我记得DOI是我见过最多的，然后arXiv也有"。补充事实（已验证）：arXiv 自 2022 年起给所有论文注册 DataCite DOI，`10.48550/arXiv.<id>`，老论文也有（`10.48550/arXiv.1406.2661` 302 到 arXiv abs 页，DataCite 登记于 2022-03-09）；但它指向预印本（标题 "Generative Adversarial Networks"），不是 NeurIPS 版（"…Nets"）。设计时可用：arXiv-only 的条目 DOI 字段可填这个。
-- 状态：已处理 → 2026-09-23 用户回"可以"：规则写进 SKILL.md 第 2 步和 organize.md；库里 19 条补全（11 条补上 DOI，含 3 条残缺条目改成正式类型；7 条补 arXiv 号；StyleGAN/SRGAN 的 url 改回 CVF 页）；剩 2 条查不到出处（T-CAIREM 会议摘要、超声风格迁移挑战赛论文）
+- 状态：暂行 → 原则待讨论，见 17。2026-09-23 用户回"可以"后已执行：规则写进 SKILL.md 第 2 步和 organize.md；库里 19 条补全（11 条补上 DOI，含 3 条残缺条目改成正式类型；7 条补 arXiv 号；StyleGAN/SRGAN 的 url 改回 CVF 页）；剩 2 条查不到出处（T-CAIREM 会议摘要、超声风格迁移挑战赛论文）
 
 ### 16. `doi_to_item` 把 LNCS 章节的丛书名当成了论文集名
 
@@ -145,3 +145,12 @@
 - 痛点：每个 LNCS 会议论文都要手工改类型和字段；SKILL.md 虽然提示了 "LNCS/MICCAI/ECCV chapters arrive as bookSection"，但脚本明明拿得到正确答案。
 - 方向：`container-title` 有两项且第一项是已知丛书（LNCS、LNAI、CCIS…）时，直接出 `conferencePaper`：`proceedingsTitle` = 第二项，`series` = 第一项；年份取会议年（`event` 或标题里的年份）而非出版年时要注明。
 - 状态：open
+
+### 17. 标识和链接放哪儿的原则，用户还没想清楚，待讨论
+
+- 来源：用户 · 2026-09-23
+- 用户原话："你具体怎么原则，还是记一个 issue 吧，或者记一个 todo？我后面再详细地交流讨论这个事情。因为现在感觉记哪儿就是留哪儿，留一个 URL 都可以，但不太好区分"
+- 背景：按 15 定的暂行规则，库里 19 条刚改完（已写入）。现在一篇论文的"位置"分散在三处：`DOI` 字段（正式版，IEEE / Springer 等）、`url` 字段（有免费官方副本时放 CVF / ECVA 页，否则官方页或 doi.org）、`extra` 里的 `arXiv: <id>`（预印本）。SKILL.md 第 2 步和 organize.md 已按这个写（commit `cba872b`）。
+- 痛点（我的理解，待核对）：同一个 `url` 字段有时是出版社页、有时是免费副本、有时是官方论文集页，看字段分不出是哪一种；arXiv 号藏在 Extra 里不显眼；"放哪都行"就等于没有规则。
+- 讨论时可带的选项（未决）：(a) 维持现状，只把规则讲清楚；(b) `url` 固定为正式版的落地页（有 DOI 就 doi.org），免费副本和 arXiv 各挂一个带名字的"链接附件"（如 "CVF Open Access"、"arXiv"），在条目下一眼可分；(c) 其它用户的想法。定了之后回头统一改库和 skill。
+- 状态：open（等用户详谈；在那之前新导入照暂行规则走）
