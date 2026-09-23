@@ -32,7 +32,7 @@ An entry's `tags` is the item's *complete* target set (include the source keywor
 uv run scripts/update_item.py --cite <key> --set itemType=conferencePaper --set "publicationTitle=…" --set date=2023 --dry-run
 ```
 
-Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag.py`; the trash is the user's own act — nothing here deletes.
+A paper without a DOI gets the identifier SKILL.md step 2 asks for — often the DOI exists (a CVF copy of a CVPR paper, a Springer chapter), and Crossref finds it by title and first author. Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag.py`; the trash is the user's own act — nothing here deletes.
 
 ## Building structure
 

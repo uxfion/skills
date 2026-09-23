@@ -136,4 +136,12 @@
 - 痛点：没有 DOI 时用户不知道该靠什么找到论文、分享给别人；库里这类条目的标识参差不齐。
 - 方向：定一条"每篇论文至少有一个可解析的标识"的规则写进 skill：有 DOI 用 DOI；没有就 `url` 指向官方页（NeurIPS proceedings / PMLR / OpenReview forum / ACL Anthology），并在 `extra` 写 arXiv 号（有的话）；导入时照此填，整理时作为 lint 的一项（见 7）。报告里给分享链接时按 DOI > 官方页 > arXiv 的顺序。
 - 追问（用户原话）："我不太清楚现在的行业通史，学术界比方说定位一篇文献文章，应该会用什么？我记得DOI是我见过最多的，然后arXiv也有"。补充事实（已验证）：arXiv 自 2022 年起给所有论文注册 DataCite DOI，`10.48550/arXiv.<id>`，老论文也有（`10.48550/arXiv.1406.2661` 302 到 arXiv abs 页，DataCite 登记于 2022-03-09）；但它指向预印本（标题 "Generative Adversarial Networks"），不是 NeurIPS 版（"…Nets"）。设计时可用：arXiv-only 的条目 DOI 字段可填这个。
-- 状态：open（已口头回答用户；是否对库里这 20 条做一轮补全待用户定）
+- 状态：已处理 → 2026-09-23 用户回"可以"：规则写进 SKILL.md 第 2 步和 organize.md；库里 19 条补全（11 条补上 DOI，含 3 条残缺条目改成正式类型；7 条补 arXiv 号；StyleGAN/SRGAN 的 url 改回 CVF 页）；剩 2 条查不到出处（T-CAIREM 会议摘要、超声风格迁移挑战赛论文）
+
+### 16. `doi_to_item` 把 LNCS 章节的丛书名当成了论文集名
+
+- 来源：使用 · 2026-09-23
+- 现场：按 15 的规则补全无 DOI 条目。ECCV 2018、ECCV 2018 Workshops、MICCAI 2024 三个 Springer 章节，`doi_to_item.py` 生成 `bookSection`，`bookTitle` 是 "Lecture Notes in Computer Science"，并警告 "container-title is probably the series name"。Crossref 的 `container-title` 其实是两项：`["Lecture Notes in Computer Science", "Computer Vision – ECCV 2018"]`，第二项才是论文集。我在 scratch 里手工改成 `conferencePaper` + `proceedingsTitle` + `series`。另：日期取 Crossref 的 `issued`，ECCV 2018 Workshops 论文集是 2019 年出版，但 ESRGAN 通常按 2018 引用——我保留了 2018。
+- 痛点：每个 LNCS 会议论文都要手工改类型和字段；SKILL.md 虽然提示了 "LNCS/MICCAI/ECCV chapters arrive as bookSection"，但脚本明明拿得到正确答案。
+- 方向：`container-title` 有两项且第一项是已知丛书（LNCS、LNAI、CCIS…）时，直接出 `conferencePaper`：`proceedingsTitle` = 第二项，`series` = 第一项；年份取会议年（`event` 或标题里的年份）而非出版年时要注明。
+- 状态：open
