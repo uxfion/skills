@@ -38,6 +38,7 @@
 - 现场：用户可能要删 CC作业，先整理里面的文献。CycleGAN（`VNEXSRV2`）同时在 CC作业、自然图像、投稿文献/04 三处。只想去掉 CC作业：`collection` 只接受一个 key（替换成单一分类），`add_collection` 只能加，没有 remove。
 - 痛点：清空一个分类再删掉是整理的常规动作，现在做不到。这次绕过：Zotero 删分类不删条目，所以只给其它条目加上正式归属，CC作业 原样留给用户删。
 - 方向：single / batch 加 `remove_collection`；或 `collection` 接受列表。
+- 再次碰到（同日）：用户在 Zotero 里合并 GAN 的重复条目后，原条目被带进了 `tmp`；要只去掉 `tmp`、保留 CC作业 和 自然图像，又只能在 scratch 写一次性脚本 PATCH `collections`。一天两次，优先级应提高。
 - 状态：open
 
 ### 5. batch 文件只认 item key，不认 citation key
@@ -99,3 +100,12 @@
 - 痛点：在 Zotero 标签栏里按类过滤时，出版物没有共同前缀，无法一次列出全部出版物，也分不清哪个是出版物、哪个是模型名。
 - 讨论：用户问"为什么是 venue？学术界对于这种期刊会议的一个统称是什么？"——答：CS 通称 publication venue（DBLP、Semantic Scholar 的字段名）；`source/` 与 tagging.md 的 source keywords 撞词，`pub/` 分不清 publication / publisher，`journal/`+`conf/` 要先分类。用户："就用venue"。
 - 状态：已处理 → 2026-09-23 tagging.md 改为 `venue/<Abbr>`（同时写入新维度 `type/Survey`），全库 67 条、41 种出版物标签加了前缀
+
+### 12. 提议删重复条目时没把信息差异讲清楚，用户合并后怕删错
+
+- 来源：用户 · 2026-09-23
+- 现场：整理 CC作业 时我提议把"tmp 里的 Generative Adversarial Nets（`DEJDBSIY`，我验证时重复建的）"移到回收站，只写了键和一句理由。用户在 Zotero 里用"合并条目"处理，随后问："我删除了，但是好像信息没有整理吧？我还是说我删除了那个信息全的，你帮我看一下，整理一下"。核实：合并保留的是原条目 `9NB4JT94`（有摘要、卷号），被合并掉的是 `DEJDBSIY`——没删错；但合并把 `tmp` 带到了原条目上，而重复条目独有的页码 2672-2680、`extra` 里的 arXiv 号没有带过来（Zotero 合并默认取主条目的字段）。我用 `update_item` 补了字段，又用一次性脚本把 `tmp` 去掉（见 4）。
+- 痛点：用户看不出两条谁更全，只能凭印象操作，事后还得回头问；合并又悄悄带来了分类和字段的副作用。
+- 为什么：提议里只有"删哪条"，没有两条的字段对照，也没有先把被删那条独有的信息并进保留的那条。本地 API 不能合并条目（合并只在客户端），skill 里也没有"处理重复"的步骤。
+- 方向：organize.md 加"重复条目"一节：先列字段对照，定保留哪条，用 `update_item` 把对方独有的字段并过来，分类和标签取并集（`tmp` 除外），最后才请用户删除另一条（或在 Zotero 里合并时选保留那条）。可做成脚本：`dedupe.py --keep K --drop K2 --dry-run`，只合并信息，不删除。
+- 状态：open
