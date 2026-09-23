@@ -118,3 +118,12 @@
 - 方向：`check_pdf` 自带解析失败或乱码时，若 PATH 上有 `pdftotext` 就用它再判一次，并在结果里注明用了哪个提取器。
 - 同次顺带：把库里条目当记录喂给 `check_item` / `check_pdf` 很好用（审计已有条目），但要自己拼记录（`item` 去掉 key/version/collections/tags、`file` 指向 storage 路径）；stdin 喂多个缩进的 JSON 对象时每一行都报一次 `invalid_json`（几百行），不如直接报"stdin 不是 JSONL / 数组"。可考虑 `read_library.py items --as-records`。
 - 状态：open
+
+### 14. `update_item` 改 `extra` 第一次报 readback_mismatch，重跑就成
+
+- 来源：使用 · 2026-09-23（第二次复现）
+- 现场：给 `UV98FY94` 的 `extra` 追加 `PMID: 38262200`（原 `extra` 只有一行 `TLDR: …`）：第一次 `update_item --patch` 返回 `readback_mismatch`、`applied: []`；原样重跑返回 `ok`（version 1254 → 1255），读回正确。v2 验证批次里给 qiu2020super 的 `extra` 加 PMID 时一模一样。
+- 推断（未证实）：库里装着会写 `extra` 的插件（`TLDR:` 行就是插件写的），它在条目被修改时重写 `extra`，把我们刚写的内容盖掉，于是读回不一致；第二次它不再动（已有 TLDR）。
+- 痛点：agent 看到 mismatch 不知道该信哪边；重跑能好，但原因不明。
+- 方向：先验证推断（改一条带 TLDR 的条目的 `extra`，隔 1–2 秒连读两次看版本号是否被第三方 +1）；若属实，`update_item` 的读回在 mismatch 时等一下再读一次，并报告"写入后被别的程序改了（version 跳了 N）"。
+- 状态：open
