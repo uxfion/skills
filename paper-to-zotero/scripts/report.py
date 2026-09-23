@@ -168,7 +168,8 @@ def row_of(rec, source, paths):
     saved = rec.get("saved") if isinstance(rec.get("saved"), dict) else {}
     attach = rec.get("attach") if isinstance(rec.get("attach"), dict) else {}
     slug = rec.get("slug") or (Path(source).stem if source != "stdin" else "?")
-    cite = rec.get("citationKey") or found.get("citationKey") or None
+    given, lib_cite = rec.get("citationKey") or None, found.get("citationKey") or None
+    cite = given or lib_cite
     key = saved.get("key") or found.get("key") or None
     title = item.get("title") or found.get("title") or ""
     year = YEAR_RE.search(str(item.get("date") or found.get("date") or ""))
@@ -182,7 +183,7 @@ def row_of(rec, source, paths):
     if attach.get("key"):
         kinds.add(file_kind(attach))
     file = "PDF" if "pdf" in kinds else "snapshot" if "snapshot" in kinds else None
-    return {"slug": slug, "citationKey": cite, "title": title, "year": year.group(1) if year else None, "item_key": key,
+    return {"slug": slug, "citationKey": cite, "library_citationKey": lib_cite, "cite_mismatch": bool(given and lib_cite and given != lib_cite), "title": title, "year": year.group(1) if year else None, "item_key": key,
             "collections": colls, "tags": len(tags) if isinstance(tags, list) else 0, "file": file,
             "blocker": rec.get("blocker") or None}
 
@@ -204,6 +205,8 @@ def markdown(rows, summary):
     lines = ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     for r in rows:
         cite = cell(r["citationKey"]) if r["citationKey"] else f"*{cell(r['slug'])}*"
+        if r.get("cite_mismatch"):
+            cite += f" (≠ library: {cell(r['library_citationKey'])})"
         cells = [cite, cell(r["title"]), cell(r["year"]), cell(r["item_key"]), cell("; ".join(r["collections"])), cell(r["tags"]),
                  cell(r["file"])] + ([cell(r["blocker"])] if blockers else [])
         lines.append("| " + " | ".join(cells) + " |")

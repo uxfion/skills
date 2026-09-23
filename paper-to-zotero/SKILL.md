@@ -66,7 +66,7 @@ Done when `checks.code` is `ok` (or every flagged item is an accepted mapping), 
 
 ### 3. Get the PDF
 
-Open repositories — sites that hand a plain HTTP client the PDF (arXiv, CVF Open Access, OpenReview, PMLR) — are downloaded directly into `<work>/records/` as `<slug>.pdf`. A download that is not a PDF means the site is not open; take the publisher route.
+Open repositories — sites that hand a plain HTTP client the PDF (arXiv, CVF Open Access, OpenReview, PMLR, NeurIPS) — are downloaded directly into `<work>/records/` as `<slug>.pdf`. A download that is not a PDF means the site is not open, or the URL was a guess: a link you did not read from a page or an API response is a guess, so open the landing page and take the PDF link from it before taking the publisher route.
 
 Publisher sites are real navigation in the user's Chrome, in a foreground window:
 

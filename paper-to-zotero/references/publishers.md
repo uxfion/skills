@@ -45,6 +45,7 @@ All of these are solved by the user in seconds — alert them and wait at the ga
 
 - The first visit in a browser session hits a Cloudflare Turnstile page (title "请稍候…" / "Just a moment…", `#captcha-box`, `input[name=cf-turnstile-response]`); it usually passes by itself within ~20 s, but it is a gate: alert first, then watch.
 - Institutional access is shown by `#gh-inst-icon-btn` (aria-label "<institution> Institutional Access") or a logo `img` whose alt reads "You have institutional Access via <institution>". **No subscription** looks like: that logo present, `div[data-testid=no-access-banner]` saying "<institution> does not subscribe to this content on ScienceDirect", the URL rewritten from `/science/article/pii/<PII>` to `/science/article/abs/pii/<PII>`, only "Purchase PDF" and "Access through another organization" offered, no `a[href*='pdfft']`. That is not a gate: take the no-PDF branch.
+- An unsubscribed abstract page renders no keywords block at all; the authors' keywords and the abstract come from PubMed instead (`pubmed search "<title words>"` → the hit with the same DOI → `pubmed article <pmid> --full-abstract`), which also gives the PMID for `extra`.
 - With access (unverified): "View PDF" opens a reader under `/pdfft`. Article pages are addressed by PII; the DOI is in the page's `citation_doi` meta tag, or resolve PII → DOI through Crossref: `https://api.crossref.org/works?filter=alternative-id:<PII>`. Author keywords: `div.keywords-section .keyword` (they match PubMed's author keywords).
 
 ## Unverified expectations
@@ -59,6 +60,7 @@ All of these are solved by the user in seconds — alert them and wait at the ga
 | click, then `wait download` times out and no `.crdownload` appears | the click opened a viewer page, or the Save As dialog is up | navigate to the embedded PDF's URL; if that fails too, check the PDF setting and the Save As option |
 | `.crdownload` lingers | large file or slow link | keep waiting |
 | the user says the file downloaded, but `wait download` timed out | the download finished before or outside the wait | list Downloads newer than `.started`, check that file and attach it — do not click again |
+| `wait text` / `wait selector` answers `detached_mid_command` | the tab navigated while waiting (a login redirect does this) | poll `state` every 15 s instead; the gate is still the same gate |
 | `attach_failed … chrome-extension://` | built-in PDF viewer is on | PDF setting above |
 | downloaded "PDF" is HTML, or its text is a login / access-denied page | the gate was not really passed | wait at the gate again |
 | paywalled page without "Access provided by", offering purchase | no subscription, or the login expired | institutional sign-in entry, then the gate; still nothing → preprint or the no-PDF branch |

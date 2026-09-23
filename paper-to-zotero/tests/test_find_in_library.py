@@ -270,7 +270,8 @@ class FindInLibraryTest(unittest.TestCase):
         self.assertNotIn("found", r2)
         self.assertTrue(r2["blocker"].startswith("missing_in_library: item GONE1234"))
         r3 = json.loads(s3.read_text())
-        self.assertEqual(r3["citationKey"], "liuProgressiveResidualLearning2022", "library key wins")
+        self.assertEqual(r3["citationKey"], "userkey", "the given key stays on the record")
+        self.assertEqual(r3["found"]["citationKey"], "liuProgressiveResidualLearning2022", "found carries the library's key")
         self.assertIn("userkey", proc.stderr)
 
     def test_stdin_forms_and_no_records(self):

@@ -92,9 +92,9 @@ class TestReport(unittest.TestCase):
         lines = out.splitlines()
         self.assertEqual(lines[0], "| citationKey | title | year | item key | collection(s) | tags | file |")
         self.assertEqual(lines[1], "|---|---|---|---|---|---|---|")
-        rows = {l.split(" | ")[0].lstrip("| "): l for l in lines[2:5]}
+        rows = {l.split(" | ")[0].lstrip("| ").split(" (")[0]: l for l in lines[2:5]}
         self.assertEqual(rows["liu2022progressive"],
-                         "| liu2022progressive | Progressive \\| Residual | 2022 | 4L562S9K | 自然图像; 自然图像/Diffusion | 3 | PDF |")
+                         "| liu2022progressive (≠ library: liuProgressiveResidualLearning2022) | Progressive \\| Residual | 2022 | 4L562S9K | 自然图像; 自然图像/Diffusion | 3 | PDF |")
         self.assertEqual(rows["new2026thing"], "| new2026thing | A New Thing | 2026 | AAAAAAAA | 自然图像/Diffusion | 0 | snapshot |")
         self.assertEqual(rows["*nokey2025paper*"], "| *nokey2025paper* | Not yet | — | — | 自然图像 | 1 | — |")
         self.assertEqual(lines[-1], "**Summary**: total 3 · in library 2 · with PDF 1 · with snapshot 1 · missing 1 · blocked 0")
@@ -118,7 +118,7 @@ class TestReport(unittest.TestCase):
         data = json.loads(out)
         self.assertEqual(data["code"], "ok")
         self.assertEqual(data["summary"], {"total": 3, "in_library": 2, "with_pdf": 1, "with_snapshot": 1, "missing": 1, "blocked": 0})
-        self.assertEqual(data["rows"][0], {"slug": "liu2022progressive", "citationKey": "liu2022progressive", "title": "Progressive | Residual",
+        self.assertEqual(data["rows"][0], {"slug": "liu2022progressive", "citationKey": "liu2022progressive", "library_citationKey": "liuProgressiveResidualLearning2022", "cite_mismatch": True, "title": "Progressive | Residual",
                                            "year": "2022", "item_key": "4L562S9K", "collections": ["自然图像", "自然图像/Diffusion"],
                                            "tags": 3, "file": "PDF", "blocker": None})
         self.assertEqual(data["rows"][2]["citationKey"], None)

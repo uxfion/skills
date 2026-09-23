@@ -533,6 +533,13 @@ def attach_record(api, wh, o, args):
     elif args.file:
         file_path = Path(args.file).expanduser()
     else:
+        found = rec.get("found") if isinstance(rec.get("found"), dict) else {}
+        existing = found.get("attachments")
+        if existing:
+            # Nothing to upload and the library already holds a file for this item: not a failure.
+            o.set("skipped", "skipped", reason="library_has_attachment", key=item_key,
+                  attachments=len(existing) if isinstance(existing, list) else existing)
+            return
         raise Stop("no_file", 1, "put the file name (relative to the record) in the record's `file`, or pass --file")
     url = url_of(rec, args.url)
     if not url:

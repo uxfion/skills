@@ -590,8 +590,10 @@ def process_record(api: LocalApi, rec: dict, slug: str, do_readback: bool) -> tu
         cite = item["data"].get("citationKey") or ""
         if cite:
             if rec.get("citationKey") and rec["citationKey"] != cite:
-                print(f"{slug}: citationKey in the library is {cite!r}, record had {rec['citationKey']!r}; taking the library's", file=sys.stderr)
-            rec["citationKey"] = cite
+                print(f"{slug}: citationKey in the library is {cite!r}; the record keeps the given {rec['citationKey']!r} "
+                      f"(found.citationKey has the library's)", file=sys.stderr)
+            else:
+                rec["citationKey"] = cite
         return {"slug": slug, "code": "found", "key": key, "citationKey": cite, "version": item.get("version"),
                 "attachments": len(rec["found"]["attachments"])}, "ok"
     if key:
