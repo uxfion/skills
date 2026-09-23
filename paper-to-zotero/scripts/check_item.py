@@ -28,9 +28,19 @@ agent can fix item.json or accept the effect knowingly:
 Behaviour verified against Zotero 10.0.3 (Item.fromJSON, Item.setField,
 Item.setCreator, Creators.cleanData). Only GET requests are made (item
 types, fields, creator types, schema).
+
+Single mode (v1): `--item item.json` prints the report object.
 Exit codes: 0 = ok; 1 = needs_attention / unknown_item_type / invalid_json
 / item_unreadable (the agent decides); 2 = cannot check (Zotero
 unreachable, local API disabled, API error).
+
+Stream mode: record files as arguments (or records on stdin as JSONL, an
+array or one object) each get the report as `checks` (with `checked_at`);
+every run re-checks, since the item may have been edited. Without -i the
+full records go to stdout as JSONL and the summary to stderr; with -i each
+record is written back to its file and stdout gets one summary line per
+record plus {"summary": {total, ok, skipped, failed}}. Exit 1 when any
+record's checks are not `ok` (v1's rule), 2 = cannot check.
 """
 
 from __future__ import annotations
@@ -38,11 +48,14 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import os
 import re
 import sys
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_BASE_URL = "http://127.0.0.1:23119"
@@ -343,30 +356,24 @@ def check_minimum(effective: dict[str, str], usable_creators: int, ts: dict, rep
     report["missing_minimum"] = missing
 
 
-def run(args: argparse.Namespace) -> int:
-    item, err = load_item(Path(args.item))
-    if err:
-        return emit(err, 1)
-
-    api = LocalApi(args.base_url)
-    item_types = [t["itemType"] for t in api.get("/api/itemTypes")]
+def check_one(api: LocalApi, item: dict, item_types: list[str], cache: dict) -> dict:
+    """The report for one item object; `code` ok / needs_attention / unknown_item_type."""
     item_type = item.get("itemType")
     if not isinstance(item_type, str) or item_type not in item_types:
         shown = item_type if isinstance(item_type, str) else None
         suggestions = difflib.get_close_matches(shown or "", item_types, n=3, cutoff=0.5) if shown else []
-        return emit(
-            {
-                "code": "unknown_item_type",
-                "itemType": shown,
-                "suggestions": suggestions,
-                "hint": "The local API rejects this with 400. Set itemType to a Zotero type"
-                + (f" (closest: {', '.join(suggestions)})" if suggestions else "")
-                + ", then rerun.",
-            },
-            1,
-        )
+        return {
+            "code": "unknown_item_type",
+            "itemType": shown,
+            "suggestions": suggestions,
+            "hint": "The local API rejects this with 400. Set itemType to a Zotero type"
+            + (f" (closest: {', '.join(suggestions)})" if suggestions else "")
+            + ", then rerun.",
+        }
 
-    ts = type_schema(api, item_type)
+    if item_type not in cache:
+        cache[item_type] = type_schema(api, item_type)
+    ts = cache[item_type]
     report: dict = {
         "code": "ok",
         "itemType": item_type,
@@ -389,25 +396,167 @@ def run(args: argparse.Namespace) -> int:
             "Fix item.json (see mapped, to_extra, dropped_or_rewritten, missing_minimum) "
             "or accept these effects knowingly before saving."
         )
-        return emit(report, 1)
-    return emit(report, 0)
+    return report
+
+
+def run(args: argparse.Namespace) -> int:
+    """v1 single mode: --item FILE."""
+    item, err = load_item(Path(args.item))
+    if err:
+        return emit(err, 1)
+    api = LocalApi(args.base_url)
+    item_types = [t["itemType"] for t in api.get("/api/itemTypes")]
+    report = check_one(api, item, item_types, {})
+    return emit(report, 0 if report["code"] == "ok" else 1)
+
+
+# --- record stream -----------------------------------------------------------
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def read_json_records(text: str, source: str) -> list:
+    """Parse JSONL, a JSON array or one object into a list of [record|None, error|None]."""
+    text = text.strip()
+    if not text:
+        return []
+    entries: list = []
+    try:
+        obj = json.loads(text)
+    except json.JSONDecodeError:
+        for n, ln in enumerate(text.splitlines(), 1):
+            if not ln.strip():
+                continue
+            try:
+                rec = json.loads(ln)
+            except json.JSONDecodeError as e:
+                entries.append([None, {"code": "invalid_json", "detail": f"{source} line {n}: {e.msg}"}])
+                continue
+            entries.append([rec, None] if isinstance(rec, dict) else [None, {"code": "invalid_record", "detail": f"{source} line {n}: not an object"}])
+        return entries
+    for rec in (obj if isinstance(obj, list) else [obj]):
+        entries.append([rec, None] if isinstance(rec, dict) else [None, {"code": "invalid_record", "detail": f"{source}: not an object"}])
+    return entries
+
+
+def load_records(paths: list[str]) -> list[dict]:
+    """Entries {path, record, orig, error} from the record files, else from stdin (JSONL / array / object)."""
+    entries: list[dict] = []
+    if not paths:
+        for rec, err in read_json_records(sys.stdin.read(), "stdin"):
+            entries.append({"path": None, "record": rec, "orig": None, "error": err})
+        return entries
+    for raw in paths:
+        path = Path(raw)
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            entries.append({"path": path, "record": None, "orig": None, "error": {"code": "unreadable", "detail": f"{path}: {e}"}})
+            continue
+        parsed = read_json_records(text, str(path))
+        if len(parsed) != 1 or parsed[0][0] is None:
+            err = parsed[0][1] if parsed and parsed[0][1] else {"code": "invalid_record", "detail": f"{path}: expected one JSON object"}
+            entries.append({"path": path, "record": None, "orig": None, "error": err})
+            continue
+        entries.append({"path": path, "record": parsed[0][0], "orig": json.dumps(parsed[0][0], sort_keys=True), "error": None})
+    return entries
+
+
+def write_record(path: Path, record: dict) -> None:
+    """Atomic write: temp file in the same directory, then os.replace."""
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.stem}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(record, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+        umask = os.umask(0)
+        os.umask(umask)
+        os.chmod(tmp, 0o666 & ~umask)  # mkstemp gives 0600; behave like an ordinary file write
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def write_results(results: list, in_place: bool) -> int:
+    """results: [(entry, summary, outcome)], outcome ok|skipped|failed.
+
+    -i: changed records are written back to their files; stdout gets one summary line per record and the
+    final {"summary"} line. Otherwise stdout gets the full records as JSONL and the summary goes to stderr.
+    Returns the exit status: 1 when anything failed."""
+    counts = {"total": len(results), "ok": 0, "skipped": 0, "failed": 0}
+    for entry, summary, outcome in results:
+        counts[outcome] += 1
+        record = entry["record"]
+        if in_place:
+            if record is not None and entry["path"] and json.dumps(record, sort_keys=True) != entry["orig"]:
+                write_record(entry["path"], record)
+            print(json.dumps(summary, ensure_ascii=False))
+        else:
+            print(json.dumps(record if record is not None else summary, ensure_ascii=False))
+    print(json.dumps({"summary": counts}, ensure_ascii=False), file=sys.stdout if in_place else sys.stderr)
+    return 1 if counts["failed"] else 0
+
+
+def run_stream(args: argparse.Namespace) -> int:
+    entries = load_records(args.records)
+    if not entries:
+        return emit({"code": "no_records", "hint": "Pass record files or feed records on stdin."}, 1)
+    api = LocalApi(args.base_url)
+    item_types = [t["itemType"] for t in api.get("/api/itemTypes")]
+    cache: dict = {}
+    results = []
+    for entry in entries:
+        rec = entry["record"]
+        if entry["error"]:
+            stem = entry["path"].stem if entry["path"] else "stdin"
+            results.append((entry, {"slug": stem, **entry["error"]}, "failed"))
+            continue
+        slug = rec.get("slug") or (entry["path"].stem if entry["path"] else "")
+        item = rec.get("item")
+        if not isinstance(item, dict) or not item:
+            rec["checks"] = {"code": "no_item", "hint": "The record has no `item`; run doi_to_item.py first.", "checked_at": now_iso()}
+            results.append((entry, {"slug": slug, "code": "no_item"}, "failed"))
+            continue
+        report = check_one(api, item, item_types, cache)
+        report["checked_at"] = now_iso()
+        rec["checks"] = report
+        summary = {"slug": slug, "code": report["code"], "itemType": report.get("itemType")}
+        if report["code"] == "unknown_item_type":
+            summary["suggestions"] = report["suggestions"]
+        summary.update({k: report[k] for k in ("mapped", "to_extra", "dropped_or_rewritten", "missing_minimum") if report.get(k)})
+        results.append((entry, summary, "ok" if report["code"] == "ok" else "failed"))
+    return write_results(results, args.in_place)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Preview what Zotero's local API will do with an item.json (read-only). "
-        "Prints one JSON object: code ok (exit 0); needs_attention / unknown_item_type / "
-        "invalid_json / item_unreadable (exit 1); zotero_unreachable / local_api_disabled / "
-        "api_error (exit 2).",
+        description="Preview what Zotero's local API will do with an item (read-only). "
+        "Single: --item item.json prints one JSON object: code ok (exit 0); needs_attention / unknown_item_type / "
+        "invalid_json / item_unreadable (exit 1); zotero_unreachable / local_api_disabled / api_error (exit 2). "
+        "Stream: record files (or records on stdin) get the report as `checks`; -i writes them back.",
         epilog="Minimal item.json:\n" + SKELETON + "\n\n"
-        "Example:\n  uv run check_item.py --item item.json",
+        "Examples:\n  uv run check_item.py --item item.json\n"
+        "  uv run check_item.py -i records/*.json\n"
+        "  uv run doi_to_item.py --doi 10.1109/CVPR.2016.90 | uv run check_item.py",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--item", required=True, help="path to the item JSON (one object, Zotero Web API v3 shape)")
+    parser.add_argument("--item", help="single mode: path to the item JSON (one object, Zotero Web API v3 shape)")
+    parser.add_argument("records", nargs="*", metavar="RECORD", help="stream mode: record files; none = read records from stdin")
+    parser.add_argument("-i", "--in-place", action="store_true", help="write each record back to its file; stdout gets one summary line per record")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help=f"local API base URL (default {DEFAULT_BASE_URL})")
     args = parser.parse_args(argv)
+    if args.item and (args.records or args.in_place):
+        parser.error("--item is the single mode; record paths and -i belong to the stream mode")
+    if args.in_place and not args.records:
+        parser.error("-i needs record paths (stdin input cannot be written back)")
     try:
-        return run(args)
+        return run(args) if args.item else run_stream(args)
     except ApiError as e:
         print(f"{e.code}: {e.detail}", file=sys.stderr)
         return emit({"code": e.code, "detail": e.detail, "hint": e.hint}, 2)

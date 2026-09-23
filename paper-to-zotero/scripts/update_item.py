@@ -3,6 +3,8 @@
 # dependencies = []
 # ///
 """Change the fields of one existing Zotero item through the local write API.
+The item is named by --key, or by --cite CITEKEY (resolved to the one item
+carrying that citationKey; cite_not_found / cite_ambiguous otherwise).
 GET the item -> merge --set / --patch into its data -> check the field names
 against the item type's schema (a base name such as publicationTitle is mapped
 to the type's own field, e.g. proceedingsTitle, as Zotero does) -> PATCH only
@@ -20,6 +22,8 @@ rejected, key belongs to another Zotero instance).
 Codes (exit):
   ok                  0  written and read back (see `normalized` for values Zotero changed), or nothing to change
   item_not_found      1  no item with that key
+  cite_not_found      1  no item carries the --cite citationKey
+  cite_ambiguous      1  several items carry it; `keys` lists them, pass --key
   refused_property    1  tags / collections / deleted / key / version / parentItem / dates / attachment internals
   invalid_item_type   1  --set itemType names no item type, or the item is a note / annotation
   invalid_field       1  not a field of the (new) item type and no base name maps to one; `valid_fields` lists them
@@ -35,6 +39,7 @@ Examples:
   uv run scripts/update_item.py --key ABCD1234 --set itemType=conferencePaper \\
       --set "publicationTitle=2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)" --set pages=1952-1961
   uv run scripts/update_item.py --key ABCD1234 --patch fix.json      # {"creators": [...], "extra": "arXiv: 2205.07680"}
+  uv run scripts/update_item.py --cite liu2022progressive --set citationKey=liu2022progressive
 """
 import argparse
 import json
@@ -42,6 +47,7 @@ import os
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -118,10 +124,10 @@ def check_common(status, body):
         raise Stop("local_api_disabled", 2, "Ask the user to enable the local API in Zotero settings (Advanced), then retry.",
                    status=status, body=msg)
     if status == 401:
-        raise Stop("key_rejected", 2, "The API key is not accepted by this Zotero; run authorize_local_api.py again.",
+        raise Stop("key_rejected", 2, "The API key is not accepted by this Zotero; run ready.py --authorize again.",
                    status=status, body=msg)
     if status == 412 and "server-id" in msg.lower():
-        raise Stop("server_mismatch", 2, "The key belongs to another Zotero instance; run authorize_local_api.py again.",
+        raise Stop("server_mismatch", 2, "The key belongs to another Zotero instance; run ready.py --authorize again.",
                    status=status, body=msg)
 
 
@@ -142,17 +148,17 @@ def load_key(key_file, server_id):
         return env.strip()
     path = Path(key_file).expanduser()
     if not path.is_file():
-        raise Stop("no_key", 2, "No local API key yet; run authorize_local_api.py first (or set ZOTERO_LOCAL_API_KEY).",
+        raise Stop("no_key", 2, "No local API key yet; run ready.py --authorize first (or set ZOTERO_LOCAL_API_KEY).",
                    key_file=str(path))
     try:
         info = json.loads(path.read_text(encoding="utf-8"))
         key = info["key"]
     except (ValueError, KeyError, TypeError) as e:
-        raise Stop("no_key", 2, "The key file is unreadable; run authorize_local_api.py again.",
+        raise Stop("no_key", 2, "The key file is unreadable; run ready.py --authorize again.",
                    key_file=str(path), error=str(e))
     saved = info.get("serverID")
     if saved and saved != server_id:
-        raise Stop("server_mismatch", 2, "The saved key was issued by another Zotero instance; run authorize_local_api.py again.",
+        raise Stop("server_mismatch", 2, "The saved key was issued by another Zotero instance; run ready.py --authorize again.",
                    key_file=str(path))
     return key
 
@@ -172,6 +178,45 @@ def get_item(api, key):
     if status != 200:
         raise Stop("unexpected_response", 1, "Unexpected local API reply; see status and body.", item_key=key, status=status, body=text(body))
     return json.loads(body)
+
+
+def get_list(api, path):
+    status, _, body = api.request("GET", path)
+    check_common(status, body)
+    if status != 200:
+        raise Stop("unexpected_response", 1, "Unexpected local API reply; see status and body.", path=path, status=status, body=text(body))
+    rows = json.loads(body)
+    if not isinstance(rows, list):
+        raise Stop("unexpected_response", 1, "Expected a JSON list from the local API.", path=path)
+    return rows
+
+
+def is_top(row):
+    data = row.get("data") or {}
+    return data.get("itemType") not in ("note", "attachment", "annotation") and not data.get("parentItem")
+
+
+def resolve_cite(api, cite):
+    """Item key for a citationKey: a q=everything search first (verified to hit on the local API, 2026-09-23),
+    then a paged scan of /items/top as the fallback."""
+    query = urllib.parse.urlencode({"q": cite, "qmode": "everything", "limit": 50})
+    rows = get_list(api, f"{LIB}/items?{query}")
+    hits = [r["key"] for r in rows if is_top(r) and (r.get("data") or {}).get("citationKey") == cite]
+    if not hits:
+        log(f"no search hit for citationKey {cite!r}; scanning /items/top (fallback)")
+        start = 0
+        while True:
+            page = get_list(api, f"{LIB}/items/top?limit=100&start={start}")
+            hits += [r["key"] for r in page if (r.get("data") or {}).get("citationKey") == cite]
+            if len(page) < 100:
+                break
+            start += 100
+    if not hits:
+        raise Stop("cite_not_found", 1, "No item carries this citationKey; check it with read_library.py items --q, or pass --key.", cite=cite)
+    if len(hits) > 1:
+        raise Stop("cite_ambiguous", 1, "Several items carry this citationKey; pass --key for the one you mean.", cite=cite, keys=hits)
+    log(f"citationKey {cite!r} -> item {hits[0]}")
+    return hits[0]
 
 
 def get_types(api):
@@ -362,7 +407,10 @@ def parse_args():
         epilog="Only differing fields are written; re-runs are no-ops. Exit 0 = done; 1 = not done, see code/hint; "
                "2 = cannot check (zotero_unreachable, local_api_disabled, no_key, key_rejected, server_mismatch). "
                "Output is one JSON object on stdout.")
-    p.add_argument("--key", required=True, metavar="ITEMKEY", help="key of the item to change")
+    who = p.add_mutually_exclusive_group(required=True)
+    who.add_argument("--key", metavar="ITEMKEY", help="key of the item to change")
+    who.add_argument("--cite", metavar="CITEKEY", help="the item's citationKey instead of its key "
+                                                       "(cite_not_found / cite_ambiguous when it does not name exactly one item)")
     p.add_argument("--set", action="append", metavar="FIELD=VALUE",
                    help="a field to set (repeatable); an empty VALUE clears it; FIELD may be itemType; "
                         "a base name such as publicationTitle is mapped to the type's own field")
@@ -376,7 +424,7 @@ def parse_args():
     args = p.parse_args()
     if not args.set and not args.patch:
         p.error("give --set FIELD=VALUE and/or --patch FIELDS.json")
-    if not KEY_RE.match(args.key):
+    if args.key and not KEY_RE.match(args.key):
         p.error("--key is an 8-character item key")
     return args
 
@@ -386,6 +434,8 @@ def main():
     api = Api(args.base_url)
     server_id = live_server_id(api)
     api_key = load_key(args.key_file, server_id)
+    if args.cite:
+        args.key = resolve_cite(api, args.cite)
     run(api, args, api_key, server_id)
 
 

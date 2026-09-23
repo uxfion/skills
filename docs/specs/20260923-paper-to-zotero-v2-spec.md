@@ -130,7 +130,7 @@ ready.py [--work DIR] [--session NAME] [--downloads DIR] [--authorize] [--key-fi
   code  ok | no_key(exit 1;hint:先告诉用户要点 Always Allow,再加 --authorize)| authorize_denied / authorize_timeout(exit 1)
         | zotero_unreachable / local_api_disabled / server_mismatch(exit 2)
   out   {code, zotero:{reachable, base_url}, key:{present, server_match, key_file}, downloads_dir, opencli:{found, path},
-         work_dir, records_dir, session, started(ISO;已存在则不动,报原 mtime), leftovers:[{path, bytes, kind: pdf|html|json|dir|other}],
+         work_dir, records_dir, session, started(ISO;已存在则不动,报原 mtime), resumed(bool), leftovers:[{path, bytes, kind: pdf|html|json|dir|other}],
          collections:[{key, name, parent, path}]   ← 分类树,path 如 "自然图像/Diffusion"}
   下载目录  --downloads > env PAPER_TO_ZOTERO_DOWNLOADS > WSL(/proc/version 含 microsoft):powershell.exe -NoProfile
         "(New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path" → wslpath,失败则 cmd.exe
@@ -143,8 +143,10 @@ read_library.py items [--top] [--collection K] [--key K…] [--cite C…] [--q T
   JSONL:每行一个对象(items / children:本地 API 的 data 加 key、version;collections --tree 加 path;tags:{tag, type, count})
   自动翻页(limit 100);--limit 限制总数;items 默认 --top;stdout 空行不输出;exit 0;2 = 无法读
 
-doi_to_item.py [--doi ID]… [--ids FILE] [--out FILE | --out-dir DIR] [记录路径…]
-  输入  --doi 可重复;--ids 每行 `标识符[<TAB>引用键]`(# 与空行跳过);也接受 stdin 每行同格式;或已有记录(补它的 item)
+doi_to_item.py [--doi ID]… [--ids FILE] [--bib FILE] [--out FILE | --out-dir DIR] [记录路径…]
+  输入  --doi 可重复;--ids 每行 `标识符[<TAB>引用键]`(# 与空行跳过);也接受 stdin 每行同格式;或已有记录(补它的 item);
+        --bib:最小 BibTeX 解析(标准库),每条的引用键 → slug 与 citationKey,标识符 = doi,否则 eprint / url 里的 arXiv 号,
+        否则题目(解析不了 → code no_identifier,仍写出带 slug 的记录,由 agent 手工钉)
   单个 --doi + --out:v1 行为不变(写 item.json,输出 v1 的报告)
   流    每个标识符 → 一条记录(slug、id、citationKey(给了引用键时)、item);--out-dir 写 <slug>.json 到 DIR(已存在 → skipped: exists,不覆盖);
         否则 stdout JSONL;失败的标识符 → 记录只有 slug/id 与 code(如 no_csl_record),不中断
@@ -212,6 +214,22 @@ description 补触发词:清单 / bib / 检索结果里的论文、按 citation 
 3. 新 agent 演练:只凭 SKILL.md + batch.md 跑一批;记摩擦。
 4. 整理:`医疗图像` 第一批(20 条)走 organize.md。
 5. 收尾:v1 spec 加 `Superseded by`;本 spec 冻结;README 不变。
+
+## 6.1 实现与契约的偏差(2026-09-23,四个并行子任务 + 集成;以各脚本 `--help` 为准)
+
+- `ready.py` 多报 `resumed`;`no_key` 等 exit-1 情形仍输出全部环境事实;`--authorize` 也覆盖属别的实例的 key;多两个 code `authorize_single_use`(用户点了 Allow 而非 Always Allow)、`authorize_failed`;`xdg-user-dir` 返回家目录时忽略。
+- `read_library items` 多 `--all`(含附件 / 笔记)与 `--qmode`;`item KEY` 不存在 → exit 1。
+- `find_in_library --key/--cite`:found → 0、not_found → 1(问的是"给我这条");流查重的 DOI / arXiv 只认精确匹配,`near_match` 也写 `found`(agent 决断,不是则删掉);`--readback` 遇 404 删 `found`、写 `blocker`,`saved` 不动;`found.collections` 存 key 列表,单条 `describe()` 仍是路径。
+- `doi_to_item`:`--out-dir` 里同 id 已有 `item` 才 `skipped: exists`,失败桩重跑会重取;记录多 `warnings`;stdin 以 `{`/`[` 开头当记录,否则当标识符行;`--bib` 已实现。
+- `check_item` 流模式每次重查、不报 skipped。
+- `create_item`:`readback_mismatch` 仍写 `saved`(条目已在);写库中途的 exit-2 会写回已成功的记录并在 summary 加 `stopped`;tags 取记录 `tags` > item 内 `tags` > 空。
+- `check_pdf`:`ok_on_page_2` / `ok_on_page_3` 具体化;`cannot_judge`(题目太短)按失败;`encrypted` 折进 `no_text_layer`;`evidence` 多 `page_source`、`text_chars`、`supplementary` 等。
+- `attach_file`:`already_attached` 在流里报 `skipped` 并填 `attach`;`--title` 对全部记录生效;`--cite` 已加。
+- `note`:标记形式 `<p>M</p>` 首段(探针:五种形式 API 往返都保留,编辑器只保留自己的 schema);无 `--marker` 每次新建。
+- `export_bib`:`/items/top?itemKey=…&format=bibtex` 需显式 `limit=100`(否则截断),不存在的 key 静默丢弃(先 JSON 读一遍识别 `not_found`),返回顺序是库内顺序(脚本自己按 key 排序);stderr 汇总多 `problems` / `not_found` / `unresolved` / `skipped`。
+- `report`:tags 列是数量;分类 / 标签优先 `found`;API 不可达时打印 key。
+- 不带 `-i` 时,摘要行(每条 + summary)都在 stderr。
+- 集成探针(2026-09-23,`[DELETE ME]` 条目在 tmp,已删):ready → doi_to_item → check_item → find → create(钉 `citationKey`)→ readback → report → export_bib(键正确)→ note 建 / 改,全链路通过。
 
 ## 7. 修订历史
 

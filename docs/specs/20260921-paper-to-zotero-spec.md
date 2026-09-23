@@ -1,5 +1,7 @@
 # paper-to-zotero — 设计 spec v9(已实现并验证;2026-09-22 冻结)
 
+> Superseded by `20260923-paper-to-zotero-v2-spec.md`(2026-09-23:记录流、citationKey 身份、新脚本、文档按分支拆分)。
+
 > 本 spec 已冻结:skill 已按此实现、通过真实运行、新 agent 演练与第一批整理,并于 2026-09-22 提交。当前行为以 `paper-to-zotero/` 下的 SKILL.md、references 与脚本为准;后续优化另起新日期的 spec。
 
 **状态(2026-09-21)**:v3 经三份独立审查(需求忠实度、技术正确性、agent 可用性)+ 对照 zotero 10.0.3 源码自审;v4 起按用户原则复审并逐条决定(§7);v8 跑完全部探针(§12);v9 是通读整理后的定稿——去掉了历次改通道留下的过时引用,合并了重复段落。脚本、SKILL.md、references 已实现并验证(§8、§10)。修订历史见 §13。

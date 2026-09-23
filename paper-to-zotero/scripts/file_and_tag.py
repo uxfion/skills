@@ -4,7 +4,8 @@
 # ///
 """Set the collection and/or the complete tag set of existing Zotero items.
 
-Single mode (--key): GET the item -> diff against the targets -> PATCH only the
+Single mode (--key, or --cite CITEKEY resolved to the one item carrying that
+citationKey): GET the item -> diff against the targets -> PATCH only the
 changed properties with If-Unmodified-Since-Version (one retry on 412) -> GET
 again and verify. Batch mode (--batch): the same diff per item, then one POST
 per chunk of 50 objects, each carrying its version; per-key results.
@@ -97,10 +98,10 @@ def check_common(status, body):
         raise Stop("local_api_disabled", 2, "Ask the user to enable the local API in Zotero settings (Advanced), then retry.",
                    status=status, body=msg)
     if status == 401:
-        raise Stop("key_rejected", 2, "The API key is not accepted by this Zotero; run authorize_local_api.py again.",
+        raise Stop("key_rejected", 2, "The API key is not accepted by this Zotero; run ready.py --authorize again.",
                    status=status, body=msg)
     if status == 412 and "server-id" in msg.lower():
-        raise Stop("server_mismatch", 2, "The key belongs to another Zotero instance; run authorize_local_api.py again.",
+        raise Stop("server_mismatch", 2, "The key belongs to another Zotero instance; run ready.py --authorize again.",
                    status=status, body=msg)
 
 
@@ -121,17 +122,17 @@ def load_key(key_file, server_id):
         return env.strip()
     path = Path(key_file).expanduser()
     if not path.is_file():
-        raise Stop("no_key", 2, "No local API key yet; run authorize_local_api.py first (or set ZOTERO_LOCAL_API_KEY).",
+        raise Stop("no_key", 2, "No local API key yet; run ready.py --authorize first (or set ZOTERO_LOCAL_API_KEY).",
                    key_file=str(path))
     try:
         info = json.loads(path.read_text(encoding="utf-8"))
         key = info["key"]
     except (ValueError, KeyError, TypeError) as e:
-        raise Stop("no_key", 2, "The key file is unreadable; run authorize_local_api.py again.",
+        raise Stop("no_key", 2, "The key file is unreadable; run ready.py --authorize again.",
                    key_file=str(path), error=str(e))
     saved = info.get("serverID")
     if saved and saved != server_id:
-        raise Stop("server_mismatch", 2, "The saved key was issued by another Zotero instance; run authorize_local_api.py again.",
+        raise Stop("server_mismatch", 2, "The saved key was issued by another Zotero instance; run ready.py --authorize again.",
                    key_file=str(path))
     return key
 
@@ -245,6 +246,45 @@ def get_item(api, key):
     if status != 200:
         raise Stop("unexpected_response", 1, "Unexpected local API reply; see status and body.", item_key=key, status=status, body=text(body))
     return json.loads(body)
+
+
+def get_list(api, path):
+    status, _, body = api.request("GET", path)
+    check_common(status, body)
+    if status != 200:
+        raise Stop("unexpected_response", 1, "Unexpected local API reply; see status and body.", path=path, status=status, body=text(body))
+    rows = json.loads(body)
+    if not isinstance(rows, list):
+        raise Stop("unexpected_response", 1, "Expected a JSON list from the local API.", path=path)
+    return rows
+
+
+def is_top(row):
+    data = row.get("data") or {}
+    return data.get("itemType") not in ("note", "attachment", "annotation") and not data.get("parentItem")
+
+
+def resolve_cite(api, cite):
+    """Item key for a citationKey: a q=everything search first (verified to hit on the local API, 2026-09-23),
+    then a paged scan of /items/top as the fallback."""
+    query = urllib.parse.urlencode({"q": cite, "qmode": "everything", "limit": 50})
+    rows = get_list(api, f"{LIB}/items?{query}")
+    hits = [r["key"] for r in rows if is_top(r) and (r.get("data") or {}).get("citationKey") == cite]
+    if not hits:
+        log(f"no search hit for citationKey {cite!r}; scanning /items/top (fallback)")
+        start = 0
+        while True:
+            page = get_list(api, f"{LIB}/items/top?limit=100&start={start}")
+            hits += [r["key"] for r in page if (r.get("data") or {}).get("citationKey") == cite]
+            if len(page) < 100:
+                break
+            start += 100
+    if not hits:
+        raise Stop("cite_not_found", 1, "No item carries this citationKey; check it with read_library.py items --q, or pass --key.", cite=cite)
+    if len(hits) > 1:
+        raise Stop("cite_ambiguous", 1, "Several items carry this citationKey; pass --key for the one you mean.", cite=cite, keys=hits)
+    log(f"citationKey {cite!r} -> item {hits[0]}")
+    return hits[0]
 
 
 def check_collections(api, keys):
@@ -439,6 +479,8 @@ def parse_args():
                "Output is one JSON object on stdout.")
     mode = p.add_mutually_exclusive_group(required=True)
     mode.add_argument("--key", metavar="ITEMKEY", help="single mode: key of the item to update")
+    mode.add_argument("--cite", metavar="CITEKEY", help="single mode: the item's citationKey instead of its key "
+                                                        "(cite_not_found / cite_ambiguous when it does not name exactly one item)")
     mode.add_argument("--batch", metavar="CHANGES.json",
                       help="batch mode: JSON list of {\"key\", \"collection\": KEY|null|\"none\" (optional), \"tags\": [...] (optional)}; "
                            "\"add_collection\": KEY|[KEYS] and \"add_tags\": [...] add instead of replacing")
@@ -457,8 +499,8 @@ def parse_args():
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="local API base URL (default: %(default)s)")
     args = p.parse_args()
     single_opts = (args.collection, args.tags_file, args.add_collection, args.add_tags_file)
-    if args.key and all(o is None for o in single_opts):
-        p.error("--key needs --collection / --add-collection and/or --tags-file / --add-tags-file")
+    if (args.key or args.cite) and all(o is None for o in single_opts):
+        p.error("--key / --cite needs --collection / --add-collection and/or --tags-file / --add-tags-file")
     if args.batch and any(o is not None for o in single_opts):
         p.error("--collection / --tags-file / --add-* belong to single mode; put them in the batch file")
     if args.collection is not None and args.add_collection:
@@ -478,6 +520,8 @@ def main():
     if args.batch:
         run_batch(api, args, api_key, server_id)
     else:
+        if args.cite:
+            args.key = resolve_cite(api, args.cite)
         run_single(api, args, api_key, server_id)
 
 
