@@ -223,17 +223,26 @@ def get_item(api, key):
 
 
 def check_collections(api, keys):
-    missing = []
+    missing, trashed = [], []
     for k in sorted(keys):
         status, _, body = api.request("GET", f"{LIB}/collections/{k}")
         check_common(status, body)
         if status == 404:
             missing.append(k)
-        elif status != 200:
+            continue
+        if status != 200:
             raise Stop("unexpected_response", 1, "Unexpected local API reply; see status and body.", collection=k, status=status, body=text(body))
-    if missing:
-        raise Stop("collection_not_found", 1, "Pick the key from the collection tree (zotero collections); the script never creates collections.",
-                   collections_missing=missing)
+        try:
+            data = json.loads(body).get("data") or {}
+        except (ValueError, AttributeError):
+            raise Stop("unexpected_response", 1, "The collection lookup did not return a JSON object.", collection=k, body=text(body))
+        # A collection in the trash still answers 200, with data.deleted set; it is not a destination.
+        if data.get("deleted"):
+            trashed.append({"key": k, "name": data.get("name")})
+    if missing or trashed:
+        raise Stop("collection_not_found", 1, "Pick the key from the collection tree (zotero collections); the script never creates "
+                   "collections, and a collection in the trash is not a destination.",
+                   collections_missing=missing, collections_in_trash=trashed)
 
 
 def verify(data, target_collection, target_tags):

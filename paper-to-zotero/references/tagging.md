@@ -7,7 +7,7 @@ Tags answer one question: *how would the user look for this paper?* They are not
 | Kind | Zotero type | Who writes it | What to do with it |
 | --- | --- | --- | --- |
 | Source keywords | automatic (1, shown orange) | the authors' own keywords (article page, PubMed, OpenAlex) and arXiv subject categories — not MeSH terms, not publisher index terms | Keep. They are the source's own words, and Zotero can hide or bulk-delete automatic tags at any time. |
-| Curated tags | manual (0) | the agent, by this file | Add. Reuse an existing tag whenever one fits; create a new one only when nothing fits, and list every new tag in the report. Manual tags that predate this scheme are folded into it (renamed to the canonical form or replaced) — the user has released them. |
+| Curated tags | manual (0) | the agent, by this file | Add. Reuse an existing tag whenever one fits; create a new one only when nothing fits, and list every new tag in the report. Manual tags from before this scheme stay as they are; fold them in (rename to the canonical form or replace) only when the user says so in the session. |
 
 ## Curated tag forms
 
@@ -37,4 +37,4 @@ Rules per dimension:
 
 ## Tidying existing items
 
-Work through the library in batches (one collection at a time). For each batch, produce the change list first — per item: source keywords kept, curated tags to add, tags proposed for removal, pre-scheme manual tags to rename — and write only after the user has confirmed it. An item whose metadata is broken (no date, venue or DOI) is noted for a separate fix, not repaired in a tag batch. Candidates for removal are automatic tags that discriminate nothing, such as publisher-generated index terms (`Training`, `Task analysis`, `Feature extraction`); spelling variants of one concept are merged to the canonical form. Subject categories from arXiv stay. Manual tags that predate this scheme stay as they are unless the user asks to fold them in.
+Work through the library in batches (one collection at a time). For each batch, produce the change list first — per item: source keywords kept, curated tags to add, tags proposed for removal, pre-scheme manual tags to rename when the user has released them — and write only after the user has confirmed it. An item whose metadata is broken (no date, venue or DOI) is noted for a separate fix, not repaired in a tag batch. Candidates for removal are automatic tags that discriminate nothing, such as publisher-generated index terms (`Training`, `Task analysis`, `Feature extraction`); spelling variants of one concept are merged to the canonical form. Subject categories from arXiv stay.

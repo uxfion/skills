@@ -12,7 +12,7 @@ A request to add a paper is the authorization to write to the library, however p
 ## Instruments
 
 - `zotero` skill — the library side: `status`, `collections` (keys and parents, for choosing a collection), `tags` (the existing vocabulary). Its docs say `python3 <plugin-root>/…`; run its helper as `uv run <zotero skill dir>/scripts/zotero.py collections`. Starting Zotero and enabling its local API is the user's job: skip that skill's `enable --restart`, which cannot reach Zotero here and kills every process whose command line contains "zotero", including these scripts.
-- `opencli-usage` skill — the web side: discover adapters at run time (`opencli list -f json` is large; filter it). Adapters seen in 2026-09: API-type `arxiv`, `openalex`, `semanticscholar` (answers 429 without an API key — one 429 means skip it), `pubmed` (abstract, author keywords, PMID for journal articles), `dblp`, `openreview`, `hf paper`; browser-type `google-scholar` (the user's habitual search), `cnki`, `wanfang`. Behind a proxy every `opencli` call prints a harmless `UNDICI-EHPA` warning on stderr; send stderr to `/dev/null`.
+- `opencli-usage` skill — the web side: discover adapters at run time (`opencli list -f json` is large; filter it). Adapters seen in 2026-09: API-type `arxiv`, `openalex`, `semanticscholar` (answers 429 without an API key — one 429 means skip it), `pubmed` (abstract, author keywords, PMID for journal articles), `dblp`, `openreview`, `hf paper`; browser-type `google-scholar` (the user's habitual search), `cnki`, `wanfang`. Behind a proxy every `opencli` call prints a harmless `UNDICI-EHPA` warning on stderr; send stderr to a log in the work directory (`2>>opencli.log`) rather than to `/dev/null`, so a real error is still there to read.
 - `opencli-browser` skill — the user's real, logged-in Chrome: `browser <session> open / state / click / wait / close`, `web read --url`.
 - `pdf` skill — reading a PDF's first page when `check_pdf.py` finds no text layer.
 - `papers-cool-search` skill (optional) — papers.cool search, category and venue listings as JSON, for step 1.
@@ -29,7 +29,7 @@ Zotero is running and answers on the local API; the write key exists:
 uv run scripts/authorize_local_api.py
 ```
 
-A missing key makes Zotero show an authorization dialog: tell the user first, ask them to click **Always Allow**, then run it. Create the work directory — `<scratchpad>/paper-to-zotero/` when the harness gives you a scratchpad, else `${TMPDIR:-/tmp}/paper-to-zotero/` — and use the browser session name `p2z`. Every temporary file of the run (saved tag lists, `web read` output, downloads) goes in there and leaves with it. Leftovers from an earlier run are reported, not deleted — a PDF that never reached Zotero belongs to the user.
+A missing key makes Zotero show an authorization dialog: tell the user first, ask them to click **Always Allow**, then run it. Create the work directory — `<scratchpad>/paper-to-zotero/` when the harness gives you a scratchpad, else `${TMPDIR:-/tmp}/paper-to-zotero/` — with an empty `.started` file in it (its mtime marks the run: a download newer than it is this run's, an older one was already there), and use the browser session name `p2z`. Every temporary file of the run (saved tag lists, `web read` output, downloads) goes in there and leaves with it. Leftovers from an earlier run are reported, not deleted — a PDF that never reached Zotero belongs to the user.
 
 Done when the script reports `ok` and the work directory exists.
 
@@ -61,7 +61,7 @@ Done when one paper is pinned by a DOI or arXiv id (failing both, its landing-pa
 uv run scripts/find_in_library.py --doi 10.1109/CVPR.2016.90   # or --arxiv 2006.11239 / --title "…"
 ```
 
-`found` with an attachment: report the key and stop (the user may still ask for re-filing or tags). `found` without a PDF attachment: continue from step 4 and attach to that key. A preprint/published pair counts as found — ask the user. `not_found` with `hits > 0` under `qmode: everything` means other items merely mention those words in their full text or references — not a match.
+`found` with a PDF attachment (`contentType` `application/pdf`, an `imported_*` `linkMode`): report the key and stop — unless the request asks for something the item lacks (the published version when only the preprint is attached, a tidy, a note), which continues at the step that provides it. `found` with no attachment, or only a snapshot or a linked URL: continue from step 4 and attach to that key. A preprint/published pair counts as found — ask the user. `not_found` with `hits > 0` under `qmode: everything` means other items merely mention those words in their full text or references — not a match.
 
 Destination: the user named a collection → pick its key from `zotero collections` (ambiguous or missing → list candidate paths and ask). No collection named → suggest one from the paper's topic and ask, in the same message as any candidate question. No suggestion possible, or nobody to ask → the collection `tmp` (create it once through the local API if absent) and say so in the report.
 
@@ -100,9 +100,9 @@ opencli browser p2z wait download Residual --timeout 120000     # a substring of
 uv run scripts/check_pdf.py --item item.json --pdf work/paper.pdf
 ```
 
-`title_not_found` or `no_text_layer`: read the excerpt (or the first page with the `pdf` skill) and decide yourself; say in the report that you did.
+`title_not_found` or `no_text_layer`: read the excerpt (or the first page with the `pdf` skill) and decide yourself; say in the report that you did. `title_in_later_text: true` usually means a repository cover sheet in front of the paper — accept it once page 2 is the paper.
 
-Done when a PDF of this paper is in the work directory. No PDF even after the gate — the page offers purchase and no institutional access (no "Access provided by", the sign-in entry leads nowhere new): stop there; a legitimate open copy exists (arXiv, the OpenAlex open-access URL) → attach it and say so; none → **still save the item**, and attach a snapshot of the article page instead, as the Zotero connector would: save the loaded page from the browser (`opencli browser p2z eval "document.documentElement.outerHTML"` into `work/page.html`) and attach it with `attach_file.py --file work/page.html --url <canonical page>` — Zotero indexes its text, so the abstract and keywords become searchable. Say in the report that the PDF is missing because the institution has no access; the user adds the file later with `attach_file.py --key`. Never try to get around the paywall.
+Done when a PDF of this paper — the paper itself, not an abstract booklet or a supplement that carries its title — is in the work directory. No PDF even after the gate — the page offers purchase and no institutional access (no "Access provided by", the sign-in entry leads nowhere new): stop there; a legitimate open copy exists (arXiv, PMC, CVF, the OpenAlex open-access URL, the author's or their institution's repository) → attach it and say so; none → **still save the item**, and attach the article page instead, as the Zotero connector would: save the loaded page from the browser (`opencli browser p2z eval "document.documentElement.outerHTML"` into `work/page.html`) and attach it with `attach_file.py --file work/page.html --url <canonical page>`. That is the page's HTML without its stylesheets or images — Zotero indexes the text, so the abstract and keywords become searchable; call it a text-only snapshot in the report. Say there that the PDF is missing because the institution has no access; the user adds the file later with `attach_file.py --key`. Never try to get around the paywall.
 
 ### 5. Save, file, tag, attach
 
@@ -117,9 +117,9 @@ Done when `create_item.py` reports `filed: true` and `tags_ok: true`, and `attac
 
 ### 6. Clear residue
 
-Delete the work directory (Zotero holds its own copy of the PDF or snapshot), close the `p2z` session, and check that the Downloads folder holds nothing this run produced. Delete only what this run created, and the PDF only after `md5_ok: true`. Every exit path ends here.
+Check the Downloads folder for anything this run produced (`find <Downloads> -maxdepth 1 -newer <work dir>/.started`, plus any `.crdownload`), then delete the work directory (Zotero holds its own copy of the PDF or snapshot) and close the `p2z` session. Delete only what this run created, and the PDF only after `md5_ok: true`. Every exit path ends here; a wait at a gate is a pause, not an exit — the tab, the session and the work directory stay until the run resumes or the user drops it.
 
-Done when the work directory is gone, `opencli browser p2z close` has answered "tab lease released" (there is no session listing to check), the Downloads folder has no file from the last half hour that this run produced (`find <Downloads> -maxdepth 1 -mmin -30`, plus no `.crdownload`), and anything you could not remove is named in the report with its location.
+Done when the Downloads folder holds no file of this run, the work directory is gone, `opencli browser p2z close` has answered "tab lease released" (there is no session listing to check), and anything you could not remove is named in the report with its location.
 
 ### 7. Report
 
@@ -167,7 +167,7 @@ Residue is the work directory, the `p2z` session, and anything in Downloads this
 
 ## Several papers
 
-Pin all of them first and ask every question in one message (candidates, destinations), then run steps 2–7 per paper. One paper failing — no PDF, a save error — does not stop the others; a gate that times out does, because the next paper would hit the same page. Report as a table plus the per-paper details that matter.
+Pin all of them first and ask every question in one message (candidates, destinations), then run steps 2–7 per paper. Scope the user has already set — destination, preprint or published, what may be renamed or removed — holds for the whole run; ask again only about a paper it does not cover. Keep `run.json` in the work directory (per paper: identifier, item key, attachment key, step reached, what blocks it) and, when resuming, trust `find_in_library.py` over it. One paper failing — no PDF, a save error — does not stop the others. A gate that times out stops the papers on that site (the next one would hit the same page) while other sites and the metadata work continue; a site the user has declared unsubscribed is not asked to log in again this run. Report as a table plus the per-paper details that matter.
 
 ## Organize
 
@@ -184,3 +184,4 @@ Only after the user confirms, run it without `--dry-run`. The first batch calibr
 - `attach_file.py` names the file itself (Zotero does not rename API uploads); the user can "Rename File from Parent Metadata" in Zotero at any time.
 - Zotero's PDF recognizer runs only for files sent through the connector, never for local-API uploads.
 - Collections are not created, except `tmp`.
+- Out of scope, handed item keys instead: finding papers by topic (`papers-cool-search`, OpenCLI adapters), reading a paper's body, exporting BibTeX for a manuscript (`zotero` skill).
