@@ -21,12 +21,13 @@
 - 现场：整理 CC作业 读 tagging.md，"Choosing tags for one paper" 第 1 步写的是 "the `zotero` skill's `tags` command"。
 - 痛点：v2 已不依赖该 skill，照做的 agent 会去找一个不该用的工具；正确的是 `read_library.py tags`。
 - 为什么：v2 改文档时漏了这一处。
-- 状态：open
+- 状态：已处理 → 2026-09-23 改 venue 规则时顺手改为 `read_library.py tags`
 
 ### 3. `read_library.py` 的输出形状没写
 
 - 来源：使用 · 2026-09-23
 - 现场：`read_library.py items --collection K | jq '.data | …'` 报 `Cannot iterate over null`。实际每行是条目 `data` 平铺（`key`、`version`、字段），没有 `data` 外层；而 `find_in_library.py --key` 输出 `{code, matches: [...]}`，形状又不同。`--help` 和 organize.md 都没说。
+- 同类（同日整理时又碰到）：`file_and_tag.py --batch` 的 dry-run 输出把条目放在 `changes`，真写时放在 `results`；`read_library.py items` 没有 `--tag` 过滤（API 支持 `tag=`），按标签找条目只能全库拉下来再 jq。
 - 痛点：写管道前得先 `head` 一行猜形状。
 - 方向：`--help` 写一句每个子命令的行形状；或各脚本统一条目的形状。
 - 状态：open
@@ -66,10 +67,10 @@
 ### 8. 流程状态被做成了标签
 
 - 来源：观察 · 2026-09-23
-- 现场：读标签词表时看到 `投稿全文核查`（22 条）——审稿进度。tagging.md 写明阅读 / 审稿进度不是标签维度。来源推测是 2026-09-22 另一个 harness 的稿件核查任务（未核实）。
-- 痛点：规则只写在 tagging.md，做核查一类非导入任务的 agent 不会读到它。
-- 方向：待讨论。不宜硬拦（规范是活的）；也许写标签的脚本对"不像论文属性"的新标签提示一句。
-- 状态：open（该标签本身是否保留由用户定）
+- 现场：读标签词表时看到 `投稿全文核查`（22）。核实后：它挂在 22 条**笔记**上，不在论文条目上——是 2026-09-22 另一个 harness 的稿件核查笔记的标记。tagging.md 写明阅读 / 审稿进度不是标签维度，但那条规则只讲论文条目。
+- 痛点：笔记上的标签照样出现在 Zotero 标签栏里，和论文标签混在一起；`note.py` 靠 marker 识别自己的笔记，本不需要标签。
+- 方向：待讨论。organize.md 的 Notes 一节说明笔记不打标签（marker 已够用），或者定一个笔记标签的前缀。
+- 状态：open（该标签是否保留由用户定）
 
 ### 9. 稿件文献的分类结构不满意，但还不知道该怎么分
 
@@ -96,4 +97,5 @@
 - 用户原话："你觉得出版物要不要也带一个什么东西/ 这样我在筛选标签的时候也能快速定位。如果没带分类前缀的话，就很难，比方说我想集中找 CVPR 的文章之类的"
 - 背景：tagging.md 规定 venue 用不带前缀的缩写（`CVPR`、`TMI`、`Comput Biol Med` + `CBM`），和模型名（`CycleGAN`）、旧手工标签混在一起；库里约 40 个这样的出版物标签。刚整理完 CC作业，新增了 `TPAMI`、`TCBB`、`CSUR`、`CVPRW` 等。
 - 痛点：在 Zotero 标签栏里按类过滤时，出版物没有共同前缀，无法一次列出全部出版物，也分不清哪个是出版物、哪个是模型名。
-- 状态：open（已给用户建议，待定）
+- 讨论：用户问"为什么是 venue？学术界对于这种期刊会议的一个统称是什么？"——答：CS 通称 publication venue（DBLP、Semantic Scholar 的字段名）；`source/` 与 tagging.md 的 source keywords 撞词，`pub/` 分不清 publication / publisher，`journal/`+`conf/` 要先分类。用户："就用venue"。
+- 状态：已处理 → 2026-09-23 tagging.md 改为 `venue/<Abbr>`（同时写入新维度 `type/Survey`），全库 67 条、41 种出版物标签加了前缀
