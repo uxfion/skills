@@ -23,7 +23,6 @@ Claude Code 的 auto memory 由自身 harness 管理；AGENTS.md 的记忆规则
 
 - [paper-to-zotero](paper-to-zotero/SKILL.md) — 按题目 / DOI / arXiv 号 / 清单 / bib 把论文连同 PDF 导入 Zotero，归类、打标签；按 citation key 整理、修字段、写笔记，导出 bib。
 - [uv-python](uv-python/SKILL.md) — 使用 uv 执行 Python、管理依赖和环境。
-- [wx-cli](wx-cli/SKILL.md) — 通过 wx CLI 查询本地微信数据。
 
 用 [skills CLI](https://www.skills.sh/docs) 安装，`npx` 可换成 `bunx`：
 
