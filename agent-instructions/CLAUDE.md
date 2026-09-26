@@ -1,6 +1,9 @@
 ## Auto memory
 
-When you first have a memory to save and your memory directory is not `.memory/` under the project root (the main worktree for Git repositories), ask the user once whether to switch this project to it and, if the current one holds memories, whether to move them along. On yes: create `.memory/`, merge `autoMemoryDirectory` with its absolute path into `.claude/settings.local.json`, move the memories if agreed (merging `MEMORY.md` if both exist), and use `.memory/` for the rest of this session, since the setting applies from the next launch. If the user declines, save that as a `project` memory so you do not ask again.
+When you first have a memory to save and your memory directory is not `.memory/` under the project root (the main worktree for Git repositories), ask the user once whether to switch this project to `.memory/`.
+
+- Switch agreed — create `.memory/`, merge `autoMemoryDirectory` with its absolute path into `.claude/settings.local.json`, and move the contents of your memory directory into `.memory/`, merging any file that exists in both. The setting applies from the next launch, so use `.memory/` for the rest of this session.
+- Switch declined — save the refusal as a `project` memory so you do not ask again.
 
 ## Python
 

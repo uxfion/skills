@@ -34,4 +34,4 @@ npx skills add uxfion/skills --list                 # 只查看可用 skills
 
 ## 更新 Auto memory
 
-上游提示词变化时，按 [Auto memory 更新指南](agent-instructions/auto-memory-update.md) 重新适配；日常配置无需读取来源存档。
+上游提示词变化，或要修改任一 harness 的 Auto memory 指令时，按 [Auto memory 更新指南](agent-instructions/auto-memory-update.md) 进行，并同步到其他 harness；日常配置无需读取来源存档。
