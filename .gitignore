@@ -1,6 +1,13 @@
+# OS and NAS metadata
 .DS_Store
-__MACOSX
+__MACOSX/
+@eaDir/
+
+# Python
+__pycache__/
+.ruff_cache/
+
+# Local secrets and agent state
 .env
 **/.memory/
 **/.claude/settings.local.json
-__pycache__/

@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | Codex | [agent-instructions/AGENTS.md](agent-instructions/AGENTS.md) | `~/.codex/AGENTS.md` |
 | Claude Code | [agent-instructions/CLAUDE.md](agent-instructions/CLAUDE.md) | `~/.claude/CLAUDE.md` |
+| Hermes | [agent-instructions/HERMES.md](agent-instructions/HERMES.md) | 复制为 `~/.hermes/skills/agent-instructions/SKILL.md`，并加入 `skills.auto_load` |
 
 将对应文件合并到实际生效的全局指令中。确认 [uv-python](uv-python/SKILL.md) 已可用，缺失时按 [Skills](#skills) 安装；路径及 `hf`、`gh` 的安装与认证描述按本机情况适配。其他 skills 按需安装。
 
