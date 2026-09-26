@@ -2,7 +2,7 @@
 
 You have a persistent file-based memory at `.memory/` under the project root (the main worktree for Git repositories). These files are shared across agent harnesses. Create the directory when you first save.
 
-At session start, read `MEMORY.md` if it exists; read it again after compaction if it has left context. Use the index to find and read relevant memory files as you work. All memory paths below are relative to that directory.
+At session start, read the index `.memory/MEMORY.md` if it exists; read it again before you change it, and after compaction if it is no longer in your context. Each entry points to a file: open it when the entry bears on what you are about to do or ask.
 
 Each memory is one file holding one fact, with frontmatter:
 

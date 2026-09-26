@@ -18,6 +18,8 @@
 
 2026-09-21 在 Claude Code v2.1.278 的 Fable 5.1 会话中，由模型将自身系统提示词的 Memory 章节与 [Fable 5.1 Memory 摘录](references/auto-memory/fable-5.1-memory-section.md)逐句比对：除记忆目录路径和标题层级（`# Memory`）外文字一致。这是单一版本、单次会话的观察，只说明该基准当时与运行中的提示词相符，不改变存档的第三方性质。
 
+2026-09-26 复核（Opus 5.5 发布后）：上游新增 [Opus 5.5 原始提示词：固定提交](https://github.com/asgeirtj/system_prompts_leaks/blob/a03321b094e65cad2ccd1f5ffb4b309537648834/Anthropic/claude-code/claude-code-opus-5.5.md)，其 Memory 章节与 Fable 5.1 摘录除记忆目录路径外逐字相同；上游 Fable 5.1 原文自 2026-09-05 起未变，与本地存档逐字节一致。官方文档的 Auto memory 一节与 09-18 快照逐字相同，[CHANGELOG 至 2.1.283](https://github.com/anthropics/claude-code/blob/7779afb12e3635f46f56ec823979d68350ae000b/CHANGELOG.md) 没有影响记忆格式或加载的变更。基准不变，未新增存档。
+
 ## 目标与原则
 
 用户最初依据官方文档写了草稿，之后希望以 Claude Code 已调优的 Memory 提示词为底，结合官方文档和初稿中的有用内容，为 Codex 补齐自动记忆。用户看重原文已有的调优成果，因此默认保留原文；这是一项设计取向，并非已经用性能测试证明原文最优。
@@ -45,13 +47,22 @@ You have a persistent file-based memory at `.memory/` under the project root (th
 
 ### 2. 显式读取索引与按需召回
 
-原文说索引每次会话会被加载；这依赖 Claude Code harness。当前为 Codex 补上启动读取、压缩后有条件重读和工作中按需读取。在存储位置段落与 `Each memory…` 段落之间插入：
+原文说索引每次会话会被加载；这依赖 Claude Code harness。当前为 Codex 补上启动读取、修改前与压缩后的重读和工作中按需读取。在存储位置段落与 `Each memory…` 段落之间插入：
 
 ```text
-At session start, read `MEMORY.md` if it exists; read it again after compaction if it has left context. Use the index to find and read relevant memory files as you work. All memory paths below are relative to that directory.
+At session start, read the index `.memory/MEMORY.md` if it exists; read it again before you change it, and after compaction if it is no longer in your context. Each entry points to a file: open it when the entry bears on what you are about to do or ask.
 ```
 
 第 5 项也将 `loaded into context each session` 改为 `read at the start of each session`，避免把需主动执行的步骤说成平台自动行为。不要因此要求每次任务扫描全部记忆，或每次压缩后无条件重读。如果未来 Codex 已原生完成这些步骤，应重新判断是否还需补充。
+
+2026-09-26 调整。原句为：``At session start, read `MEMORY.md` if it exists; read it again after compaction if it has left context. Use the index to find and read relevant memory files as you work. All memory paths below are relative to that directory.`` 改了四处，依据是 Claude Code 替模型做了、而 Codex 和 Hermes 缺少的机制：
+
+- **路径**：`that directory` 往前既可指 `.memory/`，也可指项目根。`HERMES.md` 在第一、二段之间插入 Hermes 适配后，最近的目录变成了项目根，前一句又是 Hermes 自带记忆（其文件也叫 `MEMORY.md`）。现在第一次用到时直接写 `.memory/MEMORY.md`，并点明它是索引。
+- **修改前重读**：Claude Code 的 Edit/Write 工具要求先读过文件才能写，文件被别人改了也会提示；Codex、Hermes 没有这层保护。记忆由多个 harness 共用，拿旧索引整份写回，会冲掉别人刚加的条目。
+- **何时打开记忆文件**：Claude Code 自动载入索引，系统提示里还预留了由 harness 挑选相关记忆的召回机制。没有这些时，“relevant … as you work” 太宽，模型读完索引就按默认做事。改为：某条与“接下来要做的事或要问的问题”有关时，打开对应文件；摘要已经说清楚的条目不必打开。
+- **措辞**：原句 `if it has left context` 的 left 是“离开”，但可能被读成“剩余”，或读成 NLP 术语 left context（左侧上下文），改为 `if it is no longer in your context`。
+
+复原历史基准 `238b36a` 时用原句。
 
 ### 3. 保存时机、独立判断与适用范围
 
@@ -113,7 +124,7 @@ After writing the file, add or update a one-line pointer in `MEMORY.md` (`- [Tit
 
 复原时将标题 `## Memory` 替换为 `## Auto memory`；段落间保留一个空行。以上操作只生成 Auto memory 章节。应用到当前 AGENTS.md 时，保留从 `## Python` 开始的后半部分；这部分不是 Claude Memory 原文或本次适配生成的。复原历史基准 `238b36a` 时，则使用该提交中从 `## When executing Python…` 开始的后半部分。
 
-2026-09-19 已验证：以存档原文为输入，应用本指南六个文字块及上述替换，生成的 Memory 章节与 `238b36a` 一致；接上该提交未改动的后半部分后，整份文件与该历史基准逐字节一致。该历史文件的 SHA-256 为 `a14f80ad97c710484fc00f3e7cc27de4b3b1770aa255b47c68684d23a404e5e7`。这验证了本次基准可复原，不代表未来新版原文可以不经判断直接套用。
+2026-09-19 已验证：以存档原文为输入，应用本指南六个文字块及上述替换，生成的 Memory 章节与 `238b36a` 一致；接上该提交未改动的后半部分后，整份文件与该历史基准逐字节一致。该历史文件的 SHA-256 为 `a14f80ad97c710484fc00f3e7cc27de4b3b1770aa255b47c68684d23a404e5e7`。这验证了本次基准可复原，不代表未来新版原文可以不经判断直接套用。第 2 节的文字块已于 2026-09-26 调整，复原 `238b36a` 时换回该节注明的原句。
 
 ## 讨论过但最终没有加入的规则
 
