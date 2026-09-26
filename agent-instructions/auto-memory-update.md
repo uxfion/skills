@@ -1,204 +1,204 @@
-# Auto memory 更新指南
+# Auto memory update guide
 
-这份文件供下一次更新 Auto memory 指令时使用。它管三个 harness 共用的同一套记忆约定：记录各自的分工、对原文的适配、用户意图和已讨论的取舍，让接手者不必重走整段对话。它是维护背景，不是每次会话都要加载的执行指令。阅读顺序：先看各 harness 的分工和更新步骤；后面依次是原则、现行适配的原文与意图、否掉的规则、来源与核对记录。下列准确文字可用于复原本次版本；迁移到新原文时按意图调整，不机械重放。
+Use this file the next time the Auto memory instructions are updated. It governs one memory convention shared by three harnesses: it records how they divide the work, how the upstream text was adapted, the user's intent and the trade-offs already discussed, so whoever picks this up need not replay the conversations. It is maintenance background, not an instruction to load every session. Reading order: the division of work and the update procedure first; then the principles, the current adaptations with their exact text and intent, the rejected rules, and the source and verification records. The exact text below reproduces this version; when moving to a new upstream text, adapt by intent rather than replaying mechanically. The user's own words are quoted in Chinese, verbatim.
 
-当前生效文本：Codex 用 [AGENTS.md](AGENTS.md)，Hermes 用由它生成的 [HERMES.md](HERMES.md)，Claude Code 用 [CLAUDE.md](CLAUDE.md) 的 Auto memory 一节。本指南以用户于 2026-09-19 确认的提交 `238b36a37cad7808383e7ee0b7acc5ebaa409009` 为参照；比较基准是 [Fable 5.1 Memory 摘录](references/auto-memory/fable-5.1-memory-section.md)。以后更新时应保留意图，允许具体措辞随新版改进。
+Current live text: Codex uses [AGENTS.md](AGENTS.md), Hermes uses [HERMES.md](HERMES.md) generated from it, Claude Code uses the Auto memory section of [CLAUDE.md](CLAUDE.md). This guide takes as reference the commit `238b36a37cad7808383e7ee0b7acc5ebaa409009` the user confirmed on 2026-09-19; the comparison base is the [Fable 5.1 Memory excerpt](references/auto-memory/fable-5.1-memory-section.md). Future updates keep the intent and let the wording improve with new versions.
 
-## 各 harness 的分工
+## How the harnesses divide the work
 
-三个 harness 共用每个项目根下的 `.memory/`。它们的指令各不相同，这是有意为之；改动前先弄清楚为什么不同。
+All three harnesses share the `.memory/` under each project root. Their instructions differ on purpose; before changing anything, work out why they differ.
 
-| Harness | 源文件 → 全局位置 | 记忆机制 | 本仓库补什么 |
+| Harness | Source file → global location | Memory mechanism | What this repo adds |
 | --- | --- | --- | --- |
-| Claude Code | `CLAUDE.md` → `~/.claude/CLAUDE.md` | 原生 auto memory：harness 注入 Memory 提示词，会话开始时载入索引，写入时加 `modified`；默认存放在项目外的统一位置 | 只把存储切到项目的 `.memory/`，见下文“Claude Code 的存储切换” |
-| Codex | `AGENTS.md` → `~/.codex/AGENTS.md` | 原生记忆有意关闭（用户认为不好用）；Auto memory 一节让它复刻 Claude Code 的自动记忆 | 相对 Fable 5.1 原文的第 1–7 项修改；Codex 在项目里启动，第一次保存时直接建 `.memory/` |
-| Hermes | `HERMES.md` → `~/.hermes/skills/agent-instructions/SKILL.md`，并加入 `skills.auto_load` | 没有项目概念：消息平台上工作目录固定为家目录，一个会话里随意切换工作区；另有自带的内置记忆 | `AGENTS.md` 全文，外加一段，见下文“Hermes 的适配” |
+| Claude Code | `CLAUDE.md` → `~/.claude/CLAUDE.md` | Native auto memory: the harness injects the Memory prompt, loads the index at session start and stamps `modified` on writes; by default it stores memory in one central place outside the project | Only switches the storage to the project's `.memory/`; see "The Claude Code storage switch" below |
+| Codex | `AGENTS.md` → `~/.codex/AGENTS.md` | Native memory deliberately switched off (the user finds it poor); the Auto memory section makes it replicate Claude Code's auto memory | Changes 1–7 to the Fable 5.1 original; Codex is launched in a project and creates `.memory/` on first save |
+| Hermes | `HERMES.md` → `~/.hermes/skills/agent-instructions/SKILL.md`, added to `skills.auto_load` | No project concept: on messaging platforms its working directory is fixed at the home directory, and one session moves freely between workspaces; it also has its own built-in memory | The full `AGENTS.md` plus one paragraph; see "The Hermes adaptation" below |
 
-用户在 2026-09-26 的说法：「我就是要codex原生记忆关的，因为它那个不好用，然后就去复刻 Claude Code，但是 Claude Code Auto memory是存在一个统一的位置的，没有存在项目下面……Hermes为什么要单独来呢？是因为他没有一个项目的概念」。所以，“新建 `.memory/` 前先问用户”只属于 Hermes；Claude Code 的那次询问是存储切换；Codex 不问。
+The user, 2026-09-26: 「我就是要codex原生记忆关的，因为它那个不好用，然后就去复刻 Claude Code，但是 Claude Code Auto memory是存在一个统一的位置的，没有存在项目下面……Hermes为什么要单独来呢？是因为他没有一个项目的概念」. So "ask the user before creating `.memory/`" belongs to Hermes alone; Claude Code's one question is the storage switch; Codex does not ask.
 
-## 下次更新怎么做
+## How to update
 
-1. **读这份指南和三份源文件。** 本文件记录意图；`AGENTS.md`、`HERMES.md`、`CLAUDE.md` 是实际生效文字；Git 保存历史。不要把这份背景全文塞进全局提示词。
-2. **获取用户指定的新原文并固定来源版本。** 新模型发布也是触发点，例如 2026-09-22 的 Opus 5.5。优先使用用户指定的提示词存档和官方文档，不去逆向已安装的 Claude Code 程序。保留旧基准供比较。
-3. **做三方比较：旧原文、新原文、当前适配版。** 只围绕 Memory 章节；同时按需复核涉及的官方机制。先看上游真正改变了什么，再逐项判断本指南中的补充是否仍有必要。新版已吸收的规则不重复添加；新增功能不自动照搬到 Codex 或 Hermes。
-4. **以 Claude Code 的实际机制逐项核对。** 列一张表：机制｜Claude Code 怎么做｜依据（亲见、系统提示词、文档）｜当前文字怎么覆盖｜修改意见，没有就写“无”。只补 Codex、Hermes 真正缺的，并想清楚每个 harness 为什么不同。
-5. **保留仍有必要的适配和用户偏好。** 用新原文的组织与措辞表达，尽量不增加额外流程。对会改变既有行为或取舍的地方，逐点说明增加、修改、删除了什么及原因，一次一条，给用户看原文和修改建议，讨论后再改；不要把已经确认的背景全部重新问一遍。
-6. **检查最终指令的执行成本。** 是否只读所需内容、及时保存、避免重复写入、只在有实际疑点时询问？是否误把原生机制写成额外义务？不要为了追求最短字数牺牲明确性，也无需专门建立测试或审计框架。
-7. **完成仓库版本后再同步全局。** 重写前保留可回退的 Git 基线，不覆盖其他未提交工作；讨论期间只改仓库副本。`AGENTS.md` 定稿后重新生成 `HERMES.md`（核对办法见根 `AGENTS.md`），并复核 Hermes 那一段是否仍与前后两段衔接。最终确认后再同步全局副本：`~/.codex/AGENTS.md`；`~/.hermes/skills/agent-instructions/SKILL.md`（改 Hermes 须用户逐项同意，新会话才生效）；`CLAUDE.md` 只在它自己改动时同步。只替换 Memory 章节，不连带改动 Python、CLI 规则。更新本指南及来源索引中发生变化的事实，不追加每次编辑的流水账。
+1. **Read this guide and the three source files.** This file records intent; `AGENTS.md`, `HERMES.md` and `CLAUDE.md` are the live text; Git keeps the history. Never paste this background into a global prompt.
+2. **Fetch the new upstream text the user names and pin its revision.** A new model release is also a trigger, e.g. Opus 5.5 on 2026-09-22. Prefer the prompt archive and official docs the user names; do not reverse-engineer the installed Claude Code binary. Keep the old base for comparison.
+3. **Compare three ways: old upstream, new upstream, current adaptation.** Stay on the Memory section, re-checking the official mechanisms it touches as needed. First see what upstream actually changed, then judge item by item whether each addition in this guide is still needed. Rules the new version already covers are not added again; new features are not copied to Codex or Hermes automatically.
+4. **Check each mechanism against what Claude Code actually does.** Make one table with the user's columns 机制 | 参考 harness 细节 | 依据 | 现状 | 修改意见 (mechanism | what Claude Code does | evidence: observed, system prompt or docs | how the current text covers it | proposed change), writing 无 in any cell with nothing to say. Fill only what Codex and Hermes genuinely lack, and be clear why each harness differs.
+5. **Keep the adaptations and user preferences that are still needed.** Express them in the new upstream's structure and wording, adding as little process as possible. Where behaviour or an earlier trade-off would change, explain what is added, changed or removed and why, one item at a time, showing the user the original and the proposed text, and change it after discussion; do not re-ask background that is already settled.
+6. **Check the execution cost of the final instructions.** Does it read only what is needed, save promptly, avoid duplicate writes, ask only on real doubt? Has a native mechanism been turned into an extra duty? Do not trade clarity for the shortest wording, and no dedicated test or audit framework is needed.
+7. **Finish the repo version before syncing the globals.** Keep a Git baseline to roll back to and do not overwrite other uncommitted work; during discussion change only the repo copies. Once `AGENTS.md` is final, regenerate `HERMES.md` (the check is in the root `AGENTS.md`) and confirm the Hermes paragraph still fits the paragraphs around it. After final confirmation, sync the global copies: `~/.codex/AGENTS.md`; `~/.hermes/skills/agent-instructions/SKILL.md` (changing Hermes needs the user's consent item by item, and takes effect in a new session); `CLAUDE.md` only when it changes itself. Replace only the Memory section; leave the Python and CLI rules alone. Update the facts in this guide and the source index that changed; do not append a log of every edit.
 
-可以把下面这段交给下一次接手的模型：
+A prompt the user can hand to the next model (the user's words, kept in Chinese):
 
 > 请按 `agent-instructions/auto-memory-update.md` 更新 Auto memory 指令：Codex 的 `AGENTS.md`，以及由它生成的 Hermes 的 `HERMES.md`；Claude Code 的 `CLAUDE.md` 只在存储切换方式变化时才动。先比较存档中的旧 Memory 原文、新版原文和当前 `AGENTS.md`，再对照 Claude Code 的实际机制逐项核对，只保留仍有价值的适配与用户意图。以原文为底，保持精简、干练、优雅且执行高效；不要扩大到 Claude Code 原生记忆管理。对行为变化逐点解释并与我讨论，确认后修改，完成后再同步全局。
 
-## 目标与原则
+## Goals and principles
 
-用户最初依据官方文档写了草稿，之后希望以 Claude Code 已调优的 Memory 提示词为底，结合官方文档和初稿中的有用内容，为 Codex 补齐自动记忆；2026-09-26 起，同一份正文也接到了 Hermes。用户看重原文已有的调优成果，因此默认保留原文；这是一项设计取向，并非已经用性能测试证明原文最优。
+The user first wrote a draft from the official docs, then wanted Claude Code's tuned Memory prompt as the base, combined with what was useful from the docs and the draft, to give Codex automatic memory; since 2026-09-26 the same body also serves Hermes. The user values the tuning already in the original, so the original is kept by default; this is a design choice, not a claim that performance tests proved the original best.
 
-- **精简、干练、优雅、执行高效。** 不盲目扩大规则，不为每个假设的边界情况增加流程。执行高效包括及时记住、按需读取、避免重复写入和无谓询问，不只意味着字数少。
-- **补真实缺口。** 区分模型提示词要求和 harness 已经承担的行为；缺少该机制的 harness 缺的步骤才需要补进来。判断缺什么，以 Claude Code 实际替模型做的事为参照：系统提示词、会话中的提醒与拦截、官方文档，并标明哪些亲眼见过、哪些只在文档里。官方文档描述的每项机制不都要变成提示词。
-- **只补缺机制的一侧。** Claude Code 的记忆管理依靠其原生机制，`CLAUDE.md` 只负责存储切换；共用文件不意味着要向它添加同样的补偿规则。Codex 与 Hermes 共用 `AGENTS.md` 的正文，Hermes 只多一段。只对某个 harness 成立的规则，不推广到其他 harness。
-- **保留意图，不固守旧措辞。** 新版已涵盖的补充应合并或移除；不因旧草稿曾写过就恢复它，也不为减少几个词而反复重写已经清楚的规则。
+- **Concise, crisp, elegant, efficient in execution.** Do not grow the rules blindly, and do not add process for every hypothetical edge case. Efficient execution means remembering promptly, reading on demand, avoiding duplicate writes and pointless questions, not merely fewer words.
+- **Fill real gaps.** Separate what the prompt asks of the model from what the harness already does; add only the steps a harness lacking that mechanism is missing. Judge what is missing against what Claude Code actually does for the model: its system prompt, the reminders and refusals seen in a session, the official docs, marking which were observed and which are only documented. Not every mechanism in the docs has to become prompt text.
+- **Fill only the side that lacks the mechanism.** Claude Code's memory runs on its native mechanism, and `CLAUDE.md` only handles the storage switch; sharing files does not mean adding the same compensating rules there. Codex and Hermes share the body of `AGENTS.md`; Hermes adds one paragraph. A rule that holds for one harness is not generalised to the others.
+- **Keep the intent, not the old wording.** Additions the new version already covers are merged or removed; do not restore something because an old draft had it, and do not keep rewriting a clear rule to save a few words.
 
-## 相对 Fable 5.1 原文的修改（`AGENTS.md`，Codex 与 Hermes 共用）
+## Changes to the Fable 5.1 original (`AGENTS.md`, shared by Codex and Hermes)
 
-### 1. 存储位置与跨 harness 共享
+### 1. Storage location and sharing across harnesses
 
-原文指定 Claude Code 私有目录，并保证目录已存在、直接用 `Write` 工具写入。当前改为项目根下的 `.memory/`，首次保存时创建，并用通用表述说明跨 harness 共享。
+The original names Claude Code's private directory, guarantees it exists and says to write with the `Write` tool. The adaptation uses `.memory/` under the project root, created on first save, and says in neutral terms that it is shared across harnesses.
 
-替换原文首段中 `Each memory is one file…` 之前的全部文字为以下独立段落；`Each memory…` 及后面的模板保留，另起一段：
+Replace all text of the original's first paragraph before `Each memory is one file…` with the following standalone paragraph; keep `Each memory…` and the template after it as a new paragraph:
 
 ```text
 You have a persistent file-based memory at `.memory/` under the project root (the main worktree for Git repositories). These files are shared across agent harnesses. Create the directory when you first save.
 ```
 
-这是实际共享方式的适配。不要照搬原文的个人绝对路径、目录已创建的假设或 `Write` 工具名；Codex 使用自身提供的文件操作工具即可，无需在提示词中另教一套工具调用方法。
+This adapts the text to how the memory is actually shared. Do not copy the original's personal absolute path, its assumption that the directory exists, or the `Write` tool name; Codex uses its own file tools and needs no separate tool-call lesson in the prompt.
 
-`the main worktree for Git repositories` 不是 Fable Memory 原文的要求，而是为了让 linked worktree 与主工作区共用记忆，意图与当时官方文档的共享行为一致。用户曾担心 worktree 说明复杂化，最终同意保留这一限定，删去 `git worktree list` 等操作细节。以后不要展开成路径发现流程；删除限定前则要考虑是否会分出多份记忆。
+`the main worktree for Git repositories` is not in the Fable Memory original; it makes linked worktrees share memory with the main worktree, matching the sharing behaviour the official docs described at the time. The user worried that worktree instructions would get complicated and agreed to keep this qualifier while dropping operational detail such as `git worktree list`. Do not expand it into a path-discovery procedure; before removing it, consider whether memory would split into several stores.
 
-### 2. 显式读取索引与按需召回
+### 2. Reading the index explicitly, recall on demand
 
-原文说索引每次会话会被加载；这依赖 Claude Code harness。当前为 Codex 和 Hermes 补上启动读取、修改前与压缩后的重读和工作中按需读取。在存储位置段落与 `Each memory…` 段落之间插入：
+The original says the index is loaded every session, which the Claude Code harness does. The adaptation gives Codex and Hermes the read at session start, the re-reads before changing it and after compaction, and reading on demand while working. Insert between the storage paragraph and the `Each memory…` paragraph:
 
 ```text
 At session start, read the index `.memory/MEMORY.md` if it exists; read it again before you change it, and after compaction if it is no longer in your context. Each entry points to a file: open it when the entry bears on what you are about to do or ask.
 ```
 
-第 5 项也将 `loaded into context each session` 改为 `read at the start of each session`，避免把需主动执行的步骤说成平台自动行为。不要因此要求每次任务扫描全部记忆，或每次压缩后无条件重读。如果未来 Codex 已原生完成这些步骤，应重新判断是否还需补充。
+Change 5 also turns `loaded into context each session` into `read at the start of each session`, so a step the model must take is not described as automatic platform behaviour. This does not ask for scanning all memories on every task or re-reading unconditionally after every compaction. If Codex later does these steps natively, reconsider whether they are still needed.
 
-2026-09-26 调整。原句为：``At session start, read `MEMORY.md` if it exists; read it again after compaction if it has left context. Use the index to find and read relevant memory files as you work. All memory paths below are relative to that directory.`` 改了四处，依据是 Claude Code 替模型做了、而 Codex 和 Hermes 缺少的机制：
+Adjusted 2026-09-26. The original sentence: ``At session start, read `MEMORY.md` if it exists; read it again after compaction if it has left context. Use the index to find and read relevant memory files as you work. All memory paths below are relative to that directory.`` Four changes, each grounded in a mechanism Claude Code provides and Codex and Hermes lack:
 
-- **路径**：`that directory` 往前既可指 `.memory/`，也可指项目根。`HERMES.md` 在第一、二段之间插入 Hermes 适配后，最近的目录变成了项目根，前一句又是 Hermes 自带记忆（其文件也叫 `MEMORY.md`）。现在第一次用到时直接写 `.memory/MEMORY.md`，并点明它是索引。
-- **修改前重读**：Claude Code 的 Edit/Write 工具要求先读过文件才能写，文件被别人改了也会提示；Codex、Hermes 没有这层保护。记忆由多个 harness 共用，拿旧索引整份写回，会冲掉别人刚加的条目。
-- **何时打开记忆文件**：Claude Code 自动载入索引，系统提示里还预留了由 harness 挑选相关记忆的召回机制。没有这些时，“relevant … as you work” 太宽，模型读完索引就按默认做事。改为：某条与“接下来要做的事或要问的问题”有关时，打开对应文件；摘要已经说清楚的条目不必打开。
-- **措辞**：原句 `if it has left context` 的 left 是“离开”，但可能被读成“剩余”，或读成 NLP 术语 left context（左侧上下文），改为 `if it is no longer in your context`。
+- **Path**: `that directory` could point back to `.memory/` or to the project root. Once `HERMES.md` inserted the Hermes paragraph between the first and second paragraphs, the nearest directory became the project root, and the sentence just before was about Hermes's built-in memory (whose file is also called `MEMORY.md`). Now the first use names `.memory/MEMORY.md` directly and calls it the index.
+- **Re-read before changing**: Claude Code's Edit/Write tools refuse to write a file not read first and report when someone else changed it; Codex and Hermes have no such guard. The memory is shared by several harnesses, and writing back a stale index wholesale drops entries someone else just added.
+- **When to open memory files**: Claude Code loads the index automatically, and its system prompt anticipates harness recall that picks relevant memories. Without these, "relevant … as you work" is too broad: the model reads the index and then works from defaults. Now a file is opened when its entry bears on what the model is about to do or ask; entries whose hook already settles the matter need not be opened.
+- **Wording**: in `if it has left context`, "left" means departed, but it can be read as "remaining" or as the NLP term *left context*; it is now `if it is no longer in your context`.
 
-复原历史基准 `238b36a` 时用原句。
+To reproduce the historical base `238b36a`, use the original sentence.
 
-### 3. 保存时机、独立判断与适用范围
+### 3. When to save, independent judgement, scope
 
-保留初稿中有用的行为：值得长期保留的用户信息及时保存，推断稳定后保存，例行更新保持安静，明确要求记住时写入这里。用户额外强调：
+Kept from the draft: save user information worth keeping promptly, save inferences once settled, keep routine updates silent, save here when asked to remember. The user also stressed:
 
-- 用户提供的信息也可能错误或不合理，不能因为“请记住”就放弃判断。发现疑点时先指出问题并给出更合理的建议；用户坚持保留时，记为用户的立场，不冒充已核实事实。
-- 一次纠正可能只针对本次回答或行为，不能自动上升为永久规则。明确的长期要求也不必等第二次才记。
-- 同一纠正重复出现（两次及以上）应触发反思并及时记住教训，同时记录适用范围。
+- What the user provides can be wrong or unreasonable; "please remember" is no reason to stop judging. On a doubtful point, name the problem and suggest a better option first; if the user insists, record it as the user's position, not as verified fact.
+- One correction may concern only this answer or behaviour and must not turn into a permanent rule automatically. An explicit lasting request need not wait for a second time either.
+- The same correction recurring (twice or more) should trigger reflection and prompt saving of the lesson, with its scope.
 
-在四类记忆说明之后、索引段落之前插入：
+Insert after the four memory types and before the index paragraph:
 
 ```text
 Save user-provided information worth retaining as soon as it is given; save inferences once settled. Distinguish lasting preferences from one-off corrections. When the same correction recurs, reflect and save the lesson with its scope. Question doubtful claims or requests and suggest a better alternative before saving; if the user insists, record their position without treating it as verified fact. Keep routine memory updates silent. When asked to remember something, save it here.
 ```
 
-这不是要求每次保存都调查、询问或核验所有信息；只对有疑点的内容提出质疑。原文的 `feedback` 类型已涵盖纠正和确认，不必再发明新分类。
+This does not require investigating, asking about or verifying everything on each save; only doubtful content is questioned. The original `feedback` type already covers corrections and confirmations; no new category is needed.
 
-### 4. 修改时间与元数据
+### 4. Timestamp and metadata
 
-在模板的 `metadata.type` 行后增加一行，与 `type` 一样缩进两个空格：
+Add one line after `metadata.type` in the template, indented two spaces like `type`:
 
 ```text
   modified: <ISO 8601 UTC time of this write>
 ```
 
-在保存时机段落之后、索引段落之前插入：
+Insert after the when-to-save paragraph and before the index paragraph:
 
 ```text
 Set `metadata.modified` on every write to the current UTC time from `date -u +%Y-%m-%dT%H:%M:%SZ`; preserve other metadata fields.
 ```
 
-这里有三个不同来源：原文提供 `metadata.type` 模板；官方文档快照说明 Claude Code harness 会写入 ISO 8601 `modified`，官方 changelog 在 2.1.214 记有 `Added an ISO modified timestamp to memory file frontmatter`，与文档所述版本一致（更早的 2.1.75 另有 `Added last-modified timestamps to memory files`，未提 frontmatter）；初稿采用 `metadata.modified`，当前保留此约定。时间戳由 harness 写入而非模型按提示词写入，因此无需向 Claude Code 的 `CLAUDE.md` 补这条规则。官方文档和 changelog 都没有要求这个嵌套位置或必须使用 UTC，Fable Memory 章节也没有时间字段。不要把本项目的约定误称为官方完整格式。
+Three sources meet here: the original supplies the `metadata.type` template; the official docs snapshot says the Claude Code harness writes an ISO 8601 `modified`, and the official changelog records `Added an ISO modified timestamp to memory file frontmatter` in 2.1.214, matching the docs (the earlier 2.1.75 has `Added last-modified timestamps to memory files`, without mentioning frontmatter); the draft used `metadata.modified`, and that convention is kept. The harness, not the model following a prompt, writes the timestamp, so this rule need not be added to Claude Code's `CLAUDE.md`. Neither the docs nor the changelog require this nesting or UTC, and the Fable Memory section has no time field. Do not call this project's convention the official complete format.
 
-2026-09-19 在 Claude Code v2.1.278 实测：harness 写入带 frontmatter 的记忆文件时，时间戳落在 `metadata.modified`（UTC，毫秒精度，如 `2026-09-19T14:00:32.271Z`），并同时写入 `metadata.node_type` 和 `metadata.originSessionId`。本项目的嵌套位置因此与 harness 的实际行为一致，`preserve other metadata fields` 也是保住这些字段所必需；Codex 按 `date -u` 写入的秒级时间与之并存无碍。这是对单一版本的观察，不是官方规范；上游变化时重新核对。
+Observed on 2026-09-19 in Claude Code v2.1.278: when the harness writes a memory file with frontmatter, the timestamp lands in `metadata.modified` (UTC, millisecond precision, e.g. `2026-09-19T14:00:32.271Z`), alongside `metadata.node_type` and `metadata.originSessionId`. The project's nesting therefore matches the harness's actual behaviour, and `preserve other metadata fields` is what keeps those fields; Codex's second-precision `date -u` time coexists with it without trouble. This is an observation of one version, not an official spec; re-check when upstream changes.
 
-用户讨论后同意保留 UTC 时间戳。它记录写入时间，不是要求正文里所有日期都用 UTC；曾出现过正文的本地“今天”与 UTC 日期混淆的担忧。当前没有增加专门的时区处理流程，原文的相对日期转绝对日期要求仍保留。
+After discussion the user agreed to keep UTC timestamps. The field records the write time; it does not require every date in the body to be UTC (there was a worry about the local "today" being confused with the UTC date). No special time-zone procedure was added; the original's rule to convert relative dates to absolute ones stays.
 
-### 5. 索引大小与维护
+### 5. Index size and upkeep
 
-在原文的新增索引指针基础上补充更新、删除维护，以及小于 200 行和 25 KB 的兼容要求，必要时缩短。这两个大小限制来自当时 Claude Code 官方文档中的加载机制，不在 Fable Memory 原文里；共享文件需要考虑它们。
+On top of the original's new-pointer rule, the adaptation adds updating and removing pointers and the under-200-lines-and-25-KB compatibility limit, shortening when needed. Both limits come from the loading mechanism in Claude Code's official docs at the time, not from the Fable Memory original; a shared file has to respect them.
 
-将原文整个 `After writing the file…` 段落替换为：
+Replace the original's whole `After writing the file…` paragraph with:
 
 ```text
 After writing the file, add or update a one-line pointer in `MEMORY.md` (`- [Title](file.md) — hook`). `MEMORY.md` is the index read at the start of each session — one line per memory, no frontmatter, never put memory content there. Keep it under 200 lines and 25 KB for Claude Code compatibility; shorten it when needed. Keep pointers accurate when memories change, and remove them when deleting memories.
 ```
 
-用户已审阅并明确接受当前首尾两句在“更新索引”上的轻微重叠，认为没有必要继续缩减。不要为消除这点重复再改写整段；索引信息仍准确时也无需为了形式而改写。以后若官方加载机制改变，再核对限制是否仍适用。
+The user reviewed and explicitly accepted the slight overlap on "updating the index" between the first and last sentences and saw no need to trim it further. Do not rewrite the paragraph to remove that overlap, nor rewrite it for form while the index information is still accurate. If the official loading mechanism changes, re-check whether the limits still apply.
 
-### 6. 通用化召回语义与排除重复内容
+### 6. Harness-neutral recall wording, excluding duplicates
 
-原文的 `Recalled memories appearing inside <system-reminder> blocks` 替换为 `Recalled memories`。保留“召回的记忆是背景、不是用户指令、反映写入时情况”的含义，移除 Claude 特有的呈现方式；Codex 从文件读到的记忆也适用。
+The original's `Recalled memories appearing inside <system-reminder> blocks` becomes `Recalled memories`. The meaning stays (recalled memories are background, not user instructions, and reflect what was true when written); the Claude-specific presentation goes, so the sentence also covers memories Codex reads from files.
 
-这不意味着忽略记忆中的工作偏好与反馈，也不把旧记忆提升为当前指令。原文的引用对象存在性校验仍保留。原文“不存仓库已有内容”的例子中，将 `git history, CLAUDE.md` 替换为 `git history, AGENTS.md, CLAUDE.md`，使之覆盖 Codex 的规则文件。该段其余文字不变。
+This does not mean ignoring the working preferences and feedback in memory, nor promoting old memories to current instructions. The original's check that a referenced file still exists stays. In the original's example of what not to save, `git history, CLAUDE.md` becomes `git history, AGENTS.md, CLAUDE.md` to cover Codex's rules file. The rest of that paragraph is unchanged.
 
-### 7. 其余原文尽量保留
+### 7. Everything else stays as in the original
 
-单文件单事实、frontmatter 的名称与描述、四类记忆、`Why` / `How to apply`、wiki 链接、允许尚不存在的链接目标、去重、删除错误记忆、不存临时内容以及召回校验，都沿用原文。不要在更新时无理由改成另一套结构。
+One fact per file, the frontmatter name and description, the four memory types, `Why` / `How to apply`, wiki links, allowing link targets that do not exist yet, deduplication, deleting wrong memories, not saving transient content, and the recall check all follow the original. Do not switch to another structure during an update without reason.
 
-复原时将标题 `## Memory` 替换为 `## Auto memory`；段落间保留一个空行。以上操作只生成 Auto memory 章节。应用到当前 AGENTS.md 时，保留从 `## Python` 开始的后半部分；这部分不是 Claude Memory 原文或本次适配生成的。复原历史基准 `238b36a` 时，则使用该提交中从 `## When executing Python…` 开始的后半部分。
+When reproducing, replace the heading `## Memory` with `## Auto memory` and keep one blank line between paragraphs. These steps produce only the Auto memory section. When applying them to the current AGENTS.md, keep everything from `## Python` on; that part is not generated from the Claude Memory original or this adaptation. When reproducing the historical base `238b36a`, use that commit's second half from `## When executing Python…` on.
 
-2026-09-19 已验证：以存档原文为输入，应用第 1–5 节的六个文字块及上述替换，生成的 Memory 章节与 `238b36a` 一致；接上该提交未改动的后半部分后，整份文件与该历史基准逐字节一致。该历史文件的 SHA-256 为 `a14f80ad97c710484fc00f3e7cc27de4b3b1770aa255b47c68684d23a404e5e7`。这验证了本次基准可复原，不代表未来新版原文可以不经判断直接套用。第 2 节的文字块已于 2026-09-26 调整，复原 `238b36a` 时换回该节注明的原句。
+Verified 2026-09-19: with the archived original as input, applying the six text blocks of changes 1–5 and the replacements above produced a Memory section identical to `238b36a`; with that commit's unchanged second half appended, the whole file matched the historical base byte for byte. The historical file's SHA-256 is `a14f80ad97c710484fc00f3e7cc27de4b3b1770aa255b47c68684d23a404e5e7`. This shows the base can be reproduced; it does not mean a future upstream text can be applied without judgement. The text block of change 2 was adjusted on 2026-09-26; to reproduce `238b36a`, swap back the original sentence given there.
 
-## Hermes 的适配（`HERMES.md`）
+## The Hermes adaptation (`HERMES.md`)
 
-Hermes 通过 `skills.auto_load` 加载的 skill 使用这份指令；载体的选择、安装方式和调研证据见 [Hermes spec](../docs/specs/20260926-hermes-agent-instructions-spec.md)。正文是 `AGENTS.md` 全文，唯一的适配是在存储位置段落（第一段）之后插入：
+Hermes uses these instructions through a skill loaded by `skills.auto_load`; the choice of carrier, the installation and the research evidence are in the [Hermes spec](../docs/specs/20260926-hermes-agent-instructions-spec.md). The file is skill frontmatter (`name: agent-instructions`, `description: Global instructions, auto-loaded into every session`) followed by the full `AGENTS.md`; the description is kept that short on purpose (spec §3: Hermes still lists auto-loaded skills in its skill index, and a description naming Python or `.memory/` would invite a redundant `skill_view`). The only change to the text is this paragraph, inserted after the storage paragraph (the first paragraph):
 
 ```text
 **In Hermes**, find the project from the files a task works on: a file's project root is the nearest directory enclosing it that holds `.memory/` or, if none does, the root of its Git repository, and session start is when the task first enters that project. A task with no file in a project uses your built-in memory. If the project has no `.memory/` yet, ask the user before creating it, and use your built-in memory until they agree.
 ```
 
-**用户意图。**
+**The user's intent.**
 
-- 统一各 harness 的 auto memory，Hermes 是唯一还没接上的。载体选用 auto_load 的 skill，用户的概括是「类似 global instruction，但又是 skills 的形式」。
-- 从原文出发，一条条加必要的条件：「先从最原始的版本开始，然后加一些必要的条件」。Auto memory 原文不动：「我不是很喜欢修改原来 instruction 中关于 auto memory 的那一部分」。
-- 只写 Hermes 自己判断不了的，典型情况交给实测：「太详细了……hermes应该能自己处理的吧」。
-- 有 `.memory/` 就用；没有、需要新建时，必须先问：「如果该文件夹下有 .memory 那一定是要用的。如果没有需要新建的话，一定要询问我，允许了才可以」。这条只属于 Hermes，原因见上文“各 harness 的分工”。
-- 放在工作区里的仓库，用外层的 `.memory/`：「一般情况下是要用外层文件夹的 .memory，但如果没有外层文件夹，有可能使用项目的，应该是少数」。原因是 `.memory/` 在全局 git ignore 里，克隆下来的仓库永远不带它。
-- 通过 ssh 在远程主机上做的项目，与本机同样处理（用户的选择）。
+- Unify auto memory across the harnesses; Hermes was the only one not yet connected. The carrier is an auto_load skill, which the user summed up as 「类似 global instruction，但又是 skills 的形式」.
+- Start from the original and add the necessary conditions one at a time: 「先从最原始的版本开始，然后加一些必要的条件」. Leave the Auto memory original untouched: 「我不是很喜欢修改原来 instruction 中关于 auto memory 的那一部分」.
+- Write only what Hermes cannot judge for itself, and leave typical cases to testing: 「太详细了……hermes应该能自己处理的吧」.
+- An existing `.memory/` is always used; creating a new one needs the user's consent first: 「如果该文件夹下有 .memory 那一定是要用的。如果没有需要新建的话，一定要询问我，允许了才可以」. This belongs to Hermes alone, for the reason in "How the harnesses divide the work" above.
+- A repository inside a workspace uses the enclosing `.memory/`: 「一般情况下是要用外层文件夹的 .memory，但如果没有外层文件夹，有可能使用项目的，应该是少数」. The reason: `.memory/` is in the global git ignore, so a cloned repository never carries one.
+- Projects worked on over ssh on a remote host are treated the same as local ones (the user's choice).
 
-**为什么这样改。**
+**Why it is written this way.**
 
-- **为什么需要这一段。** 调研 Hermes v0.21.4 发现：它在消息平台上的工作目录固定为家目录，system prompt 里没有 project、git root、worktree 这些词；它一律用绝对路径，几乎从不 `cd`；唯一跟“进入目录”挂钩的机制，即子目录 context 注入，按目录触发，也不在 git 根停下。如果按“任务所在目录”来定义项目，每个目录都可能被当成项目。这正是用户当时的担心：「会不会让Hermes认为每一个目录都是一个project啊？」
-- **为什么是“最近的外层 `.memory/`，都没有才用 git 根”。** 比较过的方案有：任务所在目录、git 根优先、两种标记哪个先碰到算哪个、维护一份项目清单、用插件计算。只有这一条同时满足四点：工作区的子目录归工作区；嵌在里面的克隆归外层；只在真正没有记忆的仓库才问；不需要人维护。它也和另外两个 harness 落在同一个项目上：不在 git 里的 `.memory/`，都是当初在那个目录启动 agent 时建的。早先否掉的“向上查找”，用户后来撤回了这个限制：「不要被我之前说的拒绝了点，而错过了最优方案」。
-- **为什么按文件、不按任务。** 一个任务跨几个项目时，每个文件各归各的项目，不去找同时包住所有文件的那一层。
-- **为什么放在这个位置。** 最初放在文件末尾，单独一节 `## In Hermes`。用户指出：「这不应该放在或者融合在 auto memory 这个 section 吗？」现在放在第一段之后，紧挨它修改的句子：第一段的 project root、“Create the directory”，以及下一段的“At session start”。用加粗的 **In Hermes** 开头，同步时就靠它来定位；原文一字不动。
-- **措辞上的考虑。** 沿用原文的 project root、session start，模型会把定义套到原句上。用“it”“that project”指代单个文件及其所属项目，避免被读成“包住所有文件的那一层”。删掉了“not from your working directory”：前半句已经给出正面做法，这半句只是把工作目录拎到模型眼前。“use your built-in memory”前后两处用同一个说法，模型会把它们当成同一个行为。
+- **Why the paragraph is needed.** Research on Hermes v0.21.4 found: on messaging platforms its working directory is fixed at the home directory, and its system prompt never mentions project, git root or worktree; it uses absolute paths throughout and almost never `cd`s; its only mechanism tied to "entering a directory", subdirectory context injection, fires per directory and does not stop at the git root. Defining the project as "the directory the task works in" would let every directory become a project, which is exactly what the user worried about: 「会不会让Hermes认为每一个目录都是一个project啊？」
+- **Why "the nearest enclosing `.memory/`, else the git root".** The options compared: the task's directory, git root first, whichever marker comes first, a maintained project list, a plugin that computes it. Only this one meets all four needs: a workspace's subdirectories belong to the workspace; clones inside it belong to the enclosing one; only a repository with no memory at all leads to a question; nothing needs maintaining. It also lands on the same project as the other two harnesses: every `.memory/` outside Git was created in the directory where an agent was launched. The user later lifted the earlier rejection of walking upward: 「不要被我之前说的拒绝了点，而错过了最优方案」.
+- **Why per file, not per task.** When a task spans several projects, each file belongs to its own project; the model does not look for one directory enclosing all the files.
+- **Why this position.** It first sat at the end of the file as its own `## In Hermes` section. The user pointed out: 「这不应该放在或者融合在 auto memory 这个 section 吗？」 It now follows the first paragraph, next to the sentences it modifies: the first paragraph's project root and "Create the directory", and the next paragraph's "At session start". It opens with a bold **In Hermes**, which is how syncing finds it; the original stays word for word.
+- **Wording.** Reusing the original's project root and session start makes the model apply the definitions to the original sentences. "it" and "that project" refer to a single file and its project, so the text is not read as "the directory enclosing all the files". "not from your working directory" was cut: the first half already gives the positive rule, and that half only put the working directory in front of the model. "use your built-in memory" is worded the same in both places, so the model treats them as one behaviour.
 
-**同步。** `AGENTS.md` 一改就重新生成 `HERMES.md`，核对办法见根 `AGENTS.md`。Memory 章节每次改动后，都要复核这一段和前后两段是否还衔接：2026-09-26 的路径歧义，就是插入这一段之后才出现的。
+**Syncing.** Whenever `AGENTS.md` changes, regenerate `HERMES.md`; the check is in the root `AGENTS.md`. After every change to the Memory section, confirm this paragraph still fits the paragraphs before and after it: the path ambiguity of 2026-09-26 appeared only after this paragraph was inserted.
 
-## Claude Code 的存储切换（`CLAUDE.md`）
+## The Claude Code storage switch (`CLAUDE.md`)
 
-Claude Code 的记忆由 harness 原生管理，默认存放在项目外的统一位置。`CLAUDE.md` 的 Auto memory 一节只做一件事：第一次有东西要存、而记忆目录还不是项目根下的 `.memory/` 时，问用户一次是否切换。同意，就建 `.memory/`，把 `autoMemoryDirectory` 写进 `.claude/settings.local.json`，并按用户意愿搬迁已有记忆；拒绝，就记成一条 `project` 记忆，以后不再问。这个设置下次启动才生效，本次会话剩下的时间直接用 `.memory/`。
+Claude Code's memory is managed natively by the harness and by default lives in one central place outside the project. The Auto memory section of `CLAUDE.md` does one thing: the first time there is something to save and the memory directory is not yet `.memory/` under the project root, ask the user once whether to switch. On yes, create `.memory/`, write `autoMemoryDirectory` into `.claude/settings.local.json`, and move existing memories if the user wants; on no, save that as a `project` memory and do not ask again. The setting takes effect at the next launch; for the rest of the session use `.memory/` directly.
 
-这一节不是从 Fable 原文改写来的，Memory 原文更新时不必动它；只有 Claude Code 的存储配置方式变了（比如 `autoMemoryDirectory` 改名），才需要复核。扩展它的规则用户曾叫停，见下表。
+This section is not derived from the Fable original, so a Memory upstream update does not touch it; re-check it only when Claude Code's storage configuration changes (e.g. `autoMemoryDirectory` is renamed). The user once stopped an attempt to extend its rules; see the table below.
 
-## 讨论过但最终没有加入的规则
+## Rules discussed and not adopted
 
-这些是已作出的取舍，不能因旧草稿或历史对话里出现过就自动恢复。
+These are settled trade-offs; do not restore one just because an old draft or a past conversation had it.
 
-| 候选规则 | 最终决定与理由 |
+| Candidate rule | Decision and reason |
 | --- | --- |
-| 为记忆单独规定申请写权限、重试、失败报告流程 | 不写入。用户起初要求自动保存与明确请求同样处理失败，后来明确认为不应过度规定，交给 harness 的通用权限与失败处理。既不要恢复“自动记忆失败静默跳过”，也不要声称项目内路径在任何沙箱下都保证可写。 |
-| `edit AGENTS.md only when asked` | 删除。记忆章节不必另设规则文件编辑政策；当前“记到这里”已表达保存目的地。删除不等于获得任意修改全局或项目规则的授权。 |
-| `If you are a subagent, leave memory to the main agent`，或进一步规定子代理只读、主代理写入 | 删除。最初担心子代理忘记已教过的行为，又担心强制所有子代理加载记忆；继续细分会扩大规则。官方所述的上下文继承、主会话记忆加载和子代理独立记忆是不同问题，不可由“不自动加载”推导“禁止读取”。当前不规定所有子代理必读，也不保证子代理只读；按实际任务和 harness 行为处理。 |
-| `Do not open other projects' memories, keep a separate store, or commit .memory/` | 整句删除。已有存储位置约定，且当时已核对全局 Git ignore 排除 `.memory/`，不再叠加边界句。此取舍不意味着应读取其他项目记忆或提交私有记忆；换环境时也不能假设全局 ignore 必然存在。 |
-| 扩展 Claude Code 的全局记忆规则 | 用户曾明确叫停。后来恢复其原有简短迁移说明，主要依靠 Claude Code 内置机制；本指南不授权再次改写它。 |
-| 让 Codex 在新建 `.memory/` 前也先问用户 | 不加（2026-09-26）。Codex 在项目里启动，复刻 Claude Code 的自动记忆；先问只属于没有项目概念的 Hermes。 |
-| Hermes 只放一个指向 `~/.codex/AGENTS.md` 的指针 | 不加。用户要从原文出发，不要把原文抽象掉。 |
-| 在原文上给 Hermes 加详细条件、典型情况清单或完整情况表 | 不加。「太详细了……hermes应该能自己处理的吧」；典型情况交给实测，只补 Hermes 自己判断不了的。 |
-| Hermes 段落放在文件末尾单独成节，或把条件改写进原句 | 不采用。前者离它修改的句子太远；后者违背“不改原文”，而且 `AGENTS.md` 一更新就得手工合并。 |
-| Hermes 以“任务所在的目录”为项目，或 git 根优先、两种标记哪个先碰到算哪个 | 不采用。前者会把每个目录都当成项目；后两者会把工作区里的克隆当成独立项目，而克隆不带 `.memory/`。 |
+| A separate procedure for write permission, retries and failure reporting for memory | Not added. The user first wanted automatic saves to handle failure like explicit requests, then decided this should not be over-specified and left it to the harness's general permission and failure handling. Do not restore "skip failed automatic memory silently", and do not claim a project path is writable under every sandbox. |
+| `edit AGENTS.md only when asked` | Removed. The memory section need not carry its own policy for editing rule files; "save it here" already names the destination. Removing it grants no authority to edit global or project rules at will. |
+| `If you are a subagent, leave memory to the main agent`, or subagents read-only and the main agent writes | Removed. The first worry was subagents forgetting what they had been taught, the second was forcing every subagent to load memory; subdividing further would grow the rules. Context inheritance, main-session memory loading and a subagent's own memory, as the docs describe them, are separate matters, and "not loaded automatically" does not imply "must not read". No rule says every subagent must read, nor that subagents are read-only; follow the task and the harness. |
+| `Do not open other projects' memories, keep a separate store, or commit .memory/` | The whole sentence was removed. The storage convention already exists, and the global Git ignore was confirmed to exclude `.memory/`, so no boundary sentence was stacked on top. This does not mean reading other projects' memories or committing private memory is fine; in a new environment, do not assume the global ignore exists. |
+| Extending Claude Code's global memory rules | The user explicitly stopped this. The original short migration note was restored afterwards, relying mainly on Claude Code's built-in mechanism; this guide gives no authority to rewrite it again. |
+| Making Codex also ask before creating `.memory/` | Not added (2026-09-26). Codex is launched in a project and replicates Claude Code's automatic memory; asking belongs to Hermes, which has no project concept. |
+| A Hermes skill that is only a pointer to `~/.codex/AGENTS.md` | Not added. The user wants to start from the original, not abstract it away. |
+| Detailed conditions, a list of typical cases or a full case table for Hermes on top of the original | Not added. 「太详细了……hermes应该能自己处理的吧」; typical cases are left to testing, and only what Hermes cannot judge for itself is added. |
+| The Hermes paragraph as its own section at the end of the file, or the conditions rewritten into the original sentences | Not used. The former sits too far from the sentences it modifies; the latter breaks "leave the original untouched" and forces a manual merge whenever `AGENTS.md` changes. |
+| For Hermes, "the directory the task works in" as the project, or git root first, or whichever marker comes first | Not used. The first makes every directory a project; the other two treat clones inside a workspace as separate projects, and clones never carry `.memory/`. |
 
-## 原文来源与核对记录
+## Sources and verification records
 
-来源沿用用户此前指定的 `asgeirtj/system_prompts_leaks` 仓库，取自本项目已保存的下载记录，不是从正在运行的模型中提取。
+The sources follow the `asgeirtj/system_prompts_leaks` repository the user named earlier, taken from this project's saved downloads, not extracted from a running model.
 
-- [Fable 5.1 原始提示词：固定提交](https://github.com/asgeirtj/system_prompts_leaks/blob/c7b2c31df51e64784603f5740a251b445fd88c46/Anthropic/claude-code/claude-code-fable-5.1.md)。这是本次比较与复原的基准；另有 [本地完整存档](references/auto-memory/claude-code-fable-5.1.md)。
-- [提示词目录：查找后续版本](https://github.com/asgeirtj/system_prompts_leaks/tree/main/Anthropic/claude-code)。目录内容会变化，下次选定新版本后记录对应提交，不以 `main` 作为可复原的版本标识。
-- [Claude Code 官方 auto memory 文档](https://code.claude.com/docs/en/memory#auto-memory)。本次判断依据的是 [2026-09-18 下载的快照](references/auto-memory/claude-code-memory-docs.md)，不是假定当前网页永远不变。
-- [Claude Code 官方 CHANGELOG：固定提交](https://github.com/anthropics/claude-code/blob/bf7d404e26a5fb6167d21b46c93a2bf6c22ab274/CHANGELOG.md)（2026-09-21 查阅，最新条目为 2.1.278）。核对 harness 行为时文档与 changelog 都要看；机制何时引入、如何变动以 changelog 为准，它逐版本记录变更，文档只描述当前状态。
-- [用户初稿：固定提交](https://github.com/uxfion/skills/blob/67f357df6f2b60638a39b842d4e8272ab26c141e/agent-instructions/AGENTS.md)。仅在追溯设计来源时查阅，无需将整份旧稿作为更新输入，也不保留额外副本。
-- Hermes 的机制以 [Hermes spec](../docs/specs/20260926-hermes-agent-instructions-spec.md) 记录的 v0.21.4 为准，包括 auto_load 的载入与刷新、网关的工作目录、子目录 context 注入。Hermes 升级后先复核这些，再判断 Hermes 那一段是否仍然需要。
+- [Fable 5.1 original prompt: pinned commit](https://github.com/asgeirtj/system_prompts_leaks/blob/c7b2c31df51e64784603f5740a251b445fd88c46/Anthropic/claude-code/claude-code-fable-5.1.md). The base for comparison and reproduction; a [full local archive](references/auto-memory/claude-code-fable-5.1.md) also exists.
+- [Prompt directory: find later versions](https://github.com/asgeirtj/system_prompts_leaks/tree/main/Anthropic/claude-code). Its content changes; once a new version is chosen, record its commit, and never use `main` as a reproducible revision.
+- [Claude Code official auto memory docs](https://code.claude.com/docs/en/memory#auto-memory). Judgements here rest on the [snapshot downloaded 2026-09-18](references/auto-memory/claude-code-memory-docs.md), not on the assumption that the live page never changes.
+- [Claude Code official CHANGELOG: pinned commit](https://github.com/anthropics/claude-code/blob/bf7d404e26a5fb6167d21b46c93a2bf6c22ab274/CHANGELOG.md) (read 2026-09-21, latest entry 2.1.278). Check both the docs and the changelog when verifying harness behaviour; for when a mechanism arrived or changed, the changelog decides, since it records changes per version while the docs describe only the current state.
+- [The user's first draft: pinned commit](https://github.com/uxfion/skills/blob/67f357df6f2b60638a39b842d4e8272ab26c141e/agent-instructions/AGENTS.md). Only for tracing where a design came from; it is not an input to updates, and no extra copy is kept.
+- Hermes mechanisms follow v0.21.4 as recorded in the [Hermes spec](../docs/specs/20260926-hermes-agent-instructions-spec.md): how auto_load loads and refreshes, the gateway's working directory, subdirectory context injection. After a Hermes upgrade, re-check these before judging whether the Hermes paragraph is still needed.
 
-提示词来自第三方存档，文件名沿用其命名；不将其称为 Anthropic 官方发布，也不以存档本身证明真实性。获取时间及 [SHA-256 清单](references/auto-memory/SHA256SUMS)见 [来源索引](references/auto-memory/README.md)。Opus 5 也曾用于交叉比较，其 Memory 章节与 Fable 5.1 的实质规则相同。
+The prompts come from a third-party archive and keep its file names; do not call them official Anthropic releases or treat the archive as proof of authenticity. Fetch times and the [SHA-256 list](references/auto-memory/SHA256SUMS) are in the [source index](references/auto-memory/README.md). Opus 5 was also used for cross-checking; its Memory section has the same substantive rules as Fable 5.1.
 
-2026-09-21 在 Claude Code v2.1.278 的 Fable 5.1 会话中，由模型将自身系统提示词的 Memory 章节与 [Fable 5.1 Memory 摘录](references/auto-memory/fable-5.1-memory-section.md)逐句比对：除记忆目录路径和标题层级（`# Memory`）外文字一致。这是单一版本、单次会话的观察，只说明该基准当时与运行中的提示词相符，不改变存档的第三方性质。
+On 2026-09-21, in a Fable 5.1 session on Claude Code v2.1.278, the model compared the Memory section of its own system prompt sentence by sentence with the [Fable 5.1 Memory excerpt](references/auto-memory/fable-5.1-memory-section.md): the text matched apart from the memory directory path and the heading level (`# Memory`). This is one observation of one version in one session; it shows only that the base matched the running prompt then, and does not change the archive's third-party nature.
 
-2026-09-26 复核（Opus 5.5 发布后）：上游新增 [Opus 5.5 原始提示词：固定提交](https://github.com/asgeirtj/system_prompts_leaks/blob/a03321b094e65cad2ccd1f5ffb4b309537648834/Anthropic/claude-code/claude-code-opus-5.5.md)，其 Memory 章节与 Fable 5.1 摘录除记忆目录路径外逐字相同；上游 Fable 5.1 原文自 2026-09-05 起未变，与本地存档逐字节一致。官方文档的 Auto memory 一节与 09-18 快照逐字相同，[CHANGELOG 至 2.1.283](https://github.com/anthropics/claude-code/blob/7779afb12e3635f46f56ec823979d68350ae000b/CHANGELOG.md) 没有影响记忆格式或加载的变更。基准不变，未新增存档。
+Re-checked 2026-09-26, after the Opus 5.5 release: upstream added the [Opus 5.5 original prompt: pinned commit](https://github.com/asgeirtj/system_prompts_leaks/blob/a03321b094e65cad2ccd1f5ffb4b309537648834/Anthropic/claude-code/claude-code-opus-5.5.md), whose Memory section matches the Fable 5.1 excerpt word for word apart from the memory directory path; the upstream Fable 5.1 text is unchanged since 2026-09-05 and byte-identical to the local archive. The Auto memory section of the official docs matches the 09-18 snapshot word for word, and the [CHANGELOG up to 2.1.283](https://github.com/anthropics/claude-code/blob/7779afb12e3635f46f56ec823979d68350ae000b/CHANGELOG.md) has no change affecting the memory format or loading. The base is unchanged; no new archive was added.
