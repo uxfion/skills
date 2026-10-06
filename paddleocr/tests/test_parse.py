@@ -1,0 +1,305 @@
+# /// script
+# requires-python = ">=3.9"
+# dependencies = []
+# ///
+"""Tests for scripts/parse.py: page ranges, tokens, the text-layer check, input resolution and the start-up path (no GPU needed)."""
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "parse.py"
+spec = importlib.util.spec_from_file_location("parse", SCRIPT)
+P = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(P)
+
+PARAGRAPH = ("The diffusion model aligns the target image to match the style of the source domain while "
+             "preserving the original spatial context of every scan in the handheld device collection.")
+
+
+def chars(text, x=5000.0, y=5000.0):
+    """Text-layer characters [(ch, x, y)], all at one point; the default lies outside every block box."""
+    return [(ch, x, y) for ch in text]
+
+
+def block(i, page, label, text):
+    return {"id": i, "page": page, "label": label, "text": text, "bbox": [0, 0, 10, 10]}
+
+
+class PageRanges(unittest.TestCase):
+    def test_all_pages_by_default(self):
+        self.assertEqual(P.parse_pages(None, 3), [1, 2, 3])
+
+    def test_ranges_lists_and_open_end(self):
+        self.assertEqual(P.parse_pages("1-3,8", 10), [1, 2, 3, 8])
+        self.assertEqual(P.parse_pages("9-", 11), [9, 10, 11])
+        self.assertEqual(P.parse_pages("2,2,1", 5), [1, 2])
+
+    def test_clipped_to_page_count(self):
+        self.assertEqual(P.parse_pages("4-99", 5), [4, 5])
+
+    def test_bad_ranges(self):
+        for bad in ("0", "3-1", "a", "1-2-3", "7"):
+            with self.assertRaises(ValueError, msg=bad):
+                P.parse_pages(bad, 5)
+
+    def test_format_pages(self):
+        self.assertEqual(P.format_pages([1, 2, 3, 8]), "1-3,8")
+        self.assertEqual(P.format_pages([5]), "5")
+        self.assertEqual(P.format_pages([1, 3, 4]), "1,3-4")
+
+    def test_natural_order(self):
+        names = ["p10.png", "p2.png", "p1.png"]
+        self.assertEqual(sorted(names, key=P.natural_key), ["p1.png", "p2.png", "p10.png"])
+
+
+class Tokens(unittest.TestCase):
+    def test_text_layer_hyphenation_joined(self):
+        self.assertEqual(P.tokens("annota" + chr(0xFFFE) + "tions are", layer=True), ["annotations", "are"])
+        self.assertEqual(P.tokens("adap-\r\ntation", layer=True), ["adaptation"])
+
+    def test_parsed_html_and_latex_stripped(self):
+        self.assertEqual(P.tokens("<td>Spine</td><td>34,248</td> $\\mathbb{E}$ ok"), ["spine", "34,248", "ok"])
+
+    def test_ligatures_and_case(self):
+        self.assertEqual(P.tokens("Ef" + chr(0xFB01) + "cient"), ["efficient"])
+
+    def test_cjk_characters_are_tokens(self):
+        self.assertEqual(P.tokens("超声图像 test"), ["超", "声", "图", "像", "test"])
+
+    def test_single_letters_dropped(self):
+        self.assertEqual(P.tokens("a x b model"), ["model"])
+
+    def test_greek_is_math(self):
+        nu, gamma = chr(0x3BD), chr(0x3B3)
+        self.assertEqual(P.tokens(f"where {nu}S = 2{gamma}S and", layer=True), ["where", "2", "and"])
+
+    def test_number_ranges_not_joined(self):
+        self.assertEqual(P.tokens("ICASSP 2023-\n2023 IEEE", layer=True), ["icassp", "2023", "2023", "ieee"])
+        self.assertEqual(P.tokens("[-15,5] and 34,248"), ["15", "5", "and", "34,248"])
+
+
+class TextLayerCheck(unittest.TestCase):
+    def test_full_match(self):
+        toks = P.tokens(PARAGRAPH)
+        coverage, runs = P.missing_runs(toks, set(P.ngrams(toks)))
+        self.assertEqual((coverage, runs), (1.0, []))
+
+    def test_missing_run_found(self):
+        toks = P.tokens(PARAGRAPH)
+        kept = toks[:5] + toks[-3:]
+        coverage, runs = P.missing_runs(toks, set(P.ngrams(kept)))
+        self.assertLess(coverage, 0.5)
+        self.assertEqual(len(runs), 1)
+        start, end = runs[0]
+        self.assertIn("preserving", toks[start:end])
+
+    def test_short_gap_tolerated(self):
+        toks = P.tokens(PARAGRAPH)
+        parsed = list(toks)
+        parsed[8] = "xyz"                      # one misread word costs three trigrams, not a warning
+        self.assertEqual(P.missing_runs(toks, set(P.ngrams(parsed)))[1], [])
+
+    def test_document_omission_and_merge_placeholder(self):
+        blocks = [block(0, 1, "text", PARAGRAPH[:60]), dict(block(1, 1, "text", ""), merged_into=0),
+                  block(2, 2, "text", "Short page two text that is fine and complete as it stands here.")]
+        pages, warnings = P.check_document(blocks, {1: chars(PARAGRAPH), 2: chars(blocks[2]["text"])})
+        self.assertEqual([w["code"] for w in warnings], ["missing_text"])
+        self.assertEqual(warnings[0]["page"], 1)
+        self.assertEqual(pages[1]["coverage"], 1.0)
+
+    def test_text_moved_to_neighbouring_page_counts(self):
+        blocks = [block(0, 1, "text", PARAGRAPH), dict(block(1, 2, "text", ""), merged_into=0)]
+        _, warnings = P.check_document(blocks, {1: chars(PARAGRAPH[:80]), 2: chars(PARAGRAPH[80:])})
+        self.assertEqual(warnings, [])
+
+    def test_inline_math_either_way(self):
+        parsed = "Given a source image $ x_s $, the forward process adds random noise to the image many times over."
+        layer = "Given a source image xs, the forward process adds random noise to the image many times over."
+        _, warnings = P.check_document([block(0, 1, "text", parsed)], {1: chars(layer)})
+        self.assertEqual(warnings, [])
+
+    def test_text_inside_figures_and_formulas_not_checked(self):
+        blocks = [block(0, 1, "text", PARAGRAPH), dict(block(1, 1, "chart", ""), bbox=[0, 0, 100, 100]),
+                  dict(block(2, 1, "display_formula", "$$ a $$"), bbox=[0, 200, 100, 300])]
+        layer = chars(PARAGRAPH) + chars("\nTraining loss validation loss epochs 10 20 30 40 50\n", 50, 50) \
+            + chars("\nL total equals lambda times the sum of 12.5 terms\n", 50, 250)
+        _, warnings = P.check_document(blocks, {1: layer})
+        self.assertEqual(warnings, [])
+
+    def test_missing_numbers(self):
+        parsed = "The proposed model reached an accuracy of 70.90 percent on the held out test set."
+        layer = "The proposed model reached an accuracy of 70.99 percent on the held out test set.\n0.15\n"
+        _, warnings = P.check_document([block(0, 1, "text", parsed)], {1: chars(layer)})
+        self.assertEqual([(w["code"], w["detail"]) for w in warnings], [("missing_numbers", "70.99")])
+
+    def test_table_column_lost(self):
+        table_layer = "\nModel Dice IOU HD ASD\nUNet 0.92 0.86 16.67 3.04\nResUNet 0.82 0.71 88.03 10.94\n"
+        full = "<table><tr><td>Model</td><td>Dice</td><td>IOU</td><td>HD</td><td>ASD</td></tr>" \
+               "<tr><td>UNet</td><td>0.92</td><td>0.86</td><td>16.67</td><td>3.04</td></tr>" \
+               "<tr><td>ResUNet</td><td>0.82</td><td>0.71</td><td>88.03</td><td>10.94</td></tr></table>"
+        lost = full.replace("<td>ASD</td>", "").replace("<td>3.04</td>", "").replace("<td>10.94</td>", "")
+        for text, codes in ((full, []), (lost, ["table_mismatch"])):
+            blocks = [block(0, 1, "text", PARAGRAPH), dict(block(1, 1, "table", text), bbox=[0, 0, 100, 100])]
+            _, warnings = P.check_document(blocks, {1: chars(PARAGRAPH) + chars(table_layer, 50, 50)})
+            self.assertEqual([w["code"] for w in warnings if w["code"] == "table_mismatch"], codes)
+        self.assertIn("asd 3.04 10.94", warnings[-1]["detail"])
+
+    def test_image_table_flagged_unchecked(self):
+        blocks = [block(0, 1, "text", PARAGRAPH), dict(block(1, 1, "table", "<table></table>"), bbox=[0, 0, 100, 100]),
+                  dict(block(2, 1, "table", ""), bbox=[0, 200, 100, 300], merged_into=1)]
+        _, warnings = P.check_document(blocks, {1: chars(PARAGRAPH)})
+        self.assertEqual(warnings, [{"code": "unchecked_table", "page": 1, "block": 1}])
+
+    def test_figure_labels_beside_a_chart_not_checked(self):
+        blocks = [block(0, 1, "text", PARAGRAPH), dict(block(1, 1, "chart", ""), bbox=[100, 100, 200, 200])]
+        ticks = chars("\n0.2 0.4 0.6 0.8 1.0 accuracy over training epochs 10 20 30\n", 150, 210)
+        _, warnings = P.check_document(blocks, {1: chars(PARAGRAPH) + ticks})
+        self.assertEqual(warnings, [])
+
+    def test_text_block_inside_figure_zone_still_checked(self):
+        caption = "Figure two shows the training loss curves of every model trained in our experiments."
+        blocks = [dict(block(0, 1, "figure_title", caption[:40]), bbox=[100, 205, 300, 215]),
+                  dict(block(1, 1, "chart", ""), bbox=[100, 100, 300, 200])]
+        _, warnings = P.check_document(blocks, {1: chars(caption, 200, 210)})
+        self.assertEqual([w["code"] for w in warnings], ["missing_text"])
+
+    def test_layer_text_blanks_whole_words(self):
+        layer = chars("keep ") + [("c", 5, 5), ("u", 5, 5), ("t", 5000, 5000)] + chars(" word")
+        self.assertEqual(P.layer_text(layer, lambda x, y: x > 2000), "keep     word")   # "cut" centres at x 1670
+
+    def test_empty_page_and_no_text_layer(self):
+        blocks = [block(0, 1, "text", PARAGRAPH), block(1, 2, "header", "IEEE TRANSACTIONS"),
+                  block(2, 3, "image", "")]
+        _, warnings = P.check_document(blocks, {1: None, 2: None, 3: None})
+        codes = [(w["code"], w.get("page"), w.get("pages")) for w in warnings]
+        self.assertIn(("empty_page", 2, None), codes)
+        self.assertNotIn(("empty_page", 3, None), codes)
+        self.assertIn(("no_text_layer", None, [1, 2, 3]), codes)
+
+    def test_repetition(self):
+        looped = "The result is shown. " + "the same phrase again " * 8
+        blocks = [block(0, 1, "text", looped), block(1, 1, "table", "<td>0</td>" * 40)]
+        _, warnings = P.check_document(blocks, {1: None})
+        self.assertEqual([w["code"] for w in warnings if w["code"] == "repetition"], ["repetition"])
+        self.assertIsNone(P.repetition(PARAGRAPH))
+
+
+class ExtraText(unittest.TestCase):
+    def test_invented_continuation_flagged(self):
+        invented = " and the impact of different types of data sources on the performance of the final model."
+        blocks = [dict(block(0, 1, "text", PARAGRAPH + invented), bbox=[0, 0, 100, 100])]
+        _, warnings = P.check_document(blocks, {1: chars(PARAGRAPH, 50, 50)})
+        self.assertEqual([w["code"] for w in warnings], ["extra_text"])
+        self.assertIn("performance of the final model", warnings[0]["detail"])
+
+    def test_text_read_from_an_image_not_flagged(self):
+        blocks = [dict(block(0, 1, "text", PARAGRAPH), bbox=[0, 0, 100, 100]),
+                  dict(block(1, 1, "text", "Prompt: the refractive medium is turbid and mild retinal edema is visible."),
+                       bbox=[200, 200, 300, 300])]
+        _, warnings = P.check_document(blocks, {1: chars(PARAGRAPH, 50, 50)})
+        self.assertEqual(warnings, [])
+
+    def test_superscript_numbers_ignored(self):
+        parsed = "Chenlin Meng$^{1}$, Yutong He$^{1}$, Yang Song$^{1}$, Jiaming Song$^{1}$, Jiajun Wu$^{1}$ and Jun-Yan Zhu$^{2}$"
+        layer = "Chenlin Meng1 Yutong He1 Yang Song1 Jiaming Song1 Jiajun Wu1 Jun-Yan Zhu2 Stefano Ermon"
+        blocks = [dict(block(0, 1, "text", parsed), bbox=[0, 0, 100, 100])]
+        _, warnings = P.check_document(blocks, {1: chars(layer, 50, 50)})
+        self.assertEqual(warnings, [])
+
+
+class NoLayerChecks(unittest.TestCase):
+    def test_shifted_columns_leave_one_empty(self):
+        grid = ("<table><tr><td>Method</td><td>Image</td><td>C</td><td>CNR</td><td>gCNR</td></tr>"
+                "<tr><td>DAS</td><td>-22.042</td><td>0.784</td><td>0.929</td><td></td></tr>"
+                "<tr><td>CF</td><td>-35.018</td><td>0.355</td><td>0.821</td><td></td></tr></table>")
+        self.assertEqual(P.empty_columns(grid), ["gCNR"])
+        _, warnings = P.check_document([dict(block(0, 3, "table", grid), bbox=[0, 0, 10, 10])], {3: None})
+        self.assertIn({"code": "table_empty_column", "page": 3, "block": 0, "detail": "gCNR"}, warnings)
+
+    def test_full_table_and_spacer_column_pass(self):
+        table = ("<table><tr><td></td><td>A</td><td>B</td></tr><tr><td></td><td>1</td><td>2</td></tr>"
+                 "<tr><td></td><td>3</td><td>4</td></tr></table>")
+        self.assertEqual(P.empty_columns(table), [])
+
+    def test_formula_number_gap(self):
+        blocks = [block(0, 4, "formula_number", "(18)"), block(1, 4, "formula_number", "(20)"),
+                  block(2, 9, "formula_number", "(31)")]
+        self.assertEqual(P.formula_number_gaps(blocks),
+                         [{"code": "formula_number_gap", "page": 4, "detail": "(19) between (18) and (20), page 4-4"}])
+
+
+class FormulaNumbers(unittest.TestCase):
+    @staticmethod
+    def b(label, bbox, content=""):
+        return SimpleNamespace(label=label, bbox=bbox, content=content)
+
+    def test_number_follows_its_formula_and_lead_in_goes_first(self):
+        lead = self.b("text", [90, 707, 440, 730], "which can be written as")
+        formula = self.b("display_formula", [266, 741, 432, 765], "$$ g = 1 - o $$")
+        number = self.b("formula_number", [567, 743, 602, 764], "(19)")
+        after = self.b("text", [91, 776, 602, 863], "Notice that")
+        md, js = P.attach_formula_numbers([formula, lead, number, after])
+        self.assertEqual(js, [lead, formula, number, after])
+        self.assertEqual(md, js)
+
+    def test_two_numbers_on_one_formula(self):
+        formula = self.b("display_formula", [804, 858, 972, 908], "$$ a \\\\ b $$")
+        n22 = self.b("formula_number", [1107, 855, 1143, 877], "(22)")
+        n23 = self.b("formula_number", [1107, 883, 1142, 904], "(23)")
+        md, js = P.attach_formula_numbers([formula, n22, n23])
+        self.assertEqual(js, [formula, n22, n23])
+        self.assertEqual([x.content for x in md], ["$$ a \\\\ b $$", "(22), (23)"])
+        self.assertEqual(n22.content, "(22)")
+
+    def test_number_without_a_formula_stays(self):
+        text = self.b("text", [0, 0, 100, 20], "see")
+        lone = self.b("formula_number", [500, 300, 530, 320], "(4)")
+        self.assertEqual(P.attach_formula_numbers([text, lone]), ([text, lone], [text, lone]))
+
+
+class Inputs(unittest.TestCase):
+    def test_not_found(self):
+        self.assertEqual(P.resolve_input("/no/such/file.pdf", None)["error"], "not_found")
+
+    def test_unsupported_file_and_empty_dir(self):
+        with tempfile.TemporaryDirectory() as d:
+            txt = Path(d) / "notes.txt"
+            txt.write_text("x")
+            self.assertEqual(P.resolve_input(str(txt), None)["error"], "unsupported_input")
+            empty = Path(d) / "empty"
+            empty.mkdir()
+            self.assertEqual(P.resolve_input(str(empty), None)["error"], "unsupported_input")
+
+    def test_image_directory_is_one_document(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("page10.png", "page2.png", "page1.jpg", "readme.md"):
+                (Path(d) / name).write_bytes(b"")
+            doc = P.resolve_input(d, "2-3")
+            self.assertEqual(doc["kind"], "images")
+            self.assertEqual([f.name for f in doc["files"]], ["page1.jpg", "page2.png", "page10.png"])
+            self.assertEqual((doc["page_count"], doc["pages"]), (3, [2, 3]))
+            self.assertEqual(P.resolve_input(d, "5")["error"], "bad_pages")
+
+
+class StartUp(unittest.TestCase):
+    def test_missing_tool_environment(self):
+        env = dict(os.environ, PADDLEOCR_PYTHON="/no/such/python")
+        out = subprocess.run([sys.executable, str(SCRIPT), "x.pdf", "-o", "out"], capture_output=True, text=True, env=env)
+        if out.returncode == 0 or '"paddleocr_missing"' not in out.stdout:
+            try:
+                import paddleocr  # noqa: F401 - running inside the tool environment itself
+                self.skipTest("paddleocr importable here")
+            except ImportError:
+                pass
+        self.assertEqual(out.returncode, 2)
+        self.assertEqual(json.loads(out.stdout)["error"], "paddleocr_missing")
+
+
+if __name__ == "__main__":
+    unittest.main()
