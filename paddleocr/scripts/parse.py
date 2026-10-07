@@ -38,7 +38,9 @@ Text inside figure and display-formula boxes is not checked; tables are checked 
 
 `uv run` starts this script in a bare environment; it re-executes itself with the Python of
 the `paddleocr` uv tool (PADDLEOCR_PYTHON overrides), with CUDA_MODULE_LOADING=EAGER set
-before CUDA initialises (lazy loading hung the VL model on WSL2 + RTX 50, 2026-10).
+before CUDA initialises (lazy loading hung the VL model on WSL2 + RTX 50, 2026-10) and
+LD_LIBRARY_PATH stripped of CUDA toolkit directories when the environment ships its own CUDA
+runtime, so that Paddle loads those libraries rather than a system toolkit's.
 
 Errors: "error" in a summary line (not_found, unsupported_input, bad_pages, parse_failed);
 {"error": "paddleocr_missing"} when the tool environment cannot be found.
@@ -52,6 +54,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import glob
 import hashlib
 import json
 import os
@@ -113,6 +116,16 @@ def tool_python() -> str | None:
     return None
 
 
+def without_cuda_toolkit(path: str) -> str | None:
+    """LD_LIBRARY_PATH minus the directories holding a CUDA runtime; None when nothing is left.
+
+    A system toolkit ahead of the environment's own nvidia-* wheels made Paddle load its
+    libcudart and a second libcublas next to the bundled ones (2026-10: 12.8 beside 12.9).
+    """
+    kept = [d for d in path.split(":") if not (d and glob.glob(os.path.join(glob.escape(d), "libcudart.so*")))]
+    return ":".join(kept) if any(kept) else None
+
+
 def ensure_tool_env() -> None:
     """Return inside an interpreter that has paddleocr, or exit with paddleocr_missing."""
     os.environ.setdefault("CUDA_MODULE_LOADING", "EAGER")
@@ -129,6 +142,17 @@ def ensure_tool_env() -> None:
                           "detail": "no paddleocr uv tool found; see references/install.md"}), flush=True)
         sys.exit(2)
     os.environ["_PADDLEOCR_REEXEC"] = "1"
+    # The loader reads LD_LIBRARY_PATH when a process starts, so this takes effect only across
+    # the exec; started directly with the tool's Python, the script keeps the path it was given.
+    # An environment without its own CUDA runtime keeps the system toolkit it depends on.
+    env = glob.escape(str(Path(python).parent.parent))
+    ships_cuda = glob.glob(os.path.join(env, "lib", "python3*", "site-packages", "nvidia", "cuda_runtime", "lib", "libcudart.so*"))
+    if ships_cuda and "LD_LIBRARY_PATH" in os.environ:
+        path = without_cuda_toolkit(os.environ["LD_LIBRARY_PATH"])
+        if path is None:
+            del os.environ["LD_LIBRARY_PATH"]
+        else:
+            os.environ["LD_LIBRARY_PATH"] = path
     os.execv(python, [python, os.path.abspath(__file__), *sys.argv[1:]])
 
 

@@ -249,6 +249,11 @@ Python API：paddleocr 只装在工具环境里，要用 `$(uv tool dir)/paddleo
 - [ ] 测试 PDF 输入，看多页 PDF 的输出文件怎么命名、怎么组织。这是用户的主要使用场景，目前只测过 PNG。
 - [ ] 分开测量模型加载时间和单页推理时间，用来判断批量处理时值不值得上 vLLM 服务。
 - [ ] 之前提议在 `~/.claude/CLAUDE.md` 的 CLI tools 一节加一行说明 paddleocr，还没做。skill 建好后可能就不需要了。
+- [x] **skill 调用时混用两套 CUDA 库**（2026-10-06，用户问「skill调用的时候加载的cuda用的是哪个」）。Agent 的 shell 继承了 `~/.bashrc` 第 109 行导出的 `LD_LIBRARY_PATH`（非交互式 shell 虽然会在第 6 行退出，但变量来自启动 harness 的那个终端），`parse.py` 也没有改它。用已安装的 skill 解析一页，读取进程的 `/proc/<pid>/maps`：
+  - 继承的 `LD_LIBRARY_PATH`：`libcudart.so.12.8.90`、`libcublas`/`libcublasLt` `12.8.4.1` 来自 `/usr/local/cuda-12.8`；同一个进程里还映射了环境自带的 `libcublas.so.12`（12.9.0.13）；cuDNN 是环境自带的 9.9.0.52。
+  - 去掉 `LD_LIBRARY_PATH`：cudart 12.9.37、cublas/cublasLt 12.9.0.13、cuDNN 9.9.0.52，全部来自 `$(uv tool dir)/paddleocr/…/site-packages/nvidia/`。
+  - 两种情况的 Markdown 逐字节相同，耗时 20 s 对 19 s；v1 的 110 页也是在混用的状态下跑的。目前没有出错，但同一个进程里有两份 `libcublas.so.12`，用哪一份取决于加载顺序。
+  - 去向：用户要求「让它稳定用自带的 12.9」。工具环境自带 CUDA 运行时（`site-packages/nvidia/cuda_runtime`）时，`parse.py` 在 `execv` 之前从 `LD_LIBRARY_PATH` 里去掉含 `libcudart.so*` 的目录，一个都不剩时删掉这个变量（`LD_LIBRARY_PATH` 在 exec 时才会被读取，所以对新进程有效）；直接用工具环境的 Python 启动脚本时不处理。复测时用的是继承来的 `LD_LIBRARY_PATH`：进程里只剩环境自带的 12.9 那一套，Markdown 和修改前逐字节相同。`references/install.md` 新增「Which CUDA libraries load」一节，写了直接调 CLI 时的做法。
 - [ ] 本机所有 uv tool（hf、markitdown、mineru、pdfplumber、paddleocr）的解释器都来自 miniconda。如果升级或删除 miniconda，这些工具都可能失效。可以考虑改用 `uv python` 管理的解释器重装（`--python-preference only-managed`）。
 
 ## 10. 参考资料

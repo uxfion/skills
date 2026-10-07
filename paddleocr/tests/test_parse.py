@@ -287,6 +287,19 @@ class Inputs(unittest.TestCase):
             self.assertEqual(P.resolve_input(d, "5")["error"], "bad_pages")
 
 
+class LibraryPath(unittest.TestCase):
+    def test_toolkit_directories_are_dropped(self):
+        with tempfile.TemporaryDirectory() as d:
+            toolkit, other = Path(d) / "cuda-12.8" / "lib64", Path(d) / "wsl"
+            toolkit.mkdir(parents=True)
+            other.mkdir()
+            (toolkit / "libcudart.so.12.8.90").write_bytes(b"")
+            (other / "libcuda.so.1").write_bytes(b"")
+            self.assertEqual(P.without_cuda_toolkit(f"{toolkit}:{other}::{toolkit}"), f"{other}:")
+            self.assertIsNone(P.without_cuda_toolkit(f"{toolkit}:{toolkit}:"))
+            self.assertEqual(P.without_cuda_toolkit(f"{other}:/no/such/dir"), f"{other}:/no/such/dir")
+
+
 class StartUp(unittest.TestCase):
     def test_missing_tool_environment(self):
         env = dict(os.environ, PADDLEOCR_PYTHON="/no/such/python")

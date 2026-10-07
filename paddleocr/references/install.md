@@ -49,6 +49,16 @@ A hang with EAGER already set is a different problem: [PaddleOCR #17693](https:/
 
 Harmless on WSL: `libcuda.so: cannot open shared object file` (WSL keeps it in `/usr/lib/wsl/lib`), `No ccache found`, and a `Non compatible API` notice.
 
+## Which CUDA libraries load
+
+The tool environment ships its own CUDA runtime, cuBLAS and cuDNN (the `nvidia-*-cu12` wheels; CUDA 12.9 for the cu129 build). A system CUDA toolkit on `LD_LIBRARY_PATH` (`/usr/local/cuda-*/lib64`, often exported in `~/.bashrc` and inherited by agents started from that shell) is searched first: Paddle then loads the toolkit's `libcudart` and a second `libcublas` beside the bundled one (seen 2026-10: 12.8 beside 12.9, same output). `parse.py` drops every `LD_LIBRARY_PATH` directory holding a `libcudart.so*` before it re-executes into the tool environment, so it runs on the bundled set (an environment without a bundled runtime keeps the path as it is). A direct call needs the same, set before the process starts:
+
+```bash
+env -u LD_LIBRARY_PATH CUDA_MODULE_LOADING=EAGER paddleocr doc_parser -i <file> --save_path <dir>
+```
+
+To see what a running parse has loaded: `grep -o '/[^ ]*lib\(cudart\|cublas\|cudnn\)[^ ]*' /proc/<pid>/maps | sort -u`.
+
 ## Many documents
 
 `parse.py` uses the native backend: one process, about 30 s to load, then roughly 15 s a page. For a large batch, or several programs sharing one loaded model, a vLLM or SGLang server can replace just the VL step (same weights, same output); it needs its own environment with FlashAttention. Setup is in the usage guide, section on inference services (`paddleocr genai_server`, `paddleocr doc_parser --vl_rec_backend vllm-server --vl_rec_server_url …`); `parse.py` does not drive one yet.
