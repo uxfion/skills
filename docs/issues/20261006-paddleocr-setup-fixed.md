@@ -4,7 +4,7 @@
 >
 > 去向（2026-10-06）：名称定为 `paddleocr`，MinerU 暂不纳入；设计见 `docs/specs/20261006-paddleocr-spec.md`，实现在 `paddleocr/`。第 9 节里 skill 名称与范围、个人信息不进 SKILL.md、PDF 输入测试、分开计时这几项已在 spec 里处理；`.pth` 方案没有采用（脚本在进程内设置 EAGER）；`~/.claude/CLAUDE.md` 那一行不再需要。
 >
-> 状态：fixed（10-07）。安装、WSL2 卡死、混用两套 CUDA 库都已解决，skill 已建成；还开着的两条单独成了 issue：miniconda 解释器的风险（[20261006-uv-python-tools-on-miniconda.md](20261006-uv-python-tools-on-miniconda.md)），10-07 记的主图被拆成很多小图（[20261007-paddleocr-figure-split.md](20261007-paddleocr-figure-split.md)）。
+> 状态：fixed（10-07）。安装、WSL2 卡死、混用两套 CUDA 库都已解决，skill 已建成；剩下的两条单独成了 issue：miniconda 解释器的风险（[20261006-uv-python-tools-on-miniconda-fixed.md](20261006-uv-python-tools-on-miniconda-fixed.md)），10-07 记的主图被拆成很多小图（[20261007-paddleocr-figure-split.md](20261007-paddleocr-figure-split.md)）。
 
 ## 1. 需求
 
@@ -257,7 +257,7 @@ Python API：paddleocr 只装在工具环境里，要用 `$(uv tool dir)/paddleo
   - 两种情况的 Markdown 逐字节相同，耗时 20 s 对 19 s；v1 的 110 页也是在混用的状态下跑的。目前没有出错，但同一个进程里有两份 `libcublas.so.12`，用哪一份取决于加载顺序。
   - 去向：用户要求「让它稳定用自带的 12.9」。工具环境自带 CUDA 运行时（`site-packages/nvidia/cuda_runtime`）时，`parse.py` 在 `execv` 之前从 `LD_LIBRARY_PATH` 里去掉含 `libcudart.so*` 的目录，一个都不剩时删掉这个变量（`LD_LIBRARY_PATH` 在 exec 时才会被读取，所以对新进程有效）；直接用工具环境的 Python 启动脚本时不处理。复测时用的是继承来的 `LD_LIBRARY_PATH`：进程里只剩环境自带的 12.9 那一套，Markdown 和修改前逐字节相同。`references/install.md` 新增「Which CUDA libraries load」一节，写了直接调 CLI 时的做法。
 - [ ] **一张主图被拆成很多小图**（2026-10-07）→ 单独成了 issue：[20261007-paddleocr-figure-split.md](20261007-paddleocr-figure-split.md)
-- [ ] **uv tool 的解释器都来自 miniconda**（2026-10-06）→ 单独成了 issue：[20261006-uv-python-tools-on-miniconda.md](20261006-uv-python-tools-on-miniconda.md)
+- [ ] **uv tool 的解释器都来自 miniconda**（2026-10-06）→ 单独成了 issue：[20261006-uv-python-tools-on-miniconda-fixed.md](20261006-uv-python-tools-on-miniconda-fixed.md)
 
 ## 10. 参考资料
 
