@@ -1,8 +1,10 @@
-# paddleocr
+# paddleocr：本机安装、WSL2 卡死与建 skill
 
 > 2026-10-06 记录。在一个临时工作目录的 Claude Code 会话里，把 PaddleOCR-VL 1.6 装成了 uv tool 并调通；下一步是在本仓库新建一个 skill，让所有 Agent 都能调用它。skill 名暂用 `paddleocr`，正式名称待定。
 >
-> 去向（2026-10-06）：名称定为 `paddleocr`，MinerU 暂不纳入；设计见 `docs/specs/20261006-paddleocr-spec.md`，实现在 `paddleocr/`。第 9 节里 skill 名称与范围、个人信息不进 SKILL.md、PDF 输入测试、分开计时这几项已在 spec 里处理；`.pth` 方案没有采用（脚本在进程内设置 EAGER）；`~/.claude/CLAUDE.md` 那一行不再需要；miniconda 解释器的风险仍然待办。
+> 去向（2026-10-06）：名称定为 `paddleocr`，MinerU 暂不纳入；设计见 `docs/specs/20261006-paddleocr-spec.md`，实现在 `paddleocr/`。第 9 节里 skill 名称与范围、个人信息不进 SKILL.md、PDF 输入测试、分开计时这几项已在 spec 里处理；`.pth` 方案没有采用（脚本在进程内设置 EAGER）；`~/.claude/CLAUDE.md` 那一行不再需要。
+>
+> 状态：fixed（10-07）。安装、WSL2 卡死、混用两套 CUDA 库都已解决，skill 已建成；还开着的两条单独成了 issue：miniconda 解释器的风险（[20261006-uv-python-tools-on-miniconda.md](20261006-uv-python-tools-on-miniconda.md)），10-07 记的主图被拆成很多小图（[20261007-paddleocr-figure-split.md](20261007-paddleocr-figure-split.md)）。
 
 ## 1. 需求
 
@@ -254,7 +256,8 @@ Python API：paddleocr 只装在工具环境里，要用 `$(uv tool dir)/paddleo
   - 去掉 `LD_LIBRARY_PATH`：cudart 12.9.37、cublas/cublasLt 12.9.0.13、cuDNN 9.9.0.52，全部来自 `$(uv tool dir)/paddleocr/…/site-packages/nvidia/`。
   - 两种情况的 Markdown 逐字节相同，耗时 20 s 对 19 s；v1 的 110 页也是在混用的状态下跑的。目前没有出错，但同一个进程里有两份 `libcublas.so.12`，用哪一份取决于加载顺序。
   - 去向：用户要求「让它稳定用自带的 12.9」。工具环境自带 CUDA 运行时（`site-packages/nvidia/cuda_runtime`）时，`parse.py` 在 `execv` 之前从 `LD_LIBRARY_PATH` 里去掉含 `libcudart.so*` 的目录，一个都不剩时删掉这个变量（`LD_LIBRARY_PATH` 在 exec 时才会被读取，所以对新进程有效）；直接用工具环境的 Python 启动脚本时不处理。复测时用的是继承来的 `LD_LIBRARY_PATH`：进程里只剩环境自带的 12.9 那一套，Markdown 和修改前逐字节相同。`references/install.md` 新增「Which CUDA libraries load」一节，写了直接调 CLI 时的做法。
-- [ ] 本机所有 uv tool（hf、markitdown、mineru、pdfplumber、paddleocr）的解释器都来自 miniconda。如果升级或删除 miniconda，这些工具都可能失效。可以考虑改用 `uv python` 管理的解释器重装（`--python-preference only-managed`）。
+- [ ] **一张主图被拆成很多小图**（2026-10-07）→ 单独成了 issue：[20261007-paddleocr-figure-split.md](20261007-paddleocr-figure-split.md)
+- [ ] **uv tool 的解释器都来自 miniconda**（2026-10-06）→ 单独成了 issue：[20261006-uv-python-tools-on-miniconda.md](20261006-uv-python-tools-on-miniconda.md)
 
 ## 10. 参考资料
 

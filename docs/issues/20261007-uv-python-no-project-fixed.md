@@ -1,6 +1,6 @@
 # uv-python：One-off 会往项目目录里写 `.venv` 和 `uv.lock`（缺 `--no-project`）
 
-> 2026-10-07 记录 · 状态：fixed（10-07）。全局指令三份和 skill 已改；还没做的：另一台机器上 Hermes 的副本（`~/.hermes/skills/agent-instructions/SKILL.md`），push 后重装全局的 uv-python skill
+> 2026-10-07 记录 · 状态：fixed（10-07）。全局指令三份和 skill 已改（a09a7a1），已推送，全局的 uv-python skill 已更新；还没做的：另一台机器上 Hermes 的副本（`~/.hermes/skills/agent-instructions/SKILL.md`）
 >
 > - 涉及：`uv-python/SKILL.md`；`agent-instructions/CLAUDE.md`、`AGENTS.md` 的 Python 节（再生成 `HERMES.md`），确认后同步全局副本
 > - 关联：[20260929-agent-instructions-reusable-memories.md](20260929-agent-instructions-reusable-memories.md) 第 5 节「只读检查不留写入」和「待你决定」第 4 条，两边说的是同一个缺口
