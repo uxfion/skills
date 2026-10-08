@@ -13,7 +13,7 @@ Use `uv` exclusively. Never use pip, pip3, pip-tools, poetry, virtualenv or cond
 |----------|----------|
 | Working in a directory with `pyproject.toml` | **Project** — use `uv add`, `uv run` |
 | Reusable script that needs specific packages | **Standalone Script** — use PEP 723 inline metadata |
-| Quick throwaway code, no file needed | **One-Off Code** — pipe to `uv run -` |
+| Quick throwaway code, no file needed | **One-Off Code** — pipe to `uv run --no-project -` |
 
 ## Project (has `pyproject.toml`)
 
@@ -41,20 +41,20 @@ Use PEP 723 inline metadata to declare dependencies inside the script:
 
 - Add dep via CLI: `uv add <package> --script <script>.py`
 - Remove dep via CLI: `uv remove <package> --script <script>.py`
-- Run: `uv run <script>.py`
+- Run: `uv run --no-project <script>.py`
 
 ## One-Off Code (no file saved, temporary execution)
 
 Use instead of `python -c "code"`:
 
 ```bash
-echo 'print("hello")' | uv run -
+echo 'print("hello")' | uv run --no-project -
 ```
 
 For multi-line code, use a heredoc:
 
 ```bash
-uv run - <<'PY'
+uv run --no-project - <<'PY'
 <script>
 PY
 ```
