@@ -424,7 +424,7 @@ class Recheck(unittest.TestCase):
             _, md, js = P.out_paths(doc, args)
             js.parent.mkdir(parents=True)
             md.write_text("fixed by hand")
-            stored = {"source": {}, "parser": {"format": P.FORMAT, "options": {}},
+            stored = {"source": {}, "parser": {"format": P.FORMAT, "options": {}, "figures": {"version": P.FIGURES}},
                       "pages": [{"page": 1, "coverage": None, "width": 100, "height": 100}],
                       "blocks": [block(0, 1, "text", looped)], "warnings": [{"code": "no_text_layer", "pages": [1]}]}
             js.write_text(json.dumps(stored))
@@ -435,6 +435,174 @@ class Recheck(unittest.TestCase):
             self.assertEqual((again["parser"]["check"], again["warnings"]), (P.CHECK, summary["warnings"]))
             self.assertEqual(md.read_text(), "fixed by hand")
             self.assertNotIn("rechecked", P.process(doc, args, {}))
+
+
+RUNNING = "We compare the methods on every dataset of the study and report the mean and spread of each metric. " * 4
+
+
+def fb(i, label, bbox, text="", page=1):
+    """A block on a Letter page rendered at scale 2 (1224 x 1584 pixels: a row is about 12)."""
+    return {"id": i, "page": page, "label": label, "text": text, "bbox": bbox}
+
+
+def grouped(blocks, layout=None, charts=False):
+    return [g["members"] for g in P.group_page(blocks, layout, 1584, charts)]
+
+
+class FigureGroups(unittest.TestCase):
+    def test_caption_kinds(self):
+        self.assertTrue(P.is_caption(fb(0, "figure_title", None, "Fig. 3: B-mode images")))
+        self.assertTrue(P.is_caption(fb(0, "figure_title", None, "**Extended Data Fig. 1 | Prompts")))
+        self.assertTrue(P.is_caption(fb(0, "text", None, "Fig. 3. Results on the test set")))
+        self.assertTrue(P.is_caption(fb(0, "vision_footnote", None, "Figure 12: Samples")))
+        self.assertFalse(P.is_caption(fb(0, "text", None, "Fig. 3 shows that the method converges")))
+        self.assertTrue(P.is_panel(fb(0, "figure_title", None, "(b)")))
+        self.assertTrue(P.is_subtitle(fb(0, "figure_title", None, "prompt: a photo of a cat")))
+        self.assertTrue(P.is_blocker(fb(0, "text", None, RUNNING)))
+        self.assertFalse(P.is_blocker(fb(0, "text", None, "x [mm]")))
+
+    def test_layout_box_joins_its_panels_and_the_room_between(self):
+        blocks = [fb(1, "image", [100, 100, 400, 300]), fb(2, "chart", [700, 100, 1100, 300]),
+                  fb(3, "figure_title", [100, 330, 1100, 360], "Fig. 2. Overview")]
+        whole = [{"label": "image", "bbox": [95, 95, 1105, 310]}]
+        (g,) = P.group_page(blocks, whole, 1584)
+        self.assertEqual((g["members"], g["bbox"], g["by"]), ([1, 2], [95, 95, 1105, 310], "layout"))
+
+    def test_layout_box_over_a_caption_is_dropped(self):
+        blocks = [fb(1, "image", [100, 100, 1100, 300]), fb(2, "figure_title", [100, 310, 1100, 340], "Fig. 1. One"),
+                  fb(3, "image", [100, 360, 1100, 600]), fb(4, "figure_title", [100, 610, 1100, 640], "Fig. 2. Two")]
+        self.assertEqual(grouped(blocks, [{"label": "image", "bbox": [90, 90, 1110, 610]}]), [])
+
+    def test_layout_box_over_two_figures_side_by_side_is_dropped(self):
+        blocks = [fb(1, "image", [100, 100, 580, 300]), fb(2, "figure_title", [100, 310, 580, 340], "Fig. 1. Left"),
+                  fb(3, "image", [640, 100, 1120, 300]), fb(4, "figure_title", [640, 310, 1120, 340], "Fig. 2. Right")]
+        self.assertEqual(grouped(blocks, [{"label": "image", "bbox": [90, 90, 1130, 305]}]), [])
+
+    def test_caption_joins_the_panels_above_it_across_a_two_column_caption(self):
+        # Nature: a full-width figure whose caption runs on in the right column, labelled text
+        blocks = [fb(1, "chart", [100, 100, 580, 300]), fb(2, "chart", [640, 100, 1120, 300]),
+                  fb(3, "chart", [100, 320, 580, 520]), fb(4, "chart", [640, 320, 1120, 520]),
+                  fb(5, "figure_title", [100, 540, 580, 700], "Fig. 2 | Results."), fb(6, "text", [640, 541, 1120, 700], RUNNING)]
+        self.assertEqual(grouped(blocks), [[1, 2, 3, 4]])
+        self.assertEqual(grouped(blocks[:5]), [[1, 3]])
+
+    def test_captions_side_by_side_keep_their_figures_apart(self):
+        blocks = [fb(1, "image", [100, 100, 580, 300]), fb(2, "image", [100, 320, 580, 520]),
+                  fb(3, "figure_title", [100, 540, 580, 570], "Fig. 1. Left"),
+                  fb(4, "image", [640, 100, 1120, 300]), fb(5, "image", [640, 320, 1120, 520]),
+                  fb(6, "figure_title", [640, 540, 1120, 570], "Fig. 2. Right")]
+        self.assertEqual(grouped(blocks), [[1, 2], [4, 5]])
+
+    def test_a_row_of_panels_shares_the_caption_under_it(self):
+        # 2026-10, TMI: Fig. 4 a row across the page, its caption under the left half only; the right-hand panels
+        # went on to Fig. 6's caption in the right column
+        blocks = [fb(1, "chart", [98, 104, 181, 418]), fb(2, "chart", [191, 102, 647, 418]), fb(3, "chart", [657, 103, 1121, 416]),
+                  fb(4, "figure_title", [92, 442, 594, 464], "Fig. 4. Visual comparison"),
+                  fb(5, "chart", [631, 516, 881, 698]), fb(6, "chart", [880, 517, 1120, 697]),
+                  fb(7, "figure_title", [616, 1103, 1131, 1305], "Fig. 6. Assessment")]
+        self.assertEqual(grouped(blocks), [[1, 2, 3], [5, 6]])
+
+    def test_blocker_between_keeps_a_unit_out(self):
+        blocks = [fb(1, "image", [100, 100, 1100, 300]), fb(2, "paragraph_title", [100, 320, 600, 350], "IV. Results"),
+                  fb(3, "image", [100, 370, 1100, 600]), fb(4, "figure_title", [100, 610, 1100, 640], "Fig. 4. Maps")]
+        self.assertEqual(grouped(blocks), [])
+
+    def test_union_over_running_text_is_not_a_figure(self):
+        blocks = [fb(1, "image", [100, 100, 500, 300]), fb(2, "text", [600, 100, 1100, 300], RUNNING),
+                  fb(3, "image", [100, 320, 1100, 600]), fb(4, "figure_title", [100, 610, 1100, 640], "Fig. 5. Maps")]
+        self.assertEqual(grouped(blocks), [])
+
+    def test_each_unit_goes_to_its_nearest_caption(self):
+        blocks = [fb(1, "image", [100, 100, 1100, 300]), fb(2, "figure_title", [100, 310, 1100, 340], "Fig. 1. One"),
+                  fb(3, "image", [100, 360, 1100, 500]), fb(4, "image", [100, 510, 1100, 650]),
+                  fb(5, "figure_title", [100, 660, 1100, 690], "Fig. 2. Two")]
+        self.assertEqual(grouped(blocks), [[3, 4]])
+
+    def test_body_text_naming_a_figure_is_not_its_caption(self):
+        blocks = [fb(1, "image", [100, 100, 1100, 300]), fb(2, "text", [100, 310, 1100, 340], "Fig. 3 shows the maps"),
+                  fb(3, "image", [100, 360, 1100, 600])]
+        self.assertEqual(grouped(blocks), [])
+
+    def test_letters_and_titles_beside_the_figure_widen_it(self):
+        blocks = [fb(1, "figure_title", [100, 85, 115, 98], "a"), fb(2, "image", [100, 100, 580, 300]),
+                  fb(3, "image", [640, 100, 1120, 300]), fb(4, "figure_title", [640, 305, 900, 320], "(b) Ours"),
+                  fb(5, "figure_title", [100, 340, 1120, 370], "Fig. 6. Samples")]
+        (g,) = P.group_page(blocks, None, 1584)
+        self.assertEqual((g["members"], g["panels"], g["bbox"]), ([2, 3], [1], [100, 85, 1120, 320]))
+
+    def test_second_half_of_a_two_column_caption_stays_out_of_the_crop(self):
+        # 2026-10, Nature: the caption's right half, labelled figure_title, was taken for a title inside the figure,
+        # and widening the crop to it took in the whole caption
+        blocks = [fb(1, "figure_title", [100, 85, 115, 98], "a"), fb(2, "image", [100, 100, 580, 500]),
+                  fb(3, "image", [640, 100, 1120, 500]),
+                  fb(4, "figure_title", [100, 505, 580, 640], "Fig. 1 | Overview. a, The system."),
+                  fb(5, "figure_title", [640, 505, 1120, 620], "training source and are shown in three scenarios.")]
+        for layout in ([{"label": "image", "bbox": [95, 95, 1125, 500]}], None):
+            (g,) = P.group_page(blocks, layout, 1584)
+            self.assertEqual((g["members"], g["panels"], g["bbox"][3]), ([2, 3], [1], 500))
+
+    def test_charts_turned_into_tables_stay_out(self):
+        blocks = [fb(1, "chart", [100, 100, 580, 300]), fb(2, "chart", [640, 100, 1120, 300]),
+                  fb(3, "figure_title", [100, 310, 1120, 340], "Fig. 7. Curves")]
+        self.assertEqual(grouped(blocks), [[1, 2]])
+        self.assertEqual(grouped(blocks, charts=True), [])
+
+    def test_record_says_why_the_layout_model_was_not_used(self):
+        state = {"layout": None, "layout_error": "Exception: No available model hosting platforms detected."}
+        two = [fb(1, "image", [100, 100, 580, 300]), fb(2, "image", [640, 100, 1120, 300])]
+        one = [fb(1, "image", [100, 100, 580, 300])]
+        _, _, figures = P.group_figures(two, "", {1: (1224, 1584)}, lambda page: None, Path("."), False, state)
+        self.assertEqual(figures, {"version": P.FIGURES, "layout_model": None, "layout_error": state["layout_error"]})
+        _, _, figures = P.group_figures(one, "", {1: (1224, 1584)}, lambda page: None, Path("."), False, state)
+        self.assertEqual(figures, {"version": P.FIGURES, "layout_model": None})
+
+    def test_markdown_takes_the_whole_figure(self):
+        md = ("<!-- page 2 -->\n\nText before.\n\na\n\n![](imgs/p02_a.jpg)\n\nb\n\n![](imgs/p02_b.jpg)\n\n"
+              "(c) Ours\n\n![](imgs/p02_c.jpg)\n\nFig. 2. Samples.\n\na\n")
+        members = [{"image": "imgs/p02_a.jpg"}, {"image": "imgs/p02_b.jpg"}, {"image": "imgs/p02_c.jpg"}]
+        letters = [{"text": "a"}, {"text": "b"}]
+        out = P.regroup_markdown(md, [({"image": "imgs/p02_figure_box_1_2_3_4.jpg"}, members, letters)])
+        self.assertEqual(out, "<!-- page 2 -->\n\nText before.\n\n![](imgs/p02_figure_box_1_2_3_4.jpg)\n\n"
+                              "(c) Ours\n\nFig. 2. Samples.\n\na\n")
+
+
+class Regroup(unittest.TestCase):
+    def test_parse_from_before_grouping_is_grouped_once(self):
+        saved = P.save_crop, P.page_image
+        P.save_crop = lambda image, bbox, path: None
+        P.page_image = lambda doc, page, size, pdf=None: None
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                page = Path(d) / "p1.png"
+                page.write_bytes(b"")
+                doc = P.resolve_input(str(page), None)
+                doc.update(sha="x", fresh=True)
+                args = SimpleNamespace(output=d)
+                _, md, js = P.out_paths(doc, args)
+                js.parent.mkdir(parents=True)
+                md.write_text("<!-- page 1 -->\n\n<!-- from page image: fixed -->\nIntro.\n\n![](imgs/p01_a.jpg)\n\n"
+                              "![](imgs/p01_b.jpg)\n\nFig. 1. Two panels.\n")
+                blocks = [dict(fb(0, "text", [100, 40, 1100, 80], "Intro.")),
+                          dict(fb(1, "image", [100, 100, 580, 300]), image="imgs/p01_a.jpg"),
+                          dict(fb(2, "image", [640, 100, 1120, 300]), image="imgs/p01_b.jpg"),
+                          fb(3, "figure_title", [100, 310, 1120, 340], "Fig. 1. Two panels.")]
+                stored = {"source": {}, "parser": {"format": P.FORMAT, "check": P.CHECK, "options": {}},
+                          "pages": [{"page": 1, "coverage": None, "width": 1224, "height": 1584}],
+                          "blocks": blocks, "warnings": []}
+                js.write_text(json.dumps(stored))
+                summary = P.process(doc, args, {"layout": None})
+                self.assertTrue(summary["regrouped"])
+                self.assertNotIn("rechecked", summary)
+                again = json.loads(js.read_text())
+                fig = again["blocks"][1]
+                self.assertEqual((fig["label"], fig["by"], fig["bbox"]), ("figure", "caption", [100, 100, 1120, 300]))
+                self.assertEqual([b.get("merged_into") for b in again["blocks"]], [None, None, 4, 4, None])
+                self.assertEqual(again["parser"]["figures"], {"version": P.FIGURES, "layout_model": None})
+                self.assertEqual(md.read_text(), "<!-- page 1 -->\n\n<!-- from page image: fixed -->\nIntro.\n\n"
+                                                 f"![]({fig['image']})\n\nFig. 1. Two panels.\n")
+                self.assertNotIn("regrouped", P.process(doc, args, {"layout": None}))
+        finally:
+            P.save_crop, P.page_image = saved
 
 
 class StartUp(unittest.TestCase):

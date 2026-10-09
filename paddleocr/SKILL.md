@@ -28,7 +28,7 @@ Run anything beyond a few pages in the background and wait for it to exit; each 
 - A paper in Zotero, named by title, author or citation key: [references/zotero.md](references/zotero.md) finds its PDF.
 - `<outdir>`, an absolute path: where the user wants it, else your scratch or work directory — never this skill's directory or the folder another program keeps the PDF in.
 
-Done when every input has its summary line without `error`. `skipped: up_to_date` means an earlier parse with the same file and options is already there; with `rechecked: true`, newer checks have just re-examined it, and its Markdown may already carry fixes (`<!-- from … -->`) for some of the warnings.
+Done when every input has its summary line without `error`. `skipped: up_to_date` means an earlier parse with the same file and options is already there; with `rechecked: true`, newer checks have just re-examined it, and its Markdown may already carry fixes (`<!-- from … -->`) for some of the warnings; with `regrouped: true`, its figures split into panels have just been put back together, in place, every other line of the Markdown kept.
 
 ### 2. Check
 
@@ -58,7 +58,7 @@ The warnings, by remedy:
   - `no_text_layer`: scans and images. Look first at the last block of every page, where the model invents the rest of a sentence cut at the page end; then at small print (author lines, affiliations, superscripts); then at every table you will use, cell by cell.
   - `empty_page`: confirm from the image that the page is blank or purely graphic.
 
-A block in the JSON with empty `text` and a `merged_into` id lost nothing: its content moved into that earlier block (a paragraph continued across a column, a table continued on the next page). Text inside figures is not transcribed and is not checked.
+A block in the JSON with a `merged_into` id lost nothing: its content moved into that earlier block (a paragraph continued across a column, a table continued on the next page, a panel or panel letter into its whole `figure`). Text inside figures is not transcribed and is not checked.
 
 Done when every warning is settled as a fix, a false alarm, or a gap you will name to the user.
 
@@ -68,7 +68,7 @@ Read `<stem>.md` — all of it when the task is the paper, the sections that mat
 
 - `<!-- page N -->` precedes each page; cite pages by it.
 - Formulas are LaTeX (`display_formula` blocks in the JSON), numbered as `\tag*{(n)}`; tables are HTML, and a table continued over pages is one table at its first page. A `<table>` whose caption says "Fig." is a figure grid read as a table.
-- Figures are `![](imgs/…)` crops followed by their captions. Open a crop when an answer depends on what a figure shows. `--figure-text` adds the text inside figures; `--charts` turns charts into data tables, with values the model read off the plot — verify them against the crop.
+- Figures are `![](imgs/…)` crops followed by their captions. Open a crop when an answer depends on what a figure shows. A figure of several panels is one crop, a `figure` block in the JSON; each panel keeps its own crop (its block's `image`) for a closer look. A figure made of text (a prompt, a sample output) comes out as text with no crop, and a figure whose parts were read as text or headings can lack those parts in its crop: when what such a figure shows matters, view the page image. `--figure-text` adds the text inside figures; `--charts` turns charts into data tables, with values the model read off the plot — verify them against the crop.
 - Running heads, page numbers and page footers live only in the JSON (`--keep-all` keeps them in the Markdown); footnotes and margin notes, such as the arXiv stamp, stay in the text.
 - The JSON gives positions: `label`, `bbox` in page-image pixels (`pages[].width` / `height`), heading `level`. The summary's `blocks` counts blocks by label.
 

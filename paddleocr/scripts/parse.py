@@ -20,6 +20,16 @@ on stdout (progress goes to stderr). A document whose JSON already records the s
 hash, options and output format is skipped; --force parses it again. A skipped document that
 older checks examined is checked again from its JSON ("rechecked": true; the Markdown is kept).
 
+The VL layout model boxes a multi-panel figure panel by panel; such figures are put back
+together. Each becomes a "figure" block whose crop takes its first panel's image line in the
+Markdown; its panels keep their own crops, and they and its panel letters get merged_into its
+id. A whole-figure box from PP-StructureV3's layout model (PP-DocLayout_plus-L, loaded when a
+page first needs it) joins the panels inside it, the caption under them joins the rest; when
+that model cannot load, captions alone, and stderr says so. A skipped document parsed before
+this grouping existed is grouped from its pages rendered again ("regrouped": true; every other
+Markdown line is kept); "regroup" in its summary says why one was not (--photo pages cannot be
+rendered again: --force parses anew).
+
 The VL model runs natively (one block at a time, about 10-15 s a page) or in a vLLM server
 (continuous batching, 0.5-1 s a page). --backend auto, the default, asks the vllm-serve skill
 (installed beside this one, or VLLM_SERVE = its serve.py) for the server whenever a run has
@@ -89,7 +99,7 @@ FORMAT = 2               # bump when the output changes, so older parses are red
 CHECK = 2                # bump when the checks change, so older parses are checked again (no GPU)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 NOISE_LABELS = ["number", "header", "header_image", "footer", "footer_image"]
-FIGURE_LABELS = {"image", "chart", "seal", "header_image", "footer_image"}
+FIGURE_LABELS = {"figure", "image", "chart", "seal", "header_image", "footer_image"}
 FORMULA_LABELS = {"display_formula", "formula", "formula_number"}
 NOISE_SET = set(NOISE_LABELS) | {"aside_text"}
 TEXTLESS_LABELS = FIGURE_LABELS | set(NOISE_LABELS) | {"formula_number"}
@@ -708,6 +718,332 @@ def run_checks(doc: dict, blocks: list[dict], sizes: list[tuple]) -> tuple[list[
     return pages_info, warnings
 
 
+# ---------------------------------------------------------------- figure groups
+
+FIGURES = 1              # bump when figure grouping changes; parses grouped by an older one need a migration of their own
+COVER = 0.7              # share of a figure block's area inside a layout box that makes it one of the box's members
+SWALLOW = 0.2            # share of a blocker's area a figure may cover
+ROW = 0.0075             # share of the page height within which blocks sit in one row (12 px on a Letter page at scale 2)
+LONG_TEXT = 300          # characters: a text block this long is running text, never part of a figure
+LAYOUT_PIPELINE = "PP-StructureV3"   # its layout model (PP-DocLayout_plus-L), with its settings, draws whole figures
+CAPTION = re.compile(r"\s*(\*\*)?\s*(extended\s+data\s+|supplementary\s+)?(fig\.?|figure|图)\s*[A-Z]?\d", re.I)
+CAPTION_TEXT = re.compile(r"\s*(\*\*)?\s*((extended\s+data\s+|supplementary\s+)?(fig\.?|figure)\s*[A-Z]?\d+[a-z]?\s*(\*\*)?\s*[.:|]"
+                          r"|图\s*\d+)", re.I)
+PANEL = re.compile(r"\(?[A-Za-z]{1,2}\)?[.:]?")
+HEADING_LABELS = {"paragraph_title", "doc_title", "abstract"}
+RUNNING_LABELS = {"text", "reference", "reference_content", "footnote", "algorithm", "content"}
+
+
+def box_area(b) -> float:
+    return max(0, b[2] - b[0]) * max(0, b[3] - b[1])
+
+
+def box_overlap(a, b) -> float:
+    return box_area([max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])])
+
+
+def box_union(boxes) -> list:
+    return [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)]
+
+
+def is_caption(b: dict) -> bool:
+    """A figure caption ("Fig. 3 ...", "Figure 2:", "Extended Data Fig. 1 |", "图 3"). The VL model labels some captions
+    text, which then need punctuation after the number: "Fig. 3 shows ..." opens running text."""
+    t = b["text"].strip()
+    if b["label"] == "figure_title":
+        return bool(CAPTION.match(t))
+    return b["label"] in ("text", "vision_footnote") and bool(CAPTION_TEXT.match(t))
+
+
+def is_panel(b: dict) -> bool:
+    """A panel letter: "a", "(b)", "C."."""
+    return b["label"] == "figure_title" and bool(PANEL.fullmatch(b["text"].strip()))
+
+
+def is_subtitle(b: dict) -> bool:
+    """A title inside a figure, which the VL model labels figure_title too: "Step 1: ...", "(a) in silico"."""
+    return b["label"] == "figure_title" and not is_caption(b) and not is_panel(b)
+
+
+def is_blocker(b: dict) -> bool:
+    """A block that parts figures: a caption, a heading, running text."""
+    return is_caption(b) or b["label"] in HEADING_LABELS or (b["label"] in RUNNING_LABELS and len(b["text"]) >= LONG_TEXT)
+
+
+def group_page(blocks: list[dict], layout: list[dict] | None, height: float, charts: bool = False) -> list[dict]:
+    """The figures of one page that several image/chart blocks make up (the VL layout model boxes each panel):
+    [{"members": [ids], "panels": [ids], "bbox", "by"}], members in block order.
+
+    A unit is a figure block or a figure made so far. `layout` holds the boxes of a layout model that draws whole
+    figures; one with two or more figure blocks inside makes them a figure ("layout") unless it covers a blocker
+    or two captions sit side by side right under it (it spans two figures). Then the units whose nearest caption
+    below is one and the same, with no blocker between, make a figure ("caption") unless together they cover a
+    blocker. Panel letters and titles within two rows of a figure widen its box; the letters join it. With
+    `charts`, charts are data tables and stay out."""
+    row = ROW * height
+    kinds = {"image"} if charts else {"image", "chart"}
+    figs = [b for b in blocks if b["label"] in kinds and b["bbox"] and "merged_into" not in b]
+    if len(figs) < 2:
+        return []
+    order = {b["id"]: i for i, b in enumerate(blocks)}
+    captions = [b for b in blocks if b["bbox"] and is_caption(b)]
+    # A caption set in two columns goes on to its right on the same row, in a block the VL model labels text or
+    # figure_title; that block is the caption too. Another caption beside it is not.
+    tails = {c["id"]: [b for b in blocks if b is not c and b["bbox"] and b["label"] in ("text", "figure_title", "vision_footnote")
+                       and not is_caption(b) and abs(b["bbox"][1] - c["bbox"][1]) <= row and b["bbox"][0] >= c["bbox"][2] - row]
+             for c in captions}
+    spans = {c["id"]: box_union([c["bbox"]] + [t["bbox"] for t in tails[c["id"]]]) for c in captions}
+    tail_ids = {t["id"] for ts in tails.values() for t in ts}
+    blockers = [b for b in blocks if b["bbox"] and (is_blocker(b) or b["id"] in tail_ids)]
+    units = {b["id"]: {"members": [b["id"]], "bbox": b["bbox"], "by": None} for b in figs}
+    owner = {b["id"]: b["id"] for b in figs}
+
+    def merge(ids, bbox, by):
+        roots = sorted({owner[i] for i in ids})
+        keep = units[roots[0]]
+        for r in roots[1:]:
+            gone = units.pop(r)
+            keep["members"] += gone["members"]
+            keep["bbox"] = box_union([keep["bbox"], gone["bbox"]])
+            keep["by"] = keep["by"] or gone["by"]
+            for m in gone["members"]:
+                owner[m] = roots[0]
+        keep["bbox"] = box_union([keep["bbox"]] + ([bbox] if bbox else []))
+        keep["by"] = keep["by"] or by
+
+    def covers_blocker(bbox, spare=None):
+        return any(x is not spare and box_overlap(bbox, x["bbox"]) > SWALLOW * box_area(x["bbox"]) for x in blockers)
+
+    def caption_below(bbox):
+        """The nearest caption below bbox spanning half its width or more, with no blocker between."""
+        best = None
+        for c in captions:
+            span = spans[c["id"]]
+            if bbox[3] > c["bbox"][1] + row or min(bbox[2], span[2]) - max(bbox[0], span[0]) < 0.5 * (bbox[2] - bbox[0]):
+                continue
+            if any(x is not c and x["bbox"][1] >= bbox[3] - row and x["bbox"][3] <= c["bbox"][1] + row
+                   and min(x["bbox"][2], bbox[2]) > max(x["bbox"][0], bbox[0]) for x in blockers):
+                continue
+            if best is None or c["bbox"][1] < best["bbox"][1]:
+                best = c
+        return best
+
+    for f in layout or []:
+        if f["label"] not in ("image", "chart"):
+            continue
+        members = [b["id"] for b in figs if box_overlap(f["bbox"], b["bbox"]) >= COVER * box_area(b["bbox"])]
+        under = [c for c in captions if f["bbox"][3] - row <= c["bbox"][1] <= f["bbox"][3] + 4 * row
+                 and min(c["bbox"][2], f["bbox"][2]) > max(c["bbox"][0], f["bbox"][0])]
+        if len(members) >= 2 and len(under) <= 1 and not covers_blocker(f["bbox"]):
+            merge(members, f["bbox"], "layout")
+    found = {root: caption_below(unit["bbox"]) for root, unit in units.items()}
+    # A row of panels (tops and bottoms aligned, side by side) shares the caption right under it: a unit that would
+    # pass it for a lower caption, or find none, takes it (2026-10, TMI: a row across the page over a caption under
+    # its left half; the right half went on to the next figure's caption in the right column).
+    rows = []
+    for root in sorted(units, key=lambda r: units[r]["bbox"][0]):
+        x1, y1, _, y2 = units[root]["bbox"]
+        for r in rows:
+            last = units[r[-1]]["bbox"]
+            if abs(y1 - last[1]) <= 2 * row and abs(y2 - last[3]) <= 2 * row and x1 - last[2] <= 2 * row:
+                r.append(root)
+                break
+        else:
+            rows.append([root])
+    for r in rows:
+        bottom = max(units[root]["bbox"][3] for root in r)
+        under = [c for c in (found[root] for root in r) if c and c["bbox"][1] - bottom <= 4 * row]
+        if len(r) >= 2 and under:
+            c = min(under, key=lambda c: c["bbox"][1])
+            for root in r:
+                if found[root] is None or found[root]["bbox"][1] > c["bbox"][3]:
+                    found[root] = c
+    by_caption = {}
+    for root, c in found.items():
+        if c:
+            by_caption.setdefault(c["id"], (c, []))[1].append(root)
+    for c, roots in by_caption.values():
+        if len(roots) >= 2 and not covers_blocker(box_union([units[r]["bbox"] for r in roots]), spare=c):
+            merge(roots, None, "caption")
+
+    figures, taken = [], set()
+    for unit in units.values():
+        if len(unit["members"]) < 2:
+            continue
+        bbox, panels = unit["bbox"], []
+        x1, y1, x2, y2 = bbox
+        reach = [x1 - 2 * row, y1 - 2 * row, x2 + 2 * row, y2 + 2 * row]
+        for b in blocks:
+            if b["bbox"] and "merged_into" not in b and b["id"] not in taken | tail_ids and (is_panel(b) or is_subtitle(b)) \
+                    and box_overlap(reach, b["bbox"]) > 0 and not covers_blocker(wider := box_union([bbox, b["bbox"]])):
+                bbox = wider
+                if is_panel(b):
+                    panels.append(b["id"])
+        taken.update(panels)
+        figures.append({"members": sorted(unit["members"], key=order.get), "panels": panels,
+                        "bbox": [int(round(v)) for v in bbox], "by": unit["by"]})
+    return figures
+
+
+def regroup_markdown(markdown: str, figures: list[tuple[dict, list[dict], list[dict]]]) -> str:
+    """`markdown` with, for each (figure, members, panel letters), the figure's crop on its first member's image line,
+    the other members' image lines gone, and the letters' lines (bare, usually right before their image) gone from
+    around and between them, each removed line with the blank line after it. Every other line stays as it was."""
+    lines = markdown.split("\n")
+    drop = set()
+    for fig, members, panels in figures:
+        refs = [f"({m['image']})" for m in members if m.get("image")]
+        hits = [i for i, line in enumerate(lines) if any(r in line for r in refs)]
+        if not hits:
+            continue
+        first = next(r for r in refs if r in lines[hits[0]])
+        lines[hits[0]] = lines[hits[0]].replace(first, f"({fig['image']})")
+        drop.update(hits[1:])
+        letters = Counter(p["text"].strip() for p in panels)
+        lo, hi = hits[0], hits[-1]
+        while lo > 0 and (not lines[lo - 1].strip() or letters[lines[lo - 1].strip()]):
+            lo -= 1
+        while hi + 1 < len(lines) and (not lines[hi + 1].strip() or letters[lines[hi + 1].strip()]):
+            hi += 1
+        for i in range(lo, hi + 1):
+            if lines[i].strip() and letters[lines[i].strip()] and i != hits[0] and i not in drop:
+                letters[lines[i].strip()] -= 1
+                drop.add(i)
+    out, after_drop = [], False
+    for i, line in enumerate(lines):
+        if i in drop or (after_drop and not line.strip()):
+            after_drop = i in drop
+            continue
+        after_drop = False
+        out.append(line)
+    return "\n".join(out)
+
+
+def layout_model(state: dict):
+    """(name, model, settings) of the layout model that draws whole figures, with its pipeline's settings, loaded
+    once on first use (PaddleX downloads it the first time); None when it cannot load, with the reason in
+    state["layout_error"]."""
+    if "layout" not in state:
+        try:
+            from paddlex import create_model
+            from paddlex.inference.pipelines import load_pipeline_config
+            cfg = load_pipeline_config(LAYOUT_PIPELINE)["SubModules"]["LayoutDetection"]
+            settings = {k: cfg[k] for k in ("threshold", "layout_nms", "layout_unclip_ratio", "layout_merge_bboxes_mode")
+                        if cfg.get(k) is not None}
+            print(f"[paddleocr] loading {cfg['model_name']} to group figures ...", file=sys.stderr, flush=True)
+            state["layout"] = (cfg["model_name"], create_model(model_name=cfg["model_name"]), settings)
+        except Exception as e:  # noqa: BLE001 - any failure leaves the grouping to captions
+            print(f"[paddleocr] figures are grouped by their captions alone: the layout model did not load "
+                  f"({type(e).__name__}: {e})", file=sys.stderr, flush=True)
+            state["layout"], state["layout_error"] = None, f"{type(e).__name__}: {e}"
+    return state["layout"]
+
+
+def layout_boxes(model, image) -> list[dict] | None:
+    """The layout model's boxes on a page image (BGR), [{"label", "bbox"}]; None when it fails on the page."""
+    _, net, settings = model
+    try:
+        res = next(iter(net.predict(image, batch_size=1, **settings)))
+        return [{"label": b["label"], "bbox": [float(v) for v in b["coordinate"]]} for b in res.json["res"]["boxes"]]
+    except Exception as e:  # noqa: BLE001 - this page is grouped by its captions
+        print(f"[paddleocr] layout model failed on a page ({type(e).__name__}: {e}); grouping it by captions",
+              file=sys.stderr, flush=True)
+        return None
+
+
+def save_crop(image, bbox: list, path: Path) -> None:
+    import cv2
+    x1, y1, x2, y2 = bbox
+    path.parent.mkdir(exist_ok=True)
+    path.write_bytes(cv2.imencode(".jpg", image[y1:y2, x1:x2])[1].tobytes())
+
+
+def page_image(doc: dict, page: int, size: tuple, pdf=None):
+    """Page `page` as the pipeline saw it (BGR, `size` pixels): rendered as PaddleX renders a PDF (the layout model
+    answers differently to another rendering), or the input image scaled to the size it was parsed at."""
+    import cv2
+    if doc["kind"] == "pdf":
+        from paddlex.inference.utils.pdf_rendering import render_pdf_page_to_numpy
+        image = render_pdf_page_to_numpy(pdf[page - 1], page_index=page)
+    else:
+        image = cv2.imread(str(doc["files"][page - 1]), cv2.IMREAD_COLOR)
+    if (image.shape[1], image.shape[0]) != tuple(size):
+        image = cv2.resize(image, tuple(size), interpolation=cv2.INTER_AREA)
+    return image
+
+
+def group_figures(blocks: list[dict], markdown: str, sizes: dict, image_of, outdir: Path, charts: bool,
+                  state: dict) -> tuple[list[dict], str, dict]:
+    """Put the figures that several blocks make up back together, on each page with two or more figure blocks
+    (sizes: page -> (width, height); image_of(page): the page image the boxes refer to). Each figure becomes a
+    "figure" block before its first member, its members and panel letters get merged_into its id, its crop goes
+    to outdir/imgs, and regroup_markdown puts that crop in the Markdown. Returns (blocks, markdown, the record for
+    parser.figures: the layout model's name, or None when no page used it, and why when it failed to load)."""
+    width = max(2, len(str(max(sizes))))
+    by_id = {b["id"]: b for b in blocks}
+    next_id = max(by_id, default=-1) + 1
+    kinds = {"image"} if charts else {"image", "chart"}
+    made, used, needed = [], None, False
+    for page in sorted(sizes):
+        pblocks = [b for b in blocks if b["page"] == page]
+        if sum(b["label"] in kinds and bool(b["bbox"]) and "merged_into" not in b for b in pblocks) < 2:
+            continue
+        image, layout, needed = None, None, True
+        if model := layout_model(state):
+            image = image_of(page)
+            if (layout := layout_boxes(model, image)) is not None:
+                used = model[0]
+        for g in group_page(pblocks, layout, sizes[page][1], charts):
+            if image is None:
+                image = image_of(page)
+            w, h = sizes[page]
+            x1, y1, x2, y2 = g["bbox"]
+            bbox = [max(0, x1), max(0, y1), min(w, x2), min(h, y2)]
+            name = f"imgs/p{page:0{width}d}_figure_box_{bbox[0]}_{bbox[1]}_{bbox[2]}_{bbox[3]}.jpg"
+            save_crop(image, bbox, outdir / name)
+            fig = {"id": next_id, "page": page, "label": "figure", "text": "", "bbox": bbox, "image": name, "by": g["by"]}
+            next_id += 1
+            members, panels = [by_id[i] for i in g["members"]], [by_id[i] for i in g["panels"]]
+            for b in members + panels:
+                b["merged_into"] = fig["id"]
+            made.append((fig, members, panels))
+    first = {id(members[0]): fig for fig, members, _ in made}
+    grouped = []
+    for b in blocks:
+        if id(b) in first:
+            grouped.append(first[id(b)])
+        grouped.append(b)
+    figures = {"version": FIGURES, "layout_model": used}
+    if needed and not used and state.get("layout_error"):
+        figures["layout_error"] = state["layout_error"]
+    return grouped, regroup_markdown(markdown, made), figures
+
+
+def regroup(json_path: Path, md_path: Path, doc: dict, state: dict) -> dict:
+    """Group the figures of a parse made before figure grouping, from its pages rendered again, and store the result:
+    the figure blocks in its JSON, its Markdown's figure lines rewritten (every other line, fixes included, stays),
+    the checks run again when that changed anything or older checks examined it."""
+    record = json.loads(json_path.read_text(encoding="utf-8"))
+    sizes = {p["page"]: (p["width"], p["height"]) for p in record["pages"]}
+    pdf = None
+    if doc["kind"] == "pdf":
+        import pypdfium2 as pdfium
+        pdf = pdfium.PdfDocument(str(doc["path"]))
+        pdf.init_forms()
+    markdown = md_path.read_text(encoding="utf-8")
+    blocks, markdown, figures = group_figures(record["blocks"], markdown, sizes, lambda page: page_image(doc, page, sizes[page], pdf),
+                                              md_path.parent, record["parser"].get("options", {}).get("charts", False), state)
+    if len(blocks) > len(record["blocks"]):
+        md_path.write_text(markdown, encoding="utf-8")
+    if len(blocks) > len(record["blocks"]) or record["parser"].get("check", 1) < CHECK:
+        record["pages"], record["warnings"] = run_checks(doc, blocks, list(sizes.values()))
+        record["parser"]["check"] = CHECK
+    record["blocks"] = blocks
+    record["parser"]["figures"] = figures
+    json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+    return record
+
+
 # ---------------------------------------------------------------- parse
 
 def options_of(args) -> dict:
@@ -867,8 +1203,18 @@ def process(doc: dict, args, state: dict) -> dict:
     summary = {"input": doc["input"], "md": str(md_path), "json": str(json_path)}
     if doc["fresh"]:
         old = json.loads(json_path.read_text(encoding="utf-8"))
+        stale = old["parser"].get("check", 1) < CHECK
+        if "figures" not in old["parser"] and old["parser"].get("options", {}).get("photo"):
+            summary["regroup"] = "figures not grouped: --photo pages cannot be rendered again; --force parses anew"
+        elif "figures" not in old["parser"]:
+            try:
+                old = regroup(json_path, md_path, doc, state)
+                summary["regrouped"] = True
+            except Exception as e:  # noqa: BLE001 - the parse stays as it was
+                summary["regroup"] = f"figures not grouped: {type(e).__name__}: {e}"
         if old["parser"].get("check", 1) < CHECK:
             old = recheck(json_path, doc)
+        if stale:
             summary["rechecked"] = True
         summary.update(skipped="up_to_date", pages=len(old["pages"]), warnings=old.get("warnings", []))
         return summary
@@ -892,6 +1238,7 @@ def process(doc: dict, args, state: dict) -> dict:
                   f"({len(results)}/{len(doc['pages'])}, {time.time() - t0:.0f} s since this document started)",
                   file=sys.stderr, flush=True)
         sizes = [(int(r["width"]), int(r["height"])) for r in results]
+        images = [r["doc_preprocessor_res"]["output_img"] for r in results]
         pages = pipeline.restructure_pages(results, merge_tables=True, relevel_titles=True, concatenate_pages=False)
 
         width = max(2, len(str(doc["pages"][-1])))
@@ -904,12 +1251,18 @@ def process(doc: dict, args, state: dict) -> dict:
                 blocks.append(block_record(block, page, offset, local, renames.get(path)))
             offset += len(res["parsing_res_list"])
 
+    span = f"page{'s' if len(doc['pages']) > 1 else ''} {format_pages(doc['pages'])} of {doc['page_count']}"
+    header = f"<!-- source: {doc['path'].name} | {span} | PaddleOCR-VL-1.6 | {date.today()} -->"
+    markdown, figures = header + "\n\n" + "\n\n".join(parts) + "\n", None
+    try:
+        blocks, markdown, figures = group_figures(copy.deepcopy(blocks), markdown, dict(zip(doc["pages"], sizes)),
+                                                  lambda page: images[doc["pages"].index(page)], outdir, args.charts, state)
+    except Exception as e:  # noqa: BLE001 - keep the parse; a later run without --force groups it
+        print(f"[paddleocr] {doc['stem']}: figures not grouped ({type(e).__name__}: {e})", file=sys.stderr, flush=True)
     pages_info, warnings = run_checks(doc, blocks, sizes)
 
     import paddleocr
-    span = f"page{'s' if len(doc['pages']) > 1 else ''} {format_pages(doc['pages'])} of {doc['page_count']}"
-    header = f"<!-- source: {doc['path'].name} | {span} | PaddleOCR-VL-1.6 | {date.today()} -->"
-    md_path.write_text(header + "\n\n" + "\n\n".join(parts) + "\n", encoding="utf-8")
+    md_path.write_text(markdown, encoding="utf-8")
     record = {
         "source": {"path": str(doc["path"].resolve()), "sha256": doc["sha"], "page_count": doc["page_count"], "pages": doc["pages"]},
         "parser": {"pipeline": "PaddleOCR-VL-1.6", "paddleocr": getattr(paddleocr, "__version__", None),
@@ -918,6 +1271,8 @@ def process(doc: dict, args, state: dict) -> dict:
         "blocks": blocks,
         "warnings": warnings,
     }
+    if figures:
+        record["parser"]["figures"] = figures
     json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
 
     counts = {}
