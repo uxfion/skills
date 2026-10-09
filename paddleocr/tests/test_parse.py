@@ -83,6 +83,13 @@ class Tokens(unittest.TestCase):
         self.assertEqual(P.tokens("ICASSP 2023-\n2023 IEEE", layer=True), ["icassp", "2023", "2023", "ieee"])
         self.assertEqual(P.tokens("[-15,5] and 34,248"), ["15", "5", "and", "34,248"])
 
+    def test_inline_math_glued_like_a_text_layer(self):
+        glued = P.tokens(P.glue_math("yields $ o_k = \\mathcal{T}_p(a_k) $, where $ H_{k+1} $ and "
+                                     "$ D_{\\mathrm{KL}}(q_n \\| p_n) $ or $ \\pi_\\theta(\\cdot \\mid H_k) $"))
+        self.assertEqual(glued, ["yields", "ok", "tp", "ak", "where", "hk", "1", "and", "dkl", "qn", "pn", "or", "hk"])
+        self.assertEqual(P.tokens("yields ok = Tp (ak ) where Hk+1 and DKL (qn ‖pn ) or πθ (· | Hk )",
+                                  layer=True), glued)
+
 
 class TextLayerCheck(unittest.TestCase):
     def test_full_match(self):
@@ -186,8 +193,31 @@ class TextLayerCheck(unittest.TestCase):
         looped = "The result is shown. " + "the same phrase again " * 8
         blocks = [block(0, 1, "text", looped), block(1, 1, "table", "<td>0</td>" * 40)]
         _, warnings = P.check_document(blocks, {1: None})
-        self.assertEqual([w["code"] for w in warnings if w["code"] == "repetition"], ["repetition"])
+        self.assertEqual([(w["code"], w["block"]) for w in warnings if w["code"] == "repetition"], [("repetition", 0)])
         self.assertIsNone(P.repetition(PARAGRAPH))
+
+    def test_author_line_cycling_is_a_loop(self):
+        # 2026-10: a 23-author line came out as 8,857 characters, the names cycling with small changes, no exact repeat
+        names = ["Lingyi Xu", "Zhen Gao", "Xiao Li", "Yuan Shen", "Guisen Li", "Li Wang", "Jicheng Lv", "Zhao Qiao"]
+        looped = ", ".join(f"{n} $ ^{{{i % 3 + 1}}} $" for k in range(12) for i, n in enumerate(names[k % 2:]))
+        self.assertIsNone(P.REPEAT_RE.search(looped))
+        self.assertIn("word trigrams distinct", P.repetition(looped))
+        authors = ", ".join(f"{n} $ ^{{{i}}} $" for i, n in enumerate(names * 2))   # every name twice: not a loop
+        self.assertIsNone(P.repetition(authors + " " + PARAGRAPH))
+
+    def test_formula_dense_paragraph_passes(self):
+        # 2026-10: a text layer glues subscripts to letters ("Tp (ak )"); dropping or splitting the LaTeX left
+        # missing_text and extra_text on correctly parsed paragraphs
+        parsed = ("At round $ k $ the policy emits an action from its history; a tool request yields "
+                  "$ o_k = \\mathcal{T}_p(a_k) = (e_k, X_k) $, where $ \\mathcal{T}_p $ returns text $ e_k $ and "
+                  "images $ X_k $; and $ H_{k+1} = H_k \\oplus (a_k, o_k) $ appends them in order. An episode of "
+                  "$ M $ assistant turns ends with the parsed answer.")
+        layer = ("At round k the policy emits an action from its history; a tool request yields ok = Tp (ak ) = "
+                 "(ek , Xk ), where Tp returns text ek and images Xk ; and Hk+1 = Hk ⊕ (ak , ok ) appends them in "
+                 "order. An episode of M assistant turns ends with the parsed answer.")
+        blocks = [dict(block(0, 1, "text", parsed), bbox=[0, 0, 100, 100])]
+        _, warnings = P.check_document(blocks, {1: chars(layer, 50, 50)})
+        self.assertEqual(warnings, [])
 
 
 class ExtraText(unittest.TestCase):
@@ -205,12 +235,49 @@ class ExtraText(unittest.TestCase):
         _, warnings = P.check_document(blocks, {1: chars(PARAGRAPH, 50, 50)})
         self.assertEqual(warnings, [])
 
+    def test_foreign_script_flagged(self):
+        parsed = ("Let $ u_{j,1:N_j} $年第 $ j $个signal messages, and the indexing assistant tokens "
+                  "of the rollout are serialized in order.")
+        layer = "Let uj,1:Nj be the j-th rollout's assistant messages, and the indexing assistant tokens of the rollout are serialized in order."
+        blocks = [dict(block(0, 1, "text", parsed), bbox=[0, 0, 100, 100])]
+        _, warnings = P.check_document(blocks, {1: chars(layer, 50, 50)})
+        stray = [w for w in warnings if w["code"] == "foreign_script"]
+        self.assertEqual(len(stray), 1)
+        self.assertIn("年第 $ j $个signal", stray[0]["detail"])
+        _, warnings = P.check_document(blocks, {1: chars(layer + " 年第个", 50, 50)})   # characters the source has
+        self.assertNotIn("foreign_script", [w["code"] for w in warnings])
+
     def test_superscript_numbers_ignored(self):
         parsed = "Chenlin Meng$^{1}$, Yutong He$^{1}$, Yang Song$^{1}$, Jiaming Song$^{1}$, Jiajun Wu$^{1}$ and Jun-Yan Zhu$^{2}$"
         layer = "Chenlin Meng1 Yutong He1 Yang Song1 Jiaming Song1 Jiajun Wu1 Jun-Yan Zhu2 Stefano Ermon"
         blocks = [dict(block(0, 1, "text", parsed), bbox=[0, 0, 100, 100])]
         _, warnings = P.check_document(blocks, {1: chars(layer, 50, 50)})
         self.assertEqual(warnings, [])
+
+
+class LineNumbers(unittest.TestCase):
+    @staticmethod
+    def page(first, x, lines=12, step=1):
+        """A text layer of `lines` lines, each led by a number at x: first, first + step, ..."""
+        out = []
+        for k in range(lines):
+            y = 100 + 30 * k
+            out += chars(str(first + step * k), x, y) + [(" ", 0.0, 0.0)] + chars("text of the line", 500, y) + [("\n", 0.0, 0.0)]
+        return out
+
+    def stripped(self, layer):
+        idx = P.line_number_chars(layer, 1200)
+        return "".join(c[0] for k, c in enumerate(layer) if k not in idx).split()
+
+    def test_margin_column_counting_up_is_stripped(self):
+        for first, x in ((88, 133), (1188, 164), (54, 1100)):       # left edge, 2-4 digits; right edge
+            self.assertNotIn(str(first + 3), self.stripped(self.page(first, x)), msg=(first, x))
+            self.assertIn("text", self.stripped(self.page(first, x)))
+
+    def test_other_number_columns_kept(self):
+        self.assertIn("4", self.stripped(self.page(1, 600)))            # a row index mid-page, in a table
+        self.assertIn("94", self.stripped(self.page(88, 133, step=2)))  # not counting up by one
+        self.assertIn("91", self.stripped(self.page(88, 133, lines=6))) # too short a run
 
 
 class NoLayerChecks(unittest.TestCase):
@@ -298,6 +365,78 @@ class LibraryPath(unittest.TestCase):
             self.assertEqual(P.without_cuda_toolkit(f"{toolkit}:{other}::{toolkit}"), f"{other}:")
             self.assertIsNone(P.without_cuda_toolkit(f"{toolkit}:{toolkit}:"))
             self.assertEqual(P.without_cuda_toolkit(f"{other}:/no/such/dir"), f"{other}:/no/such/dir")
+
+
+class Backend(unittest.TestCase):
+    def test_choice(self):
+        serve = "/skills/vllm-serve/scripts/serve.py"
+        self.assertEqual(P.choose_backend("auto", None, serve, 30)[0], "vllm")
+        self.assertEqual(P.choose_backend("auto", None, serve, P.AUTO_MIN_PAGES - 1)[0], "native")
+        self.assertEqual(P.choose_backend("auto", None, None, 300)[0], "native")
+        self.assertEqual(P.choose_backend("native", None, serve, 300)[0], "native")
+        self.assertEqual(P.choose_backend("vllm", None, serve, 1)[0], "vllm")
+        self.assertEqual(P.choose_backend("auto", "http://127.0.0.1:8118/v1", None, 1)[0], "server")
+        self.assertEqual(P.choose_backend("auto", None, serve, 1, running=True)[0], "vllm")   # already up: use it
+
+    def test_served_model_name_read_from_the_server(self):
+        # 2026-10: a server started as `vllm serve PaddlePaddle/PaddleOCR-VL-1.6` answered 404 to the client's
+        # default name PaddleOCR-VL-1.6-0.9B; --vl-server now passes the name the server lists
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        class Models(BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200 if self.path == "/v1/models" else 404)
+                self.end_headers()
+                self.wfile.write(json.dumps({"data": [{"id": "PaddlePaddle/PaddleOCR-VL-1.6"}]}).encode())
+
+            def log_message(self, *a):
+                pass
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Models)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{server.server_address[1]}/v1"
+            self.assertEqual(P.served_models(url), ["PaddlePaddle/PaddleOCR-VL-1.6"])
+            self.assertEqual(P.served_models(url + "x"), None)
+        finally:
+            server.shutdown()
+
+    def test_vllm_serve_found(self):
+        old = os.environ.pop("VLLM_SERVE", None)
+        try:
+            beside = SCRIPT.resolve().parents[2] / "vllm-serve" / "scripts" / "serve.py"
+            self.assertEqual(P.find_serve(), str(beside) if beside.exists() else None)
+            os.environ["VLLM_SERVE"] = "/somewhere/serve.py"
+            self.assertEqual(P.find_serve(), "/somewhere/serve.py")
+        finally:
+            os.environ.pop("VLLM_SERVE", None)
+            if old is not None:
+                os.environ["VLLM_SERVE"] = old
+
+
+class Recheck(unittest.TestCase):
+    def test_parse_checked_by_older_rules_is_checked_again(self):
+        looped = ", ".join(["Lingyi Xu", "Zhen Gao", "Xiao Li", "Yuan Shen"] * 12)
+        with tempfile.TemporaryDirectory() as d:
+            page = Path(d) / "p1.png"
+            page.write_bytes(b"")
+            doc = P.resolve_input(str(page), None)
+            doc.update(sha="x", fresh=True)
+            args = SimpleNamespace(output=d)
+            _, md, js = P.out_paths(doc, args)
+            js.parent.mkdir(parents=True)
+            md.write_text("fixed by hand")
+            stored = {"source": {}, "parser": {"format": P.FORMAT, "options": {}},
+                      "pages": [{"page": 1, "coverage": None, "width": 100, "height": 100}],
+                      "blocks": [block(0, 1, "text", looped)], "warnings": [{"code": "no_text_layer", "pages": [1]}]}
+            js.write_text(json.dumps(stored))
+            summary = P.process(doc, args, {})
+            self.assertTrue(summary["rechecked"])
+            self.assertEqual([w["code"] for w in summary["warnings"]], ["repetition", "no_text_layer"])
+            again = json.loads(js.read_text())
+            self.assertEqual((again["parser"]["check"], again["warnings"]), (P.CHECK, summary["warnings"]))
+            self.assertEqual(md.read_text(), "fixed by hand")
+            self.assertNotIn("rechecked", P.process(doc, args, {}))
 
 
 class StartUp(unittest.TestCase):

@@ -22,7 +22,7 @@ Claude Code 的 auto memory 由自身 harness 管理；AGENTS.md 的记忆规则
 
 ## Skills
 
-- [paddleocr](paddleocr/SKILL.md) — 用本机 GPU 上的 PaddleOCR-VL 把论文 PDF、截图或扫描件解析成全文 Markdown 和块级 JSON（公式、表格、图注、页码标记），并对照 PDF 文字层核对漏字；需先装 `paddleocr` uv tool（[安装](paddleocr/references/install.md)）。
+- [paddleocr](paddleocr/SKILL.md) — 用本机 GPU 上的 PaddleOCR-VL 把论文 PDF、截图或扫描件解析成全文 Markdown 和块级 JSON（公式、表格、图注、页码标记），并对照 PDF 文字层核对漏字；需先装 `paddleocr` uv tool（[安装](paddleocr/references/install.md)），再装 vllm-serve 可快十到二十倍。
 - [paper-to-zotero](paper-to-zotero/SKILL.md) — 按题目 / DOI / arXiv 号 / 清单 / bib 把论文连同 PDF 导入 Zotero，归类、打标签；按 citation key 整理、修字段、写笔记，导出 bib。
 - [uv-python](uv-python/SKILL.md) — 使用 uv 执行 Python、管理依赖和环境。
 - [vllm-serve](vllm-serve/SKILL.md) — 本机统一的 vLLM 后端：一份 vLLM 安装，每个模型一个 profile、一个服务，按需启动、多方共用、空闲自动退出；需先装 `vllm` uv tool（[安装](vllm-serve/references/install.md)）。

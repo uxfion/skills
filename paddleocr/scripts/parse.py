@@ -17,24 +17,35 @@ For each document this writes
 
 checks the result against the PDF text layer, and prints one JSON summary line per document
 on stdout (progress goes to stderr). A document whose JSON already records the same source
-hash, options and output format is skipped; --force parses it again.
+hash, options and output format is skipped; --force parses it again. A skipped document that
+older checks examined is checked again from its JSON ("rechecked": true; the Markdown is kept).
+
+The VL model runs natively (one block at a time, about 10-15 s a page) or in a vLLM server
+(continuous batching, 0.5-1 s a page). --backend auto, the default, takes the server from the
+vllm-serve skill (installed beside this one, or VLLM_SERVE = its serve.py) when 8 or more pages
+need parsing, or for any number while that server runs: `serve.py up paddleocr-vl` starts it
+unless it runs, and it stops by itself once idle. Without vllm-serve, or when it cannot provide a server, the run goes native. --backend vllm
+insists on the server, --backend native avoids it, and --vl-server URL uses a given vLLM server.
+Each summary names its "backend" and "pages_per_minute".
 
 Warnings in the summary and the JSON:
   missing_text        a run of text-layer words absent from the parse (sample in "detail")
   missing_numbers     numbers of two or more digits on text-layer lines but not in the parse
   extra_text          a run of parsed words the text layer lacks: text the model invented
+  foreign_script      CJK, kana or Hangul characters the text layer lacks: invented by the model
   table_mismatch      text-layer tokens inside a table's box absent from that table
   unchecked_table     a table with no text layer in its box (embedded as an image)
   table_empty_column  a headed column empty in every row: values shifted under the wrong headers
   formula_number_gap  equation numbers missing from an otherwise continuous run
   low_coverage        under 80% of the page's text-layer word trigrams were found
-  repetition          a block repeats one fragment many times (VLM decoding ran away)
+  repetition          a block repeats one fragment, or cycles through the same words (decoding ran away)
   empty_page          a page yielded no text
   no_text_layer       pages that cannot be checked (scans, images)
 A warning about one block carries "block" (its id) and, for a PDF, "region": the block's box in
 PDF points [x, y, w, h], ready for pdftotext -layout -x -y -W -H. The summary's min_coverage is
 the lowest page's share of text-layer trigrams found.
-Text inside figure and display-formula boxes is not checked; tables are checked on their own.
+Text inside figure and display-formula boxes is not checked; tables are checked on their own;
+line numbers (a numbered column at the page edge, as in manuscripts under review) are ignored.
 
 `uv run` starts this script in a bare environment; it re-executes itself with the Python of
 the `paddleocr` uv tool (PADDLEOCR_PYTHON overrides), with CUDA_MODULE_LOADING=EAGER set
@@ -43,12 +54,14 @@ LD_LIBRARY_PATH stripped of CUDA toolkit directories when the environment ships 
 runtime, so that Paddle loads those libraries rather than a system toolkit's.
 
 Errors: "error" in a summary line (not_found, unsupported_input, bad_pages, parse_failed);
-{"error": "paddleocr_missing"} when the tool environment cannot be found.
+alone on stdout when nothing can start: paddleocr_missing (no tool environment), vl_server_failed
+(--backend vllm, with vllm-serve's error), vl_server_unreachable (--vl-server).
 Exit 0 = every document parsed or skipped; 1 = some document failed; 2 = nothing could start.
 
 Examples:
   uv run parse.py paper.pdf -o out/
   uv run parse.py a.pdf b.pdf scans/ -o out/ --pages 1-8
+  uv run parse.py papers/*.pdf -o out/ --vl-server http://127.0.0.1:8118/v1
 """
 from __future__ import annotations
 
@@ -65,12 +78,14 @@ import sys
 import tempfile
 import time
 import unicodedata
+import urllib.request
 import warnings as pywarnings  # "warnings" names the check results below
 from collections import Counter
 from datetime import date
 from pathlib import Path
 
 FORMAT = 2               # bump when the output changes, so older parses are redone
+CHECK = 2                # bump when the checks change, so older parses are checked again (no GPU)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 NOISE_LABELS = ["number", "header", "header_image", "footer", "footer_image"]
 FIGURE_LABELS = {"image", "chart", "seal", "header_image", "footer_image"}
@@ -89,22 +104,35 @@ TABLE_TOLERANCE = 0.03   # share of a table's text-layer tokens allowed to be ab
 MIN_LINE_TOKENS = 5      # text-layer lines shorter than this give no numbers to check
 MIN_LAYER_CHARS = 20     # a block over fewer text-layer characters was read from an image: no extra_text check
 REPEAT_RE = re.compile(r"(.{10,200}?)\1{4,}", re.S)
+MIN_LOOP_GRAMS = 30      # a block with this many word trigrams ...
+LOOP_DISTINCT = 0.30     # ... of which under this share are distinct is a loop (normal text: 0.56 and up, 2026-10)
+LINE_NUMBER_RUN = 10     # numbers counting up by one, one per line, in a column at the page edge: line numbers
+LINE_NUMBER_EDGE = 0.20  # share of the page width on either side where line numbers sit
+LINE_NUMBER_ALIGN = 12   # pixels the centres of one column of line numbers may stray
+FOREIGN = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]")  # CJK, kana, Hangul
+
+AUTO_MIN_PAGES = 8       # fewer pages to parse: the native backend is done before a vLLM server is up (~1 min)
+VL_PROFILE = "paddleocr-vl"   # the vllm-serve profile that serves the VL model
 
 
 # ---------------------------------------------------------------- environment
+
+def uv_tool_dir() -> Path | None:
+    try:
+        return Path(subprocess.run(["uv", "tool", "dir"], capture_output=True, text=True, check=True).stdout.strip())
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
 
 def tool_python() -> str | None:
     """The interpreter of the paddleocr uv tool environment."""
     if os.environ.get("PADDLEOCR_PYTHON"):
         return os.environ["PADDLEOCR_PYTHON"]
-    try:
-        tool_dir = subprocess.run(["uv", "tool", "dir"], capture_output=True, text=True, check=True).stdout.strip()
-        for name in ("bin/python", "Scripts/python.exe"):
-            candidate = Path(tool_dir) / "paddleocr" / name
-            if candidate.exists():
-                return str(candidate)
-    except (OSError, subprocess.CalledProcessError):
-        pass
+    tool_dir = uv_tool_dir()
+    for name in ("bin/python", "Scripts/python.exe") if tool_dir else ():
+        candidate = tool_dir / "paddleocr" / name
+        if candidate.exists():
+            return str(candidate)
     entry = shutil.which("paddleocr")
     if entry:
         try:
@@ -154,6 +182,100 @@ def ensure_tool_env() -> None:
         else:
             os.environ["LD_LIBRARY_PATH"] = path
     os.execv(python, [python, os.path.abspath(__file__), *sys.argv[1:]])
+
+
+# ---------------------------------------------------------------- VL backend
+
+def find_serve() -> str | None:
+    """serve.py of the vllm-serve skill, which runs this machine's vLLM servers: VLLM_SERVE, else the skill
+    installed beside this one (resolved first: installed skills are symlinked)."""
+    if os.environ.get("VLLM_SERVE"):
+        return os.environ["VLLM_SERVE"]
+    sibling = Path(__file__).resolve().parents[2] / "vllm-serve" / "scripts" / "serve.py"
+    return str(sibling) if sibling.exists() else None
+
+
+def choose_backend(requested: str, server_url: str | None, serve: str | None, pending_pages: int,
+                   running: bool = False) -> tuple[str, str]:
+    """(backend, why): "server" (one given by URL), "vllm" (from vllm-serve) or "native". `running`: vllm-serve's
+    server for the VL model is up already, so even a page or two is faster through it."""
+    if server_url:
+        return "server", f"the server at {server_url}"
+    if requested == "native":
+        return "native", "--backend native"
+    if requested == "vllm":
+        return "vllm", "--backend vllm"
+    if not serve:
+        return "native", "vllm-serve is not installed; a vLLM server parses ten to twenty times faster, see references/install.md"
+    if running:
+        return "vllm", "its vLLM server is running"
+    if pending_pages < AUTO_MIN_PAGES:
+        return "native", f"{pending_pages} page{'s' * (pending_pages > 1)} to parse, too few to pay for starting vLLM"
+    return "vllm", f"{pending_pages} pages to parse"
+
+
+def served_models(url: str) -> list[str] | None:
+    """The model names an OpenAI-compatible server lists, or None when it does not answer."""
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/models", timeout=5) as r:
+            return [m["id"] for m in json.load(r).get("data", [])]
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def serve_running(serve: str) -> bool:
+    """Whether vllm-serve's server for the VL model is up."""
+    try:
+        out = subprocess.run(["uv", "run", serve, "status"], capture_output=True, text=True).stdout
+        return any(json.loads(line).get("profile") == VL_PROFILE and json.loads(line).get("running")
+                   for line in out.splitlines() if line.startswith("{"))
+    except (OSError, ValueError):
+        return False
+
+
+def serve_up(serve: str) -> dict:
+    """The VL model's server from vllm-serve: {"url", "model", ...} or {"error", "detail"}. vllm-serve starts it
+    unless it runs, shares it with other callers and stops it once idle, so this run leaves it running."""
+    try:
+        done = subprocess.run(["uv", "run", serve, "up", VL_PROFILE], stdout=subprocess.PIPE, text=True)
+    except OSError as e:
+        return {"error": "uv_missing", "detail": str(e)}
+    try:
+        return json.loads(done.stdout.strip().splitlines()[-1])
+    except (IndexError, ValueError):
+        return {"error": "no_answer", "detail": f"vllm-serve printed {done.stdout[-300:]!r}"}
+
+
+def load_backend(args, pending_pages: int, state: dict) -> dict | None:
+    """Load the pipeline with the VL backend this run uses (state: pipeline, backend, load_seconds); an error
+    summary when the backend asked for cannot be had."""
+    t0 = time.time()
+    serve = None if args.vl_server or args.backend == "native" else find_serve()
+    if args.vl_server and not (listed := served_models(args.vl_server)):
+        return {"error": "vl_server_unreachable", "detail": f"no model list at {args.vl_server.rstrip('/')}/models"}
+    if args.backend == "vllm" and not args.vl_server and not serve:
+        return {"error": "vl_server_failed", "detail": "vllm-serve not found beside this skill (or VLLM_SERVE); "
+                                                       "see references/install.md"}
+    running = bool(serve) and args.backend == "auto" and pending_pages < AUTO_MIN_PAGES and serve_running(serve)
+    backend, why = choose_backend(args.backend, args.vl_server, serve, pending_pages, running)
+    # The client asks for PaddleOCR-VL-1.6-0.9B unless told the served name (vLLM's PaddleOCR-VL recipe).
+    url, model = args.vl_server, listed[0] if args.vl_server else None
+    if backend == "vllm":
+        print(f"[paddleocr] asking vllm-serve for the VL model's server ({why}) ...", file=sys.stderr, flush=True)
+        got = serve_up(serve)
+        if "error" in got:
+            detail = f"vllm-serve {got['error']}: {got.get('detail', '')}"
+            if args.backend == "vllm":
+                return {"error": "vl_server_failed", "detail": detail}
+            print(f"[paddleocr] {detail}", file=sys.stderr, flush=True)
+            backend, why = "native", "vllm-serve could not provide a server"
+        else:
+            url, model = got["url"], got["model"]
+    print(f"[paddleocr] VL backend: {backend} ({why}); loading models ...", file=sys.stderr, flush=True)
+    state["pipeline"] = make_pipeline(args, None if backend == "native" else url, model)
+    state["backend"] = "native" if backend == "native" else "vllm-server"
+    state["load_seconds"] = round(time.time() - t0, 1)
+    return None
 
 
 # ---------------------------------------------------------------- inputs
@@ -244,6 +366,19 @@ _TOKEN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]|[^\W\d_]{2,}|\d{
 _ROW = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S)
 _CELL = re.compile(r"<t[dh][^>]*>(.*?)</t[dh]>", re.S)
 _GREEK = re.compile(r"[\u0370-\u03ff\u1f00-\u1fff]")  # Greek in a text layer is math; the parse spells it as LaTeX
+_STYLE_CMD = re.compile(r"\\(?:math[a-z]+|text[a-z]*|operatorname\*?|boldsymbol|bm|hat|widehat|bar|overline"
+                        r"|tilde|widetilde|vec|dot|ddot|check|breve)(?![A-Za-z])")
+_SYMBOL_CMD = re.compile(r"\\(?:[A-Za-z]+|.)")
+
+
+def glue_math(text: str) -> str:
+    """Inline math spelt the way a text layer prints it: subscripts, superscripts and accents run into their letter
+    ("T_p(a_k)" -> "Tp(ak)", "D_{\\mathrm{KL}}" -> "DKL"), while operators and Greek letters part words. LaTeX
+    tokens alone never match the text layer's "tp", "ak" or "dkl" (2026-10)."""
+    def render(m):
+        s = _SYMBOL_CMD.sub("\0", _STYLE_CMD.sub("", m.group(0).strip("$")))
+        return " " + re.sub(r"[\s_^{}]", "", s) + " "
+    return _MATH.sub(render, text)
 
 
 def tokens(text: str, layer: bool = False) -> list[str]:
@@ -278,8 +413,67 @@ def missing_runs(layer_toks: list[str], found: set, n: int = GRAM, min_run: int 
 
 
 def repetition(text: str) -> str | None:
-    m = REPEAT_RE.search(text)
-    return m.group(1)[:80] if m else None
+    """A phrase looped many times, or a long block that keeps cycling through the same words, such as an author
+    line repeated over and over (2026-10: 8,857 characters, 6% of its word trigrams distinct)."""
+    if m := REPEAT_RE.search(text):
+        return f"repeats {m.group(1)[:80]!r}"
+    grams = ngrams(words(tokens(_MATH.sub(" ", text))))
+    if len(grams) >= MIN_LOOP_GRAMS and len(set(grams)) < LOOP_DISTINCT * len(grams):
+        return f"{len(text)} characters, {len(set(grams))} of {len(grams)} word trigrams distinct"
+    return None
+
+
+def stray_script(text: str, known: set) -> str | None:
+    """Snippets around CJK, kana or Hangul characters of `text` that are not in `known`, the text layer's characters."""
+    spans = []
+    for m in FOREIGN.finditer(text):
+        if m.group() in known:
+            continue
+        if spans and m.start() - spans[-1][1] <= 20:
+            spans[-1][1] = m.end()
+        else:
+            spans.append([m.start(), m.end()])
+    if not spans:
+        return None
+    return " | ".join("..." + text[max(0, s - 20):e + 20].replace("\n", " ") + "..." for s, e in spans[:MAX_SAMPLES])
+
+
+def line_number_chars(chars: list[tuple], width: float) -> set[int]:
+    """Indices of the characters of line numbers: whole numbers in a column near the left or right page edge,
+    one per line, counting up by one, as manuscripts under review carry them (2026-10). Left in, they break
+    every line's word trigrams and fill table regions with numbers the parse rightly lacks."""
+    words_at, run = [], []
+    for i, c in enumerate(chars + [(" ", 0.0, 0.0)]):
+        if c[0].strip():
+            run.append(i)
+        elif run:
+            words_at.append(run)
+            run = []
+    numbers = []
+    for idx in words_at:
+        text = "".join(chars[i][0] for i in idx)
+        x = sum(chars[i][1] for i in idx) / len(idx)
+        if text.isascii() and text.isdigit() and len(text) <= 4 \
+                and (x < LINE_NUMBER_EDGE * width or x > (1 - LINE_NUMBER_EDGE) * width):
+            numbers.append((x, sum(chars[i][2] for i in idx) / len(idx), int(text), idx))
+    columns = []
+    for n in sorted(numbers, key=lambda n: n[0]):
+        if columns and n[0] - columns[-1][-1][0] <= LINE_NUMBER_ALIGN:
+            columns[-1].append(n)
+        else:
+            columns.append([n])
+    found = set()
+    for column in columns:
+        column.sort(key=lambda n: n[1])
+        seq = column[:1]
+        for prev, cur in zip(column, column[1:] + [None]):
+            if cur is not None and cur[2] == prev[2] + 1 and cur[1] > prev[1]:
+                seq.append(cur)
+                continue
+            if len(seq) >= LINE_NUMBER_RUN:
+                found.update(i for n in seq for i in n[3])
+            seq = [cur]
+    return found
 
 
 def empty_columns(html: str) -> list[str]:
@@ -365,6 +559,17 @@ def layer_text(chars: list[tuple], keep) -> str:
     return "".join(out)
 
 
+def invented(text: str, found: set) -> list[str]:
+    """Samples of word runs in a parsed block whose trigrams the text layer (`found`) lacks, given only when the
+    block has such runs with its inline math dropped and with it glued: either spelling alone mismatches the
+    text layer's math (2026-10: dropped, "yields where returns"; glued, ORCID marks and matrices)."""
+    plain = words(tokens(_MATH.sub(" ", text)))
+    runs = missing_runs(plain, found)[1]
+    if not runs or not missing_runs(words(tokens(glue_math(text))), found)[1]:
+        return []
+    return [" ".join(plain[s:e])[:300] for s, e in runs[:MAX_SAMPLES]]
+
+
 def in_order(missing: Counter, toks: list[str]) -> list[str]:
     seen, out = Counter(), []
     for t in toks:
@@ -385,9 +590,10 @@ def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]) -> 
                    for p, c in layer.items()}
     streams: dict[int, list[list[str]]] = {}
     for b in blocks:
-        s = streams.setdefault(b["page"], [[], []])
+        s = streams.setdefault(b["page"], [[], [], []])
         s[0].extend(tokens(b["text"]))                  # LaTeX letters kept, as in "x_{s}"
         s[1].extend(tokens(_MATH.sub(" ", b["text"])))  # inline math dropped: text layers garble it
+        s[2].extend(tokens(glue_math(b["text"])))       # inline math glued as a text layer prints it
     pages_info, warnings, no_layer = [], [], []
     page_list = sorted(layer)
     for idx, page in enumerate(page_list):
@@ -415,17 +621,22 @@ def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]) -> 
                 warnings.append({"code": "missing_text", "page": page, "detail": " ".join(toks[start:end])[:300]})
             if coverage < LOW_COVERAGE and len(toks) - GRAM + 1 >= MIN_CHECK_GRAMS:
                 warnings.append({"code": "low_coverage", "page": page, "detail": f"{coverage:.0%} of text-layer trigrams found"})
-        # Text the parse has and the text layer lacks: an invented continuation, a hallucinated line. Only blocks
-        # over text-layer text: words read from a raster image (a figure, a scanned insert) have nothing to match.
-        window = set().union(*(layer_grams.get(p, set()) for p in page_list[max(0, idx - 1): idx + 2]))
+        # Text the parse has and the text layer lacks: an invented continuation, a hallucinated line, characters of a
+        # script the source never uses. Only blocks over text-layer text: words read from a raster image (a figure, a
+        # scanned insert) have nothing to match.
+        near = page_list[max(0, idx - 1): idx + 2]
+        window = set().union(*(layer_grams.get(p, set()) for p in near))
+        known = {c[0] for p in near for c in (layer.get(p) or [])}
         for b in pblocks:
-            if (b["label"] in FORMULA_LABELS | FIGURE_LABELS | NOISE_SET | {"table"} or not b["text"].strip() or not b["bbox"]
+            if (b["label"] in FIGURE_LABELS or not b["text"].strip() or not b["bbox"]
                     or sum(1 for ch, x, y in chars if ch.strip() and inside(x, y, b["bbox"])) < MIN_LAYER_CHARS):
                 continue
-            btoks = words(tokens(_MATH.sub(" ", b["text"])))
-            for start, end in missing_runs(btoks, window)[1][:MAX_SAMPLES]:
-                warnings.append({"code": "extra_text", "page": page, "block": b["id"],
-                                 "detail": " ".join(btoks[start:end])[:300]})
+            if stray := stray_script(b["text"], known):
+                warnings.append({"code": "foreign_script", "page": page, "block": b["id"], "detail": stray})
+            if b["label"] in FORMULA_LABELS | NOISE_SET | {"table"}:
+                continue
+            for detail in invented(b["text"], window):
+                warnings.append({"code": "extra_text", "page": page, "block": b["id"], "detail": detail})
         # Numbers from lines of running text or table rows only: short lines are legends and axis ticks.
         line_nums = Counter()
         for line in text.split("\n"):
@@ -454,8 +665,8 @@ def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]) -> 
             warnings.append({"code": "table_empty_column", "page": b["page"], "block": b["id"], "detail": ", ".join(empty)})
     warnings.extend(formula_number_gaps(blocks))
     for b in blocks:
-        if b["label"] != "table" and (frag := repetition(b["text"])):
-            warnings.append({"code": "repetition", "page": b["page"], "detail": f"block {b['id']} repeats {frag!r}"})
+        if b["label"] != "table" and (loop := repetition(b["text"])):
+            warnings.append({"code": "repetition", "page": b["page"], "block": b["id"], "detail": loop})
     if no_layer:
         warnings.append({"code": "no_text_layer", "pages": no_layer})
     return pages_info, warnings
@@ -464,7 +675,8 @@ def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]) -> 
 # ---------------------------------------------------------------- check (PDF)
 
 def layer_chars(pdf, page_no: int, image_size: tuple) -> list[tuple] | None:
-    """One PDF page's text-layer characters as (ch, x, y), the centre in page-image pixels; None without a text layer."""
+    """One PDF page's text-layer characters as (ch, x, y), the centre in page-image pixels, line numbers blanked;
+    None without a text layer."""
     page = pdf[page_no - 1]
     tp = page.get_textpage()
     n = tp.count_chars()
@@ -481,7 +693,32 @@ def layer_chars(pdf, page_no: int, image_size: tuple) -> list[tuple] | None:
             chars.append((ch, ((l + r) / 2 - left) * sx, (top - (b + t) / 2) * sy))
         else:
             chars.append((ch, 0.0, 0.0))
+    numbered = line_number_chars(chars, image_size[0])
+    chars = [(" ", 0.0, 0.0) if k in numbered else c for k, c in enumerate(chars)]
     return chars if any(c.strip() for c, _, _ in chars) else None
+
+
+def run_checks(doc: dict, blocks: list[dict], sizes: list[tuple]) -> tuple[list[dict], list[dict]]:
+    """check_document against the document's text layer, with each page's image size in its info and, for a PDF,
+    each one-block warning's box in PDF points ("region", for pdftotext -x -y -W -H)."""
+    if doc["kind"] != "pdf":
+        pages_info, warnings = check_document(blocks, {page: None for page in doc["pages"]})
+    else:
+        import pypdfium2 as pdfium
+        pdf = pdfium.PdfDocument(str(doc["path"]))
+        layer = {page: layer_chars(pdf, page, size) for page, size in zip(doc["pages"], sizes)}
+        pages_info, warnings = check_document(blocks, layer)
+        by_id = {b["id"]: b for b in blocks}
+        for w in warnings:
+            if "block" in w:
+                width_pt, height_pt = pdf[w["page"] - 1].get_size()
+                img_w, img_h = sizes[doc["pages"].index(w["page"])]
+                x1, y1, x2, y2 = by_id[w["block"]]["bbox"]
+                sx, sy = img_w / width_pt, img_h / height_pt
+                w["region"] = [int(x1 / sx) - 4, int(y1 / sy) - 4, int((x2 - x1) / sx) + 8, int((y2 - y1) / sy) + 8]
+    for info, (w, h) in zip(pages_info, sizes):
+        info.update(width=w, height=h)
+    return pages_info, warnings
 
 
 # ---------------------------------------------------------------- parse
@@ -501,9 +738,13 @@ def up_to_date(json_path: Path, sha: str, options: dict) -> bool:
             and parser.get("format") == FORMAT)
 
 
-def make_pipeline(args):
+def make_pipeline(args, server_url: str | None, model: str | None = None):
+    """The pipeline; with server_url its VL step goes to that vLLM server, asking for `model`."""
     from paddleocr import PaddleOCRVL
-    return PaddleOCRVL(use_doc_orientation_classify=args.photo, use_doc_unwarping=args.photo)
+    server = {"vl_rec_backend": "vllm-server", "vl_rec_server_url": server_url} if server_url else {}
+    if server_url and model:
+        server["vl_rec_api_model_name"] = model
+    return PaddleOCRVL(use_doc_orientation_classify=args.photo, use_doc_unwarping=args.photo, **server)
 
 
 def predict_input(doc: dict, workdir: Path):
@@ -618,22 +859,32 @@ def write_page(res, page: int, width: int, outdir: Path, tmp: Path) -> tuple[str
     return re.sub(r"\n{3,}", "\n\n", text).strip(), renames
 
 
-def process(doc: dict, args, state: dict) -> dict:
+def out_paths(doc: dict, args) -> tuple[Path, Path, Path]:
     outdir = Path(args.output) / doc["stem"]
-    md_path, json_path = outdir / f"{doc['stem']}.md", outdir / f"{doc['stem']}.json"
-    sha = sha256_of(doc["files"] if doc["kind"] == "images" else [doc["path"]])
-    options = options_of(args)
+    return outdir, outdir / f"{doc['stem']}.md", outdir / f"{doc['stem']}.json"
+
+
+def recheck(json_path: Path, doc: dict) -> dict:
+    """Run the current checks over a parse that older ones checked and store the results in its JSON. The
+    Markdown, with any fixes made to it, stays as it is."""
+    record = json.loads(json_path.read_text(encoding="utf-8"))
+    sizes = [(p["width"], p["height"]) for p in record["pages"]]
+    record["pages"], record["warnings"] = run_checks(doc, record["blocks"], sizes)
+    record["parser"]["check"] = CHECK
+    json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+    return record
+
+
+def process(doc: dict, args, state: dict) -> dict:
+    outdir, md_path, json_path = out_paths(doc, args)
     summary = {"input": doc["input"], "md": str(md_path), "json": str(json_path)}
-    if not args.force and up_to_date(json_path, sha, options):
+    if doc["fresh"]:
         old = json.loads(json_path.read_text(encoding="utf-8"))
+        if old["parser"].get("check", 1) < CHECK:
+            old = recheck(json_path, doc)
+            summary["rechecked"] = True
         summary.update(skipped="up_to_date", pages=len(old["pages"]), warnings=old.get("warnings", []))
         return summary
-
-    if state.get("pipeline") is None:
-        t0 = time.time()
-        print("[paddleocr] loading models ...", file=sys.stderr, flush=True)
-        state["pipeline"] = make_pipeline(args)
-        state["load_seconds"] = round(time.time() - t0, 1)
     pipeline = state["pipeline"]
 
     t0 = time.time()
@@ -666,35 +917,16 @@ def process(doc: dict, args, state: dict) -> dict:
                 blocks.append(block_record(block, page, offset, local, renames.get(path)))
             offset += len(res["parsing_res_list"])
 
-    layer = {}
-    if doc["kind"] == "pdf":
-        import pypdfium2 as pdfium
-        pdf = pdfium.PdfDocument(str(doc["path"]))
-        for page, size in zip(doc["pages"], sizes):
-            layer[page] = layer_chars(pdf, page, size)
-    else:
-        layer = {page: None for page in doc["pages"]}
-    pages_info, warnings = check_document(blocks, layer)
-    for info, (w, h) in zip(pages_info, sizes):
-        info.update(width=w, height=h)
-    if doc["kind"] == "pdf":
-        by_id = {b["id"]: b for b in blocks}
-        for w in warnings:
-            if "block" in w:                      # the table's box in PDF points, for pdftotext -x -y -W -H
-                width_pt, height_pt = pdf[w["page"] - 1].get_size()
-                img_w, img_h = sizes[doc["pages"].index(w["page"])]
-                x1, y1, x2, y2 = by_id[w["block"]]["bbox"]
-                sx, sy = img_w / width_pt, img_h / height_pt
-                w["region"] = [int(x1 / sx) - 4, int(y1 / sy) - 4, int((x2 - x1) / sx) + 8, int((y2 - y1) / sy) + 8]
+    pages_info, warnings = run_checks(doc, blocks, sizes)
 
     import paddleocr
     span = f"page{'s' if len(doc['pages']) > 1 else ''} {format_pages(doc['pages'])} of {doc['page_count']}"
     header = f"<!-- source: {doc['path'].name} | {span} | PaddleOCR-VL-1.6 | {date.today()} -->"
     md_path.write_text(header + "\n\n" + "\n\n".join(parts) + "\n", encoding="utf-8")
     record = {
-        "source": {"path": str(doc["path"].resolve()), "sha256": sha, "page_count": doc["page_count"], "pages": doc["pages"]},
+        "source": {"path": str(doc["path"].resolve()), "sha256": doc["sha"], "page_count": doc["page_count"], "pages": doc["pages"]},
         "parser": {"pipeline": "PaddleOCR-VL-1.6", "paddleocr": getattr(paddleocr, "__version__", None),
-                   "format": FORMAT, "options": options},
+                   "backend": state["backend"], "format": FORMAT, "check": CHECK, "options": options_of(args)},
         "pages": pages_info,
         "blocks": blocks,
         "warnings": warnings,
@@ -705,12 +937,15 @@ def process(doc: dict, args, state: dict) -> dict:
     for b in blocks:
         counts[b["label"]] = counts.get(b["label"], 0) + 1
     covered = [p["coverage"] for p in pages_info if p["coverage"] is not None]
+    seconds = time.time() - t0
     summary.update(
         pages=len(doc["pages"]),
         blocks=counts,
         min_coverage=round(min(covered), 3) if covered else None,
         warnings=warnings,
-        seconds=round(time.time() - t0, 1),
+        backend=state["backend"],
+        seconds=round(seconds, 1),
+        pages_per_minute=round(len(doc["pages"]) * 60 / seconds, 1),
     )
     if "load_seconds" in state:
         summary["load_seconds"] = state.pop("load_seconds")
@@ -727,20 +962,32 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--charts", action="store_true", help="turn charts into data tables (values are model-read; check them)")
     p.add_argument("--figure-text", action="store_true", help="OCR the text inside figures into the Markdown")
     p.add_argument("--photo", action="store_true", help="correct orientation and warping (photographed or skewed scans)")
+    p.add_argument("--backend", choices=["auto", "vllm", "native"], default="auto",
+                   help=f"VL model backend (default auto: a vLLM server for this run when vllm is installed and "
+                        f"{AUTO_MIN_PAGES}+ pages need parsing, else native)")
+    p.add_argument("--vl-server", metavar="URL", help="use this running vLLM server, e.g. http://127.0.0.1:8118/v1")
     return p
 
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     ensure_tool_env()
+    docs = [resolve_input(raw, args.pages) for raw in args.inputs]
+    for doc in docs:
+        if "error" not in doc:
+            doc["sha"] = sha256_of(doc["files"] if doc["kind"] == "images" else [doc["path"]])
+            doc["fresh"] = not args.force and up_to_date(out_paths(doc, args)[2], doc["sha"], options_of(args))
+    pending = sum(len(doc["pages"]) for doc in docs if "error" not in doc and not doc["fresh"])
     state, failed = {}, False
-    for raw in args.inputs:
-        doc = resolve_input(raw, args.pages)
+    if pending and (error := load_backend(args, pending, state)):
+        print(json.dumps(error, ensure_ascii=False), flush=True)
+        return 2
+    for doc in docs:
         if "error" not in doc:
             try:
                 doc = process(doc, args, state)
             except Exception as e:  # noqa: BLE001 - report and continue with the next document
-                doc = {"input": raw, "error": "parse_failed", "detail": f"{type(e).__name__}: {e}"}
+                doc = {"input": doc["input"], "error": "parse_failed", "detail": f"{type(e).__name__}: {e}"}
         failed |= "error" in doc
         print(json.dumps(doc, ensure_ascii=False), flush=True)
     return 1 if failed else 0

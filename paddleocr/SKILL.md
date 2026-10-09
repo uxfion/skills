@@ -7,7 +7,7 @@ description: Parses a paper's PDF or page images (screenshots, scans) into full-
 
 From a PDF or page images to text an agent can read whole: `<stem>.md`, the document page by page in reading order, and `<stem>.json`, every block with its page, label and box, both checked against the PDF's own text layer. The model reads pixels, so scans, screenshots and tables embedded as images come out as text too; figures stay images, cropped beside their captions.
 
-Script paths are relative to this file's directory. `uv run scripts/parse.py --help` is the reference for flags, the output layout and the warning codes. The script needs the `paddleocr` uv tool on an NVIDIA GPU; `paddleocr_missing`, a crash at start-up or a hang → [references/install.md](references/install.md).
+Script paths are relative to this file's directory. `uv run scripts/parse.py --help` is the reference for flags, the output layout and the warning codes. The script needs the `paddleocr` uv tool on an NVIDIA GPU, and parses ten to twenty times faster with the vllm-serve skill beside it; `paddleocr_missing`, a `vl_server_*` error, a crash at start-up or a hang → [references/install.md](references/install.md).
 
 ## Steps
 
@@ -17,14 +17,16 @@ Script paths are relative to this file's directory. `uv run scripts/parse.py --h
 uv run scripts/parse.py <paper.pdf> [more inputs ...] -o <outdir>
 ```
 
-Each input is one document: a PDF, an image, or a directory of page images in filename order. Give several papers in one call and the models load once. Loading takes seconds once the models are cached in `~/.paddlex/official_models/`; the first run downloads about 2 GB there. A page takes 10–15 s and pages finish in batches, so the per-page lines on stderr (prefixed `[paddleocr]`, among Paddle's own log lines) come in bursts. Run anything beyond a few pages in the background and wait for it to exit; each document's summary line reaches stdout when that document is done.
+Each input is one document: a PDF, an image, or a directory of page images in filename order. Give all the papers in one call: the models load once per call. The first run downloads about 2 GB of models into `~/.paddlex/official_models/`.
+
+Speed depends on the backend, which each summary names in `backend`. With the vllm-serve skill installed, a call with 8 or more pages to parse, or any call while that server runs, gets the VL model's vLLM server from it (30–60 s to start when it is not running) and then takes 0.5–1 s a page; the server is shared and stops by itself ten minutes after its last use, so leave it be. Otherwise the native backend takes 10–15 s a page: for a batch of papers without vllm-serve, tell the user it would be ten to twenty times faster and point to [references/install.md](references/install.md). Pages finish in batches, so the per-page lines on stderr (prefixed `[paddleocr]`, among Paddle's own log lines) come in bursts. Run anything beyond a few pages in the background and wait for it to exit; each document's summary line reaches stdout when that document is done.
 
 - Only part of a long document is needed (a thesis chapter, a paper without its appendix): `--pages 3-12`; the output keeps the original page numbers.
 - Photographed or skewed pages: `--photo`.
 - A paper in Zotero, named by title, author or citation key: [references/zotero.md](references/zotero.md) finds its PDF.
 - `<outdir>`, an absolute path: where the user wants it, else your scratch or work directory — never this skill's directory or the folder another program keeps the PDF in.
 
-Done when every input has its summary line without `error`. `skipped: up_to_date` means an earlier parse with the same file and options is already there.
+Done when every input has its summary line without `error`. `skipped: up_to_date` means an earlier parse with the same file and options is already there; with `rechecked: true`, newer checks have just re-examined it, and its Markdown may already carry fixes (`<!-- from … -->`) for some of the warnings.
 
 ### 2. Check
 
@@ -40,11 +42,12 @@ The warnings, by remedy:
 - **Lost or misread** — the text layer has it, the parse does not; restore it from the text layer:
   - `table_mismatch`: the table lost cells, often a whole column, and the remaining values can sit under the wrong headers (2026-10: five of the twenty text tables in six test papers). Rebuild it from `pdftotext -layout` over the warning's `region`, check it against the page image, and replace the table.
   - `missing_numbers`: numbers the parse lacks or misread.
-  - `missing_text`: a run of words, sampled in `detail` — a dropped line, author affiliations read as icons. Labels and legends of a complex figure, a watermark, a download stamp or line numbers are false alarms.
+  - `missing_text`: a run of words, sampled in `detail` — a dropped line, author affiliations read as icons. Labels and legends of a complex figure, a watermark or a download stamp are false alarms.
   - `low_coverage`: the page as a whole matched poorly — a garbled text layer (odd font encodings) or a page dense with formulas; compare a paragraph of the page image with the Markdown.
 - **Invented** — the parse has text the source lacks; delete it, or replace the block from the text layer or image:
   - `extra_text`: words the text layer lacks, typically the model finishing a sentence that is cut off at the page end.
-  - `repetition`: one phrase looped dozens of times.
+  - `foreign_script`: CJK, kana or Hangul characters the text layer lacks, mixed into the text (2026-10: 「年第」 and 「个」 inside an English sentence with inline math); `detail` quotes each spot. The words around them are often garbled too: rebuild the passage from the text layer.
+  - `repetition`: one phrase looped dozens of times, or a block cycling through the same words (2026-10: a 23-name author line run on to 8,857 characters). Keep one pass, checked against the source.
 - **Misplaced**:
   - `table_empty_column`: a headed column empty in every row, the values slid one column over; often a figure grid read as a table. Realign from the source.
   - `formula_number_gap`: equation numbers missing from a run; find those equations in the source and add each as `\tag*{(n)}` to its formula.

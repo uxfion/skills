@@ -59,6 +59,10 @@ env -u LD_LIBRARY_PATH CUDA_MODULE_LOADING=EAGER paddleocr doc_parser -i <file> 
 
 To see what a running parse has loaded: `grep -o '/[^ ]*lib\(cudart\|cublas\|cudnn\)[^ ]*' /proc/<pid>/maps | sort -u`.
 
-## Many documents
+## vLLM server (fast parsing)
 
-`parse.py` uses the native backend: one process, about 30 s to load, then roughly 15 s a page. For a large batch, or several programs sharing one loaded model, a vLLM or SGLang server can replace just the VL step (same weights, same output); it needs its own environment with FlashAttention. Setup is in the usage guide, section on inference services (`paddleocr genai_server`, `paddleocr doc_parser --vl_rec_backend vllm-server --vl_rec_server_url …`); `parse.py` does not drive one yet.
+The native backend decodes one layout block at a time (PaddleX fixes its batch size at 1), so a page takes 10–15 s with the GPU mostly idle. A vLLM server batches the blocks of many pages: same weights and, block by block, the same output up to small decoding differences, at 0.3–1.5 s a page (2026-10, RTX 5090 D: nine papers, 225 pages, 2,489 s native → 109 s).
+
+The server comes from the **vllm-serve** skill, this machine's shared vLLM backend: install it beside this one (`npx skills add uxfion/skills --skill vllm-serve -g`) and the vLLM its [install guide](../../vllm-serve/references/install.md) describes. `parse.py` then asks it for the `paddleocr-vl` profile's server whenever 8 or more pages need parsing; the server starts unless it runs, is shared with other callers, and stops by itself once idle. `VLLM_SERVE` points `parse.py` at a `serve.py` elsewhere; `--vl-server URL` uses any vLLM server serving PaddleOCR-VL-1.6.
+
+vLLM lives in an environment of its own, never in the `paddleocr` tool: vLLM's binaries are tied to one PyTorch build, and that PyTorch and PaddlePaddle pin different versions of the same `nvidia-*` CUDA packages (cu129 Paddle 3.2.1 against PyTorch 2.8.0: `nvidia-cufile-cu12` 1.14 vs 1.13). The PaddleOCR-VL docs (inference service, installed "in a virtual environment") and vLLM's PaddleOCR-VL recipe ("separate venvs for vllm and paddlepaddle") say the same.
