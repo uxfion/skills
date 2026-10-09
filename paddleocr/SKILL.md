@@ -7,7 +7,7 @@ description: Parses a paper's PDF or page images (screenshots, scans) into full-
 
 From a PDF or page images to text an agent can read whole: `<stem>.md`, the document page by page in reading order, and `<stem>.json`, every block with its page, label and box, both checked against the PDF's own text layer. The model reads pixels, so scans, screenshots and tables embedded as images come out as text too; figures stay images, cropped beside their captions.
 
-Script paths are relative to this file's directory. `uv run scripts/parse.py --help` is the reference for flags, the output layout and the warning codes. The script needs the `paddleocr` uv tool on an NVIDIA GPU, and parses ten to twenty times faster with the vllm-serve skill beside it; `paddleocr_missing`, a `vl_server_*` error, a crash at start-up or a hang → [references/install.md](references/install.md).
+Script paths are relative to this file's directory. `uv run scripts/parse.py --help` is the reference for flags, the output layout and the warning codes. The script needs the `paddleocr` uv tool on an NVIDIA GPU; `paddleocr_missing`, a `vl_server_*` error, a crash at start-up or a hang → [references/install.md](references/install.md).
 
 ## Steps
 
@@ -19,7 +19,9 @@ uv run scripts/parse.py <paper.pdf> [more inputs ...] -o <outdir>
 
 Each input is one document: a PDF, an image, or a directory of page images in filename order. Give all the papers in one call: the models load once per call. The first run downloads about 2 GB of models into `~/.paddlex/official_models/`.
 
-Speed depends on the backend, which each summary names in `backend`. With the vllm-serve skill installed, a call with 8 or more pages to parse, or any call while that server runs, gets the VL model's vLLM server from it (30–60 s to start when it is not running) and then takes 0.5–1 s a page; the server is shared and stops by itself ten minutes after its last use, so leave it be. Otherwise the native backend takes 10–15 s a page: for a batch of papers without vllm-serve, tell the user it would be ten to twenty times faster and point to [references/install.md](references/install.md). Pages finish in batches, so the per-page lines on stderr (prefixed `[paddleocr]`, among Paddle's own log lines) come in bursts. Run anything beyond a few pages in the background and wait for it to exit; each document's summary line reaches stdout when that document is done.
+Speed depends on the backend, named in each summary's `backend`. Whenever the vllm-serve skill can provide the VL model's vLLM server (that skill and its vLLM installed, room on the GPU), the call uses it, however few the pages: 30–60 s to start the server when it is not running, then 0.5–1 s a page. The server is shared and stops by itself ten minutes after its last use, so leave it be. Otherwise the call goes native at 10–15 s a page, and stderr says why; for a batch of papers, pass that reason on to the user, and when vllm-serve or vLLM is missing, add that it would parse ten to twenty times faster ([references/install.md](references/install.md)).
+
+Run anything beyond a few pages in the background and wait for it to exit; each document's summary line reaches stdout when that document is done. Pages finish in batches, so the per-page lines on stderr (prefixed `[paddleocr]`, among Paddle's own log lines) come in bursts.
 
 - Only part of a long document is needed (a thesis chapter, a paper without its appendix): `--pages 3-12`; the output keeps the original page numbers.
 - Photographed or skewed pages: `--photo`.

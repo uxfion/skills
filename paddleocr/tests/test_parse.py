@@ -370,13 +370,11 @@ class LibraryPath(unittest.TestCase):
 class Backend(unittest.TestCase):
     def test_choice(self):
         serve = "/skills/vllm-serve/scripts/serve.py"
-        self.assertEqual(P.choose_backend("auto", None, serve, 30)[0], "vllm")
-        self.assertEqual(P.choose_backend("auto", None, serve, P.AUTO_MIN_PAGES - 1)[0], "native")
-        self.assertEqual(P.choose_backend("auto", None, None, 300)[0], "native")
-        self.assertEqual(P.choose_backend("native", None, serve, 300)[0], "native")
-        self.assertEqual(P.choose_backend("vllm", None, serve, 1)[0], "vllm")
-        self.assertEqual(P.choose_backend("auto", "http://127.0.0.1:8118/v1", None, 1)[0], "server")
-        self.assertEqual(P.choose_backend("auto", None, serve, 1, running=True)[0], "vllm")   # already up: use it
+        self.assertEqual(P.choose_backend("auto", None, serve)[0], "vllm")
+        self.assertEqual(P.choose_backend("auto", None, None)[0], "native")
+        self.assertEqual(P.choose_backend("native", None, serve)[0], "native")
+        self.assertEqual(P.choose_backend("vllm", None, serve)[0], "vllm")
+        self.assertEqual(P.choose_backend("auto", "http://127.0.0.1:8118/v1", None)[0], "server")
 
     def test_served_model_name_read_from_the_server(self):
         # 2026-10: a server started as `vllm serve PaddlePaddle/PaddleOCR-VL-1.6` answered 404 to the client's

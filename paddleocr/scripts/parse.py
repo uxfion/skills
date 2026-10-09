@@ -21,11 +21,12 @@ hash, options and output format is skipped; --force parses it again. A skipped d
 older checks examined is checked again from its JSON ("rechecked": true; the Markdown is kept).
 
 The VL model runs natively (one block at a time, about 10-15 s a page) or in a vLLM server
-(continuous batching, 0.5-1 s a page). --backend auto, the default, takes the server from the
-vllm-serve skill (installed beside this one, or VLLM_SERVE = its serve.py) when 8 or more pages
-need parsing, or for any number while that server runs: `serve.py up paddleocr-vl` starts it
-unless it runs, and it stops by itself once idle. Without vllm-serve, or when it cannot provide a server, the run goes native. --backend vllm
-insists on the server, --backend native avoids it, and --vl-server URL uses a given vLLM server.
+(continuous batching, 0.5-1 s a page). --backend auto, the default, asks the vllm-serve skill
+(installed beside this one, or VLLM_SERVE = its serve.py) for the server whenever a run has
+pages to parse, however few: `serve.py up paddleocr-vl` starts it unless it runs, and it stops
+by itself once idle. Without vllm-serve, without vLLM, or with too little free GPU memory for
+the server, the run goes native and stderr says why. --backend vllm insists on the server,
+--backend native avoids it, and --vl-server URL uses a given vLLM server.
 Each summary names its "backend" and "pages_per_minute".
 
 Warnings in the summary and the JSON:
@@ -111,7 +112,6 @@ LINE_NUMBER_EDGE = 0.20  # share of the page width on either side where line num
 LINE_NUMBER_ALIGN = 12   # pixels the centres of one column of line numbers may stray
 FOREIGN = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]")  # CJK, kana, Hangul
 
-AUTO_MIN_PAGES = 8       # fewer pages to parse: the native backend is done before a vLLM server is up (~1 min)
 VL_PROFILE = "paddleocr-vl"   # the vllm-serve profile that serves the VL model
 
 
@@ -195,10 +195,10 @@ def find_serve() -> str | None:
     return str(sibling) if sibling.exists() else None
 
 
-def choose_backend(requested: str, server_url: str | None, serve: str | None, pending_pages: int,
-                   running: bool = False) -> tuple[str, str]:
-    """(backend, why): "server" (one given by URL), "vllm" (from vllm-serve) or "native". `running`: vllm-serve's
-    server for the VL model is up already, so even a page or two is faster through it."""
+def choose_backend(requested: str, server_url: str | None, serve: str | None) -> tuple[str, str]:
+    """(backend, why): "server" (one given by URL), "vllm" (from vllm-serve) or "native". Auto takes vllm-serve's
+    server for any number of pages: even cold it overtakes native at about three (2026-10, 2 pages: native 32 s,
+    a server start plus parse 42 s, a running server 11 s), and it stays up for the next call."""
     if server_url:
         return "server", f"the server at {server_url}"
     if requested == "native":
@@ -206,12 +206,9 @@ def choose_backend(requested: str, server_url: str | None, serve: str | None, pe
     if requested == "vllm":
         return "vllm", "--backend vllm"
     if not serve:
-        return "native", "vllm-serve is not installed; a vLLM server parses ten to twenty times faster, see references/install.md"
-    if running:
-        return "vllm", "its vLLM server is running"
-    if pending_pages < AUTO_MIN_PAGES:
-        return "native", f"{pending_pages} page{'s' * (pending_pages > 1)} to parse, too few to pay for starting vLLM"
-    return "vllm", f"{pending_pages} pages to parse"
+        guide = Path(__file__).resolve().parents[1] / "references" / "install.md"
+        return "native", f"vllm-serve is not installed; a vLLM server parses ten to twenty times faster, see {guide}"
+    return "vllm", "vllm-serve is installed"
 
 
 def served_models(url: str) -> list[str] | None:
@@ -221,16 +218,6 @@ def served_models(url: str) -> list[str] | None:
             return [m["id"] for m in json.load(r).get("data", [])]
     except (OSError, ValueError, KeyError):
         return None
-
-
-def serve_running(serve: str) -> bool:
-    """Whether vllm-serve's server for the VL model is up."""
-    try:
-        out = subprocess.run(["uv", "run", serve, "status"], capture_output=True, text=True).stdout
-        return any(json.loads(line).get("profile") == VL_PROFILE and json.loads(line).get("running")
-                   for line in out.splitlines() if line.startswith("{"))
-    except (OSError, ValueError):
-        return False
 
 
 def serve_up(serve: str) -> dict:
@@ -246,7 +233,7 @@ def serve_up(serve: str) -> dict:
         return {"error": "no_answer", "detail": f"vllm-serve printed {done.stdout[-300:]!r}"}
 
 
-def load_backend(args, pending_pages: int, state: dict) -> dict | None:
+def load_backend(args, state: dict) -> dict | None:
     """Load the pipeline with the VL backend this run uses (state: pipeline, backend, load_seconds); an error
     summary when the backend asked for cannot be had."""
     t0 = time.time()
@@ -256,15 +243,15 @@ def load_backend(args, pending_pages: int, state: dict) -> dict | None:
     if args.backend == "vllm" and not args.vl_server and not serve:
         return {"error": "vl_server_failed", "detail": "vllm-serve not found beside this skill (or VLLM_SERVE); "
                                                        "see references/install.md"}
-    running = bool(serve) and args.backend == "auto" and pending_pages < AUTO_MIN_PAGES and serve_running(serve)
-    backend, why = choose_backend(args.backend, args.vl_server, serve, pending_pages, running)
+    backend, why = choose_backend(args.backend, args.vl_server, serve)
     # The client asks for PaddleOCR-VL-1.6-0.9B unless told the served name (vLLM's PaddleOCR-VL recipe).
     url, model = args.vl_server, listed[0] if args.vl_server else None
     if backend == "vllm":
         print(f"[paddleocr] asking vllm-serve for the VL model's server ({why}) ...", file=sys.stderr, flush=True)
         got = serve_up(serve)
         if "error" in got:
-            detail = f"vllm-serve {got['error']}: {got.get('detail', '')}"
+            guide = Path(serve).resolve().parents[1] / "references" / "install.md"
+            detail = f"vllm-serve {got['error']}: {got.get('detail', '')} (its guide: {guide})"
             if args.backend == "vllm":
                 return {"error": "vl_server_failed", "detail": detail}
             print(f"[paddleocr] {detail}", file=sys.stderr, flush=True)
@@ -963,8 +950,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--figure-text", action="store_true", help="OCR the text inside figures into the Markdown")
     p.add_argument("--photo", action="store_true", help="correct orientation and warping (photographed or skewed scans)")
     p.add_argument("--backend", choices=["auto", "vllm", "native"], default="auto",
-                   help=f"VL model backend (default auto: a vLLM server for this run when vllm is installed and "
-                        f"{AUTO_MIN_PAGES}+ pages need parsing, else native)")
+                   help="VL model backend (default auto: the vllm-serve skill's server when it can provide one, "
+                        "else native)")
     p.add_argument("--vl-server", metavar="URL", help="use this running vLLM server, e.g. http://127.0.0.1:8118/v1")
     return p
 
@@ -979,7 +966,7 @@ def main(argv=None) -> int:
             doc["fresh"] = not args.force and up_to_date(out_paths(doc, args)[2], doc["sha"], options_of(args))
     pending = sum(len(doc["pages"]) for doc in docs if "error" not in doc and not doc["fresh"])
     state, failed = {}, False
-    if pending and (error := load_backend(args, pending, state)):
+    if pending and (error := load_backend(args, state)):
         print(json.dumps(error, ensure_ascii=False), flush=True)
         return 2
     for doc in docs:
