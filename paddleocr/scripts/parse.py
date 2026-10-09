@@ -51,6 +51,8 @@ Warnings in the summary and the JSON:
   low_coverage        under 80% of the page's text-layer word trigrams were found
   repetition          a block repeats one fragment, or cycles through the same words (decoding ran away)
   empty_page          a page yielded no text
+  uncropped_figure    a figure caption with no figure crop beside it: the figure was read as text or a
+                      table, or missed (or no figure is there: a list of figure captions)
   no_text_layer       pages that cannot be checked (scans, images)
 A warning about one block carries "block" (its id) and, for a PDF, "region": the block's box in
 PDF points [x, y, w, h], ready for pdftotext -layout -x -y -W -H. The summary's min_coverage is
@@ -96,7 +98,7 @@ from datetime import date
 from pathlib import Path
 
 FORMAT = 2               # bump when the output changes, so older parses are redone
-CHECK = 2                # bump when the checks change, so older parses are checked again (no GPU)
+CHECK = 3                # bump when the checks change, so older parses are checked again (no GPU)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 NOISE_LABELS = ["number", "header", "header_image", "footer", "footer_image"]
 FIGURE_LABELS = {"figure", "image", "chart", "seal", "header_image", "footer_image"}
@@ -576,11 +578,13 @@ def in_order(missing: Counter, toks: list[str]) -> list[str]:
     return out
 
 
-def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]) -> tuple[list[dict], list[dict]]:
+def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None],
+                   heights: dict[int, float] | None = None) -> tuple[list[dict], list[dict]]:
     """Per-page check results and warnings.
 
     `blocks` carry id/page/label/text/bbox (page-image pixels); `layer` maps each page to its text-layer
-    characters [(ch, x, y)] in the same pixels, or None when the page has no text layer.
+    characters [(ch, x, y)] in the same pixels, or None when the page has no text layer; `heights`, each page's
+    image height, enables the uncropped_figure check.
     """
     by_id = {b["id"]: b for b in blocks}
     layer_grams = {p: set(ngrams(words(tokens(layer_text(c, lambda x, y: True), layer=True)))) if c else set()
@@ -661,6 +665,8 @@ def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]) -> 
         if b["label"] == "table" and (empty := empty_columns(b["text"])):
             warnings.append({"code": "table_empty_column", "page": b["page"], "block": b["id"], "detail": ", ".join(empty)})
     warnings.extend(formula_number_gaps(blocks))
+    if heights:
+        warnings.extend(uncropped_figures(blocks, heights))
     for b in blocks:
         if b["label"] != "table" and (loop := repetition(b["text"])):
             warnings.append({"code": "repetition", "page": b["page"], "block": b["id"], "detail": loop})
@@ -698,13 +704,14 @@ def layer_chars(pdf, page_no: int, image_size: tuple) -> list[tuple] | None:
 def run_checks(doc: dict, blocks: list[dict], sizes: list[tuple]) -> tuple[list[dict], list[dict]]:
     """check_document against the document's text layer, with each page's image size in its info and, for a PDF,
     each one-block warning's box in PDF points ("region", for pdftotext -x -y -W -H)."""
+    heights = {page: h for page, (_, h) in zip(doc["pages"], sizes)}
     if doc["kind"] != "pdf":
-        pages_info, warnings = check_document(blocks, {page: None for page in doc["pages"]})
+        pages_info, warnings = check_document(blocks, {page: None for page in doc["pages"]}, heights)
     else:
         import pypdfium2 as pdfium
         pdf = pdfium.PdfDocument(str(doc["path"]))
         layer = {page: layer_chars(pdf, page, size) for page, size in zip(doc["pages"], sizes)}
-        pages_info, warnings = check_document(blocks, layer)
+        pages_info, warnings = check_document(blocks, layer, heights)
         by_id = {b["id"]: b for b in blocks}
         for w in warnings:
             if "block" in w:
@@ -725,10 +732,12 @@ COVER = 0.7              # share of a figure block's area inside a layout box th
 SWALLOW = 0.2            # share of a blocker's area a figure may cover
 ROW = 0.0075             # share of the page height within which blocks sit in one row (12 px on a Letter page at scale 2)
 LONG_TEXT = 300          # characters: a text block this long is running text, never part of a figure
+UNCROPPED_REACH = 0.4    # share of the page height within which a figure crop goes with a caption
 LAYOUT_PIPELINE = "PP-StructureV3"   # its layout model (PP-DocLayout_plus-L), with its settings, draws whole figures
 CAPTION = re.compile(r"\s*(\*\*)?\s*(extended\s+data\s+|supplementary\s+)?(fig\.?|figure|图)\s*[A-Z]?\d", re.I)
 CAPTION_TEXT = re.compile(r"\s*(\*\*)?\s*((extended\s+data\s+|supplementary\s+)?(fig\.?|figure)\s*[A-Z]?\d+[a-z]?\s*(\*\*)?\s*[.:|]"
                           r"|图\s*\d+)", re.I)
+TABLE_CAPTION = re.compile(r"\s*(\*\*)?\s*((extended\s+data\s+|supplementary\s+)?table\s*([A-Z]?\d+|[IVX]+\b)|表\s*\d+)", re.I)
 PANEL = re.compile(r"\(?[A-Za-z]{1,2}\)?[.:]?")
 HEADING_LABELS = {"paragraph_title", "doc_title", "abstract"}
 RUNNING_LABELS = {"text", "reference", "reference_content", "footnote", "algorithm", "content"}
@@ -760,14 +769,21 @@ def is_panel(b: dict) -> bool:
     return b["label"] == "figure_title" and bool(PANEL.fullmatch(b["text"].strip()))
 
 
+def is_table_caption(b: dict) -> bool:
+    """A table caption ("Table 2.", "TABLE IV", "Extended Data Table 1 |"), which the VL model labels figure_title
+    more often than not (2026-10: 77 of 96)."""
+    return b["label"] in ("figure_title", "table_title", "text", "vision_footnote") and bool(TABLE_CAPTION.match(b["text"].strip()))
+
+
 def is_subtitle(b: dict) -> bool:
     """A title inside a figure, which the VL model labels figure_title too: "Step 1: ...", "(a) in silico"."""
-    return b["label"] == "figure_title" and not is_caption(b) and not is_panel(b)
+    return b["label"] == "figure_title" and not is_caption(b) and not is_panel(b) and not is_table_caption(b)
 
 
 def is_blocker(b: dict) -> bool:
-    """A block that parts figures: a caption, a heading, running text."""
-    return is_caption(b) or b["label"] in HEADING_LABELS or (b["label"] in RUNNING_LABELS and len(b["text"]) >= LONG_TEXT)
+    """A block that parts figures: a figure or table caption, a heading, running text."""
+    return (is_caption(b) or is_table_caption(b) or b["label"] in HEADING_LABELS
+            or (b["label"] in RUNNING_LABELS and len(b["text"]) >= LONG_TEXT))
 
 
 def group_page(blocks: list[dict], layout: list[dict] | None, height: float, charts: bool = False) -> list[dict]:
@@ -794,6 +810,14 @@ def group_page(blocks: list[dict], layout: list[dict] | None, height: float, cha
              for c in captions}
     spans = {c["id"]: box_union([c["bbox"]] + [t["bbox"] for t in tails[c["id"]]]) for c in captions}
     tail_ids = {t["id"] for ts in tails.values() for t in ts}
+    # A caption across the middle of the text area sits under a figure as wide as the text: a short centred caption
+    # speaks for every panel of a grid above it (2026-10: appendix figures of 2 x 2 plots, each panel wider than the
+    # part of the caption below it). A caption within one column speaks for its own width.
+    text = [b["bbox"] for b in blocks if b["bbox"] and b["label"] not in NOISE_SET]
+    left, right = min(b[0] for b in text), max(b[2] for b in text)
+    for cid, span in spans.items():
+        if span[0] < (left + right) / 2 - row and span[2] > (left + right) / 2 + row:
+            spans[cid] = [left, span[1], right, span[3]]
     blockers = [b for b in blocks if b["bbox"] and (is_blocker(b) or b["id"] in tail_ids)]
     units = {b["id"]: {"members": [b["id"]], "bbox": b["bbox"], "by": None} for b in figs}
     owner = {b["id"]: b["id"] for b in figs}
@@ -815,7 +839,7 @@ def group_page(blocks: list[dict], layout: list[dict] | None, height: float, cha
         return any(x is not spare and box_overlap(bbox, x["bbox"]) > SWALLOW * box_area(x["bbox"]) for x in blockers)
 
     def caption_below(bbox):
-        """The nearest caption below bbox spanning half its width or more, with no blocker between."""
+        """The nearest caption below bbox speaking for half its width or more, with no blocker between."""
         best = None
         for c in captions:
             span = spans[c["id"]]
@@ -883,6 +907,35 @@ def group_page(blocks: list[dict], layout: list[dict] | None, height: float, cha
         figures.append({"members": sorted(unit["members"], key=order.get), "panels": panels,
                         "bbox": [int(round(v)) for v in bbox], "by": unit["by"]})
     return figures
+
+
+def uncropped_figures(blocks: list[dict], heights: dict[int, float]) -> list[dict]:
+    """uncropped_figure warnings: figure captions that no crop goes with. Each figure crop (a "figure" block, or an
+    image or chart in none) goes with the nearest caption below it sharing its columns, else the nearest above it
+    (captions set above figures); a caption left over marks a figure the VL model read as text (a prompt, a sample
+    output) or as a table, or missed (2026-10: 7 of 303 captions in 22 papers). A caption at the top of a page whose
+    page before ends in a crop without a caption is that crop's (Nature Extended Data: figure page, then caption)."""
+    out, orphan = [], None
+    for page in sorted(heights):
+        pblocks = [b for b in blocks if b["page"] == page and b["bbox"]]
+        reach = UNCROPPED_REACH * heights[page]
+        crops = [b["bbox"] for b in pblocks if b["label"] == "figure" or (b["label"] in ("image", "chart") and "merged_into" not in b)]
+        captions = [b for b in pblocks if is_caption(b)]
+        taken, spare = set(), None
+        for x1, y1, x2, y2 in crops:
+            cols = [c for c in captions if min(x2, c["bbox"][2]) > max(x1, c["bbox"][0])]
+            below = [c for c in cols if y1 < c["bbox"][1] and y2 <= c["bbox"][3] and c["bbox"][1] - y2 <= reach]
+            above = [c for c in cols if c["bbox"][1] <= y1 and c["bbox"][3] < y2 and y1 - c["bbox"][3] <= reach]
+            if below or above:
+                taken.add((min(below, key=lambda c: c["bbox"][1]) if below else max(above, key=lambda c: c["bbox"][3]))["id"])
+            elif y2 > heights[page] / 2:
+                spare = True
+        for c in captions:
+            if c["id"] in taken or (orphan and page == orphan + 1 and c["bbox"][1] < heights[page] / 3):
+                continue
+            out.append({"code": "uncropped_figure", "page": page, "block": c["id"], "detail": c["text"].strip()[:100]})
+        orphan = page if spare else None
+    return out
 
 
 def regroup_markdown(markdown: str, figures: list[tuple[dict, list[dict], list[dict]]]) -> str:

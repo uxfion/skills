@@ -486,6 +486,16 @@ class FigureGroups(unittest.TestCase):
         self.assertEqual(grouped(blocks), [[1, 2, 3, 4]])
         self.assertEqual(grouped(blocks[:5]), [[1, 3]])
 
+    def test_short_centred_caption_takes_the_whole_grid_above_it(self):
+        # 2026-10: an appendix figure of 2 x 2 plots over "Figure 11. PubMedQA experimental results.", which lies under
+        # less than half of every panel
+        blocks = [fb(1, "chart", [129, 142, 564, 346]), fb(2, "chart", [622, 142, 1058, 346]),
+                  fb(3, "figure_title", [165, 366, 532, 387], "(a) Accuracy versus the average time per question"),
+                  fb(4, "chart", [118, 396, 574, 611]), fb(5, "chart", [603, 395, 967, 615]),
+                  fb(6, "figure_title", [432, 672, 760, 693], "Figure 11. PubMedQA experimental results."),
+                  fb(7, "text", [118, 720, 1060, 900], RUNNING)]
+        self.assertEqual(grouped(blocks), [[1, 2, 4, 5]])
+
     def test_captions_side_by_side_keep_their_figures_apart(self):
         blocks = [fb(1, "image", [100, 100, 580, 300]), fb(2, "image", [100, 320, 580, 520]),
                   fb(3, "figure_title", [100, 540, 580, 570], "Fig. 1. Left"),
@@ -541,6 +551,17 @@ class FigureGroups(unittest.TestCase):
             (g,) = P.group_page(blocks, layout, 1584)
             self.assertEqual((g["members"], g["panels"], g["bbox"][3]), ([2, 3], [1], 500))
 
+    def test_table_caption_above_a_figure_stays_out_of_its_crop(self):
+        # 2026-10: "Table 2. ..." under a table and right above a figure, labelled figure_title, was taken for a title
+        # inside the figure
+        blocks = [fb(1, "table", [111, 123, 1085, 322], "<table></table>"),
+                  fb(2, "figure_title", [106, 343, 1087, 388], "Table 2. Best performance achieved by each system."),
+                  fb(3, "chart", [154, 408, 440, 586]), fb(4, "chart", [452, 409, 737, 586]),
+                  fb(5, "figure_title", [104, 600, 1084, 640], "Figure 2. Boxplots of total accuracy.")]
+        self.assertTrue(P.is_table_caption(blocks[1]) and P.is_table_caption(fb(0, "figure_title", None, "TABLE IV")))
+        (g,) = P.group_page(blocks, None, 1584)
+        self.assertEqual((g["members"], g["bbox"]), ([3, 4], [154, 408, 737, 586]))
+
     def test_charts_turned_into_tables_stay_out(self):
         blocks = [fb(1, "chart", [100, 100, 580, 300]), fb(2, "chart", [640, 100, 1120, 300]),
                   fb(3, "figure_title", [100, 310, 1120, 340], "Fig. 7. Curves")]
@@ -555,6 +576,18 @@ class FigureGroups(unittest.TestCase):
         self.assertEqual(figures, {"version": P.FIGURES, "layout_model": None, "layout_error": state["layout_error"]})
         _, _, figures = P.group_figures(one, "", {1: (1224, 1584)}, lambda page: None, Path("."), False, state)
         self.assertEqual(figures, {"version": P.FIGURES, "layout_model": None})
+
+    def test_caption_without_a_crop_is_flagged(self):
+        # 2026-10: sample outputs drawn as figures are read as text; their captions come with no crop
+        heights = {1: 1584, 2: 1584, 3: 1584}
+        blocks = [fb(1, "image", [100, 100, 1100, 400]), fb(2, "figure_title", [100, 410, 1100, 440], "Figure 1: Overview."),
+                  fb(3, "algorithm", [100, 500, 1100, 900], "So we want to find the greatest value ..."),
+                  fb(4, "figure_title", [100, 910, 1100, 940], "Figure 2: Revision model example 1."),
+                  fb(5, "figure_title", [100, 1000, 1100, 1030], "Figure 3: Caption set above its figure."),
+                  fb(6, "chart", [100, 1040, 1100, 1400]),
+                  fb(7, "image", [100, 100, 1100, 1450], page=2),
+                  fb(8, "text", [100, 90, 1100, 200], "Extended Data Fig. 4 | The figure on the page before.", page=3)]
+        self.assertEqual([(w["page"], w["block"]) for w in P.uncropped_figures(blocks, heights)], [(1, 4)])
 
     def test_markdown_takes_the_whole_figure(self):
         md = ("<!-- page 2 -->\n\nText before.\n\na\n\n![](imgs/p02_a.jpg)\n\nb\n\n![](imgs/p02_b.jpg)\n\n"

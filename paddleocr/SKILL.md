@@ -23,12 +23,13 @@ Speed depends on the backend, named in each summary's `backend`. Whenever the vl
 
 Run anything beyond a few pages in the background and wait for it to exit; each document's summary line reaches stdout when that document is done. Pages finish in batches, so the per-page lines on stderr (prefixed `[paddleocr]`, among Paddle's own log lines) come in bursts.
 
+- Parses made by an earlier version of this skill: rerun with the same output directory and options. They are upgraded in place — figures regrouped, checks rerun, your Markdown fixes kept — without parsing again; other options parse anew and overwrite the Markdown.
 - Only part of a long document is needed (a thesis chapter, a paper without its appendix): `--pages 3-12`; the output keeps the original page numbers.
 - Photographed or skewed pages: `--photo`.
 - A paper in Zotero, named by title, author or citation key: [references/zotero.md](references/zotero.md) finds its PDF.
 - `<outdir>`, an absolute path: where the user wants it, else your scratch or work directory — never this skill's directory or the folder another program keeps the PDF in.
 
-Done when every input has its summary line without `error`. `skipped: up_to_date` means an earlier parse with the same file and options is already there; with `rechecked: true`, newer checks have just re-examined it, and its Markdown may already carry fixes (`<!-- from … -->`) for some of the warnings; with `regrouped: true`, its figures split into panels have just been put back together, in place, every other line of the Markdown kept.
+Done when every input has its summary line without `error`. `skipped: up_to_date` means an earlier parse with the same file and options is already there; with `rechecked: true`, newer checks have just re-examined it, and its Markdown may already carry fixes (`<!-- from … -->`) for some of the warnings; with `regrouped: true`, its figures split into panels have just been put back together.
 
 ### 2. Check
 
@@ -53,6 +54,8 @@ The warnings, by remedy:
 - **Misplaced**:
   - `table_empty_column`: a headed column empty in every row, the values slid one column over; often a figure grid read as a table. Realign from the source.
   - `formula_number_gap`: equation numbers missing from a run; find those equations in the source and add each as `\tag*{(n)}` to its formula.
+- **Figure without its crop** — left for step 3, which takes it up when your task needs that figure:
+  - `uncropped_figure`: a figure caption with no crop beside it; the model read the figure as text or a table, or missed it. False alarms: a list of figure captions, a sentence opening with "Figure 2.".
 - **Unchecked** — nothing to check against:
   - `unchecked_table`: a table embedded as an image; compare the values you will use with the page image.
   - `no_text_layer`: scans and images. Look first at the last block of every page, where the model invents the rest of a sentence cut at the page end; then at small print (author lines, affiliations, superscripts); then at every table you will use, cell by cell.
@@ -60,7 +63,7 @@ The warnings, by remedy:
 
 A block in the JSON with a `merged_into` id lost nothing: its content moved into that earlier block (a paragraph continued across a column, a table continued on the next page, a panel or panel letter into its whole `figure`). Text inside figures is not transcribed and is not checked.
 
-Done when every warning is settled as a fix, a false alarm, or a gap you will name to the user.
+Done when every warning but `uncropped_figure` is settled as a fix, a false alarm, or a gap you will name to the user.
 
 ### 3. Read and report
 
@@ -68,10 +71,12 @@ Read `<stem>.md` — all of it when the task is the paper, the sections that mat
 
 - `<!-- page N -->` precedes each page; cite pages by it.
 - Formulas are LaTeX (`display_formula` blocks in the JSON), numbered as `\tag*{(n)}`; tables are HTML, and a table continued over pages is one table at its first page. A `<table>` whose caption says "Fig." is a figure grid read as a table.
-- Figures are `![](imgs/…)` crops followed by their captions. Open a crop when an answer depends on what a figure shows. A figure of several panels is one crop, a `figure` block in the JSON; each panel keeps its own crop (its block's `image`) for a closer look. A figure made of text (a prompt, a sample output) comes out as text with no crop, and a figure whose parts were read as text or headings can lack those parts in its crop: when what such a figure shows matters, view the page image. `--figure-text` adds the text inside figures; `--charts` turns charts into data tables, with values the model read off the plot — verify them against the crop.
+- Figures are `![](imgs/…)` crops followed by their captions; open a crop when an answer depends on what a figure shows. A figure of several panels is one crop, a `figure` block in the JSON; each panel keeps its own crop (its block's `image`) for a closer look. `--figure-text` adds the text inside figures; `--charts` turns charts into data tables, with values the model read off the plot — verify them against the crop.
+  - Most figures come out whole. When your task rests on one that does not — an `uncropped_figure`, or a crop lacking what its caption describes (a panel, labels the model read as text) — view the page image and cut a crop, unless the figure is text the Markdown already holds and its colours or layout add nothing.
+  - To cut a crop, crop the PDF page at the JSON's scale, 144 dpi: `pdftoppm -f <N> -l <N> -r 144 -x <x1> -y <y1> -W <width> -H <height> -singlefile -png <pdf> <outdir>/<stem>/imgs/p<NN>_fig<number>_cut` (image input: crop the input image at the same box). Start from the JSON box of what the model made of the figure — the table or text blocks right above its caption, or the incomplete crop — then view the crop and move its edges until it holds the whole figure and no caption or body text; the figure can be wider than its caption or sit beside it. Put its `![](imgs/…png)` line right before the caption, in place of an incomplete crop's line, with `<!-- from page image: figure cropped by hand -->` above it; keep the blocks the model read from the figure, as their text is the figure's words.
 - Running heads, page numbers and page footers live only in the JSON (`--keep-all` keeps them in the Markdown); footnotes and margin notes, such as the arXiv stamp, stay in the text.
 - The JSON gives positions: `label`, `bbox` in page-image pixels (`pages[].width` / `height`), heading `level`. The summary's `blocks` counts blocks by label.
 
-The checks see only what a text layer can prove, so a parse without warnings is not yet a verified one. Done when every number, equation (with its number) and table cell your answer rests on has been confirmed in the text layer or the page image and is cited by page.
+The checks see only what a text layer can prove, so a parse without warnings is not yet a verified one. Done when every number, equation (with its number) and table cell your answer rests on has been confirmed in the text layer or the page image and is cited by page, and every figure it rests on has been seen whole, in its crop or the page image.
 
 Report the Markdown and JSON paths, the summary's `min_coverage` (or that the pages had no text layer), the fixes you made, what you took from figure images rather than text, and any warning left open.
