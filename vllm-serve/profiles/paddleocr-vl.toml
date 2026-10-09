@@ -1,0 +1,16 @@
+# PaddleOCR-VL-1.6, the VL model of the paddleocr skill's pipeline (client: paddleocr parse.py), which sends one
+# request per layout block, about 200 at a time.
+# Arguments: vllm-project/recipes models/PaddlePaddle/PaddleOCR-VL-1.6.yaml (2026-07) - OCR gains nothing from
+# prefix caching or image reuse - plus --max-model-len from PaddleX's server config for this model (3.7).
+# --trust-request-mm-kwargs: the client sends each block's pixel limits with its request, which vLLM 0.31
+# refuses by default (400 "Per-request mm_processor_kwargs are disabled"; 0.28 accepted them); the server is local.
+# Sizing (2026-10, RTX 5090 D 32 GB, vLLM 0.31, 225 pages through paddleocr): every setting tried took 95-110 s,
+# the client being the bottleneck - GPU share 0.5 or 0.3 or 0.2, batch tokens 131072 (PaddleX) or 16384
+# (recipe), pinned memory on or off - so the profile takes the least memory: 0.2 of 32 GB leaves a 200k-token
+# KV cache. On a GPU under 24 GB raise gpu_memory_utilization so that it still holds about 6 GB.
+model = "PaddlePaddle/PaddleOCR-VL-1.6"
+port = 8118
+gpu_memory_utilization = 0.2
+idle_minutes = 10
+args = ["--trust-remote-code", "--max-model-len", "16384", "--max-num-batched-tokens", "16384",
+        "--no-enable-prefix-caching", "--mm-processor-cache-gb", "0", "--trust-request-mm-kwargs"]
