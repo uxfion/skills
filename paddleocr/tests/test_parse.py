@@ -589,6 +589,14 @@ class FigureGroups(unittest.TestCase):
                   fb(8, "text", [100, 90, 1100, 200], "Extended Data Fig. 4 | The figure on the page before.", page=3)]
         self.assertEqual([(w["page"], w["block"]) for w in P.uncropped_figures(blocks, heights)], [(1, 4)])
 
+    def test_title_above_and_legend_below_are_one_figure(self):
+        # 2026-10, Science: "Figure 1. <title>" over the figure, "Figure 1: <legend>" under it
+        blocks = [fb(1, "figure_title", [100, 100, 1100, 130], "Figure 1. Performance of diagnosis generators"),
+                  fb(2, "chart", [100, 150, 1100, 600]),
+                  fb(3, "figure_title", [100, 610, 1100, 700], "Figure 1: Barplot showing the accuracy."),
+                  fb(4, "figure_title", [100, 800, 1100, 830], "Extended Data Fig. 1 | Drawn as text.")]
+        self.assertEqual([w["block"] for w in P.uncropped_figures(blocks, {1: 1584})], [4])
+
     def test_markdown_takes_the_whole_figure(self):
         md = ("<!-- page 2 -->\n\nText before.\n\na\n\n![](imgs/p02_a.jpg)\n\nb\n\n![](imgs/p02_b.jpg)\n\n"
               "(c) Ours\n\n![](imgs/p02_c.jpg)\n\nFig. 2. Samples.\n\na\n")

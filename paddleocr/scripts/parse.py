@@ -98,7 +98,7 @@ from datetime import date
 from pathlib import Path
 
 FORMAT = 2               # bump when the output changes, so older parses are redone
-CHECK = 3                # bump when the checks change, so older parses are checked again (no GPU)
+CHECK = 4                # bump when the checks change, so older parses are checked again (no GPU)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 NOISE_LABELS = ["number", "header", "header_image", "footer", "footer_image"]
 FIGURE_LABELS = {"figure", "image", "chart", "seal", "header_image", "footer_image"}
@@ -737,6 +737,7 @@ LAYOUT_PIPELINE = "PP-StructureV3"   # its layout model (PP-DocLayout_plus-L), w
 CAPTION = re.compile(r"\s*(\*\*)?\s*(extended\s+data\s+|supplementary\s+)?(fig\.?|figure|图)\s*[A-Z]?\d", re.I)
 CAPTION_TEXT = re.compile(r"\s*(\*\*)?\s*((extended\s+data\s+|supplementary\s+)?(fig\.?|figure)\s*[A-Z]?\d+[a-z]?\s*(\*\*)?\s*[.:|]"
                           r"|图\s*\d+)", re.I)
+FIGURE_ID = re.compile(r"\s*(\*\*)?\s*(extended\s+data\s+|supplementary\s+)?(fig\.?|figure|图)\s*([A-Z]?\d+)", re.I)
 TABLE_CAPTION = re.compile(r"\s*(\*\*)?\s*((extended\s+data\s+|supplementary\s+)?table\s*([A-Z]?\d+|[IVX]+\b)|表\s*\d+)", re.I)
 PANEL = re.compile(r"\(?[A-Za-z]{1,2}\)?[.:]?")
 HEADING_LABELS = {"paragraph_title", "doc_title", "abstract"}
@@ -762,6 +763,13 @@ def is_caption(b: dict) -> bool:
     if b["label"] == "figure_title":
         return bool(CAPTION.match(t))
     return b["label"] in ("text", "vision_footnote") and bool(CAPTION_TEXT.match(t))
+
+
+def figure_id(b: dict) -> tuple[str, str]:
+    """The figure a caption names: ("", "3") for "Fig. 3 |" and "Figure 3:", ("extended data", "3") for
+    "Extended Data Fig. 3"."""
+    m = FIGURE_ID.match(b["text"])
+    return " ".join((m.group(2) or "").lower().split()), m.group(4).upper()
 
 
 def is_panel(b: dict) -> bool:
@@ -913,8 +921,10 @@ def uncropped_figures(blocks: list[dict], heights: dict[int, float]) -> list[dic
     """uncropped_figure warnings: figure captions that no crop goes with. Each figure crop (a "figure" block, or an
     image or chart in none) goes with the nearest caption below it sharing its columns, else the nearest above it
     (captions set above figures); a caption left over marks a figure the VL model read as text (a prompt, a sample
-    output) or as a table, or missed (2026-10: 7 of 303 captions in 22 papers). A caption at the top of a page whose
-    page before ends in a crop without a caption is that crop's (Nature Extended Data: figure page, then caption)."""
+    output) or as a table, or missed (2026-10: 7 of 303 captions in 22 papers). A caption naming the same figure as
+    one on its page that has a crop is that figure's other part (Science: a title above the figure, a legend below).
+    A caption at the top of a page whose page before ends in a crop without a caption is that crop's (Nature
+    Extended Data: figure page, then caption)."""
     out, orphan = [], None
     for page in sorted(heights):
         pblocks = [b for b in blocks if b["page"] == page and b["bbox"]]
@@ -930,8 +940,9 @@ def uncropped_figures(blocks: list[dict], heights: dict[int, float]) -> list[dic
                 taken.add((min(below, key=lambda c: c["bbox"][1]) if below else max(above, key=lambda c: c["bbox"][3]))["id"])
             elif y2 > heights[page] / 2:
                 spare = True
+        cropped = {figure_id(c) for c in captions if c["id"] in taken}
         for c in captions:
-            if c["id"] in taken or (orphan and page == orphan + 1 and c["bbox"][1] < heights[page] / 3):
+            if c["id"] in taken or figure_id(c) in cropped or (orphan and page == orphan + 1 and c["bbox"][1] < heights[page] / 3):
                 continue
             out.append({"code": "uncropped_figure", "page": page, "block": c["id"], "detail": c["text"].strip()[:100]})
         orphan = page if spare else None
