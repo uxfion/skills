@@ -33,6 +33,10 @@ PY
 uv run scripts/parse.py <a PDF> --pages 1 -o <scratch dir>
 ```
 
+## poppler-utils
+
+SKILL.md checks and repairs a parse against the PDF with `pdftotext` and `pdftoppm` from poppler-utils (paper-to-zotero's `check_pdf.py` reads PDFs with `pdftotext` and `pdfinfo` from the same package). `command -v pdftotext pdftoppm` shows whether they are there. They are a system package — `sudo apt install poppler-utils`, on macOS `brew install poppler` — so the user installs it or approves the install.
+
 ## A parse that hangs
 
 Symptom (seen 2026-10 under WSL2 with an RTX 50-series GPU): layout detection finishes, the VL model loads (GPU memory jumps to about 11 GB), then nothing — no page line on stderr for minutes, one CPU core busy, GPU utilisation at 1–2 %. A stack dump shows the VL worker thread inside `cudaLaunchKernel → cuLibraryGetModule`.
