@@ -1,4 +1,4 @@
-# paper-to-zotero — 设计 spec v3（2026-10-12 定稿，待实现）
+# paper-to-zotero — 设计 spec v3（2026-10-12 定稿，实现中：第一轮已完成）
 
 > 前身 `20260923-paper-to-zotero-v2-spec.md`（v2）在 v3 实现完成后加一行 `Superseded by`。v2 的记录与流约定（§3）、脚本通用约定（§4.2）、测试方式（§4.3）继续有效，本 spec 只写**改什么、为什么改**。来源是两份 issue 的统一分诊：`docs/issues/20261009-paper-to-zotero-batch-import.md`（下称 B#，37 条）与 `docs/issues/20260923-paper-to-zotero-v2-first-use.md`（下称 F#，17 条）；每条的去向见 §9。仓库公开：不写学校、代理域名、个人路径；本地事实只进 §6 的配置文件。
 
@@ -149,9 +149,9 @@ claim_downloads.py --work DIR [--downloads DIR] (--once | --watch [--interval 2]
   输出      每个事件一行 JSONL（同 downloads.jsonl）；exit 0
 
 fulltext_links.py [记录路径…] [-i] [--sources arxiv,openalex,unpaywall,europepmc,s2,discovery] [--refresh]
-  每条记录 → links: [{url, source, version: published|accepted|submitted|unknown, host, needs_browser}] 与
+  每条记录 → links: [{url, source, version: published|accepted|preprint|unknown, host, needs_browser}] 与
             oa: {is_oa, oa_status, pmcid, pmid}；needs_browser 来自主机表（PMC、Europe PMC 渲染页、medRxiv / bioRxiv…，表是活的）
-  来源      arXiv（记录有 arXiv 号 → PDF 链接，version submitted）、OpenAlex（带 key，/works/doi:…）、Unpaywall（需 config 的
+  来源      arXiv（记录有 arXiv 号 → PDF 链接，version preprint）、OpenAlex（带 key，/works/doi:…）、Unpaywall（需 config 的
             contact_email，没有则跳过）、Europe PMC（fullTextUrlList）、Semantic Scholar（openAccessPdf）、discovery（config 有
             institution.discovery 时；Primo 的 pnxs 接口：实现前先验证普通 HTTP 能否访问，不能则这一来源改由 fetch_file 在浏览器里取，
             契约在实现时补进本节）
@@ -166,7 +166,8 @@ venue_index.py build --venue neurips|iclr|icml|pmlr|tmlr|acl|cvf|miccai --year Y
 
 trash_item.py (--key K… | --cite C…) [--restore] [--dry-run]
   PATCH {"deleted": 1}（--restore 设 0），带版本检查；--dry-run 列出 {key, itemType, title, parent} 不写
-  只在用户确认清单之后用；用途：被取代的附件（report 的"待清理附件"）、用户同意删除的重复条目、识别退路里没长出父条目的独立附件
+  用途：被取代的附件（report 的"待清理附件"）、用户同意删除的重复条目——这些只在用户确认清单之后用；识别退路里没长出
+  父条目的独立附件是本轮自己的残留，不用确认（v2 的做法）
   code ok | not_found | already_trashed | version_conflict
 ```
 
@@ -184,6 +185,13 @@ trash_item.py (--key K… | --cite C…) [--restore] [--dry-run]
 - **HTML 快照**：去标签后按 A / B 核对；正文是代理或访问拒绝页（"Host Needed"、"Access denied"）→ `not_the_article`（B#13）。
 - **`--match FILE 记录…`**：同一个文件对多条记录各判一次（FILE 覆盖记录的 `file`），输出每条的 code 与 `{"matched": [slug…]}`；不写记录，与 `-i` 互斥。供 `fetch_file`、`claim_downloads` 用。
 - `pdf` 字段新增 `md5`（被核对文件的 md5），供 `attach_file` 的写库前条件。
+- 实现时定下的细节（2026-10-12 第一轮）：
+  - B 的第一作者只认第 1 页前 1500 字（署名区）——同题材论文正文里引用了该作者，词覆盖又是 100%，曾因此误过；DOI 仍认前 3 页。
+  - "页首"= 第 1 页题名位置之前、至多 500 字；题名不在第 1 页时取开头 500 字。勘误 / 补充材料的词只在行首、后接冒号、行尾或 to / for / notice 等时才算标题。
+  - `doi_mismatch` 另要求记录的 DOI 不在前 3 页任何地方出现（页边或脚注的别的 DOI 不误伤）；HTML 只看 citation_doi 等元数据。
+  - 文件不以 .pdf 结尾且内容像 HTML 才按 HTML 核对；文件的取法顺序：`file` > `--pdf` > `<slug>.pdf` > `<slug>.html`。
+  - 新增 `--file-version`（覆盖记录与 fetch.jsonl，供第二轮 fetch_file 在写 fetch.jsonl 之前核对）。
+  - 回归：B#1 的误报由 ACL 2023/2024 与 CVF 的论文复现，改后全过；没有 pdftotext 时仍不过——`ready.py`（第二轮）要报出来。
 
 ### 4.3 其余脚本的改动
 
@@ -191,24 +199,33 @@ trash_item.py (--key K… | --cite C…) [--restore] [--dry-run]
 attach_file.py
   写库前条件  有记录时（流模式与新的 --record）：文件 md5 = pdf.md5 且 pdf.code ∈ {ok, ok_on_page_2, ok_on_page_3, ok_by_words}，
              或 = pdf_accepted.md5；否则 failed: not_verified（hint：先跑 check_pdf.py -i，或读第 1 页后写 pdf_accepted）
-             没有记录时（v1 单条 --key --file --url）：自己用父条目的题名、DOI、第一作者调 check_pdf（subprocess），不过则拒绝，
-             除非 --accept "<理由>"；理由写进报告。没有绕过的路
+             没有记录时（v1 单条 --key --file --url）：自己用父条目的题名、DOI、第一作者调 check_pdf（subprocess，把
+             {item, file} 作为记录从 stdin 送进流模式），不过则拒绝，除非 --accept "<理由>"；理由写进输出与报告。没有绕过的路
   附件标题    记录 attach_title > --title > 由 file_version 得出（published → PDF，accepted → Accepted manuscript，
-             preprint → Preprint，supplement → Supplement，snapshot → Snapshot）（B#28 B#33）
+             preprint → Preprint，supplement → Supplement，snapshot → Snapshot，unknown → Full text (version unknown)）（B#28 B#33）；
+             单条模式加 --file-version（传给核对，也决定标题）
   --record    单条模式加 --record PATH：成功后把 attach 写回该记录（B#3）
+  已有 PDF    流模式：库里那条已有 PDF（md5 不同）、记录没写 need_file: true → skipped: library_has_pdf，不挂第二份
+             （2026-10-12 冒烟时发现：手上有文件就会再挂一份）
   迁移        现有流模式测试（tests/test_attach_file.py）的记录补上 pdf；进行中的 v2 工作目录要先重跑 check_pdf -i
 create_item.py
   collection  字符串或列表；--collection 可重复；读回比对全部分类（B#2）
   写前查重    没有 found / saved 的记录，POST 前按 DOI、arXiv 号、归一化题名查库（F#1）：
              DOI 或 arXiv 号命中、条目 dateAdded 早于 .started → 不建，写 found，code exists（skipped）；
              命中的是本轮中断前自己建的（dateAdded 晚于 .started）→ 写 saved，code recovered；
-             只有题名命中、或 near_match → 不建，code possible_duplicate（失败），由 agent 判断（预印本 / 正式版一对按 SKILL.md 问用户）
+             只有题名命中、或 near_match → 不建，code possible_duplicate（失败），由 agent 判断（预印本 / 正式版一对按 SKILL.md 问用户）；
+             是同一篇 → agent 在记录写 found: {key}，再 find_in_library --readback 补全现状；不是 → 把那条的 key 写进记录的 distinct_from，重跑时不再算它
+             查库用 subprocess 调 find_in_library（全部待建记录一次从 stdin 送进去），读它给的 found.matched_by 与 found.dateAdded；
+             找不到 .started（stdin 来的记录，或工作目录里没有）时，标识符命中一律按 exists；记录有自己的非 arXiv DOI、却只经
+             arXiv 号命中 → 那条多半是预印本，按 possible_duplicate（find_in_library 同样把它报成 near_match，§4.5）
 doi_to_item.py
   副标题      CSL 有 subtitle → "标题: 副标题"（B#29）
   arXiv 分类  arXiv 号经 DataCite CSL 起草时，CSL 已带 categories：去掉 "FOS:" 重复项，记录还没有 tags 时写成 type 1 标签（B#29）；
+             写法随库里已有的（Zotero arXiv 翻译器的格式）："Machine Learning (cs.LG)" → "Computer Science - Machine Learning"，
+             "(stat.ML)" → "Statistics - Machine Learning"；认不出的大类保留 DataCite 原文；
              docstring 里"从不写标签"一句相应改掉
   勘误警告    题名以 Correction / Erratum / Corrigendum / Retraction 开头、页码单页或以 e / r 开头、没有作者 → warnings（B#32）
-  LNCS        doi.org 的 CSL 把 container-title 压成一项（只剩丛书名）。book-chapter 且带 ISSN（现有警告处）时，再按主机节流调一次
+  LNCS        doi.org 的 CSL 把 container-title 压成一项（只剩丛书名）。book-chapter 且带 ISSN（现有警告处）时，再调一次（§3.5 的节流在第二轮接上）
              api.crossref.org/works/<DOI>：container-title 两项且第一项是已知丛书（LNCS、LNAI、LNBI、CCIS…）→ conferencePaper，
              proceedingsTitle = 第二项，series = 第一项（F#16）
   正式版      arXiv 标识符 → published_candidates: [{doi, venue, year, title, url, pdf_url, source, title_differs}]，来源：arXiv API 的
@@ -220,6 +237,11 @@ doi_to_item.py
 find_in_library.py
   --readback  写 readback 字段，不再覆盖 found（found = 本轮开始前库里就有）；404 时删 readback、写 blocker，saved 不动；
              report、attach_file 读库内现状时优先 readback（B#3）
+  found       与 readback 同形，新增 matched_by（doi | arxiv | title；near_match 仍以 code 区分）与 dateAdded，供 create_item 查重；
+             记录有自己的非 arXiv DOI 而只经 arXiv 号命中 → near_match（预印本 / 正式版一对）；记录的 distinct_from 里的 key
+             在每一级查找中都排除，排除后这一级为空就继续下一级
+  near_match  未决：create_item 报 possible_duplicate、attach_file 报 unresolved_match，都不跳过也不写；agent 定为同一篇就把
+             found 换成 {key}，不是就删 found、把 key 写进 distinct_from
   --md5 FILE… 文件是否已作为附件在库里：{file, md5, attachment_key, parent_key, citationKey} | null；带时间戳的出版社 PDF（IEEE 等）
               md5 必然不同，这类按题名对（publishers.md 已有）（B#27）
 file_and_tag.py
@@ -243,11 +265,12 @@ ready.py
 | `published_candidates` | `doi_to_item` | 预印本可能的正式版，待 agent 确认 |
 | `links`、`oa` | `fulltext_links`（分流阶段） | 候选全文链接；开放获取状态、PMCID |
 | `need_file` | agent | 库里已有 PDF 仍要取（例如只有预印本、用户要正式版） |
-| `file_version` | agent（可缺省，§3.6） | published / accepted / preprint / supplement / snapshot |
+| `file_version` | agent（可缺省，§3.6） | published / accepted / preprint / supplement / snapshot / unknown（links 与 fetch.jsonl 的 `version` 用同一套词） |
 | `attach_title` | agent | 逐条附件标题 |
 | `pdf.md5` | `check_pdf` | 被核对文件的 md5 |
 | `pdf_accepted` | agent | `{md5, reason}`：核对没过但 agent 读过后接收 |
 | `readback` | `find_in_library --readback` | 读回的库内现状；`found` 只表示本轮开始前已在库 |
+| `distinct_from` | agent | `create_item` 报 `possible_duplicate` 后，agent 判定不是同一篇的库内条目 key |
 
 ### 4.5 版本确认
 
@@ -301,6 +324,8 @@ OpenAlex key 沿用 `~/.config/openalex/api_key`（已存在）。`contact_email
 ## 8. 实现分轮
 
 spec 一次写全，实现分三轮，每轮一个提交（或一组连贯提交），每轮结束更新本节的进度。
+
+进度：第一轮 2026-10-12 完成（脚本、测试 285 个全过、文档；对真实库的只读冒烟通过；`trash_item` 的写入尚未对真实库跑过，第一次用时先移一条再 `--restore`）。第二轮未开始。
 
 1. **第一轮（R1、R5 与文档）**：
    - 脚本：`check_pdf`（§4.2，先于 `attach_file` 的写库前条件）；`attach_file`（含测试迁移）；`create_item`；`doi_to_item`（副标题、arXiv 分类、勘误警告、LNCS）；`find_in_library --readback`；`file_and_tag`；`trash_item`。

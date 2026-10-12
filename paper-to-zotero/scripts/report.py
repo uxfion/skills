@@ -6,12 +6,15 @@
 
 Reads records (paths, globs, or stdin: JSONL / array / object) and prints one
 row per record: citationKey | title | year | item key | collection(s) | tags |
-file [| blocker]. citationKey is the record's `citationKey`, else
-`found.citationKey`, else the slug in italics; the item key is `saved.key`,
-else `found.key`; collections and tags come from `found` when it is there
-(the library's state after find_in_library.py --readback), else from the
-record's own `collection` / `tags`; tags is a count; file is PDF / snapshot /
-"—" from `found.attachments` and `attach`. The blocker column appears when any
+file [| blocker]. The library's state is `readback` (find_in_library.py
+--readback, this run) when the record has it, else `found` (in the library
+before this run), else the record itself. citationKey is the record's
+`citationKey`, else the library's, else the slug in italics (a given key that
+differs from the library's is flagged); the item key is `readback.key`, else
+`saved.key`, else `found.key`; title, year, collections and tags come from
+the library's state, else from the record's `item` / `collection` (a key or a
+list of keys) / `tags`; tags is a count; file is PDF / snapshot / "—" from the
+library's attachments and `attach`. The blocker column appears when any
 record has one. Collection keys become paths ("自然图像/Diffusion") when the
 local API answers; otherwise the keys are printed as they are.
 
@@ -162,24 +165,36 @@ def file_kind(attachment):
     return "other"
 
 
+def library_state(rec):
+    """The library's state for a record: `readback` (read back this run) when present, else `found` (in the library
+    before this run), else {}."""
+    for section in ("readback", "found"):
+        if isinstance(rec.get(section), dict):
+            return rec[section]
+    return {}
+
+
 def row_of(rec, source, paths):
-    found = rec.get("found") if isinstance(rec.get("found"), dict) else {}
+    lib = library_state(rec)
     item = rec.get("item") if isinstance(rec.get("item"), dict) else {}
     saved = rec.get("saved") if isinstance(rec.get("saved"), dict) else {}
     attach = rec.get("attach") if isinstance(rec.get("attach"), dict) else {}
     slug = rec.get("slug") or (Path(source).stem if source != "stdin" else "?")
-    given, lib_cite = rec.get("citationKey") or None, found.get("citationKey") or None
+    given, lib_cite = rec.get("citationKey") or None, lib.get("citationKey") or None
     cite = given or lib_cite
-    key = saved.get("key") or found.get("key") or None
-    title = item.get("title") or found.get("title") or ""
-    year = YEAR_RE.search(str(item.get("date") or found.get("date") or ""))
-    if found.get("collections") is not None:
-        colls = list(found.get("collections") or [])
+    readback = rec.get("readback") if isinstance(rec.get("readback"), dict) else {}
+    found = rec.get("found") if isinstance(rec.get("found"), dict) else {}
+    key = readback.get("key") or saved.get("key") or found.get("key") or None
+    title = lib.get("title") or item.get("title") or ""
+    year = YEAR_RE.search(str(lib.get("date") or item.get("date") or ""))
+    if lib.get("collections") is not None:
+        colls = list(lib.get("collections") or [])
     else:
-        colls = [rec["collection"]] if rec.get("collection") else []
+        own = rec.get("collection")
+        colls = [c for c in own if c] if isinstance(own, list) else [own] if own else []
     colls = [paths.get(c, c) if isinstance(c, str) else str(c) for c in colls]
-    tags = found.get("tags") if found.get("tags") is not None else rec.get("tags") or []
-    kinds = {file_kind(a) for a in found.get("attachments") or [] if isinstance(a, dict)}
+    tags = lib.get("tags") if lib.get("tags") is not None else rec.get("tags") or []
+    kinds = {file_kind(a) for a in lib.get("attachments") or [] if isinstance(a, dict)}
     if attach.get("key"):
         kinds.add(file_kind(attach))
     file = "PDF" if "pdf" in kinds else "snapshot" if "snapshot" in kinds else None

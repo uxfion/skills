@@ -14,7 +14,7 @@ report object. Stream mode: identifiers from repeated --doi, an --ids list
 (`identifier[<TAB>citation key]` per line), a --bib file, existing record
 files (their `item` is filled) or stdin (either identifier lines or records
 as JSONL / an array / one object) each become a record {slug, id,
-citationKey?, item}. --out-dir writes DIR/<slug>.json and prints one summary
+citationKey?, item, tags?, warnings?}. --out-dir writes DIR/<slug>.json and prints one summary
 line per record (a record already there for the same identifier is skipped,
 never overwritten); -i writes record files back in place; otherwise the
 full records go to stdout as JSONL and the summary to stderr. A failed
@@ -22,10 +22,34 @@ identifier yields a record with slug, id and `code` and does not stop the
 others. Exit 0 = every record ok or skipped, 1 = some failed, 2 = Zotero
 unreachable / local API disabled.
 
-Only GET requests. doi.org goes through the normal proxy settings (env
-DOI_BASE_URL overrides the host, for tests); the Zotero local API bypasses
-the proxy. Tags are never written (Crossref `subject` is a journal category,
-not author keywords).
+Drafting rules beyond the plain field mapping:
+- A CSL `subtitle` is appended to the title ("Title: Subtitle") unless the
+  title already ends with it.
+- An arXiv record (DataCite CSL) carries `categories`; "FOS: ..." entries and
+  repeats are dropped and the rest become automatic (type 1) tags in the form
+  Zotero's arXiv translator writes: "Machine Learning (cs.LG)" -> "Computer
+  Science - Machine Learning", "Quantum Physics (quant-ph)" -> "Quantum
+  Physics"; an archive outside the translator's table keeps the DataCite
+  string. They go to the record's `tags` only when it has none yet (v1
+  mode: the item's `tags`). No other tags are written: Crossref `subject` is
+  a journal category, not author keywords.
+- A book-chapter with an ISSN (doi.org collapses an LNCS-style
+  container-title to the series name) triggers one GET to
+  api.crossref.org/works/<DOI>: when its container-title is [known
+  proceedings series, volume title], the draft becomes a conferencePaper with
+  proceedingsTitle = the volume title and series = the series; otherwise, or
+  when Crossref cannot be read, it stays a bookSection with a warning.
+- `warnings` flag a possible erratum / correction / retraction notice: the
+  title starts with Correction / Erratum / Corrigendum / Retraction (also
+  "Author Correction", "RETRACTED"); an article with no authors; or a single
+  page that is not an article number (equal to `article-number`, or 5+
+  digits such as e0360436).
+
+Only GET requests. doi.org and Crossref go through the normal proxy settings
+(env DOI_BASE_URL / CROSSREF_BASE_URL override the hosts, for tests); the
+Zotero local API bypasses the proxy. Crossref gets `mailto=<contact_email>`
+only when ~/.config/paper-to-zotero/config.json (env PAPER_TO_ZOTERO_CONFIG
+overrides the path) has one; the address is never logged.
 """
 
 import argparse
@@ -44,8 +68,46 @@ from pathlib import Path
 
 DEFAULT_BASE_URL = "http://127.0.0.1:23119"
 DOI_BASE_URL = os.environ.get("DOI_BASE_URL", "https://doi.org").rstrip("/")
+CROSSREF_BASE_URL = os.environ.get("CROSSREF_BASE_URL", "https://api.crossref.org").rstrip("/")
+CONFIG_PATH = os.environ.get("PAPER_TO_ZOTERO_CONFIG", "~/.config/paper-to-zotero/config.json")
 CSL_ACCEPT = "application/vnd.citationstyles.csl+json"
 USER_AGENT = "paper-to-zotero/doi_to_item (stdlib urllib)"
+
+# Book series whose volumes are conference proceedings, as Crossref names them: a chapter in one of them is a
+# conference paper. A starting list - add a series when one shows up.
+PROCEEDINGS_SERIES = (
+    "Lecture Notes in Computer Science",
+    "Lecture Notes in Artificial Intelligence",
+    "Lecture Notes in Bioinformatics",
+    "Communications in Computer and Information Science",
+    "Lecture Notes of the Institute for Computer Sciences, Social Informatics and Telecommunications Engineering",
+    "IFIP Advances in Information and Communication Technology",
+    "Lecture Notes in Business Information Processing",
+    "Lecture Notes in Networks and Systems",
+    "Lecture Notes in Electrical Engineering",
+    "Advances in Intelligent Systems and Computing",
+)
+
+# arXiv archives that Zotero's arXiv translator writes as "<Archive> - <Category>"; a category without a
+# subject class (quant-ph, hep-th, gr-qc, ...) is written as its name alone.
+ARXIV_ARCHIVES = {
+    "cs": "Computer Science",
+    "econ": "Economics",
+    "eess": "Electrical Engineering and Systems Science",
+    "math": "Mathematics",
+    "nlin": "Nonlinear Sciences",
+    "physics": "Physics",
+    "q-bio": "Quantitative Biology",
+    "q-fin": "Quantitative Finance",
+    "stat": "Statistics",
+    "astro-ph": "Astrophysics",
+    "cond-mat": "Condensed Matter",
+}
+ARXIV_CATEGORY = re.compile(r"(.+?)\s*\(([a-z][a-z-]*)(?:\.([A-Za-z][A-Za-z-]*))?\)")
+
+ERRATUM_TITLE = re.compile(r"(?:(?:author|publisher)\s+)?(?:corrections?|errat(?:um|a)|corrigend(?:um|a)|retract(?:ion|ed))\b", re.I)
+# Item types where a one-page notice can pass for the paper; titles are checked for every type.
+ERRATUM_TYPES = {"journalArticle", "conferencePaper", "bookSection"}
 
 # Crossref type vocabulary -> Zotero itemType (Crossref does not use CSL types).
 CROSSREF_TYPES = {
@@ -87,6 +149,15 @@ codes (stdout `code`, exit status):
 input forms accepted by --doi:
   10.1109/CVPR.2016.90   doi:10.1109/CVPR.2016.90   https://doi.org/10.1109/CVPR.2016.90
   2006.11239   2006.11239v2   arXiv:2006.11239   https://arxiv.org/abs/2006.11239
+
+beyond the field mapping (details in the module docstring):
+  subtitle      CSL subtitle appended: "Title: Subtitle"
+  arXiv         categories -> type 1 tags ("Computer Science - Machine Learning") when the record has no tags
+  LNCS & co.    book-chapter with an ISSN -> one Crossref call; known proceedings series -> conferencePaper
+                (proceedingsTitle = volume title, series = series name); else bookSection + warning
+  warnings      possible erratum / correction / retraction notice (title, no authors, single page)
+env: DOI_BASE_URL, CROSSREF_BASE_URL (hosts, for tests); PAPER_TO_ZOTERO_CONFIG (config path; its
+  contact_email is Crossref's mailto)
 """
 
 
@@ -191,6 +262,62 @@ def fetch_schema(base_url):
     return json.loads(body)
 
 
+def contact_email():
+    """`contact_email` from the local config file, or None (missing file, unreadable, no such field)."""
+    try:
+        cfg = json.loads(Path(os.path.expanduser(CONFIG_PATH)).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+    email = cfg.get("contact_email") if isinstance(cfg, dict) else None
+    return email.strip() if isinstance(email, str) and email.strip() else None
+
+
+def crossref_container_titles(doi):
+    """(container-title list, None) from Crossref's REST record of one DOI, or (None, why) - never raises.
+
+    The mailto parameter is sent only when the config has a contact_email; logs show the URL without it."""
+    url = CROSSREF_BASE_URL + "/works/" + urllib.parse.quote(doi, safe="/")
+    email = contact_email()
+    query = "?" + urllib.parse.urlencode({"mailto": email}) if email else ""
+    req = urllib.request.Request(url + query, headers={"Accept": "application/json", "User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read()
+    except urllib.error.HTTPError as e:
+        log(f"GET {url} -> {e.code}")
+        return None, f"HTTP {e.code}"
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        log(f"GET {url} -> {getattr(e, 'reason', None) or type(e).__name__}")
+        return None, "network error"
+    log(f"GET {url} -> 200")
+    try:
+        message = json.loads(body.decode("utf-8")).get("message")
+        titles = message.get("container-title")
+    except (UnicodeDecodeError, ValueError, AttributeError):
+        return None, "unexpected response"
+    if not isinstance(titles, list):
+        return None, "no container-title"
+    return [strip_markup(first_str(t)) for t in titles if first_str(t)], None
+
+
+def series_key(name):
+    return re.sub(r"\s+", " ", name).strip().casefold()
+
+
+KNOWN_SERIES = {series_key(s) for s in PROCEEDINGS_SERIES}
+
+
+def proceedings_from_crossref(doi):
+    """For a book-chapter with an ISSN: {"series", "title"} when Crossref names a known proceedings series and the
+    volume title; otherwise {"note"} saying why the draft stays a bookSection."""
+    titles, why = crossref_container_titles(doi)
+    if titles is None:
+        return {"note": f"Crossref lookup failed: {why}"}
+    if len(titles) == 2 and series_key(titles[0]) in KNOWN_SERIES:
+        return {"series": titles[0], "title": titles[1]}
+    return {"note": f"Crossref container-title: {json.dumps(titles, ensure_ascii=False)}"}
+
+
 # ------------------------------------------------------------------- mapping
 
 def first_str(value):
@@ -226,6 +353,62 @@ def format_date(value):
     if not nums:
         return ""
     return "-".join([str(nums[0])] + [f"{n:02d}" for n in nums[1:3]])
+
+
+def comparable(text):
+    """Casefolded letters and digits only, for 'does the title already end with the subtitle'."""
+    return "".join(ch for ch in unicodedata.normalize("NFKC", text).casefold() if ch.isalnum())
+
+
+def add_subtitle(title, subtitle):
+    """'Title: Subtitle' from CSL `subtitle` (string or list); unchanged when there is none or the title ends with it."""
+    sub = next((s for s in (strip_markup(first_str(v)) for v in (subtitle if isinstance(subtitle, list) else [subtitle])) if s), "")
+    if not title or not sub or comparable(title).endswith(comparable(sub)):
+        return title
+    return title + (" " if title[-1] in ":?!" else ": ") + sub
+
+
+def arxiv_category_tags(categories):
+    """DataCite's arXiv `categories` -> tag names as Zotero's arXiv translator writes them; FOS entries and repeats dropped."""
+    tags = []
+    for raw in categories if isinstance(categories, list) else [categories]:
+        text = raw.strip() if isinstance(raw, str) else ""
+        if not text or text.casefold().startswith("fos:"):
+            continue
+        m = ARXIV_CATEGORY.fullmatch(text)
+        if not m:
+            tag = text
+        elif not m.group(3):
+            tag = m.group(1)  # single-archive category such as quant-ph or hep-th
+        elif m.group(2) in ARXIV_ARCHIVES:
+            tag = f"{ARXIV_ARCHIVES[m.group(2)]} - {m.group(1)}"
+        else:
+            tag = text  # archive outside the translator's table: keep DataCite's wording
+        if tag not in tags:
+            tags.append(tag)
+    return tags
+
+
+def single_page(page):
+    parts = [p.strip() for p in re.split(r"[-‐-―]", page)]
+    return len(parts) == 1 or (len(parts) == 2 and parts[0] == parts[1])
+
+
+def erratum_signals(record, item_type):
+    """Why this DOI may be an erratum / correction / retraction notice rather than the paper ([] when nothing points to it)."""
+    signals = []
+    m = ERRATUM_TITLE.match(strip_markup(first_str(record.get("title"))))
+    if m:
+        signals.append(f"title starts with {m.group(0)!r}")
+    if item_type in ERRATUM_TYPES:
+        if not any(isinstance(p, dict) for p in record.get("author") or []):
+            signals.append("no authors")
+        page = first_str(record.get("page"))
+        # An article number (Elsevier 104336, PLOS e0360436, JAMA Netw Open e2640040) is not a one-page notice.
+        article_number = page == first_str(record.get("article-number")) or re.fullmatch(r"[eE]?\d{5,}", page)
+        if page and single_page(page) and not article_number:
+            signals.append(f"single page {page!r}")
+    return signals
 
 
 def map_type(csl_type, schema):
@@ -290,10 +473,12 @@ def build_creators(record, schema, tf, warnings):
     return creators
 
 
-def build_item(record, schema, doi, arxiv_id, arxiv_version, agency, warnings):
+def build_item(record, schema, doi, arxiv_id, arxiv_version, agency, warnings, proceedings=None):
+    """CSL record -> Zotero item. `proceedings` is proceedings_from_crossref()'s answer for a book-chapter with an ISSN."""
     csl_type = first_str(record.get("type"))
     is_arxiv = doi.lower().startswith("10.48550/arxiv.")
-    item_type = "preprint" if is_arxiv else map_type(csl_type, schema)
+    in_series = bool(proceedings and proceedings.get("series"))
+    item_type = "preprint" if is_arxiv else "conferencePaper" if in_series else map_type(csl_type, schema)
     unknown = item_type is None
     if unknown:
         item_type = "journalArticle"
@@ -308,7 +493,7 @@ def build_item(record, schema, doi, arxiv_id, arxiv_version, agency, warnings):
     if item_type == "journalArticle":
         special.add("publisher")  # Zotero's own DOI import leaves it blank for journal articles
 
-    item["title"] = strip_markup(first_str(record.get("title")))
+    item["title"] = add_subtitle(strip_markup(first_str(record.get("title"))), record.get("subtitle"))
     if not item["title"]:
         warnings.append("record has no title")
 
@@ -327,16 +512,22 @@ def build_item(record, schema, doi, arxiv_id, arxiv_version, agency, warnings):
         else:
             dropped.append(csl_key)
 
-    container = first_str(record.get("container-title"))
+    container = proceedings["title"] if in_series else first_str(record.get("container-title"))
+    if in_series:
+        if tf.resolve(["series"]):
+            item[tf.resolve(["series"])] = proceedings["series"]
+        warnings.append(f"book-chapter in the proceedings series {proceedings['series']!r}: drafted as conferencePaper "
+                        "with the volume title from Crossref; the date is the volume's, check it against the conference year")
+    elif csl_type == "book-chapter" and record.get("ISSN"):
+        note = f" ({proceedings['note']})" if proceedings and proceedings.get("note") else ""
+        warnings.append("book-chapter with an ISSN: container-title is probably the series name "
+                        f"(e.g. LNCS); check bookTitle / series{note}")
     if container:
         target = tf.resolve(["publicationTitle"])
         if target:
             item[target] = container
         else:
             dropped.append("container-title")
-        if csl_type == "book-chapter" and record.get("ISSN"):
-            warnings.append("book-chapter with an ISSN: container-title is probably the series name "
-                            "(e.g. LNCS); check bookTitle / series")
     elif item_type in ("journalArticle", "conferencePaper", "bookSection"):
         warnings.append("record has no container-title")
 
@@ -389,6 +580,10 @@ def build_item(record, schema, doi, arxiv_id, arxiv_version, agency, warnings):
     item["creators"] = build_creators(record, schema, tf, warnings)
     if not item["creators"]:
         warnings.append("record has no creators")
+    signals = erratum_signals(record, item_type)
+    if signals:
+        warnings.append(f"possible erratum, correction or retraction notice ({'; '.join(signals)}): "
+                        "open the landing page and make sure this DOI is the paper itself")
 
     record_url = first_str(record.get("URL"))
     doi_url = f"https://doi.org/{doi}"
@@ -697,7 +892,7 @@ def normalize_id(ident):
 # ---------------------------------------------------------------------- main
 
 def fetch_and_map(ident, schema):
-    """identifier -> (item, warnings, csl_type, unknown_type, doi); raises Failure."""
+    """identifier -> (item, warnings, csl_type, unknown_type, doi, category tag names); raises Failure."""
     doi, arxiv_id, arxiv_version = parse_identifier(ident)
     record, agency = fetch_csl(doi)
     warnings = []
@@ -705,8 +900,16 @@ def fetch_and_map(ident, schema):
     if record_doi and record_doi.lower() != doi.lower():
         warnings.append(f"record DOI {record_doi!r} differs from requested {doi!r}; using the record's")
         doi = record_doi
-    item, csl_type, unknown = build_item(record, schema, doi, arxiv_id, arxiv_version, agency, warnings)
-    return item, warnings, csl_type, unknown, doi
+    proceedings = None
+    if first_str(record.get("type")) == "book-chapter" and record.get("ISSN"):
+        proceedings = proceedings_from_crossref(doi)
+    item, csl_type, unknown = build_item(record, schema, doi, arxiv_id, arxiv_version, agency, warnings, proceedings)
+    categories = arxiv_category_tags(record.get("categories")) if doi.lower().startswith("10.48550/arxiv.") else []
+    return item, warnings, csl_type, unknown, doi, categories
+
+
+def category_tags(names):
+    return [{"tag": name, "type": 1} for name in names]
 
 
 def run_single(args):
@@ -714,9 +917,11 @@ def run_single(args):
     ident = args.doi[0]
     try:
         schema = fetch_schema(args.base_url)
-        item, warnings, csl_type, unknown, doi = fetch_and_map(ident, schema)
+        item, warnings, csl_type, unknown, doi, categories = fetch_and_map(ident, schema)
     except Failure as f:
         emit(f.code, f.exit_code, f.hint, **{"input": ident, **f.extra})
+    if categories and not item.get("tags"):
+        item["tags"] = category_tags(categories)  # no record in v1: the item's own tags (create_item uses them without --tags-file)
 
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(item, fh, ensure_ascii=False, indent=2)
@@ -821,7 +1026,7 @@ def process_entry(entry, schema, ctx):
         return {"slug": rec["slug"], "code": "no_identifier", "id": ident,
                 "hint": "no DOI or arXiv id in the source; search the title, then set `id` by hand"}, "failed"
     try:
-        item, warnings, csl_type, unknown, doi = fetch_and_map(ident, schema)
+        item, warnings, csl_type, unknown, doi, categories = fetch_and_map(ident, schema)
     except Failure as f:
         rec["slug"] = existing[0].stem if existing else unique_slug(slug_for(rec, entry["given_key"]), norm, ctx["used"], ctx["out_dir"])
         ctx["seen"][norm] = rec["slug"]
@@ -833,6 +1038,8 @@ def process_entry(entry, schema, ctx):
         return {"slug": rec["slug"], "code": f.code, "id": ident, **{k: v for k, v in f.extra.items() if k != "input"},
                 **({"hint": f.hint} if f.hint else {})}, "failed"
     rec["item"] = item
+    if categories and not rec.get("tags"):
+        rec["tags"] = category_tags(categories)
     for k in ("code", "hint", "detail"):
         rec.pop(k, None)
     if warnings:

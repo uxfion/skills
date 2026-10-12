@@ -59,7 +59,7 @@ KEY_RE = re.compile(r"^[A-Z0-9]{8}$")
 REFUSED = {
     "key": "Zotero's own", "version": "Zotero's own", "dateAdded": "Zotero's own", "dateModified": "Zotero's own",
     "tags": "file_and_tag.py", "collections": "file_and_tag.py", "relations": "not supported here",
-    "deleted": "the trash is the user's own act", "parentItem": "not supported here",
+    "deleted": "moving to the trash is trash_item.py's job, after the user has confirmed the list", "parentItem": "not supported here",
     "linkMode": "attachment internals", "contentType": "attachment internals", "charset": "attachment internals",
     "filename": "attachment internals", "md5": "attachment internals", "mtime": "attachment internals",
     "path": "attachment internals", "note": "notes are not edited here",

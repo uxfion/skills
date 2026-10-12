@@ -4,17 +4,17 @@ Read before step 0 when the request covers two or more papers — a list, a .bib
 
 ## The records are the state
 
-Every paper is one file, `<work>/records/<slug>.json`, and every script is a filter over records: paths in (glob them), the updated record out, `-i` to write it back in place. What a record contains says how far its paper got — `item` drafted, `found` in the library, `saved` created, `file` in hand, `pdf` checked, `attach` uploaded, `blocker` waiting on someone. There is no other state file: when in doubt, `find_in_library.py --readback -i <work>/records/*.json` refreshes every record from Zotero, and `report.py` turns the records into the table you report.
+Every paper is one file, `<work>/records/<slug>.json`, and every script is a filter over records: paths in (glob them), the updated record out, `-i` to write it back in place. What a record contains says how far its paper got — `item` drafted, `found` in the library before this run, `saved` created, `<slug>.pdf` (or `file`) in hand, `pdf` checked, `attach` uploaded, `readback` the library's state since, `blocker` waiting on someone. There is no other state file: when in doubt, `find_in_library.py --readback -i <work>/records/*.json` refreshes every record's `readback` from Zotero, and `report.py` turns the records into the table you report.
 
 ```bash
 uv run scripts/doi_to_item.py --ids ids.txt --out-dir <work>/records       # one record per identifier; `id<TAB>citation key` per line
 uv run scripts/find_in_library.py -i <work>/records/*.json                # found ones get record.found
 uv run scripts/check_item.py -i <work>/records/*.json
 # … edit each record's item, tags, collection (in parallel, see below) …
-uv run scripts/create_item.py -i <work>/records/*.json --collection <key>  # skips found/saved; ≤50 per POST
-# … PDFs one by one into records/<slug>.pdf, record.file set …
-uv run scripts/check_pdf.py -i <work>/records/*.json
-uv run scripts/attach_file.py -i <work>/records/*.json                    # skips md5_ok
+uv run scripts/create_item.py -i <work>/records/*.json --collection <key>  # repeatable; skips found/saved, dedupes the rest; ≤50 per POST
+# … PDFs one by one into records/<slug>.pdf …
+uv run scripts/check_pdf.py -i <work>/records/*.json                      # the condition for attach_file
+uv run scripts/attach_file.py -i <work>/records/*.json                    # skips md5_ok; refuses unchecked files
 uv run scripts/find_in_library.py --readback -i <work>/records/*.json && uv run scripts/report.py <work>/records/*.json
 ```
 

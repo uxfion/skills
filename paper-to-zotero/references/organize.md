@@ -24,7 +24,7 @@ Take one collection at a time. Draft per item what [tagging.md](tagging.md) pres
 uv run scripts/file_and_tag.py --batch changes.json --dry-run
 ```
 
-An entry's `tags` is the item's *complete* target set (include the source keywords you are keeping, or the script removes them); `collection` replaces the item's collections. An item that only needs something *added* takes `add_tags` / `add_collection` instead, which leave the rest as it is (single item: `--add-tags-file` / `--add-collection`). Only after the user confirms, run it without `--dry-run`. The first batch calibrates the scheme with the user; later batches follow it. An item whose metadata is broken (no date, venue or DOI) is noted for a field fix, not repaired in a tag batch.
+An entry names its item by `key` or `cite`. Its `tags` is the item's *complete* target set (include the source keywords you are keeping, or the script removes them); `collection` replaces the item's collections. An item that only needs something *added* or taken out of one collection takes `add_tags` / `add_collection` / `remove_collection` instead, which leave the rest as it is (single item: `--add-tags-file` / `--add-collection` / `--remove-collection`). Only after the user confirms, run it without `--dry-run`. The first batch calibrates the scheme with the user; later batches follow it. An item whose metadata is broken (no date, venue or DOI) is noted for a field fix, not repaired in a tag batch.
 
 ## Fixing fields
 
@@ -32,7 +32,11 @@ An entry's `tags` is the item's *complete* target set (include the source keywor
 uv run scripts/update_item.py --cite <key> --set itemType=conferencePaper --set "publicationTitle=…" --set date=2023 --dry-run
 ```
 
-A paper without a DOI gets the identifier SKILL.md step 2 asks for — often the DOI exists (a CVF copy of a CVPR paper, a Springer chapter), and Crossref finds it by title and first author. Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag.py`; the trash is the user's own act — nothing here deletes.
+A paper without a DOI gets the identifier SKILL.md step 2 asks for — often the DOI exists (a CVF copy of a CVPR paper, a Springer chapter), and Crossref finds it by title and first author. Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag.py`; the trash has its own section below.
+
+## The trash
+
+Superseded attachments (a snapshot or a preprint PDF once the published PDF is attached), duplicate items the user agreed to drop, stray attachments: list them first — `trash_item.py --cite <key> --dry-run` (or `--key` for an attachment) shows item type, title and parent — and move them only after the user has confirmed the list. Moving to the trash is undoable (`--restore`); emptying it is the user's own act, and nothing here deletes permanently. Before dropping a duplicate, carry over what only it holds (tags, notes, an attachment, a field), so the user loses nothing.
 
 ## Building structure
 
