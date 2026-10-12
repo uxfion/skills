@@ -1,10 +1,10 @@
 # paddleocr：一张主图被拆成很多小图
 
-> 2026-10-07 记录 · 状态：fixed（2026-10-09）。用 plus-L 整图框加图注兜底，在解析后把拆开的图合回整张，旧解析就地升级。设计与实现记录见 [20261009-paddleocr-figure-groups-spec.md](../specs/20261009-paddleocr-figure-groups-spec.md)。直接从 PDF 取图的几种方法比较过，用户选了现方案，对比结果见末节，备查。
+> 2026-10-07 记录 · 状态：fixed（2026-10-09）。用 plus-L 整图框加图注兜底，在解析后把拆开的图合回整张，旧解析就地升级。设计与实现记录见 [20261009-paddleocr-figure-groups-spec.md](../../specs/20261009-paddleocr-figure-groups-spec.md)。直接从 PDF 取图的几种方法比较过，用户选了现方案，对比结果见末节，备查。
 >
 > 原是 [20261006-paddleocr-setup-fixed.md](20261006-paddleocr-setup-fixed.md) 第 9 节的一条，同日拆出来单独成 issue。
 >
-> 遗留：合图之后仍有图不完整，多是图里的文字被 VL 标成了正文，另记在 [20261011-paddleocr-figures-still-incomplete.md](20261011-paddleocr-figures-still-incomplete.md)，待解决。
+> 遗留：合图之后仍有图不完整，多是图里的文字被 VL 标成了正文，另记在 [20261011-paddleocr-figures-still-incomplete.md](../20261011-paddleocr-figures-still-incomplete.md)，待解决。
 
 用户：「在实际用的时候，发现它会把一个主图分散得很小」。
 

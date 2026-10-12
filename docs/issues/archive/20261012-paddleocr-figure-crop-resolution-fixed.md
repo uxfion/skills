@@ -17,7 +17,7 @@
 
 ## 量了多大
 
-典型图那 15 张（见 [20261011 issue](20261011-paddleocr-figures-still-incomplete.md)）全是 144 DPI：
+典型图那 15 张（见 [20261011 issue](../20261011-paddleocr-figures-still-incomplete.md)）全是 144 DPI：
 - 通栏图约 18 cm 宽，裁剪图约 1050 像素宽；
 - 半栏到 2/3 栏的图 470–800 像素宽。
 

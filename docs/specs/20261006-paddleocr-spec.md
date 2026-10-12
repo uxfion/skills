@@ -2,7 +2,7 @@
 
 > Superseded by [20261009-paddleocr-v2-spec.md](20261009-paddleocr-v2-spec.md)（VL 服务后端与核对改进；其余部分仍按本文）。
 
-> 来源：`docs/issues/paddleocr.md`（本机安装、WSL2 卡死与 EAGER 修复、CLI 输出）。本 spec 写的是 skill 的设计；安装和排障的事实以 issue 为准，进入 skill 的部分放在 `references/install.md`。
+> 来源：[20261006-paddleocr-setup-fixed.md](../issues/archive/20261006-paddleocr-setup-fixed.md)（本机安装、WSL2 卡死与 EAGER 修复、CLI 输出）。本 spec 写的是 skill 的设计；安装和排障的事实以 issue 为准，进入 skill 的部分放在 `references/install.md`。
 
 ## 1. 目标
 

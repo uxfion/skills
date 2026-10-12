@@ -1,6 +1,6 @@
 # paddleocr v2 — VL 服务后端与核对改进（2026-10-09）
 
-> 来源：[20261009-paddleocr-throughput.md](../issues/20261009-paddleocr-throughput.md) 的 4 条。v1 的设计见 [20261006-paddleocr-spec.md](20261006-paddleocr-spec.md)；本 spec 只写改动，没提到的部分（输出布局、Markdown/JSON 格式、跳过规则、其余核对）照旧。
+> 来源：[20261009-paddleocr-throughput-fixed.md](../issues/archive/20261009-paddleocr-throughput-fixed.md) 的 4 条。v1 的设计见 [20261006-paddleocr-spec.md](20261006-paddleocr-spec.md)；本 spec 只写改动，没提到的部分（输出布局、Markdown/JSON 格式、跳过规则、其余核对）照旧。
 
 ## 1. 目标
 

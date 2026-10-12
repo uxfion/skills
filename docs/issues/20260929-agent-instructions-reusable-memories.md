@@ -31,7 +31,7 @@
 1. **规则写进全局后，各项目里的原记忆怎么处理。** 建议：只重复全局指令的删掉，项目特有的部分留下并改短；删除按项目逐个问你。理由：Claude Code 的记忆规则本来就不存 CLAUDE.md 里已有的东西；副本留着会继续分叉。
 2. **选项编号。** 建议用 ABC/abc/123：这是 09-28 的偏好，比 1234 那条（09-20）晚，而且当时你说「记住我的偏好」。`fin:plain-numbering` 随后改掉。
 3. **受阻时的回退梯子（第 7 节）。** 09-21 你否决过把它放进全局。建议只上升通用的一半，OpenCLI、浏览器的具体顺序留在 skill。
-4. **Python 节的一次性写法加 `--no-project`（第 5 节）。** 09-28 你说暂不改、以后提醒。建议这批一起改：现有写法在有 `pyproject.toml` 的目录里会建 `.venv`，是指令本身的缺陷。→ 已定（10-07）：单独改，只加 `--no-project`，见 [20261007-uv-python-no-project-fixed.md](20261007-uv-python-no-project-fixed.md)。
+4. **Python 节的一次性写法加 `--no-project`（第 5 节）。** 09-28 你说暂不改、以后提醒。建议这批一起改：现有写法在有 `pyproject.toml` 的目录里会建 `.venv`，是指令本身的缺陷。→ 已定（10-07）：单独改，只加 `--no-project`，见 [20261007-uv-python-no-project-fixed.md](archive/20261007-uv-python-no-project-fixed.md)。
 5. **讲解方式（第 12 节）。** 建议写成通用句，不写你的专业背景，公开仓库里就没有个人画像。
 6. **advisor（第 13 节）。** 建议不上升：Claude Code 的系统提示已经要求动手前、卡住时、完成前调用，当初纠正的"终审太晚"已被覆盖；Codex、Hermes 没有 advisor。
 7. **用户原话记录（第 9 节）。** 建议只上升"引用你的话要逐字"；"所有思路都记下来"留在想法系统里。
@@ -82,7 +82,7 @@
 - 来源：`tmp:readonly-checks-no-writes`
 - 为什么：09-28 一个子 agent 只读检查时，在别人的源码目录里跑了 `uv run -`，uv 建了 `.venv` 并重写了 egg-info；实测加 `--no-project` 后不再建环境。
 - harness 现状：现有 Python 节的一次性写法 `uv run -` 就有这个问题。这是唯一要改现有节的主题。
-- 详情：[20261007-uv-python-no-project-fixed.md](20261007-uv-python-no-project-fixed.md)，10-07 的实测、边界条件和改动方向都在那边。
+- 详情：[20261007-uv-python-no-project-fixed.md](archive/20261007-uv-python-no-project-fixed.md)，10-07 的实测、边界条件和改动方向都在那边。
 - 状态：候选（Python 写法已按决定 4 改；「只读任务不留写入」的通用规则还是候选）
 
 ### 6. 求证纪律

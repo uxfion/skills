@@ -3,7 +3,7 @@
 > 2026-10-07 记录 · 状态：fixed（10-07）。全局指令三份和 skill 已改（a09a7a1），已推送，全局的 uv-python skill 已更新；还没做的：另一台机器上 Hermes 的副本（`~/.hermes/skills/agent-instructions/SKILL.md`）
 >
 > - 涉及：`uv-python/SKILL.md`；`agent-instructions/CLAUDE.md`、`AGENTS.md` 的 Python 节（再生成 `HERMES.md`），确认后同步全局副本
-> - 关联：[20260929-agent-instructions-reusable-memories.md](20260929-agent-instructions-reusable-memories.md) 第 5 节「只读检查不留写入」和「待你决定」第 4 条，两边说的是同一个缺口
+> - 关联：[20260929-agent-instructions-reusable-memories.md](../20260929-agent-instructions-reusable-memories.md) 第 5 节「只读检查不留写入」和「待你决定」第 4 条，两边说的是同一个缺口
 > - 实测环境：Linux x86_64，ext4，uv 管理的 CPython 3.14.8。手工测试用 uv 0.12.22；会话中途用户把 uv 升到了 0.12.23（「是因为我更新了，用了最新版本」），附录的复现脚本在 0.12.23 上跑。两个版本的 `uv help run` 逐字相同，下文引用的文档和源码文件也相同
 > - 补测（2026-10-07，本仓库会话）：WSL2，uv 0.12.23。和上面不是同一套环境：默认解释器是 miniconda 的 Python 3.12.9，没装 3.14；缓存目录用 `UV_CACHE_DIR` 改过，不在 `~/.cache/uv`。第 6 节标「补测」的条目是在这台机器上测的
 > - 来由：用户问「跟我讲一下uv-python中的--no-project问题」，梳理完后要求「整理完毕，写清楚边界条件以后，放到那边去，让那边项目维护」
@@ -232,7 +232,7 @@ PY
 
 - D 的坑要不要写进 skill
 - 第 6 节 12、13 条：`--no-config` 只写进 skill 的边界条件，还是也进全局写法；下载的 Python 算不算「留下东西」
-- 和 [20260929-agent-instructions-reusable-memories.md](20260929-agent-instructions-reusable-memories.md) 第 5 节、决定 4 怎么合并处理。那边第 5 节已加一行指向本文件（10-07）
+- 和 [20260929-agent-instructions-reusable-memories.md](../20260929-agent-instructions-reusable-memories.md) 第 5 节、决定 4 怎么合并处理。那边第 5 节已加一行指向本文件（10-07）
 
 ## 附录 A：复现脚本
 

@@ -1,6 +1,6 @@
 # paddleocr — 批量解析的吞吐与质量问题
 
-> 2026-10-09 已解决，设计与实测见 [paddleocr v2 spec](../specs/20261009-paddleocr-v2-spec.md) 和 [vllm-serve spec](../specs/20261009-vllm-serve-spec.md)。1：VL 识别改由 vLLM 服务承担，服务来自新的 vllm-serve skill（本机统一的 vLLM 后端）；本条现场的 9 份 225 页从 2,489 s 降到约 100 s，输出与原生等价。方向里的 VL 批大小分组、多文档流水、跳过尾部无文字层页没有做（理由见 v2 spec §3.4），页 / 分钟已进摘要行。2：`repetition` 加词三元组去重率判据。3：新告警 `foreign_script`；`extra_text` 和页面检查加行内公式的“粘连”渲染，公式误报消失。4：比对前剥掉页边行号。已解析的文档不必重跑：跳过时自动按新核对重算 warnings。生效要在推送后重装 paddleocr 和 vllm-serve 两个 skill。
+> 2026-10-09 已解决，设计与实测见 [paddleocr v2 spec](../../specs/20261009-paddleocr-v2-spec.md) 和 [vllm-serve spec](../../specs/20261009-vllm-serve-spec.md)。1：VL 识别改由 vLLM 服务承担，服务来自新的 vllm-serve skill（本机统一的 vLLM 后端）；本条现场的 9 份 225 页从 2,489 s 降到约 100 s，输出与原生等价。方向里的 VL 批大小分组、多文档流水、跳过尾部无文字层页没有做（理由见 v2 spec §3.4），页 / 分钟已进摘要行。2：`repetition` 加词三元组去重率判据。3：新告警 `foreign_script`；`extra_text` 和页面检查加行内公式的“粘连”渲染，公式误报消失。4：比对前剥掉页边行号。已解析的文档不必重跑：跳过时自动按新核对重算 warnings。生效要在推送后重装 paddleocr 和 vllm-serve 两个 skill。
 
 2026-10-09 在一个研究项目里批量解析论文 PDF 时攒下的问题。条目格式同其他 issue：来源 · 日期、现场、痛点、为什么、方向、状态。仓库公开：不写学校、个人路径。
 
