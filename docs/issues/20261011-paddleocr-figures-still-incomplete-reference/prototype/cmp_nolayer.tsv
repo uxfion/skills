@@ -1,0 +1,393 @@
+key	page	caption	status	base_crops	iou	dir	text
+HZQECSA8	1	11	same	1	0.99	up	Figure 1. Boosting the upper bound on achievable quality with less agg
+HZQECSA8	2	23	same	1	1.0	up	Figure 2. Illustrating perceptual and semantic compression: Most bits 
+HZQECSA8	4	55	same	1	0.99	up	Figure 3. We condition LDMs either via concatenation or by a more gene
+HZQECSA8	5	68	same	1	0.97	up	Figure 4. Samples from LDMs trained on CelebAHQ [38], FFHQ [40], LSUN-
+HZQECSA8	5	80	same	1	0.99	up	Figure 5. Analyzing the training of class-conditional LDMs with differ
+HZQECSA8	5	83	same	1	1.0	up	Figure 6. Inference speed vs sample quality: Comparing LDMs with diffe
+HZQECSA8	6	96	same	1	0.98	up	Figure 7. Top: Samples from our LDM for layout-to-image synthesis on C
+HZQECSA8	7	109	same	1	0.99	up	Figure 8. A LDM trained on $ 256^{2} $ resolution can generalize to la
+HZQECSA8	7	113	same	1	0.99	up	Figure 9. ImageNet 64→256 super-resolution on ImageNet-Val. LDM-SR has
+HZQECSA8	8	132	same	1	0.99	up	Figure 10. Qualitative results on object removal with our big, w/ft in
+KUFFN4BS	1	8	same	1	0.99	up	Figure 1: Stochastic Differential Editing (SDEdit) is a unified image 
+KUFFN4BS	3	25	same	1	1.0	up	Figure 2: Synthesizing images from strokes with SDEdit. The blue dots 
+KUFFN4BS	4	46	diff	1	0.75	up	Figure 3: Trade-off between faithfulness and realism for stroke-based 
+KUFFN4BS	5	60	same	1	1.0	up	Figure 4: SDEdit generates more realistic and faithful images than sta
+KUFFN4BS	7	79	same	1	1.0	up	Figure 5: SDEdit can generate realistic, faithful and diverse images f
+KUFFN4BS	8	93	same	1	0.99	up	Figure 6: Stroke-based image editing with SDEdit on LSUN bedroom, Cele
+KUFFN4BS	9	105	same	1	1.0	up	Figure 7: SDEdit is able to achieve realistic while more faithful edit
+KUFFN4BS	16	241	same	1	1.0	up	Figure 8: Analysis on the quality of user guide for stoke-based image 
+KUFFN4BS	16	243	same	1	1.0	up	Figure 9: Analysis on the quality of user guide for stoke-based image 
+KUFFN4BS	17	251	same	1	0.99	up	Figure 10: Flexible image editing on closing eyes with SDEdit.
+KUFFN4BS	17	253	same	1	0.99	up	Figure 11: Flexible image editing on mouth with SDEdit.
+KUFFN4BS	18	259	same	1	1.0	up	Figure 12: Extra analysis on $ t_{0} $. As $ t_{0} $ increases, the ge
+KUFFN4BS	18	263	same	1	0.98	up	Figure 13: Comparison with SC-FEGAN (Jo & Park, 2019) on stroke-based 
+KUFFN4BS	18	265	same	1	1.0	up	Figure 14: Stroke-based editing for SC-FEGAN (Jo & Park, 2019) using b
+KUFFN4BS	19	284	same	1	0.97	up	Figure 15: Comparison with Song et al. (2021) on stroke-based image sy
+KUFFN4BS	24	359	same	1	0.98	up	Figure 16: Post-processing samples from GANs by masking out undesired 
+KUFFN4BS	25	376	same	1	1.0	up	Figure 17: The instruction shown to MTurk workers for pairwise compari
+KUFFN4BS	25	378	same	1	1.0	up	Figure 18: The UI shown to MTurk workers for pairwise comparison.
+KUFFN4BS	25	382	same	1	1.0	up	Figure 19: The instruction shown to MTurk workers for pairwise compari
+KUFFN4BS	26	387	same	1	0.99	up	Figure 20: The UI shown to MTurk workers for pairwise comparison.
+KUFFN4BS	27	394	same	1	0.99	up	Figure 21: Stroke-based image generation on bedroom images with SDEdit
+KUFFN4BS	28	398	same	1	1.0	up	Figure 22: Stroke-based image editing on bedroom images with SDEdit (V
+KUFFN4BS	28	410	same	1	0.99	up	Figure 23: Stroke-based image editing. (a) Given an image, users will 
+KUFFN4BS	29	414	same	1	1.0	up	Figure 24: Stroke-based image editing on CelebA-HQ images with SDEdit.
+KUFFN4BS	29	416	same	1	1.0	up	Figure 25: Image compositing on CelebA-HQ images with SDEdit. We edit 
+KUFFN4BS	30	420	same	1	1.0	up	Figure 26: Image compositing on CelebA-HQ images with SDEdit. We edit 
+KUFFN4BS	30	422	same	1	1.0	up	Figure 27: Image compositing on CelebA-HQ images with SDEdit. We edit 
+KUFFN4BS	31	431	same	1	1.0	up	Figure 28: Image compositing results with SDEdit (VE) on CelebA-HQ (re
+KUFFN4BS	31	438	same	1	1.0	up	Figure 29: Stroke-based image editing results with SDEdit (VE) on Cele
+KUFFN4BS	31	440	same	1	1.0	up	Figure 30: Stroke-based image generation with simulated stroke paintin
+KUFFN4BS	32	444	same	1	0.99	up	Figure 31: Stroke-based image generation with simulated stroke paintin
+KUFFN4BS	32	446	same	1	1.0	up	Figure 32: Stroke-based image generation with simulated stroke paintin
+KUFFN4BS	32	448	same	1	1.0	up	Figure 33: Trade-off between faithfulness and realism shown with strok
+KUFFN4BS	33	452	same	1	1.0	up	Figure 34: Class-conditional image generation from stroke paintings wi
+KUFFN4BS	33	454	same	1	1.0	up	Figure 35: Stroke-based image generation with stroke inputs on cat and
+P42UUUJK	2	21	same	1	0.95	up	Fig. 1 | Schematic illustration of our generative system for medical i
+P42UUUJK	3	45	same	1	0.97	up	Fig. 2 | Evaluations of generated synthetic images. a, Clinicians cond
+P42UUUJK	4	63	same	1	0.97	up	Fig. 3 | Self-improvement evaluations. a, Six subjective results of th
+P42UUUJK	5	89	same	1	1.0	up	Fig. 4 | Synthetic images serve as data augmentation. a, Performance c
+P42UUUJK	6	121	diff	1	0.85	up	Fig. 5 | AI-based mutation prediction performance and its effect on 5-
+P42UUUJK	7	135	same	1	0.99	up	Fig. 6 | A two-stage RL strategy using human ratings. The first stage 
+P42UUUJK	14	329	same	1	0.91	up	Extended Data Fig.1 | Text-conditioned synthesis of medical images. Sa
+P42UUUJK	15	340	same	1	0.96	up	Extended Data Fig. 2 | AI-based EGFR mutation prediction and its effec
+P42UUUJK	16	352	same	1	0.92	up	Extended Data Fig. 3 | AI-based EGFR mutation prediction and its effec
+P42UUUJK	17	362	same	1	0.98	up	Extended Data Fig. 4 | Synthetic images assist in ophthalmological dia
+P42UUUJK	18	378	diff	1	0.59	up	Extended Data Fig. 5 | A typical case of common diseases and report ge
+P42UUUJK	19	398	same	1	0.99	up	Extended Data Fig. 6 | Breast MRI dataset and analysis flowchart. Brea
+QSK9XI7V	2	27	same	1	0.99	up	Fig. 1: Evidence that S-compression alters the estimated CNR
+QSK9XI7V	3	89	same	1	1.0	up	Fig. 2: Illustration of two probability density functions $ p_i(x) $ a
+QSK9XI7V	5	147	same	1	1.0	up	Fig. 3: B-mode images beamformed with DAS of 10 of the in silico datas
+QSK9XI7V	6	200	same	1	1.0	up	Fig. 4: The two regions of interest I (inside red circle) and O (insid
+QSK9XI7V	7	206	same	1	0.99	up	Fig. 5: The estimated probability density function for the signal enve
+QSK9XI7V	7	215	same	1	1.0	up	Fig. 6: In silico validation of expressions (25), (26), and (35).
+QSK9XI7V	9	238	same	1	1.0	up	Fig. 7: Comparison of the performance of C, CNR, and gCNR in silico.
+QSK9XI7V	10	241	same	1	1.0	up	Fig. 8: Comparison of the performance of C, CNR, and gCNR in vitro.
+QSK9XI7V	11	244	diff	0		up	Fig. 9: Comparison of the performance of C, CNR, and gCNR in vivo.
+QSK9XI7V	14	334	same	1	1.0	up	Fig. 10: In silico validation of Eqs. (39) and (49).
+XDY5YZWQ	4	22	same	1	1.0	up	Fig.1: a) The figure illustrates transitions from source $x_{0}$ (blue
+XDY5YZWQ	6	39	same	1	0.99	up	Fig. 2: Comparison of echocardiographic and brain MRI synthesis using 
+XDY5YZWQ	8	53	same	1	0.95	up	Fig.3: KDE Plot of Pixel Intensity Distributions for Generated and Rea
+XDY5YZWQ	9	63	same	1	1.0	up	Fig. 4: Denoising Example: From a Noisy Image to a Denoised Image in 1
+ZYP68IN4	2	26	same	1	0.98	up	Fig. 1. Introduction of ultrasound images collected from different dev
+ZYP68IN4	4	67	same	1	0.96	up	Fig. 2. Training-tree image style alignment (IISA) for ultrasound imag
+ZYP68IN4	6	129	same	1	0.92	up	Fig. 3. Comparison of domain adaptation methods for vertebral structur
+ZYP68IN4	7	146	same	1	1.0	up	Fig. 4. Visual comparison on detection results of 3D ultrasound scan.
+ZYP68IN4	7	150	same	1	0.99	up	Fig. 5. Visualization of ultrasound manual, ultrasound automatic, and 
+ZYP68IN4	7	163	same	1	1.0	up	Fig. 6. Assessment of TISA in spinal curvature (a&b) and CMIT (c) meas
+ZYP68IN4	8	169	same	1	0.99	up	Fig. 7. Performance of TISA in carotid intima-media segmentation using
+ZYP68IN4	8	175	same	1	1.0	up	Fig. 8. The quantitative comparisons with spine detection and carotid 
+bansalDoesWholeExceed2021	2	23	same	1	0.99	up	Figure 1: (Best viewed in color) Do AI explanations lead to complement
+bansalDoesWholeExceed2021	6	99	same	1	1.0	up	Figure 2: A screenshot of the Team (Adaptive, Expert) condition for th
+bansalDoesWholeExceed2021	6	101	same	1	0.99	up	Figure 3: A screenshot of Team (Adaptive, Expert) for LSAT. Similar to
+bansalDoesWholeExceed2021	8	132	same	1	0.99	up	Figure 4: Team performance (with average accuracy and 95% confidence i
+bansalDoesWholeExceed2021	9	140	same	1	1.0	up	Figure 5: Relative agreement rates between humans and AI (i.e., does t
+bansalDoesWholeExceed2021	9	144	same	1	1.0	up	Figure 6: The distribution of study examples as a function of average 
+bansalDoesWholeExceed2021	10	151	same	1	1.0	up	Figure 7: Analysis of participant responses to two statements: (A) "AI
+bansalDoesWholeExceed2021	12	174	same	1	1.0	up	Figure 8: Instead of ignoring or strictly following the AI, participan
+bansalDoesWholeExceed2021	12	176	same	1	1.0	up	Figure 9: Comparing the occurrence of Used Conf. in just the confidenc
+brodeurPerformanceLargeLanguage2026	11	89	both-none	0			Figure 1. Performance of Differential Diagnosis Generators and LLMs on
+brodeurPerformanceLargeLanguage2026	11	91	same	1	1.0	up	Figure 1: Barplot showing the accuracy of including the correct diagno
+brodeurPerformanceLargeLanguage2026	12	92	both-none	0			Figure 2. Quality of o1-preview and GPT-4 Differential Diagnosis on NE
+brodeurPerformanceLargeLanguage2026	12	98	same	1	1.0	up	Figure 2: A. Comparison of o1-preview with a previous evaluation of GP
+brodeurPerformanceLargeLanguage2026	13	99	both-none	0			Figure 3. Quality of o1-preview Diagnostic Test Selection on NEJM Clin
+brodeurPerformanceLargeLanguage2026	13	101	same	1	0.99	up	Figure 3: Performance of o1-preview in predicting the next diagnostic 
+brodeurPerformanceLargeLanguage2026	14	102	both-none	0			Figure 4: Comparison of o1-preview, GPT-4 and Physicians for Clinical 
+brodeurPerformanceLargeLanguage2026	14	106	same	1	1.0	up	Figure 4: A. Distribution of 312 R-IDEA scores stratified by responden
+brodeurPerformanceLargeLanguage2026	15	107	both-none	0			Figure 5: Comparison of o1-preview, GPT-4 and Physicians for Managemen
+brodeurPerformanceLargeLanguage2026	15	111	same	1	1.0	up	Figure 5: A. Box plot of normalized management reasoning points by LLM
+brodeurPerformanceLargeLanguage2026	16	113	both-none	0			Figure 6: Probabilistic Reasoning Before and After Testing by o1-previ
+brodeurPerformanceLargeLanguage2026	16	115	same	1	0.99	up	Figure 6: Density plots for the distribution of responses by o1-previe
+brodeurPerformanceLargeLanguage2026	17	116	both-none	0			Figure 7: Blinded Assessment of AI and Human Expert Second Opinions on
+brodeurPerformanceLargeLanguage2026	17	118	same	1	0.99	up	Figure 7: Barplot comparing two internal medicine attending physicians
+chenEnhancingDiagnosticCapability2025	2	19	same	1	0.99	up	Fig. 1 | Process of disease selection and testing. The researchers fir
+chenEnhancingDiagnosticCapability2025	3	37	same	1	0.98	up	Fig. 2 | The multi-agent conversation (MAC) framework. The admin agent
+chenEnhancingDiagnosticCapability2025	4	69	diff	1	0.29	up	Fig. 3 | Clinical case curation. a Primary consultation represents the
+chenEnhancingDiagnosticCapability2025	5	93	same	1	1.0	up	Fig. 4 | Performance on generating disease-specific knowledge. a Inapp
+chenEnhancingDiagnosticCapability2025	7	119	same	1	1.0	up	Fig. 5 | Diagnostic performance in primary consultation. a Accuracy of
+chenEnhancingDiagnosticCapability2025	7	124	diff	1	0.89	up	Fig. 6 | Diagnostic performance in follow-up consultation. a Accuracy 
+chenEnhancingDiagnosticCapability2025	8	148	same	1	1.0	up	Fig. 7 | Influence of base model and number of doctor agents on multi-
+chenEnhancingDiagnosticCapability2025	9	169	same	1	1.0	up	Fig. 8 | Influence of output token on performance across each method. 
+gaddSurvivEHRCompetingRisks2026	4	55	same	1	1.0	up	Fig. 1 | SurvivEHR. A Schematic overview of the SurvivEHR model archit
+gaddSurvivEHRCompetingRisks2026	5	74	same	1	0.97	up	Fig. 2 | Overview of OPTIMAL cohort data preparation and content. A Da
+gaddSurvivEHRCompetingRisks2026	6	88	same	1	1.0	up	Fig. 3 | Regional shift of OPTIMAL cohort data. Index of multiple depr
+gaddSurvivEHRCompetingRisks2026	7	100	same	1	0.95	up	Fig. 4 | Evaluation of SurvivEHR on the pre-training dataset. A Each r
+gaddSurvivEHRCompetingRisks2026	8	115	same	1	0.97	up	Fig. 5 | Forecasting known clinical associations. Given unseen patient
+gaddSurvivEHRCompetingRisks2026	9	152	diff	2	0.68	up	Fig. 6 | Illustrating SurvivEHR predictive behaviour. We constructed a
+gaddSurvivEHRCompetingRisks2026	10	160	same	1	1.0	up	Fig. 7 | Calibration of SurvivEHR predictions across clinical outcomes
+gaddSurvivEHRCompetingRisks2026	12	196	same	1	0.99	up	Fig. 8 | Fine-tuning prediction performance evaluation. A Fine-tuned m
+guptaVisualProgrammingCompositional2023	1	5	same	1	1.0	up	Figure 1. VISPROG is a modular and interpretable neuro-symbolic system
+guptaVisualProgrammingCompositional2023	2	16	same	1	0.97	up	Figure 2. Modules currently supported in VISPROG. Red modules use neur
+guptaVisualProgrammingCompositional2023	4	34	same	1	0.99	up	Figure 3. Program generation in VISPROG.
+guptaVisualProgrammingCompositional2023	5	49	same	1	0.99	up	Figure 4. Visual rationales generated by VISPROG. These rationales vis
+guptaVisualProgrammingCompositional2023	5	56	same	1	0.99	up	Figure 5. We evaluate VISPROG on a diverse set of tasks. The tasks spa
+guptaVisualProgrammingCompositional2023	7	80	same	1	1.0	up	Figure 6. Performance improves with number of in-context examples on G
+guptaVisualProgrammingCompositional2023	8	103	same	1	1.0	up	Figure 7. Qualitative results for image editing (top) and knowledge ta
+guptaVisualProgrammingCompositional2023	8	105	same	1	0.98	up	Figure 8. Instruction tuning using visual rationales. By revealing the
+guptaVisualProgrammingCompositional2023	8	111	same	1	0.99	up	Figure 9. Sources of error in VISPROG.
+hagerEvaluationMitigationLimitations2024	3	38	same	1	0.99	up	Fig. 1 | Overview of dataset creation and evaluation framework. a, To 
+hagerEvaluationMitigationLimitations2024	4	51	same	1	1.0	up	Fig. 2 | LLMs diagnose significantly worse than doctors when provided 
+hagerEvaluationMitigationLimitations2024	5	64	same	1	0.99	up	Fig. 3 | Diagnostic accuracy of LLMs decreased in an autonomous clinic
+hagerEvaluationMitigationLimitations2024	6	83	same	1	0.98	up	Fig. 4 | LLMs do not consistently recommend essential and patient-spec
+hagerEvaluationMitigationLimitations2024	7	98	same	1	1.0	up	Fig. 5 | LLMs are sensitive to the quantity of information provided. W
+hagerEvaluationMitigationLimitations2024	7	101	same	1	1.0	up	Fig. 6 | LLMs are sensitive to the order of information. By changing t
+hagerEvaluationMitigationLimitations2024	16	294	same	1	1.0	up	Extended Data Fig. 1 | Model performance on the MIMIC-CDM-FI dataset. 
+hagerEvaluationMitigationLimitations2024	17	299	same	1	1.0	up	Extended Data Fig. 2 | LLMs fail to consistently ask for a physical ex
+hagerEvaluationMitigationLimitations2024	18	306	same	1	0.99	up	Extended Data Fig. 3 | LLMs often do not order the necessary laborator
+hagerEvaluationMitigationLimitations2024	19	313	same	1	1.0	up	Extended Data Fig. 4 | LLMs are incapable of interpreting lab results.
+hagerEvaluationMitigationLimitations2024	20	319	same	1	0.98	up	Extended Data Fig. 5 | The first imaging modality requested by the LLM
+hagerEvaluationMitigationLimitations2024	21	325	same	1	1.0	up	Extended Data Fig. 6 | LLMs struggle to follow instructions. During th
+hagerEvaluationMitigationLimitations2024	22	331	same	1	1.0	up	Extended Data Fig. 7 | Small changes in instruction phrasing changes d
+hagerEvaluationMitigationLimitations2024	23	336	same	1	0.99	up	Extended Data Fig. 8 | Filtering for only abnormal results generally i
+hanEvaluationGPT410year2024	5	80	same	1	0.98	up	Figure 1. Example of a GPT prompt and response
+hanEvaluationGPT410year2024	6	100	same	1	1.0	up	Figure 2. Performance evaluation and comparison of the risk scoring me
+hanEvaluationGPT410year2024	7	115	same	1	1.0	up	Figure 3. Kaplan-Meier curves stratified by risk categories in the UK 
+hollmannAccuratePredictionsSmall2025	2	23	same	1	0.98	up	Fig. 1 Overview of the proposed method. a, The high-level overview of 
+hollmannAccuratePredictionsSmall2025	3	38	same	1	0.98	up	Fig. 2 | Overview of the TabPFN prior. a, For each dataset, we first s
+hollmannAccuratePredictionsSmall2025	4	54	same	1	0.97	up	Fig. 3 | The behaviour of TabPFN and a set of baselines on simple func
+hollmannAccuratePredictionsSmall2025	5	68	same	1	0.99	up	Fig. 4 | Comparison of TabPFN on our test benchmarks, containing datas
+hollmannAccuratePredictionsSmall2025	6	93	same	1	0.98	up	Fig. 5 | Robustness across datasets and performance comparison with tu
+hollmannAccuratePredictionsSmall2025	7	117	same	1	0.97	up	Fig. 6 | Showcase of the application of TabPFN as tabular foundation m
+hollmannAccuratePredictionsSmall2025	14	326	same	1	0.92	up	Extended Data Fig. 1 | Performance comparison across additional datase
+hollmannAccuratePredictionsSmall2025	15	332	same	1	0.99	up	Extended Data Fig. 2 | Performance comparisons of TabPFN and baselines
+hollmannAccuratePredictionsSmall2025	16	340	same	1	0.98	up	Extended Data Fig. 3 | Comparing SHAP (SHapley Additive exPlanations) 
+hollmannAccuratePredictionsSmall2025	17	343	same	1	0.97	up	Extended Data Fig. 4 | Finetuning TabPFN on 2-dimensional sine curve d
+jinAgentMDEmpoweringLanguage2025	2	29	same	1	0.9	up	Fig. 1 | Overview of AgentMD tool curation and using. a An example cli
+jinAgentMDEmpoweringLanguage2025	4	55	same	1	1.0	up	Fig. 2 | Quality and coverage analysis of RiskCalcs. a Evaluation resu
+jinAgentMDEmpoweringLanguage2025	5	71	same	1	1.0	up	Fig. 3 | Evaluations of AgentMD on RiskQA. a Example of a question in 
+jinAgentMDEmpoweringLanguage2025	6	86	same	1	1.0	up	Fig. 4 | Individual-level evaluation results on the emergency departme
+jinAgentMDEmpoweringLanguage2025	7	110	same	1	0.99	up	Fig. 5 | Applying AgentMD on the MIMIC-III cohort. a AgentMD is applie
+kadavathLanguageModelsMostly2022	3	12	same	1	0.99	up	Figure 1 (left) We show the overall ability of a 52B language model to
+kadavathLanguageModelsMostly2022	4	25	same	1	0.99	up	Figure 2 Left: We train a P(IK) classifier to predict whether or not a
+kadavathLanguageModelsMostly2022	6	58	same	1	0.98	up	Figure 3 Examples of P(IK) scores from a 52B model. Token sequences th
+kadavathLanguageModelsMostly2022	7	66	same	1	0.98	up	Figure 4 (left) We show calibration curves for various model sizes on 
+kadavathLanguageModelsMostly2022	8	78	same	1	1.0	up	Figure 5 (left) We show expected calibration error versus normalized a
+kadavathLanguageModelsMostly2022	9	89	same	1	1.0	up	Figure 6 We show calibration curves for various model sizes on MMLU, T
+kadavathLanguageModelsMostly2022	9	92	same	1	0.98	up	Figure 7 (left) We show accuracy on MMLU in the standard format, and a
+kadavathLanguageModelsMostly2022	10	95	same	1	1.0	up	Figure 8 We show calibration curves for various model sizes on all of 
+kadavathLanguageModelsMostly2022	11	107	same	1	1.0	up	Figure 9 We show calibration curves for RLHF policies finetuned from o
+kadavathLanguageModelsMostly2022	12	122	same	1	0.98	up	Figure 10 Models self-evaluate their own samples by producing a probab
+kadavathLanguageModelsMostly2022	13	140	same	1	1.0	up	Figure 11 Here we show results only for Lambada and Codex, as these ar
+kadavathLanguageModelsMostly2022	15	163	same	1	1.0	up	Figure 12 Testing a 52B classifier on a held-out set of TriviaQA quest
+kadavathLanguageModelsMostly2022	15	166	same	1	1.0	up	Figure 13 Left: Full calibration plot of P(IK) classifiers on TriviaQA
+kadavathLanguageModelsMostly2022	16	173	same	1	0.99	up	Figure 14 Model size trend of AUROC with P(IK), when training on only 
+kadavathLanguageModelsMostly2022	16	175	same	1	1.0	up	Figure 15 Calibration on GSM8k when training on only TriviaQA vs train
+kadavathLanguageModelsMostly2022	17	192	same	1	1.0	up	Figure 16 Generalization of P(IK). We trained P(IK) classifiers on jus
+kadavathLanguageModelsMostly2022	18	198	same	1	1.0	up	Figure 17 Left: P(IK) scores on GSM8k when training on only TriviaQA. 
+kadavathLanguageModelsMostly2022	19	208	same	1	0.97	up	Figure 18 Effect of including Wikipedia article on P(IK) for TriviaQA 
+kadavathLanguageModelsMostly2022	20	224	same	1	1.0	up	Figure 19 Effect of hints on P(IK) applied to GSM8k – all of these res
+kadavathLanguageModelsMostly2022	21	237	same	1	0.96	up	Figure 20 Scatterplot that disambiguates numbers in Table 2. We evalua
+kadavathLanguageModelsMostly2022	24	274	same	1	0.99	up	Figure 21 Here we show trends in the RMS calibration error on BIG Benc
+kadavathLanguageModelsMostly2022	28	324	same	1	1.0	up	Figure 22 Using the model's loss on the T = 0 sample to differentiate 
+kadavathLanguageModelsMostly2022	28	326	same	1	1.0	up	Figure 23 Model size trends of the AUROC, when using the loss of the T
+kadavathLanguageModelsMostly2022	29	335	same	1	1.0	up	Figure 24 Entropy of samples from the 52B model on TriviaQA and HumanE
+kadavathLanguageModelsMostly2022	30	345	same	1	1.0	up	Figure 25 Model size vs. AUROC trends for several evals using the entr
+kadavathLanguageModelsMostly2022	30	348	same	1	0.98	up	Figure 26 Token Loss of stuffed answers can sometimes provide signal a
+kadavathLanguageModelsMostly2022	31	356	same	1	0.99	up	Figure 27 Model size vs. AUROC trends for several evals. ....
+kadavathLanguageModelsMostly2022	32	369	same	1	1.0	up	Figure 28 Models self-evaluate their own samples by producing a probab
+kadavathLanguageModelsMostly2022	33	381	same	1	1.0	up	Figure 29 We show the base accuracy of our models on various sampling 
+kadavathLanguageModelsMostly2022	34	393	same	1	1.0	up	Figure 30 Here we show the Brier scores for model self-evaluation with
+kadavathLanguageModelsMostly2022	35	404	same	1	1.0	up	Figure 31 We show the AUROC scores for P(True) with several different 
+kadavathLanguageModelsMostly2022	36	416	same	1	1.0	up	Figure 32 We show the calibration curves when models self-evaluate the
+kadavathLanguageModelsMostly2022	37	426	same	1	1.0	up	Figure 33 We show AUROCs for P(True) from cross-evaluation experiments
+kadavathLanguageModelsMostly2022	38	433	same	1	0.99	up	Figure 34 We show that when we ask models to self-evaluate their own s
+kadavathLanguageModelsMostly2022	38	436	same	1	0.98	up	Figure 35 We show calibration curves for a subset of tasks that have b
+kadavathLanguageModelsMostly2022	39	440	same	1	0.99	up	Figure 36 (left) We show calibration curves for MMLU when we replace o
+kadavathLanguageModelsMostly2022	39	443	same	1	0.99	up	Figure 37 (left) We show accuracies on the specific multiple choice ta
+kadavathLanguageModelsMostly2022	40	455	same	1	1.0	up	Figure 38 Models self-evaluate their samples by producing a probabilit
+kadavathLanguageModelsMostly2022	40	459	same	1	1.0	up	Figure 39 Left and Middle: Generalization of P(IK), trained on TriviaQ
+kadavathLanguageModelsMostly2022	41	464	same	1	1.0	up	Figure 40 Left and Middle: Generalization of P(IK), trained on TriviaQ
+kadavathLanguageModelsMostly2022	41	468	same	1	1.0	up	Figure 41 Left and Middle: Generalization of P(IK), trained on TriviaQ
+kimMDAgentsAdaptiveCollaboration2024	2	10	same	1	0.99	up	Figure 1: Medical Decision-Making Agents (MDAgents) framework. Given a
+kimMDAgentsAdaptiveCollaboration2024	4	28	same	1	0.99	up	Figure 2: Illustrative example of MDAgents in a moderate complexity ca
+kimMDAgentsAdaptiveCollaboration2024	7	81	same	1	1.0	up	Figure 3: Experiment with the MedQA dataset (N=25 randomly sampled que
+kimMDAgentsAdaptiveCollaboration2024	8	88	same	1	0.99	up	Figure 4: Our method outperforms Solo and Group settings across differ
+kimMDAgentsAdaptiveCollaboration2024	9	109	same	1	1.0	up	Figure 5: Impact of complexity selection of the query. Accuracy of eac
+kimMDAgentsAdaptiveCollaboration2024	10	117	same	1	0.99	up	Figure 6: Impact of the number of agents on (a) Accuracy, (b) Number o
+kimMDAgentsAdaptiveCollaboration2024	10	119	same	1	1.0	up	Figure 7: An illustration of consensus entropy in group collaboration 
+kimMDAgentsAdaptiveCollaboration2024	28	370	same	1	1.0	up	Figure 8: Complexity Distribution for each dataset classified by GPT-4
+kimMDAgentsAdaptiveCollaboration2024	29	383	same	1	1.0	up	Figure 9: Top-3 most recruited medical experts in each benchmark. The 
+kimMDAgentsAdaptiveCollaboration2024	29	392	same	1	0.99	up	Figure 10: Simplified agent structure examples assigned during the exp
+kimMDAgentsAdaptiveCollaboration2024	33	421	same	1	1.0	up	Figure 11: Illustration of our proposed framework in moderate complexi
+kimMDAgentsAdaptiveCollaboration2024	34	425	same	1	0.98	up	Figure 12: Illustration of our proposed framework in high complexity s
+kimMDAgentsAdaptiveCollaboration2024	35	439	same	1	1.0	up	Figure 13: Annotation interface used for medical complexity assessment
+liAgentHospitalSimulacrum2024	2	13	same	1	1.0	up	Figure 1. An overview of Agent Hospital. Agent Hospital is a simulacru
+liAgentHospitalSimulacrum2024	4	25	same	1	0.99	up	Figure 2. Agent Hospital simulates the whole closed cycle of treating 
+liAgentHospitalSimulacrum2024	5	36	same	1	0.99	up	Figure 3. Automatic generation of patient agents. During the closed cy
+liAgentHospitalSimulacrum2024	6	52	same	1	0.96	up	Figure 4. An example illustrating how a doctor agent diagnoses a patie
+liAgentHospitalSimulacrum2024	8	73	same	1	0.96	up	Figure 5. Evaluations in the virtual and real worlds. a, Diagnostic ac
+liAgentHospitalSimulacrum2024	16	189	same	1	1.0	up	Figure 6. Part of preprocessed medical knowledge about the COVID-19.
+liAgentHospitalSimulacrum2024	19	231	same	1	1.0	up	Figure 7. Diagnostic accuracy improvements after doctor evolution on r
+liAgentHospitalSimulacrum2024	20	235	same	1	1.0	up	Figure 8. Accumulation of validated experiences during the evolution o
+liAgentHospitalSimulacrum2024	20	240	same	1	1.0	up	Figure 9. The cumulative and segment accuracy of examination and diagn
+liAgentHospitalSimulacrum2024	23	263	same	1	1.0	up	Figure 10. Comparison of CoT, Medprompt, and MedAgent-Zero across 8 cl
+liAgentHospitalSimulacrum2024	23	266	same	1	1.0	up	Figure 11. Hyperparameter analysis of top-k experiences and medical ca
+liAgentHospitalSimulacrum2024	24	269	same	1	1.0	up	Figure 12. Ablation studies of MedAgent-Zero on the MedQA dataset. Med
+liAgentHospitalSimulacrum2024	25	282	same	1	0.99	up	Figure 13. The content of the two MedQA questions, and the bolder choi
+liAgentHospitalSimulacrum2024	26	290	same	1	0.99	up	Figure 14. Reasoning details of MedAgent-Zero in answering question 73
+liAgentHospitalSimulacrum2024	27	293	same	1	0.95	up	Figure 15. Reasoning details of MedAgents in answering question 73. Th
+liAgentHospitalSimulacrum2024	27	295	same	1	0.96	up	Figure 16. Reasoning details of MedPrompt in answering question 73. Th
+liAgentHospitalSimulacrum2024	28	298	same	1	0.98	up	Figure 17. Reasoning details of MedAgent-Zero in answering question 34
+liAgentHospitalSimulacrum2024	29	301	same	1	0.96	up	Figure 18. Reasoning details of the CoT model in answering question 34
+liAgentHospitalSimulacrum2024	29	303	same	1	0.98	up	Figure 19. Reasoning details of MedPrompt in answering question 340. T
+liuLostMiddleHow2024	2	14	same	1	0.99	up	Figure 1: Changing the location of relevant information (in this case,
+liuLostMiddleHow2024	4	39	same	1	1.0	up	Figure 2: Example of the multi-document question answering task, with 
+liuLostMiddleHow2024	4	41	same	1	1.0	up	Figure 3: Modulating the position of relevant information within the i
+liuLostMiddleHow2024	4	46	same	1	1.0	up	Figure 4: Modulating the input context length of the multi-document qu
+liuLostMiddleHow2024	5	57	same	1	0.99	up	Figure 5: The effect of changing the position of relevant information 
+liuLostMiddleHow2024	6	70	both-none	0			Figure 6: Example of the key-value retrieval task, with an input conte
+liuLostMiddleHow2024	7	84	same	1	0.99	up	Figure 7: The effect of changing the input context length and the posi
+liuLostMiddleHow2024	8	100	same	1	0.99	up	Figure 8: When encoder-decoder models (Flan-UL2 and Flan-T5-XXL) evalu
+liuLostMiddleHow2024	9	112	same	1	0.98	up	Figure 9: Query-aware contextualization (placing the query before and 
+liuLostMiddleHow2024	9	116	same	1	1.0	up	Figure 10: Multi-document QA performance of MPT-30B-Instruct compared 
+liuLostMiddleHow2024	10	127	same	1	0.99	up	Figure 11: Retriever recall and model performance as a function of the
+liuLostMiddleHow2024	15	199	same	1	0.99	up	Figure 12: Language model performance on a unambiguous subset of quest
+liuLostMiddleHow2024	15	207	same	1	0.99	up	Figure 13: Language model performance on multi-document QA when using 
+liuLostMiddleHow2024	16	214	same	1	0.99	up	Figure 14: Language model performance when randomizing the order of th
+liuLostMiddleHow2024	16	221	same	1	0.99	up	Figure 15: Although GPT-4 has higher absolute performance than other m
+liuLostMiddleHow2024	16	223	same	1	0.99	up	Figure 16: Multi-document QA performance (20 total documents) of Llama
+manakulSelfCheckGPTZeroResourceBlackBox2023	1	7	same	1	1.0	up	Figure 1: SelfCheckGPT with Prompt. Each LLM-generated sentence is com
+manakulSelfCheckGPTZeroResourceBlackBox2023	2	23	same	1	1.0	up	Figure 2: Example of OpenAI's GPT-3 web interface with output token-le
+manakulSelfCheckGPTZeroResourceBlackBox2023	6	112	same	1	1.0	up	Figure 3: Flowchart of our annotation process
+manakulSelfCheckGPTZeroResourceBlackBox2023	6	116	same	1	1.0	up	Figure 4: Document factuality scores histogram plot
+manakulSelfCheckGPTZeroResourceBlackBox2023	7	133	same	1	1.0	up	Figure 5: PR-Curve of detecting non-factual and factual sentences in t
+manakulSelfCheckGPTZeroResourceBlackBox2023	8	148	same	1	1.0	up	Figure 6: Scatter plot of passage-level scores where Y-axis = Method s
+manakulSelfCheckGPTZeroResourceBlackBox2023	9	168	same	1	1.0	up	Figure 7: The performance of SelfCheckGPT methods on ranking passages 
+manakulSelfCheckGPTZeroResourceBlackBox2023	13	281	same	1	1.0	up	Figure 8: The performance of SelfCheckGPT methods on sentence-level no
+manakulSelfCheckGPTZeroResourceBlackBox2023	13	283	same	1	1.0	up	Figure 9: Passage-level ranking performance of the Avg($\mathcal{H}$) 
+manakulSelfCheckGPTZeroResourceBlackBox2023	14	293	same	1	1.0	up	Figure 10: Scatter plot of passage-level scores where Y-axis = Method 
+redekopZeroshotMedicalEvent2025	3	47	same	1	1.0	up	Figure 1. (A) Representation of individual's EHR as a sequence of visi
+redekopZeroshotMedicalEvent2025	4	87	diff	1	0.05	up	Figure 2. Zero-shot evaluation results of the GPT model for 12 specifi
+redekopZeroshotMedicalEvent2025	5	107	same	1	0.97	up	Figure 3. Zero-shot evaluation results of the GPT model for 14 higher-
+redekopZeroshotMedicalEvent2025	6	114	same	1	0.99	up	Figure 4. The 10 most frequent codes with the highest attention scores
+redekopZeroshotMedicalEvent2025	8	135	same	1	0.99	up	Figure 5. UMAP of features learned by the GPT model for each code from
+rencFoundationModelElectronic2025	3	51	diff	2	0.99	up	Figure 1: Workflow of the Adaptable Risk Estimation Score (ARES) Frame
+rencFoundationModelElectronic2025	4	58	same	1	0.96	up	Figure 2: Timeline of a patient's hospital stay and hypothetical risk 
+rencFoundationModelElectronic2025	4	60	same	1	1.0	up	Figure 3: Predictive results for the ED benchmark tasks. Fewer methods
+rencFoundationModelElectronic2025	5	67	same	1	1.0	up	Figure 4: ares Risk Trajectories. This figure illustrates risk traject
+rencFoundationModelElectronic2025	6	77	same	1	1.0	up	Figure 5: AUC comparison between ETHOS and MEDS-Tab across demographic
+rencFoundationModelElectronic2025	8	123	both-none	0			Supplementary Fig. S1. Model architecture and hyperparameter overview.
+rencFoundationModelElectronic2025	8	124	both-none	0			Supplementary Fig. S2. ROC curves for ETHOS across all prediction task
+rencFoundationModelElectronic2025	9	127	both-none	0			Supplementary Fig. S3. AUPRC curves for ETHOS across all prediction ta
+rencFoundationModelElectronic2025	9	128	both-none	0			Supplementary Fig. S4. Calibration curves for ETHOS predictions across
+shiEHRAgentCodeEmpowers2024	1	7	same	1	0.98	up	Figure 1: Simple and efficient interactions between clinicians and EHR
+shiEHRAgentCodeEmpowers2024	2	19	same	1	1.0	up	Figure 2: Compared to general domain tasks (blue) such as WikiSQL (Zho
+shiEHRAgentCodeEmpowers2024	3	32	same	1	1.0	up	Figure 3: Overview of our proposed LLM agent, EHRAgent, for complex fe
+shiEHRAgentCodeEmpowers2024	7	102	same	1	1.0	up	Figure 4: Success rate and completion rate under different question co
+shiEHRAgentCodeEmpowers2024	7	107	same	1	1.0	up	Figure 5: Success rate and completion rate under different numbers of 
+shiEHRAgentCodeEmpowers2024	8	114	same	1	0.99	up	Figure 6: Percentage of mistake examples in different categories on MI
+shiEHRAgentCodeEmpowers2024	8	116	same	1	1.0	up	Figure 7: Case study of EHRAgent harnessing LLMs in a multi-turn conve
+shiEHRAgentCodeEmpowers2024	21	358	diff	1	0.77	up	Figure 8: Case study of medical information injection in EHRAgent on M
+shiEHRAgentCodeEmpowers2024	23	369	same	1	1.0	up	Figure 9: Case study of long-term memory in EHRAgent on MIMIC-III data
+shiEHRAgentCodeEmpowers2024	23	371	same	1	0.99	up	Figure 10: Case study 1 of code interface in EHRAgent on MIMIC-III dat
+shiEHRAgentCodeEmpowers2024	24	374	same	1	1.0	up	Figure 11: Case study 2 of code interface in EHRAgent on MIMIC-III dat
+shiEHRAgentCodeEmpowers2024	24	376	same	1	1.0	up	Figure 12: Comparative case study of the interactive coding process be
+shiEHRAgentCodeEmpowers2024	25	379	same	1	1.0	up	Figure 13: A complete version of case study in Figure 7 showcasing int
+shiEHRAgentCodeEmpowers2024	25	381	same	1	0.98	up	Figure 14: Case study of the complete workflow in EHRAgent. With EHR m
+shmatkoLearningNaturalHistory2025	3	37	same	1	0.99	up	Fig. 1 | Delphi, a modified GPT architecture, models health trajectori
+shmatkoLearningNaturalHistory2025	4	68	same	1	0.99	up	Fig. 2 | Delphi-2M accurately models the rates of a wide range of dise
+shmatkoLearningNaturalHistory2025	5	86	same	1	0.96	up	Fig. 3 | Generative modelling with Delphi-2M informs future outcomes. 
+shmatkoLearningNaturalHistory2025	6	102	same	1	0.99	up	Fig. 4 | Explainable AI offers insights into disease progression. a, U
+shmatkoLearningNaturalHistory2025	7	116	same	1	1.0	up	Fig. 5 | Epidemiological biases in UK Biobank data reflected by Delphi
+shmatkoLearningNaturalHistory2025	15	331	same	1	0.99	up	Extended Data Fig. 1 | Effect of the “no event” padding token. a, Boxp
+shmatkoLearningNaturalHistory2025	16	334	same	1	0.94	up	Extended Data Fig. 2 | Parameter screen. a, Validation cross-entropy (
+shmatkoLearningNaturalHistory2025	17	341	same	1	1.0	up	Extended Data Fig. 3 | Calibration of Delphi-2M's instantaneous predic
+shmatkoLearningNaturalHistory2025	18	347	same	1	0.99	up	Extended Data Fig. 4 | Assessment of Delphi-2M in relation to other ba
+shmatkoLearningNaturalHistory2025	19	354	same	1	0.99	up	Extended Data Fig. 5 | Integrating Delphi-2M predictions with other da
+shmatkoLearningNaturalHistory2025	21	359	both-none	0			Extended Data Fig. 6 | Assessment of simulated health trajectories. Al
+shmatkoLearningNaturalHistory2025	22	368	same	1	0.99	up	Extended Data Fig. 7 | Comparison of SHAP values and Cox proportional 
+shmatkoLearningNaturalHistory2025	23	377	same	1	0.96	up	Extended Data Fig. 8 | Relation of token embedding space and SHAP effe
+shmatkoLearningNaturalHistory2025	25	382	both-none	0			Extended Data Fig. 9 | Token source-related biases. Non-random missing
+shmatkoLearningNaturalHistory2025	26	392	same	1	1.0	up	Extended Data Fig. 10 | Effects of ethnicity and deprivation. a, Model
+smitShouldWeBe2024	3	31	same	1	1.0	up	Figure 1. Benchmark of experiment configurations on MedQA dataset. Lef
+smitShouldWeBe2024	5	71	same	1	1.0	up	Figure 2. Boxplots illustrating the distribution of total accuracy acr
+smitShouldWeBe2024	6	82	same	1	1.0	up	Figure 3. Comparing medical vs non-medical datasets. The red line indi
+smitShouldWeBe2024	6	84	same	1	1.0	up	Figure 4. Relative accuracy improvements, averaged on all datasets, be
+smitShouldWeBe2024	7	95	same	1	1.0	up	Figure 5. Left: Multi-Persona's accuracy according to the agreement fi
+smitShouldWeBe2024	7	98	same	1	1.0	up	Figure 6. Left: Accuracy on USMLE as we increase agreement intensity i
+smitShouldWeBe2024	8	112	same	1	1.0	up	Figure 7. Debating Behavior of MAD Strategies. The first plot compares
+smitShouldWeBe2024	8	115	same	1	1.0	up	Figure 8. Benchmark of experiment configurations of GPT-4 on MedQA dat
+smitShouldWeBe2024	9	120	same	1	1.0	up	Figure 9. Benchmark of experiment configurations of Mixtral 8x7B on Me
+smitShouldWeBe2024	12	182	same	1	0.99	up	Figure 10. MedQA experimental results.
+smitShouldWeBe2024	13	194	same	1	1.0	up	Figure 11. PubMedQA experimental results.
+smitShouldWeBe2024	13	204	same	1	1.0	up	Figure 12. MMLU experimental results.
+smitShouldWeBe2024	14	215	same	1	1.0	up	Figure 13. CosmosQA experimental results.
+smitShouldWeBe2024	14	225	same	1	1.0	up	Figure 14. CIAR experimental results.
+smitShouldWeBe2024	15	236	same	1	1.0	up	Figure 15. GPQA experimental results.
+smitShouldWeBe2024	15	246	same	1	1.0	up	Figure 16. Chess experimental results.
+snellScalingLLMTestTime2025	2	17	same	1	0.99	up	Figure 1: Summary of results. Left: Compute-optimal scaling for revisi
+snellScalingLLMTestTime2025	5	49	same	1	0.99	up	Figure 2: Comparing different PRM search methods. Left: Best-of-N samp
+snellScalingLLMTestTime2025	6	63	same	1	0.99	up	Figure 3: Left: Comparing different methods for conducting search agai
+snellScalingLLMTestTime2025	6	64	both-none	0			Figure 2. We note that for all search algorithms, we use the same PRM 
+snellScalingLLMTestTime2025	7	77	same	1	0.98	up	Figure 4: Comparing compute-optimal test-time scaling against baseline
+snellScalingLLMTestTime2025	8	90	same	1	0.96	up	Figure 5: Parallel sampling (e.g., Best-of-N) versus sequential revisi
+snellScalingLLMTestTime2025	8	98	same	1	0.99	up	Figure 6: Compute-optimal scaling with our revision model. By optimall
+snellScalingLLMTestTime2025	9	104	same	1	0.99	up	Figure 7: Left: Varying the ratio of the generation budget allocated s
+snellScalingLLMTestTime2025	10	118	diff	1	0.89	up	Figure 8: The tradeoff between pretraining and test-time compute in a 
+snellScalingLLMTestTime2025	18	224	same	1	0.99	up	Figure 9: Left: Our revision model's pass@1 at each revision step. Pas
+snellScalingLLMTestTime2025	19	236	same	1	1.0	up	Figure 10: Varying the ratio of generation budget allocated to sequent
+snellScalingLLMTestTime2025	19	239	same	1	1.0	up	Figure 11: Using our PaLM 2-S* PRM to compute difficulty bins without 
+snellScalingLLMTestTime2025	20	247	same	1	1.0	up	Figure 12: Using our PaLM 2-S* PRM to compute difficulty bins without 
+snellScalingLLMTestTime2025	21	259	same	1	0.97	up	Figure 13: We compare best-of-N and best-of-N weighted for our ORM and
+snellScalingLLMTestTime2025	22	271	same	1	1.0	up	Figure 14: We compare different methods of aggregating per-step PRM sc
+snellScalingLLMTestTime2025	22	273	same	1	1.0	up	Figure 15: We compare PRM and ORM models finetuned from PaLM 2-S* in a
+snellScalingLLMTestTime2025	23	278	same	1	1.0	up	Figure 16: Comparing beam search and best-of-N binned by difficulty le
+snellScalingLLMTestTime2025	24	293	same	1	0.99	up	Figure 17: We extend the analysis in Section 7 by comparing the test-t
+snellScalingLLMTestTime2025	26	319	same	1	0.99	up	Figure 18: Left: we compare the ORM we trained on the revision model's
+snellScalingLLMTestTime2025	27	325	same	1	0.92	up	Figure 19: Performance of our ReST $ ^{EM} $ optimized revision model 
+snellScalingLLMTestTime2025	28	335	both-none	0			Figure 20: Revision model example 1. The model calculates the sum at t
+snellScalingLLMTestTime2025	29	340	both-none	0			Figure 21: Revision model example 2. On the first attempt the model ta
+snellScalingLLMTestTime2025	30	344	same	1	1.0	up	Figure 22: Revision model example 3. On the first attempt the model ma
+snellScalingLLMTestTime2025	31	348	both-none	0			Figure 23: Revision model example 4. On the first few attempts the mod
+snellScalingLLMTestTime2025	32	353	both-none	0			Figure 24: Revision model example 5. On the first two attempts the mod
+snellScalingLLMTestTime2025	33	358	same	1	0.91	up	Figure 25: Revision model example 6. On the first two attempts the mod
+snellScalingLLMTestTime2025	34	364	both-none	0			Figure 26: Revision model example 7. On the first attempt the model ev
+snellScalingLLMTestTime2025	34	366	same	1	1.0	up	Figure 27: PRM beam search example 1.
+snellScalingLLMTestTime2025	35	370	same	1	1.0	up	Figure 28: PRM beam search example 2.
+snellScalingLLMTestTime2025	35	372	both-none	0			Figure 29: PRM beam search example 3.
+snellScalingLLMTestTime2025	35	374	same	1	1.0	up	Figure 30: PRM beam search example 4.
+snellScalingLLMTestTime2025	35	376	same	1	1.0	up	Figure 31: PRM beam search example 5.
+snellScalingLLMTestTime2025	35	378	same	1	1.0	up	Figure 32: PRM beam search example 6.
+suAPIEnoughConformal2024	2	16	same	1	0.99	up	Figure 1: Illustrations of the proposed problem and solution. Three un
+suAPIEnoughConformal2024	4	62	same	1	1.0	up	Figure 2: Empirical findings with TriviaQA dataset.
+suAPIEnoughConformal2024	7	122	same	1	1.0	up	Figure 3: Ablation study. The blue bar chart represents APSS, while th
+suAPIEnoughConformal2024	7	128	same	1	1.0	up	Figure 4: Results on MMLU for MCQ task, with the error rate of 0.2. Ou
+suAPIEnoughConformal2024	7	133	same	1	1.0	up	Figure 5: Results of the sensitivity analysis for different backbone m
+suAPIEnoughConformal2024	8	138	same	1	1.0	up	Figure 6: Results of sensitivity analysis of sampling quantity.
+suAPIEnoughConformal2024	8	142	same	1	0.99	up	Figure 7: Results of sensitivity analysis of temperature.
+suAPIEnoughConformal2024	16	401	same	1	1.0	up	Figure 8: All results of the sensitivity analysis to variations in sam
+suAPIEnoughConformal2024	16	405	same	1	1.0	up	Figure 9: All results of the sensitivity analysis to variations in tem
+tuConversationalDiagnosticArtificial2025	2	18	same	1	1.0	up	Fig. 1 | Overview of contributions. AMIE is a conversational medical A
+tuConversationalDiagnosticArtificial2025	3	28	diff	1	0.89	up	Fig. 2 Overview of randomized study design. A PCP and AMIPE perform (i
+tuConversationalDiagnosticArtificial2025	4	43	same	1	0.98	up	Fig. 3 | Specialist-rated top-k diagnostic accuracy. a,b, The AMIE and
+tuConversationalDiagnosticArtificial2025	5	61	same	1	0.99	up	Fig. 4 | Patient-actor ratings. Conversation qualities, as assessed by
+tuConversationalDiagnosticArtificial2025	6	75	same	1	0.98	up	Fig. 5 | Specialist physician ratings. Conversation and reasoning qual
+tuConversationalDiagnosticArtificial2025	15	293	diff	1	0.86	up	Extended Data Fig.1 | User interfaces for the online consultation and 
+tuConversationalDiagnosticArtificial2025	16	299	same	1	0.99	up	Extended Data Fig. 2 | Dx top-k accuracy for non-disease-states and po
+tuConversationalDiagnosticArtificial2025	17	308	same	1	0.99	up	Extended Data Fig. 3 | Specialist rated DDx accuracy by scenario speci
+tuConversationalDiagnosticArtificial2025	18	314	same	1	0.99	up	Extended Data Fig. 4 | DDX accuracy by location. a, b: Specialist DDX 
+tuConversationalDiagnosticArtificial2025	19	321	same	1	0.99	up	Extended Data Fig. 5 | Auto-evaluation of DDX performance. a, b: Top-k
+tuConversationalDiagnosticArtificial2025	20	328	same	1	0.99	up	Extended Data Fig. 6 | Consultation verbosity and efficiency of inform
+velaTemporalQualityDegradation2022	2	22	same	1	0.99	up	Figure 1. Examples of original data used in temporal degradation exper
+velaTemporalQualityDegradation2022	4	62	same	1	1.0	up	Figure 2. Top: AI temporal degradation experiment, modeling AI model d
+velaTemporalQualityDegradation2022	5	78	same	1	0.99	up	Figure 3. (A) Gradual AI model degradation patterns, with relative mod
+velaTemporalQualityDegradation2022	7	104	same	1	0.99	up	Figure 4. Strange attractors, as dense areas of most probable errors, 
+velaTemporalQualityDegradation2022	8	117	same	1	1.0	up	Figure 5. “Phase portraits” of evolving AI models. Model temporal evol
+velaTemporalQualityDegradation2022	8	120	same	1	0.99	up	Figure 6. Left: Feature contributions to the final model outcome, chan
+velaTemporalQualityDegradation2022	9	136	same	1	0.99	up	Figure 7. Periodic temporal degradation in AI models. Note how using d
+velaTemporalQualityDegradation2022	10	149	same	1	1.0	up	Figure 8. Probability $ P_{ac} $(dT) of different models performing ac
+wangFullLifeCycle2025	2	20	same	1	1.0	up	Fig. 1 | EHRFormer architecture and applications for longitudinal EHR 
+wangFullLifeCycle2025	4	53	same	1	0.99	up	Fig. 2 | Overall BA prediction model, specific models and associated f
+wangFullLifeCycle2025	6	95	same	1	1.0	up	Fig. 4 | Performance of the EHRFormer-based disease predicting model a
+wangFullLifeCycle2025	8	116	same	1	1.0	up	Fig. 5 | A latent space approach for modeling a full life cycle biolog
+wangFullLifeCycle2025	16	293	same	1	1.0	up	Extended Data Fig. 1 | Aging prediction model in the male and female s
+wangFullLifeCycle2025	17	301	same	1	1.0	up	Extended Data Fig. 2 | Elimination of batch effects in hospitals and d
+wangFullLifeCycle2025	18	309	same	1	0.99	up	Extended Data Fig. 3 | Correlations of EHR-derived clusters and indivi
+wangFullLifeCycle2025	19	314	same	1	1.0	up	Extended Data Fig. 4 | Correlations between selected developmental dis
+wangFullLifeCycle2025	20	320	same	1	0.99	up	Extended Data Fig. 5 | Validation of EHRFormer-based future disease pr
+wangFullLifeCycle2025	21	329	same	1	1.0	up	Extended Data Fig. 6 | Validation of EHRFormer-based age and disease p
+wangFullLifeCycle2025	22	338	same	1	1.0	up	Extended Data Fig. 7 | Validation of EHRFormer-based age and disease p
+wangFullLifeCycle2025	23	353	same	1	0.99	up	Extended Data Fig. 8 | Accumulated risk for various diseases based on 
+wangFullLifeCycle2025	24	360	same	1	0.99	up	Extended Data Fig. 9 | Validation of EHRFormer-based disease predictio
+wangFullLifeCycle2025	25	365	same	1	0.98	up	Extended Data Fig.10 | Schematic diagrams of cohorts. Four CHAI-traini

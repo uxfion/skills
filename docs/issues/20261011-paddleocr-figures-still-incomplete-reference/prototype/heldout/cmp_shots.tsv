@@ -1,0 +1,11 @@
+key	page	caption	status	base_crops	iou	dir	text
+kraljevic	3	52	same	1	0.99	up	Figure 1: The Foresight pipeline
+kraljevic	4	65	same	1	0.92	up	Figure 2: An example of Foresight being used on a patient timeline to 
+kraljevic	6	92	same	1	0.95	up	Figure 3: An example of a patient timeline with forecasted disorders
+kraljevic	7	103	same	1	0.98	up	Figure 4: Generated synthetic timeline examples
+zhaoExpeL	2	19	same	1	0.97	up	Figure 1: ExpeL Agent Overview. Left: ExpeL operates in three stages: 
+zhaoExpeL	4	54	same	1	0.96	up	Figure 2: Insight Extraction Prompt Template. The prompt template Expe
+zhaoExpeL	5	60	same	1	0.97	up	Figure 3: Task Inference Prompt Template. We illustrate ExpeL's prompt
+zhaoExpeL	6	73	same	1	0.99	up	Figure 4: Transfer Learning Finetuning Prompt Template. The prompt tem
+zhaoExpeL	7	81	same	1	0.98	up	Figure 5: Main Results. Average task success rates (std. error in gray
+zhaoExpeL	9	113	diff	1	0.33	up	Figure 6: Effects of Experience on Performance. We highlight the corre

@@ -1,0 +1,68 @@
+key	page	caption	status	base_crops	iou	dir	text
+collinsEvaluationClinicalPrediction2024	3	71	both-none	0			Fig 1 | Different study design and approaches to develop and evaluate 
+collinsEvaluationClinicalPrediction2024	5	100	same	1	1.0	up	Fig 2 | Variability and overestimation of apparent performance compare
+collinsEvaluationClinicalPrediction2024	6	106	same	1	0.99	up	Fig 3 | Variability and overestimation of the apparent and internal (s
+collinsEvaluationClinicalPrediction2024	7	132	same	1	1.0	up	Fig 4 | Graphical illustration of k-fold cross validation. Non-shaded 
+collinsEvaluationClinicalPrediction2024	8	149	same	1	1.0	up	Fig 5 | Graphical illustration of internal-external cross validation. 
+collinsEvaluationClinicalPrediction2024	8	156	diff	0		up	Fig 6 | Internal-external cross validation of the ISARIC (Internationa
+guoDeepSeekR1IncentivizesReasoning2025	2	19	diff	1	0.81	up	Fig.1 | Accuracy and output length of DeepSeek-R1-Zero throughout the 
+guoDeepSeekR1IncentivizesReasoning2025	3	42	same	1	0.99	up	Fig. 2 | The multistage pipeline of DeepSeek-R1. A detailed background
+guoDeepSeekR1IncentivizesReasoning2025	9	184	diff	1	0.68	up	Extended Data Fig. 1| Evolution of reasoning-related linguistic featur
+guoDeepSeekR1IncentivizesReasoning2025	10	189	diff	1	0.85	up	Extended Data Fig. 2 | Illustration of the proposed GRPO for RL-based 
+jeongImprovingMedicalReasoning2024	2	18	same	1	1.0	up	Figure 1. Comparison between three frameworks: generation using langua
+jeongImprovingMedicalReasoning2024	4	44	same	1	1.0	up	Figure 2. Overview of our Self-BioRAG process: data construction, trai
+jeongImprovingMedicalReasoning2024	8	117	same	1	1.0	up	Figure 3. Ratio of retrieved evidences from each of the four biomedica
+jeongImprovingMedicalReasoning2024	9	144	same	1	1.0	up	Figure 4. Performance of LLaMA2, RAG, and Self-BioRAG on examples spli
+konukFrameworkAssessingJoint2024	2	14	same	1	1.0	up	Fig. 1. Different approaches to integrate AI in the diagnostic process
+konukFrameworkAssessingJoint2024	3	28	same	1	0.99	up	Fig. 2. Certainty estimates in joint human-AI systems. (a) AI and doct
+konukFrameworkAssessingJoint2024	6	76	same	1	1.0	up	Fig. 3. Joint coverage curves for assessing the performance of human-A
+konukFrameworkAssessingJoint2024	7	83	same	1	1.0	up	Fig. 4. Performance of humans, AI-standalone, and AI-first-reader join
+kraljevicForesightGenerativePretrained2024	3	53	same	1	0.99	up	Figure 1: The Foresight pipeline
+kraljevicForesightGenerativePretrained2024	4	66	same	1	0.95	up	Figure 2: An example of Foresight being used on a patient timeline to 
+kraljevicForesightGenerativePretrained2024	6	94	same	1	0.98	up	Figure 3: An example of a patient timeline with forecasted disorders
+kraljevicForesightGenerativePretrained2024	7	106	same	1	0.99	up	Figure 4: Generated synthetic timeline examples
+nathVILAM3EnhancingVisionLanguage2025	2	13	same	1	0.97	up	Figure 1. Left: Comparison of VILA-M3 with SOTA benchmarks such as Med
+nathVILAM3EnhancingVisionLanguage2025	4	41	same	1	0.98	up	Figure 2. VILA-M3 possesses the capability to support a diverse range 
+nathVILAM3EnhancingVisionLanguage2025	5	50	same	1	0.99	up	Figure 3. Feedback of segmentation results can improve the quality of 
+nathVILAM3EnhancingVisionLanguage2025	7	87	same	1	1.0	up	Figure 4. The heatmap shows the performance of the 8B model on all dat
+nathVILAM3EnhancingVisionLanguage2025	8	102	same	1	1.0	up	Figure 5. Comparison of VILA-M3 training with balanced and unbalanced 
+nathVILAM3EnhancingVisionLanguage2025	8	107	same	1	1.0	up	Figure 6. Comparison of training losses at different training steps fo
+odgaardCOREBEHRTCarefullyOptimized2024	3	25	same	1	1.0	up	Figure 1: This figure depicts the incremental optimization of the conf
+odgaardCOREBEHRTCarefullyOptimized2024	6	57	same	1	0.99	up	Figure 2: Overview of the iterative optimization procedure, highlighti
+odgaardCOREBEHRTCarefullyOptimized2024	25	271	diff	1	0.89	up	Figure 3: This figure illustrates the out-of-time fine-tuning and eval
+odgaardCOREBEHRTCarefullyOptimized2024	26	276	same	1	1.0	up	Figure 4: Selection pipeline for model selection and final evaluation
+odgaardCOREBEHRTCarefullyOptimized2024	28	287	same	1	1.0	up	Figure 5: Age distribution for positive patients in the cross-validati
+odgaardCOREBEHRTCarefullyOptimized2024	29	292	same	1	1.0	up	Figure 6: Ablation studies analyzing the effects of different masking 
+steyversBayesianModelingHuman2022	2	36	same	1	0.99	up	Fig. 1. Graphical model of the Bayesian combination model for hybrid H
+steyversBayesianModelingHuman2022	4	78	same	1	1.0	up	Fig. 2. Examples of human and machine classifier complementarity. (A) 
+steyversBayesianModelingHuman2022	4	85	same	1	1.0	up	Fig. 3. (Top) Accuracy results and (Bottom) posterior distributions ov
+steyversBayesianModelingHuman2022	5	96	same	1	1.0	up	Fig. 4. Observed and predicted complementarity as a function of human 
+steyversWhatLargeLanguage2025	2	20	same	1	1.0	up	Fig.1 | Overview of the evaluation methodology for assessing the calib
+steyversWhatLargeLanguage2025	4	48	same	1	0.99	up	Fig. 2 | Calibration error and discrimination for model confidence and
+steyversWhatLargeLanguage2025	5	75	same	1	1.0	up	Fig. 3 | Calibration diagrams for model confidence and human confidenc
+steyversWhatLargeLanguage2025	6	93	same	1	1.0	up	Fig. 4 | Mean human confidence across LLM explanation styles varying i
+steyversWhatLargeLanguage2025	12	254	both-none	0			Extended Data Fig. 1 | Example prompts for multiple choice and short-a
+steyversWhatLargeLanguage2025	13	261	diff	1	0.87	up	Extended Data Fig. 2 | Illustration of the behavioral experiment inter
+wangGeneAgentSelfverificationLanguage2025	2	23	same	1	0.99	up	Fig. 1 | Framework of GeneAgent for gene-set analysis. a, An overview 
+wangGeneAgentSelfverificationLanguage2025	5	82	same	1	1.0	up	Fig. 2) The biological process names generated by GeneAgent are more s
+wangGeneAgentSelfverificationLanguage2025	7	112	same	1	1.0	up	Fig. 3 GeneAgent mitigates hallucinations by autonomously accessing We
+wangGeneAgentSelfverificationLanguage2025	13	284	same	1	0.95	up	Extended Data Fig. 1 | The details of similarity scores distributed in
+wangGeneAgentSelfverificationLanguage2025	14	293	same	1	0.9	up	Extended Data Fig. 2 | Semantic similarity between the generated name 
+wangGeneAgentSelfverificationLanguage2025	15	302	same	1	0.98	up	Extended Data Fig. 3 | The example shown for the gene set named 'mmu05
+wangGeneAgentSelfverificationLanguage2025	16	310	diff	1	0.85	up	Extended Data Fig. 4 | Ablation experiments for the Self-verification 
+wangGeneAgentSelfverificationLanguage2025	17	320	same	1	0.97	up	Extended Data Fig. 5 | Comparison between GeneAgent and conventional G
+yaoReActSynergizingReasoning2023	2	13	same	1	1.0	up	Figure 1: (1) Comparison of 4 prompting methods, (a) Standard, (b) Cha
+yaoReActSynergizingReasoning2023	5	44	same	1	0.96	up	Figure 2: PaLM-540B prompting results with respect to number of CoT-SC
+yaoReActSynergizingReasoning2023	7	68	same	1	1.0	up	Figure 3: Scaling results for prompting and finetuning on HotPotQA wit
+yaoReActSynergizingReasoning2023	14	159	same	1	1.0	up	Figure 4: Another example HotpotQA question, where the original label 
+yaoReActSynergizingReasoning2023	15	166	same	1	0.99	up	Figure 5: A human-in-the-loop behavior correction example with ReAct i
+zhangEviCareEnhancingDiagnosis2026	2	32	same	1	1.0	up	Figure 1: Diagnosis Prediction Patterns Across Models. (a) LLMs tend t
+zhangEviCareEnhancingDiagnosis2026	4	74	same	1	0.99	up	Figure 2: The overall framework of our proposed EviCare, which consist
+zhangEviCareEnhancingDiagnosis2026	8	186	same	1	1.0	up	Figure 3: P@10 performance on novel and overall diagnosis prediction u
+zhangEviCareEnhancingDiagnosis2026	12	312	diff	1	0.83	up	Figure 4: P@10 performance on novel and overall diagnosis prediction u
+zhaoExpeLLLMAgents2024	2	19	same	1	0.96	up	Figure 1: ExpeL Agent Overview. Left: ExpeL operates in three stages: 
+zhaoExpeLLLMAgents2024	4	54	same	1	0.99	up	Figure 2: Insight Extraction Prompt Template. The prompt template Expe
+zhaoExpeLLLMAgents2024	5	60	same	1	0.97	up	Figure 3: Task Inference Prompt Template. We illustrate ExpeL's prompt
+zhaoExpeLLLMAgents2024	6	73	same	1	0.99	up	Figure 4: Transfer Learning Finetuning Prompt Template. The prompt tem
+zhaoExpeLLLMAgents2024	7	83	same	1	0.99	up	Figure 5: Main Results. Average task success rates (std. error in gray
+zhaoExpeLLLMAgents2024	9	115	diff	1	0.34	up	Figure 6: Effects of Experience on Performance. We highlight the corre

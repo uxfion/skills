@@ -58,3 +58,8 @@
 - 主要一类：把图里被 VL 标成正文或标题的文字框、文字标签并进合图，要找一个优雅的办法；
 - VL 把图认成表格（第 1、2 类）；
 - 有裁剪但不完整的图，检查报不出来。
+
+2026-10-12：做了可行性分析，见 [20261011-paddleocr-figures-still-incomplete-reference/README.md](20261011-paddleocr-figures-still-incomplete-reference/README.md)。
+- 以图注为锚的新算法单独替换现方案，在新论文上改好 5 张、改坏 3 张，不采用。
+- 推荐方案 G：现方案照旧出图，新算法当第二意见，两者不一致的图报告警，交给 agent 判断。
+- 等用户审定。
