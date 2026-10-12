@@ -30,6 +30,13 @@ this grouping existed is grouped from its pages rendered again ("regrouped": tru
 Markdown line is kept); "regroup" in its summary says why one was not (--photo pages cannot be
 rendered again: --force parses anew).
 
+The model reads a PDF's pages rendered at 144 dpi, and its crops come from those pages. Each crop
+from a PDF is cut again from its page rendered at --crop-dpi (default 300): the file and its
+name stay, as do the JSON boxes, in 144 dpi pixels; "crop_dpi" in the JSON's parser records it.
+A skipped document whose crops are at another resolution has them cut again ("recropped": true;
+"recrop" says why not), so --crop-dpi never parses anew. Image input and --photo pages keep the
+crops the pipeline cut.
+
 The VL model runs natively (one block at a time, about 10-15 s a page) or in a vLLM server
 (continuous batching, 0.5-1 s a page). --backend auto, the default, asks the vllm-serve skill
 (installed beside this one, or VLLM_SERVE = its serve.py) for the server whenever a run has
@@ -122,6 +129,9 @@ LOOP_DISTINCT = 0.30     # ... of which under this share are distinct is a loop 
 LINE_NUMBER_RUN = 10     # numbers counting up by one, one per line, in a column at the page edge: line numbers
 LINE_NUMBER_EDGE = 0.20  # share of the page width on either side where line numbers sit
 LINE_NUMBER_ALIGN = 12   # pixels the centres of one column of line numbers may stray
+CROP_DPI = 300           # crops from a PDF are cut at this resolution by default; the model reads its pages at 144 dpi
+CROP_DPI_RANGE = (72, 600)
+CROP_NAME = re.compile(r"p(\d+)_.*_box_(\d+)_(\d+)_(\d+)_(\d+)\.jpg")   # a crop that names its page and box
 FOREIGN = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]")  # CJK, kana, Hangul
 
 VL_PROFILE = "paddleocr-vl"   # the vllm-serve profile that serves the VL model
@@ -1036,6 +1046,58 @@ def page_image(doc: dict, page: int, size: tuple, pdf=None):
     return image
 
 
+def crop_boxes(imgdir: Path) -> dict:
+    """The crops in imgdir that name their box in page-image pixels, page -> [(path, box)]: PaddleOCR's (figures,
+    images inside tables, and some it saves unused) and the grouped figures'; a crop cut by hand names none."""
+    found = {}
+    for path in sorted(imgdir.glob("*.jpg")) if imgdir.exists() else []:
+        if m := CROP_NAME.fullmatch(path.name):
+            found.setdefault(int(m[1]), []).append((path, [int(v) for v in m.groups()[1:]]))
+    return found
+
+
+def pdf_pages(doc: dict, dpi: int):
+    """page -> that page of the PDF rendered at dpi (BGR), by PaddleX's renderer within its pixel budget."""
+    import pypdfium2 as pdfium
+    from paddlex.inference.utils.pdf_rendering import render_pdf_page_to_numpy
+    pdf = pdfium.PdfDocument(str(doc["path"]))
+    pdf.init_forms()
+    return lambda page: render_pdf_page_to_numpy(pdf[page - 1], page_index=page, requested_scale=dpi / 72)
+
+
+def recrop(doc: dict, sizes: dict, imgdir: Path, dpi: int) -> int:
+    """Cut the crops of a PDF that name their box again, from their pages rendered at dpi (sizes: page -> the
+    page-image size the boxes refer to); names, JSON and Markdown stay. Returns how many were cut."""
+    render, count = pdf_pages(doc, dpi), 0
+    for page, crops in crop_boxes(imgdir).items():
+        if page not in sizes:
+            continue
+        image = render(page)
+        h, w = image.shape[:2]
+        kx, ky = w / sizes[page][0], h / sizes[page][1]
+        for path, (x1, y1, x2, y2) in crops:
+            box = [min(w, round(x1 * kx)), min(h, round(y1 * ky)), min(w, round(x2 * kx)), min(h, round(y2 * ky))]
+            if box[2] > box[0] and box[3] > box[1]:
+                save_crop(image, box, path)
+                count += 1
+    return count
+
+
+def recuttable(doc: dict, options: dict) -> bool:
+    """Whether a parse's crops can be cut from its PDF: not for image input, nor for --photo pages, whose
+    boxes refer to page images turned and unwarped."""
+    return doc["kind"] == "pdf" and not options.get("photo")
+
+
+def store_recrop(json_path: Path, doc: dict, dpi: int) -> dict:
+    """Cut a stored parse's crops again at dpi and record that in its JSON."""
+    record = json.loads(json_path.read_text(encoding="utf-8"))
+    recrop(doc, {p["page"]: (p["width"], p["height"]) for p in record["pages"]}, json_path.parent / "imgs", dpi)
+    record["parser"]["crop_dpi"] = dpi
+    json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+    return record
+
+
 def group_figures(blocks: list[dict], markdown: str, sizes: dict, image_of, outdir: Path, charts: bool,
                   state: dict) -> tuple[list[dict], str, dict]:
     """Put the figures that several blocks make up back together, on each page with two or more figure blocks
@@ -1276,6 +1338,12 @@ def process(doc: dict, args, state: dict) -> dict:
                 summary["regrouped"] = True
             except Exception as e:  # noqa: BLE001 - the parse stays as it was
                 summary["regroup"] = f"figures not grouped: {type(e).__name__}: {e}"
+        if recuttable(doc, old["parser"].get("options", {})) and old["parser"].get("crop_dpi") != args.crop_dpi:
+            try:
+                old = store_recrop(json_path, doc, args.crop_dpi)
+                summary["recropped"] = True
+            except Exception as e:  # noqa: BLE001 - the crops stay as they were; the next run tries again
+                summary["recrop"] = f"crops not cut again: {type(e).__name__}: {e}"
         if old["parser"].get("check", 1) < CHECK:
             old = recheck(json_path, doc)
         if stale:
@@ -1323,6 +1391,13 @@ def process(doc: dict, args, state: dict) -> dict:
                                                   lambda page: images[doc["pages"].index(page)], outdir, args.charts, state)
     except Exception as e:  # noqa: BLE001 - keep the parse; a later run without --force groups it
         print(f"[paddleocr] {doc['stem']}: figures not grouped ({type(e).__name__}: {e})", file=sys.stderr, flush=True)
+    cut_at = None
+    if recuttable(doc, options_of(args)):
+        try:
+            recrop(doc, dict(zip(doc["pages"], sizes)), outdir / "imgs", args.crop_dpi)
+            cut_at = args.crop_dpi
+        except Exception as e:  # noqa: BLE001 - keep the pipeline's crops; a later run without --force cuts them
+            print(f"[paddleocr] {doc['stem']}: crops left at 144 dpi ({type(e).__name__}: {e})", file=sys.stderr, flush=True)
     pages_info, warnings = run_checks(doc, blocks, sizes)
 
     import paddleocr
@@ -1337,6 +1412,8 @@ def process(doc: dict, args, state: dict) -> dict:
     }
     if figures:
         record["parser"]["figures"] = figures
+    if cut_at:
+        record["parser"]["crop_dpi"] = cut_at
     json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
 
     counts = {}
@@ -1358,6 +1435,13 @@ def process(doc: dict, args, state: dict) -> dict:
     return summary
 
 
+def crop_dpi(value: str) -> int:
+    dpi = int(value)
+    if not CROP_DPI_RANGE[0] <= dpi <= CROP_DPI_RANGE[1]:
+        raise argparse.ArgumentTypeError(f"{dpi} is outside {CROP_DPI_RANGE[0]}-{CROP_DPI_RANGE[1]}")
+    return dpi
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("inputs", nargs="+", metavar="INPUT", help="PDF, image, or directory of page images")
@@ -1368,6 +1452,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--charts", action="store_true", help="turn charts into data tables (values are model-read; check them)")
     p.add_argument("--figure-text", action="store_true", help="OCR the text inside figures into the Markdown")
     p.add_argument("--photo", action="store_true", help="correct orientation and warping (photographed or skewed scans)")
+    p.add_argument("--crop-dpi", type=crop_dpi, default=CROP_DPI, metavar="DPI",
+                   help=f"resolution of the figure crops cut from a PDF, {CROP_DPI_RANGE[0]}-{CROP_DPI_RANGE[1]} "
+                        f"(default {CROP_DPI}); only the crop files change: the model still reads 144 dpi pages, "
+                        "and JSON boxes stay in those pixels")
     p.add_argument("--backend", choices=["auto", "vllm", "native"], default="auto",
                    help="VL model backend (default auto: the vllm-serve skill's server when it can provide one, "
                         "else native)")

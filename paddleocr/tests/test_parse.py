@@ -646,6 +646,74 @@ class Regroup(unittest.TestCase):
             P.save_crop, P.page_image = saved
 
 
+class Recrop(unittest.TestCase):
+    def setUp(self):
+        self.cut, self.saved = [], (P.save_crop, P.pdf_pages)
+        P.save_crop = lambda image, bbox, path: self.cut.append((path.name, bbox))
+        P.pdf_pages = lambda doc, dpi: lambda page: SimpleNamespace(shape=(round(11 * dpi), round(8.5 * dpi), 3))  # Letter
+
+    def tearDown(self):
+        P.save_crop, P.pdf_pages = self.saved
+
+    def test_only_crops_that_name_their_box(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("p03_img_in_image_box_10_20_110_220.jpg", "p12_figure_box_0_0_5_5.jpg", "p03_fig9_cut.png", "notes.jpg"):
+                (Path(d) / name).write_bytes(b"")
+            found = {page: [(path.name, box) for path, box in crops] for page, crops in P.crop_boxes(Path(d)).items()}
+        self.assertEqual(found, {3: [("p03_img_in_image_box_10_20_110_220.jpg", [10, 20, 110, 220])],
+                                 12: [("p12_figure_box_0_0_5_5.jpg", [0, 0, 5, 5])]})
+
+    def test_boxes_scale_with_the_rendered_page(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "p01_img_in_chart_box_100_200_1230_1584.jpg").write_bytes(b"")
+            self.assertEqual(P.recrop({"path": Path(d) / "x.pdf"}, {1: (1224, 1584)}, Path(d), 300), 1)
+        self.assertEqual(self.cut, [("p01_img_in_chart_box_100_200_1230_1584.jpg", [208, 417, 2550, 3300])])
+
+    def stored_parse(self, d, kind, options=None):
+        doc = {"input": "paper", "path": Path(d) / "paper.pdf", "kind": kind, "stem": "paper", "pages": [1],
+               "page_count": 1, "sha": "x", "fresh": True}
+        args = SimpleNamespace(output=d, crop_dpi=300)
+        _, md, js = P.out_paths(doc, args)
+        (js.parent / "imgs").mkdir(parents=True)
+        (js.parent / "imgs" / "p01_img_in_image_box_100_200_600_500.jpg").write_bytes(b"")
+        md.write_text("![](imgs/p01_img_in_image_box_100_200_600_500.jpg)\n")
+        js.write_text(json.dumps({"source": {}, "parser": {"format": P.FORMAT, "check": P.CHECK, "options": options or {},
+                                                           "figures": {"version": P.FIGURES, "layout_model": None}},
+                                  "pages": [{"page": 1, "coverage": None, "width": 1224, "height": 1584}],
+                                  "blocks": [], "warnings": []}))
+        return doc, args, md, js
+
+    def test_skipped_pdf_parse_is_cut_again_once_per_resolution(self):
+        with tempfile.TemporaryDirectory() as d:
+            doc, args, md, js = self.stored_parse(d, "pdf")
+            self.assertTrue(P.process(doc, args, {})["recropped"])
+            self.assertEqual(json.loads(js.read_text())["parser"]["crop_dpi"], 300)
+            self.assertNotIn("recropped", P.process(doc, args, {}))
+            args.crop_dpi = 600
+            self.assertTrue(P.process(doc, args, {})["recropped"])
+            self.assertEqual(md.read_text(), "![](imgs/p01_img_in_image_box_100_200_600_500.jpg)\n")
+        self.assertEqual([box for _, box in self.cut], [[208, 417, 1250, 1042], [417, 833, 2500, 2083]])
+
+    def test_image_input_and_photo_pages_keep_the_pipeline_crops(self):
+        for kind, options in (("images", {}), ("pdf", {"photo": True})):
+            with tempfile.TemporaryDirectory() as d:
+                doc, args, _, js = self.stored_parse(d, kind, options)
+                self.assertNotIn("recropped", P.process(doc, args, {}))
+                self.assertNotIn("crop_dpi", json.loads(js.read_text())["parser"])
+        self.assertEqual(self.cut, [])
+
+    def test_crop_dpi_range(self):
+        self.assertEqual(P.build_parser().parse_args(["x.pdf", "-o", "o"]).crop_dpi, 300)
+        self.assertEqual(P.build_parser().parse_args(["x.pdf", "-o", "o", "--crop-dpi", "600"]).crop_dpi, 600)
+        for bad in ("601", "71", "high"):
+            with self.assertRaises(SystemExit), open(os.devnull, "w") as null:
+                stderr, sys.stderr = sys.stderr, null
+                try:
+                    P.build_parser().parse_args(["x.pdf", "-o", "o", "--crop-dpi", bad])
+                finally:
+                    sys.stderr = stderr
+
+
 class StartUp(unittest.TestCase):
     def test_missing_tool_environment(self):
         env = dict(os.environ, PADDLEOCR_PYTHON="/no/such/python")
