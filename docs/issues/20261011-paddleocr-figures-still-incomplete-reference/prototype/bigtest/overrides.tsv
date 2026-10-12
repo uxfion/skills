@@ -1,0 +1,19 @@
+# id	tier	why (my own look; tier 1 = figure body missing/wrong or non-figure content inside; 2 = titles, labels, legends, subcaptions, slivers; 0 = fine)
+7u2vu	2	MINIM Fig5: per-panel sub-captions under curves outside; curves complete
+5zn6c	2	MINIM ED1: two-line prompt titles over top row outside
+d36nk	1	SDEdit Fig20: 4-line instruction text of the UI screenshot outside
+2yvgv	1	EHRAgent Fig8: Question text panel above the box outside
+ystvd	1	Snell Fig25: question text (3 lines) above the attempts box outside
+d676k	1	VILA-M3 Fig2: crop includes Table 1 (its own caption above)
+k9aut	2	brodeur: panel A heading lines outside
+st2dm	2	brodeur: panel A heading lines outside
+jbxdd	2	brodeur: panel A heading lines outside
+7mdxe	2	brodeur: panel A heading in caption box
+5gmmt	2	SDEdit: subcaptions (a)/(b) below panels
+af8rw	2	Snell: overall title + legend row
+r8whe	2	GeneAgent: two legend lines below
+6xn4d	2	new: title cut in half and last 'Analysis and prediction' label outside; content complete
+n2eyy	2	new: two-line title above the box
+pbsqt	2	new: column titles above the box
+hs3fh	2	new: two-line x-axis title below the box
+kfbdp	1	new: last 1.5 lines of the answer text panel outside (grader said small)

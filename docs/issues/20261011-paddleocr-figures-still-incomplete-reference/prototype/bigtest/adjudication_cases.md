@@ -1,0 +1,30 @@
+- c01: caption "Fig. 6 | Operationalizing trust through selective autonomy using"; warning: this figure is in 2 separate crops; second opinion's right edge is 2.7 text rows further out; the crop's bottom edge cuts through ink
+- c02: caption "Figure 7: CoT verbalization rates of reward hacks during RL. In 5 out "; warning: second opinion's bottom edge is 2.7 text rows further out
+- c03: caption "Figure 4: Overall RR, ER, and AIR with the dashed line representing th"; warning: second opinion's right edge is 1.1 text rows further out
+- c04: caption "Figure 7: An interface for data annotation in Section 4. Annotators we"; warning: second opinion's top edge is 30.1 text rows further out
+- c05: caption "Figure 10: Last Letter Task Description Variations"; warning: the crop seems to hold another figure's caption too
+- c06: caption "Figure 17: We found that the base model's performance drops when the t"; warning: second opinion's top edge is 2.3 text rows further out; second opinion's left edge is 5.0 text rows further out
+- c07: caption "Figure 2: An example market-based question from the human survey."; warning: second opinion's top edge is 31.6 text rows further out
+- c08: caption "Figure 16: Ablation Study on KL Loss and Rollout Number $ n $. For inc"; warning: second opinion's bottom edge is 2.5 text rows further out; second opinion's right edge is 1.4 text rows further out
+- c09: caption "Figure 1: General pipeline for KG-guided CoT data generation. Observed"; warning: second opinion's top edge is 2.1 text rows further out; the crop's bottom edge cuts through ink
+- c10: caption "Figure 6. Case study: Both agents (GPT-4.1 and Qwen-72B) are incorrect"; warning: second opinion's top edge is 1.6 text rows further out
+- c11: caption "Figure 4"; warning: second opinion's left edge is 1.6 text rows further out
+- c12: caption "Figure 34: Prompt template for bias analysis."; warning: second opinion's bottom edge is 1.2 text rows further out
+- c13: caption "Figure 1: Examples of hard-to-filter temporal leakage in search engine"; warning: second opinion's bottom edge is 12.0 text rows further out
+- c14: caption "Extended Data Fig.10 | Data curation - Consort Diagram. Overview of th"; warning: second opinion's top edge is 1.0 text rows further out; second opinion's left edge is 11.3 text rows further out; second opinion's right edge is 10.9 text rows further out
+- c15: caption "Fig.4 | Confidence-state interactions and diagnostic outcomes."; warning: this figure is in 3 separate crops
+- c16: caption "Figure 5: The UI for human evaluation on fact-consistency."; warning: second opinion's bottom edge is 2.5 text rows further out
+- c17: caption "Figure 4: Zero-shot Prompt from Halawi et al. (2024)"; warning: second opinion's top edge is 16.5 text rows further in; a table caption next to the crop has no table of its own
+- c18: caption "Figure 1: Overview of our retrieval and reasoning systems. Our retriev"; warning: second opinion's bottom edge is 4.7 text rows further out
+- c19: caption "Figure 3: Search results with date restriction showing an article with"; warning: second opinion's top edge is 3.9 text rows further out; second opinion's left edge is 5.8 text rows further out
+- c20: caption "Figure A7. Example of Correct GSM8K Debate."; warning: the crop's top edge cuts through ink
+- c21: caption "Extended Data Fig. 3 | MIRA Diagnostic Test selection compared with bo"; warning: second opinion's left edge is 2.6 text rows further out; second opinion's right edge is 2.6 text rows further out
+- c22: caption "Extended Data Fig. 6 | Bias analysis stratifying NYUTron's performance"; warning: second opinion's top edge is 1.4 text rows further in; second opinion's left edge is 2.0 text rows further in
+- c23: caption "Figure 19: Reasoning response prompt - Variation 1"; warning: the crop seems to hold another figure's caption too
+- c24: caption "Figure 18: Variation 3 for direct Answering format with only answer fi"; warning: the crop seems to hold another figure's caption too
+- c25: caption "Figure 13: Prompt used to rate the relevance of an article with respec"; warning: second opinion's top edge is 6.3 text rows further in
+- c26: caption "Figure 12: DDXPlus Task Description Variations"; warning: second opinion's bottom edge is 4.8 text rows further out; the crop seems to hold another figure's caption too
+- c27: caption "Figure 4: Online RL with different values of maximum interaction horiz"; warning: second opinion's bottom edge is 1.2 text rows further out
+- c28: caption "Figure 5: CoT faithfulness scores with outcome-based RL. Outcome-based"; warning: the crop's bottom edge cuts through ink
+- c29: caption "Extended Data Fig. 4 | Distribution of clinical LLM's accuracy in FRQ "; warning: the crop's bottom edge cuts through ink
+- c30: caption "Extended Data Fig. 8 | Procedure Match Precision. Forest plot of the p"; warning: second opinion's left edge is 16.9 text rows further out; second opinion's right edge is 16.2 text rows further out

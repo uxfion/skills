@@ -1,0 +1,1139 @@
+id	set	key	page	verdict	size	grader_tier	defined_tier	flags_G1+T+C	note	text
+aye5p	in	HZQECSA8	1	ok	-	0	0		-	Figure 1. Boosting the upper bound on achievable quality with less aggressive downsampling
+wcnha	in	HZQECSA8	2	ok	-	0	0		-	Figure 2. Illustrating perceptual and semantic compression: Most bits of a digital image c
+jdq3z	in	HZQECSA8	4	ok	-	0	0		-	Figure 3. We condition LDMs either via concatenation or by a more general cross-attention 
+m5a9b	in	HZQECSA8	5	ok	-	0	0		-	Figure 4. Samples from LDMs trained on CelebAHQ [38], FFHQ [40], LSUN-Churches [98], LSUN-
+gftg9	in	HZQECSA8	5	ok	-	0	0		-	Figure 5. Analyzing the training of class-conditional LDMs with different downsampling fac
+c6cqc	in	HZQECSA8	5	ok	-	0	0		-	Figure 6. Inference speed vs sample quality: Comparing LDMs with different amounts of comp
+24652	in	HZQECSA8	6	ok	-	0	0		-	Figure 7. Top: Samples from our LDM for layout-to-image synthesis on COCO [4]. Quantitativ
+h4jxe	in	HZQECSA8	7	ok	-	0	0		-	Figure 8. A LDM trained on $ 256^{2} $ resolution can generalize to larger resolution (her
+txq6d	in	HZQECSA8	7	ok	-	0	0		-	Figure 9. ImageNet 64→256 super-resolution on ImageNet-Val. LDM-SR has advantages at rende
+z4duv	in	HZQECSA8	8	ok	-	0	0		-	Figure 10. Qualitative results on object removal with our big, w/ft inpainting model. For 
+kj55f	in	KUFFN4BS	1	missing	small	2	2	cut	"top titles ""Stroke Painting to Image"", ""Stroke-based Editing"" cut by top edge"	Figure 1: Stochastic Differential Editing (SDEdit) is a unified image synthesis and editin
+h5ndx	in	KUFFN4BS	3	ok	-	0	0		-	Figure 2: Synthesizing images from strokes with SDEdit. The blue dots illustrate the editi
+5gmmt	in	KUFFN4BS	4	missing	large	1	2	edge	subcaptions (a)/(b) with panel letters below box excluded	Figure 3: Trade-off between faithfulness and realism for stroke-based generation on LSUN. 
+75vxe	in	KUFFN4BS	5	ok	-	0	0		-	Figure 4: SDEdit generates more realistic and faithful images than state-of-the-art GAN-ba
+zxkpx	in	KUFFN4BS	7	ok	-	0	0		-	Figure 5: SDEdit can generate realistic, faithful and diverse images for a given stroke in
+h4ems	in	KUFFN4BS	8	ok	-	0	0		-	Figure 6: Stroke-based image editing with SDEdit on LSUN bedroom, CelebA-HQ, and LSUN chur
+ehzpu	in	KUFFN4BS	9	ok	-	0	0		-	Figure 7: SDEdit is able to achieve realistic while more faithful editing results compared
+xbwt2	in	KUFFN4BS	16	ok	-	0	0		-	Figure 8: Analysis on the quality of user guide for stoke-based image synthesis. We observ
+wk5gc	in	KUFFN4BS	16	ok	-	0	0		-	Figure 9: Analysis on the quality of user guide for stoke-based image synthesis. We observ
+cnhnc	in	KUFFN4BS	17	ok	-	0	0		-	Figure 10: Flexible image editing on closing eyes with SDEdit.
+mswwd	in	KUFFN4BS	17	ok	-	0	0		-	Figure 11: Flexible image editing on mouth with SDEdit.
+qmuam	in	KUFFN4BS	18	ok	-	0	0		-	Figure 12: Extra analysis on $ t_{0} $. As $ t_{0} $ increases, the generated images becom
+25zsh	in	KUFFN4BS	18	ok	-	0	0		-	Figure 13: Comparison with SC-FEGAN (Jo & Park, 2019) on stroke-based image synthesis and 
+xmmhj	in	KUFFN4BS	18	ok	-	0	0		-	Figure 14: Stroke-based editing for SC-FEGAN (Jo & Park, 2019) using both stroke and extra
+uu28c	in	KUFFN4BS	19	ok	-	0	0		-	Figure 15: Comparison with Song et al. (2021) on stroke-based image synthesis and editing.
+bgek6	in	KUFFN4BS	24	ok	-	0	0		-	Figure 16: Post-processing samples from GANs by masking out undesired changes, yet the art
+js8rp	in	KUFFN4BS	25	ok	-	0	0		-	Figure 17: The instruction shown to MTurk workers for pairwise comparison.
+9uvsn	in	KUFFN4BS	25	ok	-	0	0		-	Figure 18: The UI shown to MTurk workers for pairwise comparison.
+ct5fc	in	KUFFN4BS	25	ok	-	0	0		-	Figure 19: The instruction shown to MTurk workers for pairwise comparison.
+d36nk	in	KUFFN4BS	26	missing	large	1	1	edge	four-line UI instruction text above the images outside box	Figure 20: The UI shown to MTurk workers for pairwise comparison.
+4pmfs	in	KUFFN4BS	27	ok	-	0	0		-	Figure 21: Stroke-based image generation on bedroom images with SDEdit (VP) pretrained on 
+pjcsz	in	KUFFN4BS	28	ok	-	0	0		-	Figure 22: Stroke-based image editing on bedroom images with SDEdit (VP) pretrained on LSU
+7szfg	in	KUFFN4BS	28	ok	-	0	0		-	Figure 23: Stroke-based image editing. (a) Given an image, users will first modify the ima
+9ah8s	in	KUFFN4BS	29	ok	-	0	0		-	Figure 24: Stroke-based image editing on CelebA-HQ images with SDEdit. SDEdit generates im
+exscy	in	KUFFN4BS	29	ok	-	0	0		-	Figure 25: Image compositing on CelebA-HQ images with SDEdit. We edit the images to have b
+6m8jq	in	KUFFN4BS	30	ok	-	0	0		-	Figure 26: Image compositing on CelebA-HQ images with SDEdit. We edit the images to wear g
+76jep	in	KUFFN4BS	30	ok	-	0	0		-	Figure 27: Image compositing on CelebA-HQ images with SDEdit. We edit the images to have b
+k9fbw	in	KUFFN4BS	31	ok	-	0	0		-	Figure 28: Image compositing results with SDEdit (VE) on CelebA-HQ (resolution $ 1024 \tim
+qktp9	in	KUFFN4BS	31	ok	-	0	0		-	Figure 29: Stroke-based image editing results with SDEdit (VE) on CelebA-HQ (resolution $ 
+ft5vz	in	KUFFN4BS	31	ok	-	0	0		-	Figure 30: Stroke-based image generation with simulated stroke paintings inputs on bedroom
+89se9	in	KUFFN4BS	32	ok	-	0	0		-	Figure 31: Stroke-based image generation with simulated stroke paintings inputs on church 
+kb8pd	in	KUFFN4BS	32	ok	-	0	0		-	Figure 32: Stroke-based image generation with simulated stroke paintings inputs on human f
+5erjt	in	KUFFN4BS	32	ok	-	0	0		-	Figure 33: Trade-off between faithfulness and realism shown with stroke-based image genera
+e7mga	in	KUFFN4BS	33	ok	-	0	0		-	Figure 34: Class-conditional image generation from stroke paintings with different class l
+rpa9k	in	KUFFN4BS	33	ok	-	0	0		-	Figure 35: Stroke-based image generation with stroke inputs on cat and horse images with S
+89kuf	in	P42UUUJK	2	ok	-	0	0	edge	-	Fig. 1 | Schematic illustration of our generative system for medical image synthesis. a, M
+3ubet	in	P42UUUJK	3	ok	-	0	0	edge	-	Fig. 2 | Evaluations of generated synthetic images. a, Clinicians conducted three rounds o
+gp4hf	in	P42UUUJK	4	ok	-	0	0	edge	-	Fig. 3 | Self-improvement evaluations. a, Six subjective results of the synthetic images u
+wq55q	in	P42UUUJK	5	ok	-	0	0		-	Fig. 4 | Synthetic images serve as data augmentation. a, Performance comparison by incorpo
+7u2vu	in	P42UUUJK	6	missing	large	1	2	edge	per-panel description text under the five survival curves outside box	Fig. 5 | AI-based mutation prediction performance and its effect on 5-year survival rates 
+at9ck	in	P42UUUJK	7	ok	-	0	0		-	Fig. 6 | A two-stage RL strategy using human ratings. The first stage involves the generat
+5zn6c	in	P42UUUJK	14	missing	large	1	2	edge	two-line prompt titles above the top image row lie outside	Extended Data Fig.1 | Text-conditioned synthesis of medical images. Samples were created b
+7ngqt	in	P42UUUJK	15	ok	-	0	0	edge	-	Extended Data Fig. 2 | AI-based EGFR mutation prediction and its effect on progression-fre
+pxugg	in	P42UUUJK	16	ok	-	0	0	edge	-	Extended Data Fig. 3 | AI-based EGFR mutation prediction and its effect on objective respo
+mmxxy	in	P42UUUJK	17	missing	small	2	2	cut	"top title ""Accuracy boost after including synthetic OCT images"" cut by top edge"	Extended Data Fig. 4 | Synthetic images assist in ophthalmological diagnostic. For diagnos
+62ez3	in	P42UUUJK	18	missing	large	1	1	edge,cut	right edge cuts through panel b; most of b's text boxes outside	Extended Data Fig. 5 | A typical case of common diseases and report generation. a, Example
+xbs98	in	P42UUUJK	19	missing	small	2	2		bottom border of last flowchart box cut by bottom edge	Extended Data Fig. 6 | Breast MRI dataset and analysis flowchart. Breast MR images were sp
+jdyt6	in	QSK9XI7V	2	ok	-	0	0		-	Fig. 1: Evidence that S-compression alters the estimated CNR
+7usav	in	QSK9XI7V	3	ok	-	0	0		-	Fig. 2: Illustration of two probability density functions $ p_i(x) $ and $ p_o(x) $, and t
+xmfcs	in	QSK9XI7V	5	ok	-	0	0		-	Fig. 3: B-mode images beamformed with DAS of 10 of the in silico datasets used in this stu
+w5df8	in	QSK9XI7V	6	ok	-	0	0		-	Fig. 4: The two regions of interest I (inside red circle) and O (inside blue square) for t
+rmuep	in	QSK9XI7V	7	ok	-	0	0		-	Fig. 5: The estimated probability density function for the signal envelope of DAS for $ SN
+qmkfn	in	QSK9XI7V	7	ok	-	0	0		-	Fig. 6: In silico validation of expressions (25), (26), and (35).
+z65v8	in	QSK9XI7V	9	ok	-	0	0	cut	-	Fig. 7: Comparison of the performance of C, CNR, and gCNR in silico.
+kxt2d	in	QSK9XI7V	10	ok	-	0	0	cut	-	Fig. 8: Comparison of the performance of C, CNR, and gCNR in vitro.
+zahuc	in	QSK9XI7V	11	none	-	1	1	uncropped	no red box on the page	Fig. 9: Comparison of the performance of C, CNR, and gCNR in vivo.
+ekmdm	in	QSK9XI7V	14	ok	-	0	0		-	Fig. 10: In silico validation of Eqs. (39) and (49).
+x8wwy	in	XDY5YZWQ	4	ok	-	0	0		-	Fig.1: a) The figure illustrates transitions from source $x_{0}$ (blue) to target $x_{1}$ 
+vqjna	in	XDY5YZWQ	6	ok	-	0	0		-	Fig. 2: Comparison of echocardiographic and brain MRI synthesis using DDPM and MOTFM, with
+375x2	in	XDY5YZWQ	8	missing	small	2	2		x-axis label 'Pixel Intensity' cut by bottom edge	Fig.3: KDE Plot of Pixel Intensity Distributions for Generated and Real Echo Images.
+4xt8s	in	XDY5YZWQ	9	ok	-	0	0		-	Fig. 4: Denoising Example: From a Noisy Image to a Denoised Image in 10 Steps
+td56h	in	ZYP68IN4	2	ok	-	0	0		-	Fig. 1. Introduction of ultrasound images collected from different devices. We collected t
+asd39	in	ZYP68IN4	4	missing	small	2	2	edge	'Step 1' title line cut by top edge; last letter of 'subject' cut	Fig. 2. Training-tree image style alignment (IISA) for ultrasound image analysis on handhe
+5zvga	in	ZYP68IN4	6	ok	-	0	0	edge	-	Fig. 3. Comparison of domain adaptation methods for vertebral structure detection on handh
+xscu7	in	ZYP68IN4	7	ok	-	0	0		-	Fig. 4. Visual comparison on detection results of 3D ultrasound scan.
+nh7gh	in	ZYP68IN4	7	ok	-	0	0		-	Fig. 5. Visualization of ultrasound manual, ultrasound automatic, and radiographic manual 
+gqj75	in	ZYP68IN4	7	ok	-	0	0		-	Fig. 6. Assessment of TISA in spinal curvature (a&b) and CMIT (c) measurements on clinical
+2drtz	in	ZYP68IN4	8	ok	-	0	0		-	Fig. 7. Performance of TISA in carotid intima-media segmentation using handheld device dat
+fw627	in	ZYP68IN4	8	ok	-	0	0		-	Fig. 8. The quantitative comparisons with spine detection and carotid segmentation under v
+wza3j	in	bansalDoesWholeExceed2021	2	ok	-	0	0		-	Figure 1: (Best viewed in color) Do AI explanations lead to complementary team performance
+m6mnm	in	bansalDoesWholeExceed2021	6	ok	-	0	0		-	Figure 2: A screenshot of the Team (Adaptive, Expert) condition for the Amzbook reviews da
+w2kb3	in	bansalDoesWholeExceed2021	6	ok	-	0	0		-	Figure 3: A screenshot of Team (Adaptive, Expert) for LSAT. Similar to Figure 2, the inter
+d3rbz	in	bansalDoesWholeExceed2021	8	ok	-	0	0		-	Figure 4: Team performance (with average accuracy and 95% confidence interval) achieved by
+x2jjx	in	bansalDoesWholeExceed2021	9	ok	-	0	0		-	Figure 5: Relative agreement rates between humans and AI (i.e., does the final human decis
+6upst	in	bansalDoesWholeExceed2021	9	ok	-	0	0		-	Figure 6: The distribution of study examples as a function of average human accuracy. For 
+fgjfz	in	bansalDoesWholeExceed2021	10	ok	-	0	0		-	"Figure 7: Analysis of participant responses to two statements: (A) ""AI's assistance (e.g.,"
+59htp	in	bansalDoesWholeExceed2021	12	ok	-	0	0		-	Figure 8: Instead of ignoring or strictly following the AI, participants reported taking t
+qbjck	in	bansalDoesWholeExceed2021	12	ok	-	0	0		-	Figure 9: Comparing the occurrence of Used Conf. in just the confidence condition and in t
+trq29	in	brodeurPerformanceLargeLanguage2026	11	ok	-	0	0		-	Figure 1. Performance of Differential Diagnosis Generators and LLMs on NEJM Clinicopatholo
+hemsm	in	brodeurPerformanceLargeLanguage2026	11	ok	-	0	0		caption-like figure title above box not needed	Figure 1: Barplot showing the accuracy of including the correct diagnosis in the different
+k9aut	in	brodeurPerformanceLargeLanguage2026	12	missing	large	1	2		two-line panel A title above box excluded	Figure 2. Quality of o1-preview and GPT-4 Differential Diagnosis on NEJM Clinicopathologic
+st2dm	in	brodeurPerformanceLargeLanguage2026	12	missing	large	1	2		two-line panel A title above box excluded	Figure 2: A. Comparison of o1-preview with a previous evaluation of GPT-4 in providing the
+zqp6x	in	brodeurPerformanceLargeLanguage2026	13	ok	-	0	0		-	Figure 3. Quality of o1-preview Diagnostic Test Selection on NEJM Clinicopathologic Case C
+n9mbs	in	brodeurPerformanceLargeLanguage2026	13	ok	-	0	0		bold 'Figure 3.' title above box is caption-like, left outside	Figure 3: Performance of o1-preview in predicting the next diagnostic tests that should be
+v68hz	in	brodeurPerformanceLargeLanguage2026	14	ok	-	0	0		panel A heading sits in the blue caption box; panel B heading inside	Figure 4: Comparison of o1-preview, GPT-4 and Physicians for Clinical Diagnostic Reasoning
+rw2f3	in	brodeurPerformanceLargeLanguage2026	14	missing	small	2	2		panel A heading above box excluded	Figure 4: A. Distribution of 312 R-IDEA scores stratified by respondents on 20 NEJM Healer
+7mdxe	in	brodeurPerformanceLargeLanguage2026	15	missing	large	1	2		panel A heading (two lines) outside red box, inside blue caption box	Figure 5: Comparison of o1-preview, GPT-4 and Physicians for Management and Diagnostic Rea
+jbxdd	in	brodeurPerformanceLargeLanguage2026	15	missing	large	1	2		panel A two-line title above box excluded	Figure 5: A. Box plot of normalized management reasoning points by LLMs and physicians. Fi
+3eaw4	in	brodeurPerformanceLargeLanguage2026	16	missing	small	2	2		bottom edge cuts through legend row; blue box is figure title line	Figure 6: Probabilistic Reasoning Before and After Testing by o1-preview
+egbfk	in	brodeurPerformanceLargeLanguage2026	16	missing	small	2	2	cut	bottom legend (o1-preview, GPT-4, Human, True range) cut by bottom edge	Figure 6: Density plots for the distribution of responses by o1-preview, GPT-4 and humans 
+82t2f	in	brodeurPerformanceLargeLanguage2026	17	ok	-	0	0		-	Figure 7: Blinded Assessment of AI and Human Expert Second Opinions on Real Emergency Room
+wxdmh	in	brodeurPerformanceLargeLanguage2026	17	ok	-	0	0		"caption-style title ""Figure 7: Blinded Assessment..."" above box excluded"	Figure 7: Barplot comparing two internal medicine attending physicians, o1, and GPT-4o dia
+efz5a	in	chenEnhancingDiagnosticCapability2025	2	missing	small	2	2		bottom borders of the two lowest flowchart boxes fall on the bottom edge	Fig. 1 | Process of disease selection and testing. The researchers first identified the ra
+m6ykr	in	chenEnhancingDiagnosticCapability2025	3	ok	-	0	0		beige background slightly beyond edges; all content inside	Fig. 2 | The multi-agent conversation (MAC) framework. The admin agent provides the patien
+bkuh9	in	chenEnhancingDiagnosticCapability2025	4	none	-	1	1	edge,cut	box covers only admin-agent strip; most of panels a and b outside	Fig. 3 | Clinical case curation. a Primary consultation represents the initial information
+c2dra	in	chenEnhancingDiagnosticCapability2025	5	ok	-	0	0		-	Fig. 4 | Performance on generating disease-specific knowledge. a Inappropriate and incorre
+smr9j	in	chenEnhancingDiagnosticCapability2025	7	ok	-	0	0		right title truncated in source; nothing outside box	Fig. 5 | Diagnostic performance in primary consultation. a Accuracy of the most likely dia
+nqy4k	in	chenEnhancingDiagnosticCapability2025	7	missing	small	2	2	edge	title line 'Accuracy/Human Evaluation for Follow-up Consultation' above box	Fig. 6 | Diagnostic performance in follow-up consultation. a Accuracy of the most likely d
+6667v	in	chenEnhancingDiagnosticCapability2025	8	ok	-	0	0		-	Fig. 7 | Influence of base model and number of doctor agents on multi-agent conversation (
+xpbvb	in	chenEnhancingDiagnosticCapability2025	9	ok	-	0	0		-	Fig. 8 | Influence of output token on performance across each method. a Effect of output t
+2ym4s	in	gaddSurvivEHRCompetingRisks2026	4	ok	-	0	0	cut	Past/Present axis labels touch bottom red edge	Fig. 1 | SurvivEHR. A Schematic overview of the SurvivEHR model architecture and implement
+7hbfm	in	gaddSurvivEHRCompetingRisks2026	5	ok	-	0	0	edge	-	Fig. 2 | Overview of OPTIMAL cohort data preparation and content. A Data is extracted from
+vey3k	in	gaddSurvivEHRCompetingRisks2026	6	ok	-	0	0		-	Fig. 3 | Regional shift of OPTIMAL cohort data. Index of multiple deprivation (IMD) and et
+47qt8	in	gaddSurvivEHRCompetingRisks2026	7	ok	-	0	0	edge,cut	x-axis label of panel A touches bottom edge	Fig. 4 | Evaluation of SurvivEHR on the pre-training dataset. A Each row gives the inter-e
+d9wrj	in	gaddSurvivEHRCompetingRisks2026	8	missing	small	2	2	edge,cut	colour bar title under panel C cut by bottom edge	Fig. 5 | Forecasting known clinical associations. Given unseen patient histories from the 
+hhybf	in	gaddSurvivEHRCompetingRisks2026	9	split	large	1	1	split,edge	plots in two boxes; patient history, headers, risk labels outside all boxes	Fig. 6 | Illustrating SurvivEHR predictive behaviour. We constructed a hypothetical patien
+w24px	in	gaddSurvivEHRCompetingRisks2026	10	ok	-	0	0		-	Fig. 7 | Calibration of SurvivEHR predictions across clinical outcomes and time horizons. 
+2e5rd	in	gaddSurvivEHRCompetingRisks2026	12	ok	-	0	0		-	Fig. 8 | Fine-tuning prediction performance evaluation. A Fine-tuned models for retrospect
+vjy7j	in	guptaVisualProgrammingCompositional2023	1	ok	-	0	0		-	Figure 1. VISPROG is a modular and interpretable neuro-symbolic system for compositional v
+9vsw2	in	guptaVisualProgrammingCompositional2023	2	ok	-	0	0		-	Figure 2. Modules currently supported in VISPROG. Red modules use neural models (OWL-ViT [
+quvn3	in	guptaVisualProgrammingCompositional2023	4	ok	-	0	0		Bottom code box border touches bottom edge	Figure 3. Program generation in VISPROG.
+5wcqv	in	guptaVisualProgrammingCompositional2023	5	ok	-	0	0		-	Figure 4. Visual rationales generated by VISPROG. These rationales visually summarize the 
+mcexz	in	guptaVisualProgrammingCompositional2023	5	ok	-	0	0		-	Figure 5. We evaluate VISPROG on a diverse set of tasks. The tasks span a variety of input
+q99sn	in	guptaVisualProgrammingCompositional2023	7	ok	-	0	0		-	Figure 6. Performance improves with number of in-context examples on GQA and NLVRV2 valida
+nvh4e	in	guptaVisualProgrammingCompositional2023	8	ok	-	0	0		-	Figure 7. Qualitative results for image editing (top) and knowledge tagging tasks (bottom)
+sfxce	in	guptaVisualProgrammingCompositional2023	8	ok	-	0	0		-	Figure 8. Instruction tuning using visual rationales. By revealing the reason for failures
+n5mny	in	guptaVisualProgrammingCompositional2023	8	ok	-	0	0		-	Figure 9. Sources of error in VISPROG.
+pugp2	in	hagerEvaluationMitigationLimitations2024	3	ok	-	0	0		-	Fig. 1 | Overview of dataset creation and evaluation framework. a, To properly evaluate LL
+dmutd	in	hagerEvaluationMitigationLimitations2024	4	ok	-	0	0		-	Fig. 2 | LLMs diagnose significantly worse than doctors when provided with all information
+bhujp	in	hagerEvaluationMitigationLimitations2024	5	ok	-	0	0		-	Fig. 3 | Diagnostic accuracy of LLMs decreased in an autonomous clinical decision-making s
+y8d4q	in	hagerEvaluationMitigationLimitations2024	6	missing	small	2	2	cut	(n = 257) under Future colonoscopy cut by bottom edge	Fig. 4 | LLMs do not consistently recommend essential and patient-specific treatment. Expe
+dmrp6	in	hagerEvaluationMitigationLimitations2024	7	ok	-	0	0		-	Fig. 5 | LLMs are sensitive to the quantity of information provided. We compared the perfo
+knvbs	in	hagerEvaluationMitigationLimitations2024	7	ok	-	0	0		-	Fig. 6 | LLMs are sensitive to the order of information. By changing the order in which di
+nrtc8	in	hagerEvaluationMitigationLimitations2024	16	ok	-	0	0		-	Extended Data Fig. 1 | Model performance on the MIMIC-CDM-FI dataset. LLMs perform best on
+4vzt9	in	hagerEvaluationMitigationLimitations2024	17	ok	-	0	0		-	Extended Data Fig. 2 | LLMs fail to consistently ask for a physical examination. The diagn
+8rf42	in	hagerEvaluationMitigationLimitations2024	18	ok	-	0	0		-	Extended Data Fig. 3 | LLMs often do not order the necessary laboratory tests required to 
+g5rqw	in	hagerEvaluationMitigationLimitations2024	19	ok	-	0	0		-	Extended Data Fig. 4 | LLMs are incapable of interpreting lab results. To test the ability
+bzh92	in	hagerEvaluationMitigationLimitations2024	20	missing	small	2	2	cut	"x-axis title ""Pathology"" cut by bottom edge"	Extended Data Fig. 5 | The first imaging modality requested by the LLMs and the doctors in
+rhy8x	in	hagerEvaluationMitigationLimitations2024	21	ok	-	0	0		-	Extended Data Fig. 6 | LLMs struggle to follow instructions. During the autonomous clinica
+ggh74	in	hagerEvaluationMitigationLimitations2024	22	ok	-	0	0		-	Extended Data Fig. 7 | Small changes in instruction phrasing changes diagnostic accuracy. 
+smdk5	in	hagerEvaluationMitigationLimitations2024	23	ok	-	0	0	cut	x-axis title just touches bottom edge	Extended Data Fig. 8 | Filtering for only abnormal results generally improves LLM performa
+y6dre	in	hanEvaluationGPT410year2024	5	ok	-	0	0		-	Figure 1. Example of a GPT prompt and response
+94ph3	in	hanEvaluationGPT410year2024	6	ok	-	0	0		-	Figure 2. Performance evaluation and comparison of the risk scoring methods in the UK Biob
+xzjfy	in	hanEvaluationGPT410year2024	7	ok	-	0	0		-	Figure 3. Kaplan-Meier curves stratified by risk categories in the UK Biobank cohort
+c5syj	in	hollmannAccuratePredictionsSmall2025	2	extra	small	2	2	cut	"lower part of page header ""Article"" and header rule inside top edge"	Fig. 1 Overview of the proposed method. a, The high-level overview of TabPFN pre-training 
+wfnae	in	hollmannAccuratePredictionsSmall2025	3	ok	-	0	0		-	Fig. 2 | Overview of the TabPFN prior. a, For each dataset, we first sample high-level hyp
+qw7e9	in	hollmannAccuratePredictionsSmall2025	4	ok	-	0	0	cut	-	Fig. 3 | The behaviour of TabPFN and a set of baselines on simple functions. In all plots,
+ctqf9	in	hollmannAccuratePredictionsSmall2025	5	ok	-	0	0		-	Fig. 4 | Comparison of TabPFN on our test benchmarks, containing datasets with up to 10,00
+gqgxq	in	hollmannAccuratePredictionsSmall2025	6	ok	-	0	0		hairline of page header rule at top edge	Fig. 5 | Robustness across datasets and performance comparison with tuned ensembles. a, A 
+buv4t	in	hollmannAccuratePredictionsSmall2025	7	ok	-	0	0		-	Fig. 6 | Showcase of the application of TabPFN as tabular foundation model. a,b, On the Ge
+aukzv	in	hollmannAccuratePredictionsSmall2025	14	missing	small	2	2	edge	top letter of rotated y-axis label cut by top edge	Extended Data Fig. 1 | Performance comparison across additional dataset characteristics, e
+wgrhn	in	hollmannAccuratePredictionsSmall2025	15	missing	small	2	2		panel letters a, b, c lie outside the box	Extended Data Fig. 2 | Performance comparisons of TabPFN and baselines on additional bench
+2ze57	in	hollmannAccuratePredictionsSmall2025	16	ok	-	0	0		-	Extended Data Fig. 3 | Comparing SHAP (SHapley Additive exPlanations) summary plots betwee
+3cad9	in	hollmannAccuratePredictionsSmall2025	17	missing	small	2	2	edge	panel letters a and b cut by top edge	Extended Data Fig. 4 | Finetuning TabPFN on 2-dimensional sine curve datasets. (a) Example
+h4zwn	in	jinAgentMDEmpoweringLanguage2025	2	missing	large	1	1	edge	panel a top flow row (Medical Literature to RiskCalcs, label a) outside box	Fig. 1 | Overview of AgentMD tool curation and using. a An example clinical calculator in 
+c7fh2	in	jinAgentMDEmpoweringLanguage2025	4	ok	-	0	0		-	Fig. 2 | Quality and coverage analysis of RiskCalcs. a Evaluation results of the top 50 mo
+2r2ru	in	jinAgentMDEmpoweringLanguage2025	5	ok	-	0	0		-	Fig. 3 | Evaluations of AgentMD on RiskQA. a Example of a question in RiskQA and how Agent
+jtpp2	in	jinAgentMDEmpoweringLanguage2025	6	ok	-	0	0		-	Fig. 4 | Individual-level evaluation results on the emergency department provider notes. a
+exxmw	in	jinAgentMDEmpoweringLanguage2025	7	ok	-	0	0		-	Fig. 5 | Applying AgentMD on the MIMIC-III cohort. a AgentMD is applied to 9822 admission 
+kkgp7	in	kadavathLanguageModelsMostly2022	3	missing	small	2	2	cut	right panel title cut by top edge	Figure 1 (left) We show the overall ability of a 52B language model to evaluate its own pr
+zknjw	in	kadavathLanguageModelsMostly2022	4	ok	-	0	0		-	Figure 2 Left: We train a P(IK) classifier to predict whether or not a model knows the ans
+tmdmw	in	kadavathLanguageModelsMostly2022	6	missing	small	2	2		colour bar '0' tick label cut by bottom edge	Figure 3 Examples of P(IK) scores from a 52B model. Token sequences that ask harder questi
+3ywb3	in	kadavathLanguageModelsMostly2022	7	missing	small	2	2	cut	"right panel title ""BIG Bench Calibration Trends"" cut by top edge"	Figure 4 (left) We show calibration curves for various model sizes on all of the multiple 
+zgf8d	in	kadavathLanguageModelsMostly2022	8	ok	-	0	0		-	Figure 5 (left) We show expected calibration error versus normalized accuracy for all BIG 
+h75pf	in	kadavathLanguageModelsMostly2022	9	ok	-	0	0		-	Figure 6 We show calibration curves for various model sizes on MMLU, TruthfulQA, QuALITY, 
+htzpa	in	kadavathLanguageModelsMostly2022	9	ok	-	0	0		-	Figure 7 (left) We show accuracy on MMLU in the standard format, and after replacing optio
+byzm7	in	kadavathLanguageModelsMostly2022	10	ok	-	0	0		-	Figure 8 We show calibration curves for various model sizes on all of the multiple choice 
+erq5p	in	kadavathLanguageModelsMostly2022	11	ok	-	0	0		-	Figure 9 We show calibration curves for RLHF policies finetuned from our language models. 
+xch54	in	kadavathLanguageModelsMostly2022	12	missing	small	2	2	edge	"right edge cuts end of right panel title ""(20-Shot)"""	Figure 10 Models self-evaluate their own samples by producing a probability P(True) that t
+j4rzc	in	kadavathLanguageModelsMostly2022	13	ok	-	0	0		-	Figure 11 Here we show results only for Lambada and Codex, as these are fairly representat
+k7qys	in	kadavathLanguageModelsMostly2022	15	ok	-	0	0		-	Figure 12 Testing a 52B classifier on a held-out set of TriviaQA questions. We see that th
+n9w43	in	kadavathLanguageModelsMostly2022	15	ok	-	0	0		-	Figure 13 Left: Full calibration plot of P(IK) classifiers on TriviaQA over a range of mod
+77sts	in	kadavathLanguageModelsMostly2022	16	ok	-	0	0		-	Figure 14 Model size trend of AUROC with P(IK), when training on only TriviaQA. We general
+xqtae	in	kadavathLanguageModelsMostly2022	16	ok	-	0	0		-	Figure 15 Calibration on GSM8k when training on only TriviaQA vs training on TriviaQA, LAM
+kjda5	in	kadavathLanguageModelsMostly2022	17	ok	-	0	0		-	Figure 16 Generalization of P(IK). We trained P(IK) classifiers on just TriviaQA and on Tr
+gdss3	in	kadavathLanguageModelsMostly2022	18	ok	-	0	0		-	Figure 17 Left: P(IK) scores on GSM8k when training on only TriviaQA. Right: P(IK) scores 
+bgk7a	in	kadavathLanguageModelsMostly2022	19	missing	small	2	2		"right plot title end ""P(IK)"" cut by right edge"	Figure 18 Effect of including Wikipedia article on P(IK) for TriviaQA Questions. We see th
+pe5wz	in	kadavathLanguageModelsMostly2022	20	ok	-	0	0		-	Figure 19 Effect of hints on P(IK) applied to GSM8k – all of these results represent gener
+a3gnf	in	kadavathLanguageModelsMostly2022	21	missing	small	2	2	edge,cut	plot title cut through by top edge	Figure 20 Scatterplot that disambiguates numbers in Table 2. We evaluate 2 distinct 12B mo
+y7chy	in	kadavathLanguageModelsMostly2022	24	ok	-	0	0	cut	x-axis label just touches bottom edge	Figure 21 Here we show trends in the RMS calibration error on BIG Bench, for both multiple
+pzt7p	in	kadavathLanguageModelsMostly2022	28	ok	-	0	0		-	Figure 22 Using the model's loss on the T = 0 sample to differentiate between problems it 
+4uhk2	in	kadavathLanguageModelsMostly2022	28	ok	-	0	0		-	Figure 23 Model size trends of the AUROC, when using the loss of the T = 0 sample to predi
+wgmu6	in	kadavathLanguageModelsMostly2022	29	ok	-	0	0		-	Figure 24 Entropy of samples from the 52B model on TriviaQA and HumanEval. On the left, we
+gmpa3	in	kadavathLanguageModelsMostly2022	30	ok	-	0	0		-	Figure 25 Model size vs. AUROC trends for several evals using the entropy of the answer di
+3xbv4	in	kadavathLanguageModelsMostly2022	30	missing	small	2	2	edge	right panel title end '(52B Model)' cut by right edge	Figure 26 Token Loss of stuffed answers can sometimes provide signal as to whether the mod
+2tz2c	in	kadavathLanguageModelsMostly2022	31	missing	small	2	2	cut	"x-axis title ""Number of Parameters"" cut by bottom edge"	Figure 27 Model size vs. AUROC trends for several evals. ....
+j5ync	in	kadavathLanguageModelsMostly2022	32	ok	-	0	0		-	Figure 28 Models self-evaluate their own samples by producing a probability P(True) that t
+hz7ea	in	kadavathLanguageModelsMostly2022	33	ok	-	0	0		-	Figure 29 We show the base accuracy of our models on various sampling tasks, and then the 
+phv4y	in	kadavathLanguageModelsMostly2022	34	ok	-	0	0		-	Figure 30 Here we show the Brier scores for model self-evaluation with three methods. Note
+x6vwc	in	kadavathLanguageModelsMostly2022	35	ok	-	0	0		-	Figure 31 We show the AUROC scores for P(True) with several different methods – a fixed pr
+n6e2u	in	kadavathLanguageModelsMostly2022	36	ok	-	0	0		-	Figure 32 We show the calibration curves when models self-evaluate the likelihood that the
+a7d53	in	kadavathLanguageModelsMostly2022	37	ok	-	0	0		-	Figure 33 We show AUROCs for P(True) from cross-evaluation experiments where we generate s
+xrsh2	in	kadavathLanguageModelsMostly2022	38	ok	-	0	0		-	Figure 34 We show that when we ask models to self-evaluate their own samples as True or Fa
+dyh68	in	kadavathLanguageModelsMostly2022	38	ok	-	0	0		-	Figure 35 We show calibration curves for a subset of tasks that have both a large number o
+y7pnz	in	kadavathLanguageModelsMostly2022	39	ok	-	0	0		-	Figure 36 (left) We show calibration curves for MMLU when we replace option (D) with 'none
+dv7cx	in	kadavathLanguageModelsMostly2022	39	ok	-	0	0		-	Figure 37 (left) We show accuracies on the specific multiple choice tasks we evaluate, MML
+heca6	in	kadavathLanguageModelsMostly2022	40	ok	-	0	0		-	Figure 38 Models self-evaluate their samples by producing a probability P(True) that the s
+3h465	in	kadavathLanguageModelsMostly2022	40	ok	-	0	0		-	Figure 39 Left and Middle: Generalization of P(IK), trained on TriviaQA, to Arithmetic. Ri
+gzzzy	in	kadavathLanguageModelsMostly2022	41	ok	-	0	0		-	Figure 40 Left and Middle: Generalization of P(IK), trained on TriviaQA, to Python Functio
+hv2v4	in	kadavathLanguageModelsMostly2022	41	ok	-	0	0		-	Figure 41 Left and Middle: Generalization of P(IK), trained on TriviaQA, to LAMBADA. Right
+b82fb	in	kimMDAgentsAdaptiveCollaboration2024	2	ok	-	0	0		-	Figure 1: Medical Decision-Making Agents (MDAgents) framework. Given a medical query from 
+q2k6e	in	kimMDAgentsAdaptiveCollaboration2024	4	ok	-	0	0		-	Figure 2: Illustrative example of MDAgents in a moderate complexity case from the PMC-VQA 
+pga5p	in	kimMDAgentsAdaptiveCollaboration2024	7	ok	-	0	0		-	Figure 3: Experiment with the MedQA dataset (N=25 randomly sampled questions). (a) LLM's c
+md624	in	kimMDAgentsAdaptiveCollaboration2024	8	ok	-	0	0		-	Figure 4: Our method outperforms Solo and Group settings across different medical benchmar
+2mp4q	in	kimMDAgentsAdaptiveCollaboration2024	9	ok	-	0	0		-	Figure 5: Impact of complexity selection of the query. Accuracy of each ablation on text-o
+qvwb8	in	kimMDAgentsAdaptiveCollaboration2024	10	ok	-	0	0		-	Figure 6: Impact of the number of agents on (a) Accuracy, (b) Number of API Calls on medic
+kf66t	in	kimMDAgentsAdaptiveCollaboration2024	10	ok	-	0	0		-	Figure 7: An illustration of consensus entropy in group collaboration process of MDAgents 
+y57pq	in	kimMDAgentsAdaptiveCollaboration2024	28	ok	-	0	0		-	Figure 8: Complexity Distribution for each dataset classified by GPT-4(V) and Gemini-Pro (
+a2ns3	in	kimMDAgentsAdaptiveCollaboration2024	29	ok	-	0	0		-	Figure 9: Top-3 most recruited medical experts in each benchmark. The alignment between th
+5hpve	in	kimMDAgentsAdaptiveCollaboration2024	29	ok	-	0	0		-	Figure 10: Simplified agent structure examples assigned during the expert recruitment proc
+csemk	in	kimMDAgentsAdaptiveCollaboration2024	33	ok	-	0	0		extra white margin at top	Figure 11: Illustration of our proposed framework in moderate complexity setting. Given a 
+tdknw	in	kimMDAgentsAdaptiveCollaboration2024	34	missing	small	2	2		'Moderator' label cut by right edge	Figure 12: Illustration of our proposed framework in high complexity setting. Given a medi
+h98ra	in	kimMDAgentsAdaptiveCollaboration2024	35	ok	-	0	0		-	Figure 13: Annotation interface used for medical complexity assessment. The latest version
+k2fvw	in	liAgentHospitalSimulacrum2024	2	ok	-	0	0		-	Figure 1. An overview of Agent Hospital. Agent Hospital is a simulacrum of hospital in whi
+xrzf9	in	liAgentHospitalSimulacrum2024	4	ok	-	0	0		right label touches red edge	Figure 2. Agent Hospital simulates the whole closed cycle of treating illness. In this exa
+w2hhw	in	liAgentHospitalSimulacrum2024	5	ok	-	0	0		-	Figure 3. Automatic generation of patient agents. During the closed cycle of treating illn
+7ufc6	in	liAgentHospitalSimulacrum2024	6	missing	small	2	2	edge,cut	bottom edge cuts signature line and frame bottom; right frame edge clipped	Figure 4. An example illustrating how a doctor agent diagnoses a patient agent. Patient ag
+mwzf5	in	liAgentHospitalSimulacrum2024	8	ok	-	0	0	edge,cut	-	Figure 5. Evaluations in the virtual and real worlds. a, Diagnostic accuracy improvements 
+3vuf2	in	liAgentHospitalSimulacrum2024	16	extra	large	1	1	edge	five lines of body text above the COVID-19 box included	Figure 6. Part of preprocessed medical knowledge about the COVID-19.
+92abf	in	liAgentHospitalSimulacrum2024	19	ok	-	0	0		-	Figure 7. Diagnostic accuracy improvements after doctor evolution on rest clinical departm
+rxe2h	in	liAgentHospitalSimulacrum2024	20	ok	-	0	0		-	Figure 8. Accumulation of validated experiences during the evolution of doctor agents in e
+frd5n	in	liAgentHospitalSimulacrum2024	20	ok	-	0	0		-	Figure 9. The cumulative and segment accuracy of examination and diagnosis tasks in the Ca
+esjug	in	liAgentHospitalSimulacrum2024	23	ok	-	0	0		-	Figure 10. Comparison of CoT, Medprompt, and MedAgent-Zero across 8 clinical and non-clini
+hq8eb	in	liAgentHospitalSimulacrum2024	23	ok	-	0	0		-	Figure 11. Hyperparameter analysis of top-k experiences and medical cases. During the adju
+sddw6	in	liAgentHospitalSimulacrum2024	24	ok	-	0	0		-	Figure 12. Ablation studies of MedAgent-Zero on the MedQA dataset. MedAgent-Zero (Hybrid) 
+masdn	in	liAgentHospitalSimulacrum2024	25	ok	-	0	0		-	Figure 13. The content of the two MedQA questions, and the bolder choice is the correct an
+bckjc	in	liAgentHospitalSimulacrum2024	26	ok	-	0	0		-	Figure 14. Reasoning details of MedAgent-Zero in answering question 73. The retrieved medi
+hapz6	in	liAgentHospitalSimulacrum2024	27	ok	-	0	0		-	Figure 15. Reasoning details of MedAgents in answering question 73. The red-highlighted te
+a8dnx	in	liAgentHospitalSimulacrum2024	27	ok	-	0	0		-	Figure 16. Reasoning details of MedPrompt in answering question 73. The red-highlighted te
+uhfza	in	liAgentHospitalSimulacrum2024	28	ok	-	0	0		-	Figure 17. Reasoning details of MedAgent-Zero in answering question 340. The retrieved med
+db3xy	in	liAgentHospitalSimulacrum2024	29	ok	-	0	0		-	Figure 18. Reasoning details of the CoT model in answering question 340. The red-highlight
+pzump	in	liAgentHospitalSimulacrum2024	29	ok	-	0	0		-	Figure 19. Reasoning details of MedPrompt in answering question 340. The red-highlighted t
+m9nx3	in	liuLostMiddleHow2024	2	ok	-	0	0		title end touches right red edge	Figure 1: Changing the location of relevant information (in this case, the position of the
+df52p	in	liuLostMiddleHow2024	4	ok	-	0	0		-	Figure 2: Example of the multi-document question answering task, with an input context and
+r8yhy	in	liuLostMiddleHow2024	4	ok	-	0	0		-	Figure 3: Modulating the position of relevant information within the input context for the
+kptfd	in	liuLostMiddleHow2024	4	ok	-	0	0		-	Figure 4: Modulating the input context length of the multi-document question answering exa
+sr8em	in	liuLostMiddleHow2024	5	ok	-	0	0		-	Figure 5: The effect of changing the position of relevant information (document containing
+736ad	in	liuLostMiddleHow2024	6	none	-	1	1	uncropped	no red box on the key-value example figure	Figure 6: Example of the key-value retrieval task, with an input context and the desired m
+tyeyk	in	liuLostMiddleHow2024	7	ok	-	0	0		-	Figure 7: The effect of changing the input context length and the position of relevant inf
+4vcfu	in	liuLostMiddleHow2024	8	ok	-	0	0		-	Figure 8: When encoder-decoder models (Flan-UL2 and Flan-T5-XXL) evaluated on sequences th
+5zynx	in	liuLostMiddleHow2024	9	ok	-	0	0		-	Figure 9: Query-aware contextualization (placing the query before and after the documents)
+6mrm4	in	liuLostMiddleHow2024	9	ok	-	0	0		-	Figure 10: Multi-document QA performance of MPT-30B-Instruct compared against its base mod
+n54k3	in	liuLostMiddleHow2024	10	ok	-	0	0		-	Figure 11: Retriever recall and model performance as a function of the number of retrieved
+vxcny	in	liuLostMiddleHow2024	15	ok	-	0	0		-	Figure 12: Language model performance on a unambiguous subset of questions.
+64qxz	in	liuLostMiddleHow2024	15	ok	-	0	0		-	Figure 13: Language model performance on multi-document QA when using random distractors, 
+8z6zj	in	liuLostMiddleHow2024	16	ok	-	0	0		-	Figure 14: Language model performance when randomizing the order of the distractors (rathe
+92ugh	in	liuLostMiddleHow2024	16	ok	-	0	0		-	Figure 15: Although GPT-4 has higher absolute performance than other models, its performan
+48smq	in	liuLostMiddleHow2024	16	ok	-	0	0		-	Figure 16: Multi-document QA performance (20 total documents) of Llama-2 models of varying
+vcbms	in	manakulSelfCheckGPTZeroResourceBlackBox2023	1	ok	-	0	0		-	Figure 1: SelfCheckGPT with Prompt. Each LLM-generated sentence is compared against stocha
+57xwq	in	manakulSelfCheckGPTZeroResourceBlackBox2023	2	ok	-	0	0		-	Figure 2: Example of OpenAI's GPT-3 web interface with output token-level probabilities di
+mau7q	in	manakulSelfCheckGPTZeroResourceBlackBox2023	6	ok	-	0	0		-	Figure 3: Flowchart of our annotation process
+ypagy	in	manakulSelfCheckGPTZeroResourceBlackBox2023	6	ok	-	0	0		-	Figure 4: Document factuality scores histogram plot
+ss4st	in	manakulSelfCheckGPTZeroResourceBlackBox2023	7	ok	-	0	0		-	Figure 5: PR-Curve of detecting non-factual and factual sentences in the GPT-3 generated W
+h2yur	in	manakulSelfCheckGPTZeroResourceBlackBox2023	8	ok	-	0	0		-	Figure 6: Scatter plot of passage-level scores where Y-axis = Method scores, X-axis = Huma
+kddq6	in	manakulSelfCheckGPTZeroResourceBlackBox2023	9	ok	-	0	0		-	Figure 7: The performance of SelfCheckGPT methods on ranking passages (Spearman's) versus 
+4fedx	in	manakulSelfCheckGPTZeroResourceBlackBox2023	13	ok	-	0	0		-	Figure 8: The performance of SelfCheckGPT methods on sentence-level non-factual detection 
+vufrt	in	manakulSelfCheckGPTZeroResourceBlackBox2023	13	ok	-	0	0		-	Figure 9: Passage-level ranking performance of the Avg($\mathcal{H}$) method using proxy L
+m6xnz	in	manakulSelfCheckGPTZeroResourceBlackBox2023	14	ok	-	0	0		-	Figure 10: Scatter plot of passage-level scores where Y-axis = Method scores, X-axis = Hum
+z4b37	in	redekopZeroshotMedicalEvent2025	3	ok	-	0	0		-	Figure 1. (A) Representation of individual's EHR as a sequence of visits with demographics
+wv5zv	in	redekopZeroshotMedicalEvent2025	4	none	-	1	1	edge	red box covers only one of twelve panels	Figure 2. Zero-shot evaluation results of the GPT model for 12 specific diagnostic conditi
+jxzjb	in	redekopZeroshotMedicalEvent2025	5	missing	small	2	2	edge	"Right edge cuts end of ""Musculoskeletal System Disorders"" label"	Figure 3. Zero-shot evaluation results of the GPT model for 14 higher-level categories at 
+3hnqc	in	redekopZeroshotMedicalEvent2025	6	ok	-	0	0	cut	-	Figure 4. The 10 most frequent codes with the highest attention scores for 4 out of 12 spe
+bmbxa	in	redekopZeroshotMedicalEvent2025	8	ok	-	0	0		-	Figure 5. UMAP of features learned by the GPT model for each code from 14 higher-level cat
+qjsbu	in	rencFoundationModelElectronic2025	3	split	large	1	1	split,cut	panels 1-2 and 3-4 in separate boxes; panel 3/4 headings cut	Figure 1: Workflow of the Adaptable Risk Estimation Score (ARES) Framework. This figure il
+k8838	in	rencFoundationModelElectronic2025	4	ok	-	0	0		-	Figure 2: Timeline of a patient's hospital stay and hypothetical risk predictions by ARES.
+q3qrd	in	rencFoundationModelElectronic2025	4	ok	-	0	0		-	Figure 3: Predictive results for the ED benchmark tasks. Fewer methods appear in the ED re
+j558b	in	rencFoundationModelElectronic2025	5	ok	-	0	0		-	Figure 4: ares Risk Trajectories. This figure illustrates risk trajectories for nearly 1,0
+5ywvt	in	rencFoundationModelElectronic2025	6	ok	-	0	0		-	Figure 5: AUC comparison between ETHOS and MEDS-Tab across demographic subgroups and predi
+bwbwk	in	rencFoundationModelElectronic2025	8	nofig	-	0	0	uncropped	caption in Additional Files list; figure not on page	Supplementary Fig. S1. Model architecture and hyperparameter overview. (Left) The architec
+5z8tq	in	rencFoundationModelElectronic2025	8	nofig	-	0	0	uncropped	supplementary figure caption; figure not on this page	Supplementary Fig. S2. ROC curves for ETHOS across all prediction tasks. ROC curves and co
+9cccp	in	rencFoundationModelElectronic2025	9	nofig	-	0	0	uncropped	caption-only page; no figure on this page	Supplementary Fig. S3. AUPRC curves for ETHOS across all prediction tasks. Precision-recal
+ddb98	in	rencFoundationModelElectronic2025	9	nofig	-	0	0	uncropped	caption in a list of supplementary captions; figure not on page	Supplementary Fig. S4. Calibration curves for ETHOS predictions across clinical outcomes w
+kf9gg	in	shiEHRAgentCodeEmpowers2024	1	ok	-	0	0		-	Figure 1: Simple and efficient interactions between clinicians and EHR systems with the as
+2zkgq	in	shiEHRAgentCodeEmpowers2024	2	ok	-	0	0		Subfigure labels inside box	Figure 2: Compared to general domain tasks (blue) such as WikiSQL (Zhong et al., 2017) and
+gnupv	in	shiEHRAgentCodeEmpowers2024	3	ok	-	0	0		-	Figure 3: Overview of our proposed LLM agent, EHRAgent, for complex few-shot tabular reaso
+kgp62	in	shiEHRAgentCodeEmpowers2024	7	ok	-	0	0		-	Figure 4: Success rate and completion rate under different question complexity, measured b
+psdks	in	shiEHRAgentCodeEmpowers2024	7	ok	-	0	0		-	Figure 5: Success rate and completion rate under different numbers of demonstrations.
+p3kwm	in	shiEHRAgentCodeEmpowers2024	8	ok	-	0	0		-	Figure 6: Percentage of mistake examples in different categories on MIMIC-III dataset.
+j59xw	in	shiEHRAgentCodeEmpowers2024	8	ok	-	0	0		-	Figure 7: Case study of EHRAgent harnessing LLMs in a multi-turn conversation with a code 
+2yvgv	in	shiEHRAgentCodeEmpowers2024	21	missing	large	1	1	edge	Question text panel above EHRAgent knowledge box outside red box	Figure 8: Case study of medical information injection in EHRAgent on MIMIC-III dataset. Gi
+gavgv	in	shiEHRAgentCodeEmpowers2024	23	ok	-	0	0		-	Figure 9: Case study of long-term memory in EHRAgent on MIMIC-III dataset. From the origin
+ny4c9	in	shiEHRAgentCodeEmpowers2024	23	missing	small	2	2	cut	top 'Question:' line cut in half by top edge	Figure 10: Case study 1 of code interface in EHRAgent on MIMIC-III dataset. The baseline a
+4xmxt	in	shiEHRAgentCodeEmpowers2024	24	ok	-	0	0		-	Figure 11: Case study 2 of code interface in EHRAgent on MIMIC-III dataset. When encounter
+35w72	in	shiEHRAgentCodeEmpowers2024	24	ok	-	0	0		-	Figure 12: Comparative case study of the interactive coding process between AutoGen (left)
+k7pa6	in	shiEHRAgentCodeEmpowers2024	25	ok	-	0	0		-	Figure 13: A complete version of case study in Figure 7 showcasing interactive coding with
+cvcsa	in	shiEHRAgentCodeEmpowers2024	25	missing	small	2	2		question line at top cut by top edge	Figure 14: Case study of the complete workflow in EHRAgent. With EHR metadata and tool def
+bt99s	in	shmatkoLearningNaturalHistory2025	3	ok	-	0	0	cut	top edge includes sliver of page header	Fig. 1 | Delphi, a modified GPT architecture, models health trajectories. a, Schematic of 
+386g6	in	shmatkoLearningNaturalHistory2025	4	ok	-	0	0		Top legend touches top edge	Fig. 2 | Delphi-2M accurately models the rates of a wide range of diseases. a, The predict
+ed5e3	in	shmatkoLearningNaturalHistory2025	5	ok	-	0	0	edge	-	Fig. 3 | Generative modelling with Delphi-2M informs future outcomes. a, Schematic of the 
+gxbwm	in	shmatkoLearningNaturalHistory2025	6	ok	-	0	0		-	Fig. 4 | Explainable AI offers insights into disease progression. a, UMAP projection of to
+8bnav	in	shmatkoLearningNaturalHistory2025	7	ok	-	0	0		-	Fig. 5 | Epidemiological biases in UK Biobank data reflected by Delphi-2M. a, Comparison b
+kkh74	in	shmatkoLearningNaturalHistory2025	15	ok	-	0	0		top edge touches page header rule; wide white margin	Extended Data Fig. 1 | Effect of the “no event” padding token. a, Boxplots (n = 3 model re
+esyuj	in	shmatkoLearningNaturalHistory2025	16	missing	small	2	2	edge	"right edge clips ""Delphi-2M"" legend in bottom-right panel"	Extended Data Fig. 2 | Parameter screen. a, Validation cross-entropy (rightmost axis) for 
+7q895	in	shmatkoLearningNaturalHistory2025	17	ok	-	0	0		legend label 75-80yrs touches right red edge	Extended Data Fig. 3 | Calibration of Delphi-2M's instantaneous predictions. a. Shown are 
+ytxtw	in	shmatkoLearningNaturalHistory2025	18	missing	small	2	2		"panel letter ""a"" above box excluded"	Extended Data Fig. 4 | Assessment of Delphi-2M in relation to other baseline models and st
+kywrp	in	shmatkoLearningNaturalHistory2025	19	ok	-	0	0		hairline of header rule at top	Extended Data Fig. 5 | Integrating Delphi-2M predictions with other data types. Results of
+qkm6h	in	shmatkoLearningNaturalHistory2025	21	nofig	-	0	0		caption only; figure not on this page	Extended Data Fig. 6 | Assessment of simulated health trajectories. All simulations are fr
+qgrg9	in	shmatkoLearningNaturalHistory2025	22	ok	-	0	0		-	Extended Data Fig. 7 | Comparison of SHAP values and Cox proportional hazards coefficients
+4qarz	in	shmatkoLearningNaturalHistory2025	23	ok	-	0	0	edge	-	Extended Data Fig. 8 | Relation of token embedding space and SHAP effects. a. Disease embe
+4tunc	in	shmatkoLearningNaturalHistory2025	25	nofig	-	0	0		no figure content visible on page; only caption	Extended Data Fig. 9 | Token source-related biases. Non-random missingness may cause biase
+nuepu	in	shmatkoLearningNaturalHistory2025	26	ok	-	0	0		-	Extended Data Fig. 10 | Effects of ethnicity and deprivation. a, Modelled rate per year se
+t4ze8	in	smitShouldWeBe2024	3	ok	-	0	0		-	Figure 1. Benchmark of experiment configurations on MedQA dataset. Left: Accuracy vs avera
+d95v2	in	smitShouldWeBe2024	5	ok	-	0	0		-	Figure 2. Boxplots illustrating the distribution of total accuracy across different datase
+5c4vq	in	smitShouldWeBe2024	6	ok	-	0	0		-	Figure 3. Comparing medical vs non-medical datasets. The red line indicates the average pe
+xyp63	in	smitShouldWeBe2024	6	ok	-	0	0		-	Figure 4. Relative accuracy improvements, averaged on all datasets, between the answer of 
+rjx5v	in	smitShouldWeBe2024	7	ok	-	0	0		-	Figure 5. Left: Multi-Persona's accuracy according to the agreement fixed by the prompt. R
+zvru4	in	smitShouldWeBe2024	7	ok	-	0	0		-	Figure 6. Left: Accuracy on USMLE as we increase agreement intensity in our prompt. Right:
+zbzzv	in	smitShouldWeBe2024	8	ok	-	0	0		-	Figure 7. Debating Behavior of MAD Strategies. The first plot compares the top runs for ea
+n6s4r	in	smitShouldWeBe2024	8	ok	-	0	0		-	Figure 8. Benchmark of experiment configurations of GPT-4 on MedQA dataset. Left: Accuracy
+kehvt	in	smitShouldWeBe2024	9	ok	-	0	0		-	Figure 9. Benchmark of experiment configurations of Mixtral 8x7B on MedQA dataset. Left: A
+uz9u5	in	smitShouldWeBe2024	12	ok	-	0	0		subcaptions (a)-(d) inside box	Figure 10. MedQA experimental results.
+x6xvm	in	smitShouldWeBe2024	13	ok	-	0	0		-	Figure 11. PubMedQA experimental results.
+cwcey	in	smitShouldWeBe2024	13	ok	-	0	0		-	Figure 12. MMLU experimental results.
+gabb7	in	smitShouldWeBe2024	14	ok	-	0	0		-	Figure 13. CosmosQA experimental results.
+9pjzb	in	smitShouldWeBe2024	14	ok	-	0	0		subpanel captions inside box	Figure 14. CIAR experimental results.
+85kvq	in	smitShouldWeBe2024	15	ok	-	0	0		-	Figure 15. GPQA experimental results.
+gfpt3	in	smitShouldWeBe2024	15	ok	-	0	0		-	Figure 16. Chess experimental results.
+dzfgu	in	snellScalingLLMTestTime2025	2	ok	-	0	0		-	Figure 1: Summary of results. Left: Compute-optimal scaling for revisions and search. We c
+xwbbt	in	snellScalingLLMTestTime2025	5	ok	-	0	0		-	Figure 2: Comparing different PRM search methods. Left: Best-of-N samples N full answers a
+evuth	in	snellScalingLLMTestTime2025	6	ok	-	0	0		-	Figure 3: Left: Comparing different methods for conducting search against PRM verifiers. W
+yuqe5	in	snellScalingLLMTestTime2025	6	nofig	-	0	0	uncropped	"body sentence starting ""Figure 2."", not a caption"	Figure 2. We note that for all search algorithms, we use the same PRM verifier, enabling a
+6n3bb	in	snellScalingLLMTestTime2025	7	missing	small	2	2	cut	plot title 'Compute Optimal Search' cut by top edge	Figure 4: Comparing compute-optimal test-time scaling against baselines with PRM search. B
+7z5m3	in	snellScalingLLMTestTime2025	8	ok	-	0	0		-	Figure 5: Parallel sampling (e.g., Best-of-N) versus sequential revisions. Left: Parallel 
+kaj3r	in	snellScalingLLMTestTime2025	8	ok	-	0	0		-	Figure 6: Compute-optimal scaling with our revision model. By optimally scaling test-time 
+nphnk	in	snellScalingLLMTestTime2025	9	ok	-	0	0		-	Figure 7: Left: Varying the ratio of the generation budget allocated sequential revisions 
+af8rw	in	snellScalingLLMTestTime2025	10	missing	large	1	2	edge,cut	Overall title cut by top edge; shared legend row below box missing	Figure 8: The tradeoff between pretraining and test-time compute in a FLOPs-matched evalua
+nwf6q	in	snellScalingLLMTestTime2025	18	ok	-	0	0		-	Figure 9: Left: Our revision model's pass@1 at each revision step. Pass@1 gradually improv
+auds7	in	snellScalingLLMTestTime2025	19	ok	-	0	0		-	Figure 10: Varying the ratio of generation budget allocated to sequential versus parallel 
+w3nmk	in	snellScalingLLMTestTime2025	19	ok	-	0	0		-	Figure 11: Using our PaLM 2-S* PRM to compute difficulty bins without ground truth correct
+nm5ta	in	snellScalingLLMTestTime2025	20	ok	-	0	0		-	Figure 12: Using our PaLM 2-S* PRM to compute difficulty bins without ground truth correct
+dqq8a	in	snellScalingLLMTestTime2025	21	missing	small	2	2	cut	"top edge cuts through plot title ""Best of N Versus Best of N Weighted"""	Figure 13: We compare best-of-N and best-of-N weighted for our ORM and PRM verifiers finet
+xn6ru	in	snellScalingLLMTestTime2025	22	ok	-	0	0		-	Figure 14: We compare different methods of aggregating per-step PRM scores to produce a fi
+jkkhx	in	snellScalingLLMTestTime2025	22	ok	-	0	0		-	Figure 15: We compare PRM and ORM models finetuned from PaLM 2-S* in a best-of-N evaluatio
+ht3xe	in	snellScalingLLMTestTime2025	23	ok	-	0	0		-	Figure 16: Comparing beam search and best-of-N binned by difficulty level with PaLM 2-S (l
+xvu5q	in	snellScalingLLMTestTime2025	24	ok	-	0	0		-	Figure 17: We extend the analysis in Section 7 by comparing the test-time scaling of weake
+n6sa6	in	snellScalingLLMTestTime2025	26	ok	-	0	0		-	Figure 18: Left: we compare the ORM we trained on the revision model's outputs against the
+ng32z	in	snellScalingLLMTestTime2025	27	ok	-	0	0	edge	-	Figure 19: Performance of our ReST $ ^{EM} $ optimized revision model as the sequential to
+jwqyb	in	snellScalingLLMTestTime2025	28	none	-	1	1	uncropped	no red box on page; text-example figure uncropped	Figure 20: Revision model example 1. The model calculates the sum at the end incorrectly o
+x3zt3	in	snellScalingLLMTestTime2025	29	none	-	1	1	uncropped	text figure (three attempts) has no red box	Figure 21: Revision model example 2. On the first attempt the model takes the incorrect ap
+pgagb	in	snellScalingLLMTestTime2025	30	ok	-	0	0		-	Figure 22: Revision model example 3. On the first attempt the model makes a mistake with t
+2fyya	in	snellScalingLLMTestTime2025	31	none	-	1	1	uncropped	no red box around the example text figure	Figure 23: Revision model example 4. On the first few attempts the model fails the base 10
+s9pfn	in	snellScalingLLMTestTime2025	32	none	-	1	1	uncropped	Text-example figure has no red box	Figure 24: Revision model example 5. On the first two attempts the model makes an error wh
+ystvd	in	snellScalingLLMTestTime2025	33	missing	large	1	1	edge	bold question text (3 lines) above box excluded	Figure 25: Revision model example 6. On the first two attempts the model makes a mistake w
+k9292	in	snellScalingLLMTestTime2025	34	none	-	1	1	uncropped	Text-example figure above caption has no box; red box is Figure 27	Figure 26: Revision model example 7. On the first attempt the model evaluates $ \frac{1}{3
+wst43	in	snellScalingLLMTestTime2025	34	ok	-	0	0		-	Figure 27: PRM beam search example 1.
+r4fk8	in	snellScalingLLMTestTime2025	35	ok	-	0	0		extra white margin above the example text	Figure 28: PRM beam search example 2.
+6unyc	in	snellScalingLLMTestTime2025	35	none	-	1	1	uncropped	no red box around the example text figure	Figure 29: PRM beam search example 3.
+4muvc	in	snellScalingLLMTestTime2025	35	ok	-	0	0		-	Figure 30: PRM beam search example 4.
+q5wm9	in	snellScalingLLMTestTime2025	35	ok	-	0	0		-	Figure 31: PRM beam search example 5.
+23qu6	in	snellScalingLLMTestTime2025	35	ok	-	0	0		-	Figure 32: PRM beam search example 6.
+ubmhx	in	suAPIEnoughConformal2024	2	ok	-	0	0		-	Figure 1: Illustrations of the proposed problem and solution. Three uncertainty notions fo
+z7san	in	suAPIEnoughConformal2024	4	ok	-	0	0		subcaptions (a)/(b) inside box	Figure 2: Empirical findings with TriviaQA dataset.
+fxbvt	in	suAPIEnoughConformal2024	7	ok	-	0	0		-	Figure 3: Ablation study. The blue bar chart represents APSS, while the gray line represen
+4djkj	in	suAPIEnoughConformal2024	7	ok	-	0	0		-	Figure 4: Results on MMLU for MCQ task, with the error rate of 0.2. Our method and baselin
+bbcw2	in	suAPIEnoughConformal2024	7	ok	-	0	0		-	Figure 5: Results of the sensitivity analysis for different backbone models: Llama-2-7b an
+yn8rs	in	suAPIEnoughConformal2024	8	ok	-	0	0		-	Figure 6: Results of sensitivity analysis of sampling quantity.
+5hrp5	in	suAPIEnoughConformal2024	8	ok	-	0	0		top edge just touches Figure 6 caption above	Figure 7: Results of sensitivity analysis of temperature.
+cngf8	in	suAPIEnoughConformal2024	16	ok	-	0	0		"Right edge touches ends of ""Sampling Number"" labels"	Figure 8: All results of the sensitivity analysis to variations in sampling quantity.
+agf2r	in	suAPIEnoughConformal2024	16	ok	-	0	0		-	Figure 9: All results of the sensitivity analysis to variations in temperature.
+ezsu8	in	tuConversationalDiagnosticArtificial2025	2	ok	-	0	0		-	Fig. 1 | Overview of contributions. AMIE is a conversational medical AI optimized for diag
+xe7b2	in	tuConversationalDiagnosticArtificial2025	3	ok	-	0	0	edge	-	Fig. 2 Overview of randomized study design. A PCP and AMIPE perform (in a randomized order
+fhtj5	in	tuConversationalDiagnosticArtificial2025	4	ok	-	0	0		-	Fig. 3 | Specialist-rated top-k diagnostic accuracy. a,b, The AMIE and PCP top-k DDx accur
+2kvmt	in	tuConversationalDiagnosticArtificial2025	5	ok	-	0	0		hairline of page header rule inside top edge	Fig. 4 | Patient-actor ratings. Conversation qualities, as assessed by the patient-actors 
+vctvz	in	tuConversationalDiagnosticArtificial2025	6	missing	small	2	2	cut	"last legend line ""Agent did not perform this"" cut by bottom edge"	Fig. 5 | Specialist physician ratings. Conversation and reasoning qualities, as assessed b
+t8cdr	in	tuConversationalDiagnosticArtificial2025	15	missing	small	2	2	edge	panel labels below and top strip of chat screenshot outside box	Extended Data Fig.1 | User interfaces for the online consultation and evaluation processes
+f68q6	in	tuConversationalDiagnosticArtificial2025	16	ok	-	0	0		-	Extended Data Fig. 2 | Dx top-k accuracy for non-disease-states and positive disease-state
+bnheh	in	tuConversationalDiagnosticArtificial2025	17	ok	-	0	0		-	Extended Data Fig. 3 | Specialist rated DDx accuracy by scenario specialty. Top-k DDx accu
+kgu25	in	tuConversationalDiagnosticArtificial2025	18	ok	-	0	0		-	Extended Data Fig. 4 | DDX accuracy by location. a, b: Specialist DDX rating of AMIE and t
+hzgyv	in	tuConversationalDiagnosticArtificial2025	19	ok	-	0	0		top edge touches page header rule	Extended Data Fig. 5 | Auto-evaluation of DDX performance. a, b: Top-k DDX auto-evaluation
+abrsx	in	tuConversationalDiagnosticArtificial2025	20	ok	-	0	0		page border hairline at top-left corner	Extended Data Fig. 6 | Consultation verbosity and efficiency of information acquisition. a
+4emmt	in	velaTemporalQualityDegradation2022	2	ok	-	0	0		-	Figure 1. Examples of original data used in temporal degradation experiments. Each dataset
+kmdep	in	velaTemporalQualityDegradation2022	4	ok	-	0	0		-	Figure 2. Top: AI temporal degradation experiment, modeling AI model deployment at a rando
+p6tja	in	velaTemporalQualityDegradation2022	5	missing	small	2	2	edge	"top label box ""Gradual or no degradation"" cut by top edge"	Figure 3. (A) Gradual AI model degradation patterns, with relative model error $ E_{rel} $
+676sh	in	velaTemporalQualityDegradation2022	7	missing	small	2	2		title box Strange attractors and chaos above crop	Figure 4. Strange attractors, as dense areas of most probable errors, in temporal model de
+4g7jf	in	velaTemporalQualityDegradation2022	8	ok	-	0	0		-	Figure 5. “Phase portraits” of evolving AI models. Model temporal evolution, visualized as
+pt5jp	in	velaTemporalQualityDegradation2022	8	ok	-	0	0		left panel title just touches top edge	Figure 6. Left: Feature contributions to the final model outcome, changing in time (ridge 
+zd5mq	in	velaTemporalQualityDegradation2022	9	missing	small	2	2		'Periodic degradation' title banner above panels left outside box	Figure 7. Periodic temporal degradation in AI models. Note how using different sizes of th
+hyjqp	in	velaTemporalQualityDegradation2022	10	ok	-	0	0		-	Figure 8. Probability $ P_{ac} $(dT) of different models performing accurately as a functi
+847n3	in	wangFullLifeCycle2025	2	ok	-	0	0		-	Fig. 1 | EHRFormer architecture and applications for longitudinal EHR data analysis. a, Co
+hgajd	in	wangFullLifeCycle2025	4	ok	-	0	0		-	Fig. 2 | Overall BA prediction model, specific models and associated features for predicti
+4keb5	in	wangFullLifeCycle2025	6	ok	-	0	0		-	Fig. 4 | Performance of the EHRFormer-based disease predicting model and accumulated risk 
+abwc9	in	wangFullLifeCycle2025	8	ok	-	0	0		-	Fig. 5 | A latent space approach for modeling a full life cycle biological clock using the
+tek89	in	wangFullLifeCycle2025	16	ok	-	0	0		-	Extended Data Fig. 1 | Aging prediction model in the male and female sexes. a. Correlation
+cuw49	in	wangFullLifeCycle2025	17	ok	-	0	0		bottom edge reaches first caption line	Extended Data Fig. 2 | Elimination of batch effects in hospitals and different datasets. a
+bku2y	in	wangFullLifeCycle2025	18	ok	-	0	0		-	Extended Data Fig. 3 | Correlations of EHR-derived clusters and individual lab test marker
+j3hc2	in	wangFullLifeCycle2025	19	ok	-	0	0		-	Extended Data Fig. 4 | Correlations between selected developmental diseases and developmen
+uxarv	in	wangFullLifeCycle2025	20	ok	-	0	0		-	Extended Data Fig. 5 | Validation of EHRFormer-based future disease predictions in 5 and 1
+ybxx9	in	wangFullLifeCycle2025	21	ok	-	0	0		-	Extended Data Fig. 6 | Validation of EHRFormer-based age and disease prediction models in 
+7a4nd	in	wangFullLifeCycle2025	22	ok	-	0	0		-	Extended Data Fig. 7 | Validation of EHRFormer-based age and disease prediction models in 
+p2zra	in	wangFullLifeCycle2025	23	ok	-	0	0		-	Extended Data Fig. 8 | Accumulated risk for various diseases based on a predictive model t
+cpd9c	in	wangFullLifeCycle2025	24	missing	small	2	2	cut	panel b x-axis tick labels cut by bottom edge	Extended Data Fig. 9 | Validation of EHRFormer-based disease prediction models in the CHAI
+3vpbw	in	wangFullLifeCycle2025	25	missing	small	2	2	edge	bottom strip of CHAI-Healthy Controls box cut by red edge	Extended Data Fig.10 | Schematic diagrams of cohorts. Four CHAI-training cohorts, CHAI-ext
+858q5	ho	collinsEvaluationClinicalPrediction2024	3	none	-	1	1	uncropped	no red box on page; flowchart and comments table uncovered	Fig 1 | Different study design and approaches to develop and evaluate the performance of a
+puf5w	ho	collinsEvaluationClinicalPrediction2024	5	ok	-	0	0		-	Fig 2 | Variability and overestimation of apparent performance compared to large sample pe
+q454x	ho	collinsEvaluationClinicalPrediction2024	6	ok	-	0	0		-	Fig 3 | Variability and overestimation of the apparent and internal (split sample and boot
+kr72m	ho	collinsEvaluationClinicalPrediction2024	7	ok	-	0	0		-	Fig 4 | Graphical illustration of k-fold cross validation. Non-shaded parts used for model
+6dewu	ho	collinsEvaluationClinicalPrediction2024	8	ok	-	0	0		-	Fig 5 | Graphical illustration of internal-external cross validation. Non-shaded parts use
+x2ph9	ho	collinsEvaluationClinicalPrediction2024	8	none	-	1	1	uncropped	forest plot for Fig 6 has no red box	Fig 6 | Internal-external cross validation of the ISARIC (International Severe Acute Respi
+9ec6r	ho	guoDeepSeekR1IncentivizesReasoning2025	2	ok	-	0	0	edge	-	Fig.1 | Accuracy and output length of DeepSeek-R1-Zero throughout the training process. a,
+mxe8m	ho	guoDeepSeekR1IncentivizesReasoning2025	3	ok	-	0	0		-	Fig. 2 | The multistage pipeline of DeepSeek-R1. A detailed background on DeepSeek-V3 Base
+gy9hy	ho	guoDeepSeekR1IncentivizesReasoning2025	9	ok	-	0	0	edge	-	Extended Data Fig. 1| Evolution of reasoning-related linguistic features in model outputs 
+b5zmy	ho	guoDeepSeekR1IncentivizesReasoning2025	10	ok	-	0	0	edge	top arc of KL arrow just touches red edge	Extended Data Fig. 2 | Illustration of the proposed GRPO for RL-based training. In the pro
+e373j	ho	jeongImprovingMedicalReasoning2024	2	ok	-	0	0		-	Figure 1. Comparison between three frameworks: generation using language model (LM), retri
+de79b	ho	jeongImprovingMedicalReasoning2024	4	ok	-	0	0		-	Figure 2. Overview of our Self-BioRAG process: data construction, training, and inference 
+vreqa	ho	jeongImprovingMedicalReasoning2024	8	ok	-	0	0		-	Figure 3. Ratio of retrieved evidences from each of the four biomedical corpora (PubMed, P
+49z7e	ho	jeongImprovingMedicalReasoning2024	9	ok	-	0	0	table	-	Figure 4. Performance of LLaMA2, RAG, and Self-BioRAG on examples split into [No Retrieval
+65397	ho	konukFrameworkAssessingJoint2024	2	ok	-	0	0		-	Fig. 1. Different approaches to integrate AI in the diagnostic process.
+4rhkg	ho	konukFrameworkAssessingJoint2024	3	ok	-	0	0		-	Fig. 2. Certainty estimates in joint human-AI systems. (a) AI and doctor performance varie
+485f9	ho	konukFrameworkAssessingJoint2024	6	ok	-	0	0		-	Fig. 3. Joint coverage curves for assessing the performance of human-AI systems.
+7bwwb	ho	konukFrameworkAssessingJoint2024	7	ok	-	0	0		-	Fig. 4. Performance of humans, AI-standalone, and AI-first-reader joint system at optimal 
+2y6r7	ho	kraljevicForesightGenerativePretrained2024	3	ok	-	0	0		-	Figure 1: The Foresight pipeline
+su39b	ho	kraljevicForesightGenerativePretrained2024	4	ok	-	0	0		-	Figure 2: An example of Foresight being used on a patient timeline to forecast diseases, s
+vgtay	ho	kraljevicForesightGenerativePretrained2024	6	ok	-	0	0		-	Figure 3: An example of a patient timeline with forecasted disorders
+6a5s3	ho	kraljevicForesightGenerativePretrained2024	7	ok	-	0	0		-	Figure 4: Generated synthetic timeline examples
+3f9ea	ho	nathVILAM3EnhancingVisionLanguage2025	2	ok	-	0	0		model card bottom border sits on bottom edge	Figure 1. Left: Comparison of VILA-M3 with SOTA benchmarks such as Med-Gemini and task-spe
+d676k	ho	nathVILAM3EnhancingVisionLanguage2025	4	extra	large	1	1	table	Table 1 with its own caption included above the figure	Figure 2. VILA-M3 possesses the capability to support a diverse range of tasks, including 
+gcyey	ho	nathVILAM3EnhancingVisionLanguage2025	5	ok	-	0	0		-	Figure 3. Feedback of segmentation results can improve the quality of responses received f
+7eztt	ho	nathVILAM3EnhancingVisionLanguage2025	7	ok	-	0	0		-	Figure 4. The heatmap shows the performance of the 8B model on all datasets with trained m
+jkga5	ho	nathVILAM3EnhancingVisionLanguage2025	8	ok	-	0	0		-	Figure 5. Comparison of VILA-M3 training with balanced and unbalanced healthcare datasets.
+4tf3b	ho	nathVILAM3EnhancingVisionLanguage2025	8	ok	-	0	0		-	Figure 6. Comparison of training losses at different training steps for each model after a
+u493g	ho	odgaardCOREBEHRTCarefullyOptimized2024	3	ok	-	0	0		-	Figure 1: This figure depicts the incremental optimization of the configurations. Non-sele
+kmtjt	ho	odgaardCOREBEHRTCarefullyOptimized2024	6	ok	-	0	0		-	Figure 2: Overview of the iterative optimization procedure, highlighting adapted settings 
+89nae	ho	odgaardCOREBEHRTCarefullyOptimized2024	25	ok	-	0	0	edge	-	Figure 3: This figure illustrates the out-of-time fine-tuning and evaluation process. Trai
+aq3f9	ho	odgaardCOREBEHRTCarefullyOptimized2024	26	ok	-	0	0		-	Figure 4: Selection pipeline for model selection and final evaluation
+u35bd	ho	odgaardCOREBEHRTCarefullyOptimized2024	28	ok	-	0	0		-	Figure 5: Age distribution for positive patients in the cross-validation set, before age g
+npmny	ho	odgaardCOREBEHRTCarefullyOptimized2024	29	ok	-	0	0		-	Figure 6: Ablation studies analyzing the effects of different masking ratios (MR) and pool
+at6ht	ho	steyversBayesianModelingHuman2022	2	ok	-	0	0		-	Fig. 1. Graphical model of the Bayesian combination model for hybrid HM pairs. Shaded and 
+thkge	ho	steyversBayesianModelingHuman2022	4	ok	-	0	0		-	Fig. 2. Examples of human and machine classifier complementarity. (A) Examples of images t
+cnw8w	ho	steyversBayesianModelingHuman2022	4	ok	-	0	0		-	Fig. 3. (Top) Accuracy results and (Bottom) posterior distributions over correlations from
+ywdbt	ho	steyversBayesianModelingHuman2022	5	ok	-	0	0		-	Fig. 4. Observed and predicted complementarity as a function of human and machine classifi
+f7wp5	ho	steyversWhatLargeLanguage2025	2	missing	small	2	2		bottom strip of grey prompt text box cut off	Fig.1 | Overview of the evaluation methodology for assessing the calibration gap between m
+xfqe2	ho	steyversWhatLargeLanguage2025	4	ok	-	0	0		-	Fig. 2 | Calibration error and discrimination for model confidence and human confidence ac
+sk62d	ho	steyversWhatLargeLanguage2025	5	ok	-	0	0		-	Fig. 3 | Calibration diagrams for model confidence and human confidence across experiments
+m9nuw	ho	steyversWhatLargeLanguage2025	6	ok	-	0	0		legend text close to right edge	Fig. 4 | Mean human confidence across LLM explanation styles varying in uncertainty langua
+bpyvx	ho	steyversWhatLargeLanguage2025	12	none	-	1	1	uncropped	no red box on page; both prompt boxes uncovered	Extended Data Fig. 1 | Example prompts for multiple choice and short-answer questions. Exa
+hh43u	ho	steyversWhatLargeLanguage2025	13	missing	small	2	2	edge	"Panel titles above box (""Evaluating LLM Accuracy"", ""Answering with LLM Assistance"") missing"	Extended Data Fig. 2 | Illustration of the behavioral experiment interface. Illustration o
+3zttm	ho	wangGeneAgentSelfverificationLanguage2025	2	ok	-	0	0		bottom boxes just touch red edge	Fig. 1 | Framework of GeneAgent for gene-set analysis. a, An overview of GeneAgent, contai
+efr5v	ho	wangGeneAgentSelfverificationLanguage2025	5	ok	-	0	0		-	Fig. 2) The biological process names generated by GeneAgent are more similar with their gr
+hbcey	ho	wangGeneAgentSelfverificationLanguage2025	7	ok	-	0	0		all panels a-e inside one box	Fig. 3 GeneAgent mitigates hallucinations by autonomously accessing Web APIs to interact w
+3p3ma	ho	wangGeneAgentSelfverificationLanguage2025	13	ok	-	0	0	edge	-	Extended Data Fig. 1 | The details of similarity scores distributed in the evaluated gene 
+n78ux	ho	wangGeneAgentSelfverificationLanguage2025	14	ok	-	0	0	edge,cut	second x-label line touches bottom red edge	Extended Data Fig. 2 | Semantic similarity between the generated name and ground truth is 
+a3282	ho	wangGeneAgentSelfverificationLanguage2025	15	ok	-	0	0	edge	-	Extended Data Fig. 3 | The example shown for the gene set named 'mmu05022 (LA-S)' in the c
+r8whe	ho	wangGeneAgentSelfverificationLanguage2025	16	missing	large	1	2	edge	two legend lines below box outside crop	Extended Data Fig. 4 | Ablation experiments for the Self-verification in GeneAgent on the 
+6kezj	ho	wangGeneAgentSelfverificationLanguage2025	17	ok	-	0	0	edge	-	Extended Data Fig. 5 | Comparison between GeneAgent and conventional GSEA method on the Ne
+xvueh	ho	yaoReActSynergizingReasoning2023	2	ok	-	0	0		-	Figure 1: (1) Comparison of 4 prompting methods, (a) Standard, (b) Chain-of-thought (CoT, 
+a8wzc	ho	yaoReActSynergizingReasoning2023	5	ok	-	0	0		-	Figure 2: PaLM-540B prompting results with respect to number of CoT-SC samples used.
+hrtnh	ho	yaoReActSynergizingReasoning2023	7	ok	-	0	0		-	Figure 3: Scaling results for prompting and finetuning on HotPotQA with ReAct (ours) and b
+nbm9x	ho	yaoReActSynergizingReasoning2023	14	ok	-	0	0		-	Figure 4: Another example HotpotQA question, where the original label is outdated. Only Re
+asky5	ho	yaoReActSynergizingReasoning2023	15	ok	-	0	0		-	Figure 5: A human-in-the-loop behavior correction example with ReAct in AlfWorld. (a) ReAc
+kakj4	ho	zhangEviCareEnhancingDiagnosis2026	2	ok	-	0	0		-	Figure 1: Diagnosis Prediction Patterns Across Models. (a) LLMs tend to predict repeating 
+hx5mz	ho	zhangEviCareEnhancingDiagnosis2026	4	ok	-	0	0		-	Figure 2: The overall framework of our proposed EviCare, which consists of (1) deep model 
+m44s3	ho	zhangEviCareEnhancingDiagnosis2026	8	ok	-	0	0		-	Figure 3: P@10 performance on novel and overall diagnosis prediction under varying candida
+84pyt	ho	zhangEviCareEnhancingDiagnosis2026	12	ok	-	0	0	edge	-	Figure 4: P@10 performance on novel and overall diagnosis prediction under different train
+pyt5v	ho	zhaoExpeLLLMAgents2024	2	ok	-	0	0		-	Figure 1: ExpeL Agent Overview. Left: ExpeL operates in three stages: (1) Collection of su
+ewa7y	ho	zhaoExpeLLLMAgents2024	4	ok	-	0	0		-	Figure 2: Insight Extraction Prompt Template. The prompt template ExpeL agents used for in
+p7ngp	ho	zhaoExpeLLLMAgents2024	5	missing	small	2	2		green check icon at bottom-right corner clipped by box edge	Figure 3: Task Inference Prompt Template. We illustrate ExpeL's prompt template during eva
+4kwe2	ho	zhaoExpeLLLMAgents2024	6	ok	-	0	0		-	Figure 4: Transfer Learning Finetuning Prompt Template. The prompt template used to finetu
+5x5c6	ho	zhaoExpeLLLMAgents2024	7	ok	-	0	0		-	Figure 5: Main Results. Average task success rates (std. error in gray arrows) across thre
+2skpj	ho	zhaoExpeLLLMAgents2024	9	missing	small	2	2	edge	"title line ""Effects of experience pool size on performance"" below box excluded"	Figure 6: Effects of Experience on Performance. We highlight the correlation between the n
+ya5vt	new	asaiSelfRAGLearningRetrieve2024	2	ok	-	0	0		-	Figure 1: Overview of SELF-RAG. SELF-RAG learns to retrieve, critique, and generate text p
+j9kxc	new	asaiSelfRAGLearningRetrieve2024	5	ok	-	0	0		-	Figure 2: SELF-RAG training examples. The left example does not require retrieval while th
+y9pq2	new	asaiSelfRAGLearningRetrieve2024	8	ok	-	0	0		ablation table is panel (a); subcaptions inside	Figure 3: Analysis on SELF-RAG: (a) Ablation studies for key components of SELF-RAG traini
+gqhrh	new	asaiSelfRAGLearningRetrieve2024	18	none	-	1	1	uncropped	No red box covers the table-style Figure 4.	Figure 4: Reward prediction accuracy using GPT-4 predictions as ground-truth predictions.
+v697f	new	asaiSelfRAGLearningRetrieve2024	21	ok	-	0	0		subcaptions inside box	Figure 5: Training scale and Human analysis: (a) (b) (c) Training scale analysis shows the
+p737n	new	beanReliabilityLLMsMedical2026	3	ok	-	0	0		panel letters a and c touch top edge	Fig. 1 | Study design. a, Three doctors drafted ten medical scenarios, iteratively revisin
+6m92a	new	beanReliabilityLLMsMedical2026	4	ok	-	0	0		-	Fig. 2 | Performance of LLMs alone and with users. a, The performance on the LLMs when dir
+5qvht	new	beanReliabilityLLMsMedical2026	4	missing	small	2	2	edge	legend row below the box lies outside the crop	Fig. 3 | Identification of relevant conditions in interaction. The proportion of responses
+zbt7d	new	beanReliabilityLLMsMedical2026	5	ok	-	0	0		legend row sits right at bottom edge	Fig. 4 | Model baselines. a, The accuracy of each model in responding to questions from Me
+ggcdp	new	beanReliabilityLLMsMedical2026	11	ok	-	0	0		-	Extended Data Fig. 1 | Post-survey. (Upper Left) Self-reported confidence in urgency asses
+muqn5	new	benshohamCPLLMClinicalPrediction2024	6	ok	-	0	0		-	Fig 1. Illustration of the fine-tuning process for diagnostic prediction. A: An example of
+ydcd3	new	bertalanicCostConsensusIsolated2026	2	ok	-	0	0		-	Figure 1: The promise vs. reality of multi-agent debate. While compound AI architectures a
+ffn4a	new	bertalanicCostConsensusIsolated2026	4	ok	-	0	0		-	Figure 2: End-to-end multi-agent evaluation architecture spanning $ R = 3 $ rounds for N a
+n8wdz	new	bertalanicCostConsensusIsolated2026	12	missing	small	2	2		GSM-Hard title above the box	Figure 3: Round-by-round evolution on GSM-Hard. Columns: Team Accuracy, Oracle Accuracy, C
+ghk2d	new	bertalanicCostConsensusIsolated2026	12	ok	-	0	0		-	Figure 4: Round-by-round evolution on MMLU-Hard. Same layout as Figure 3. Note Ministral's
+ta7vd	new	cemriWhyMultiAgentLLM2025	2	ok	-	0	0		-	Figure 1: MAST: A Taxonomy of MAS Failure Modes. The inter-agent conversation stages indic
+nghwy	new	cemriWhyMultiAgentLLM2025	5	ok	-	0	0		-	Figure 2: Methodological workflow for constructing the MAST-Data dataset, involving the em
+f6kbs	new	cemriWhyMultiAgentLLM2025	6	ok	-	0	0		-	Figure 3: Visualization of a trace segment in MAST-Data. This illustrates an agent-to-agen
+fh247	new	cemriWhyMultiAgentLLM2025	8	ok	-	0	0		-	Figure 4: Distribution of failure in MAST-Data with MAST labels on total 210 traces. This 
+zb3t2	new	cemriWhyMultiAgentLLM2025	26	ok	-	0	0		-	Figure 5: Failure rates of six popular Multi-Agent LLM Systems with GPT-4o and Claude-3.7-
+9ujg4	new	cemriWhyMultiAgentLLM2025	29	ok	-	0	0		-	Figure 6: MAS failure modes correlation matrix
+nd7bk	new	cemriWhyMultiAgentLLM2025	29	ok	-	0	0		-	Figure 7: MAS failure modes correlation matrix
+yw9vn	new	cemriWhyMultiAgentLLM2025	30	missing	small	2	2		figure title line above box left out	Figure 8: Comparison on MAST failure modes and categories on ProgramDev-v2 dataset explain
+47ak2	new	cemriWhyMultiAgentLLM2025	30	missing	small	2	2	edge	figure title line above box not included	Figure 9: Comparison on MAST failure modes and categories on ProgramDev-v2 dataset explain
+4zn62	new	cemriWhyMultiAgentLLM2025	35	ok	-	0	0		-	Figure 10: Effect of prompt and topology interventions on AG2 as captured by MAST using th
+stm3k	new	cemriWhyMultiAgentLLM2025	35	ok	-	0	0		-	Figure 11: Effect of prompt and topology interventions on ChatDev as captured by MAST usin
+vkw7u	new	chenDoesReinforcementLearning2025	2	ok	-	0	0		-	Figure 1: (Left) The effect of current RLVR on LLM's reasoning ability. Search trees are g
+4jvr4	new	chenDoesReinforcementLearning2025	4	ok	-	0	0		bottom edge hidden under caption box	Figure 2: Pass@k curves of base models and their RLVR-trained counterparts across multiple
+dpawg	new	chenDoesReinforcementLearning2025	6	ok	-	0	0		caption inside box	Figure 3: RLVR for Coding.
+ajxz8	new	chenDoesReinforcementLearning2025	7	ok	-	0	0		-	Figure 4: Pass@k curves of base and RLVR models. (Left) Code Generation. (Right) Visual Re
+tk3fr	new	chenDoesReinforcementLearning2025	7	ok	-	0	0		-	Figure 5: Qwen2.5-7B Accuracy Histogram on Minerva.
+5pyjq	new	chenDoesReinforcementLearning2025	8	ok	-	0	0		-	Figure 6: Perplexity distribution of responses. The conditioning problem x is omitted in t
+96a7c	new	chenDoesReinforcementLearning2025	8	ok	-	0	0		-	Figure 7: pass@k of base, Instruct, RLVR, and distilled models.
+fz8uj	new	chenDoesReinforcementLearning2025	9	ok	-	0	0		-	Figure 8: (Top) Different RL algorithms. (Bottom) Different RL training steps. The detaile
+pjhtr	new	chenDoesReinforcementLearning2025	10	ok	-	0	0		-	Figure 9: pass@k curves of Magistral-Medium.
+hkfnv	new	chenDoesReinforcementLearning2025	18	ok	-	0	0		-	Figure 10: More results of SimpleRLZoo on GSM8K and AMC23.
+yu555	new	chenDoesReinforcementLearning2025	18	ok	-	0	0		-	Figure 11: Oat-Zero-7B and DAPO-32B are evaluated on AIME24 and compared against their res
+fp5pk	new	chenDoesReinforcementLearning2025	18	ok	-	0	0		-	Figure 12: Coder-R1 on LiveCodeBench.
+tmmug	new	chenDoesReinforcementLearning2025	19	ok	-	0	0		-	Figure 13: Pass@k curves of the base and SimpleRLZoo-7B models in the filtered AIME24.
+6gg9j	new	chenDoesReinforcementLearning2025	20	missing	small	2	2	edge,cut	column titles (Qwen-2.5-7B etc.) cut by top edge; caption inside box	Figure 14: Accuracy histogram before and after RLVR with SimpleRLZoo models.
+rqvew	new	chenDoesReinforcementLearning2025	21	ok	-	0	0		-	Figure 15: Perplexity Evolution during RL Training.
+6wruv	new	chenDoesReinforcementLearning2025	22	missing	small	2	2	edge	Legend row below plots lies outside the box.	Figure 16: Ablation Study on KL Loss and Rollout Number $ n $. For increasing n from 8 to 
+g699p	new	chenDoesReinforcementLearning2025	23	extra	large	1	1	edge	Box also holds all Figure 18 panels below the caption.	Figure 17: We found that the base model's performance drops when the temperature exceeds 1
+mv26m	new	chenDoesReinforcementLearning2025	23	missing	small	2	2	cut	Left edge cuts through the y-axis label Coverage (pass@k)	Figure 18: Comparison of Base and RLVR Models with Matched Output Entropy. We evaluate the
+t2ynr	new	chenDoesReinforcementLearning2025	24	ok	-	0	0		-	Figure 19: The curves of training reward, response length, and generation entropy during t
+hjxh2	new	chenDoesReinforcementLearning2025	25	none	-	1	1	uncropped	Question and answer boxes of Figure 20 not covered by any red box	Figure 20: Qwen2.5-Base-7B Correct Response - Case 1.
+d8zb6	new	chenDoesReinforcementLearning2025	26	ok	-	0	0		-	Figure 21: Qwen2.5-Base-7B Correct Response - Case 2.
+jzkpn	new	chenDoesReinforcementLearning2025	27	ok	-	0	0		-	Figure 22: Prompt for SimpleRL Training and Evaluation. The base model uses the same promp
+qv57y	new	chenDoesReinforcementLearning2025	27	ok	-	0	0		-	Figure 23: Prompt for Oat-Zero training and evaluation.
+qesqg	new	chenDoesReinforcementLearning2025	27	ok	-	0	0		-	Figure 24: Prompt for Code-R1 training.
+q6msg	new	chenDoesReinforcementLearning2025	28	ok	-	0	0		-	Figure 25: Since Code-R1 does not specify an evaluation prompt, we adopt the original Live
+dskcw	new	chenDoesReinforcementLearning2025	28	ok	-	0	0		-	Figure 26: Prompt for Code-R1 Evaluation on HumanEval+ and MBPP+.
+2uw9z	new	chenDoesReinforcementLearning2025	29	ok	-	0	0		-	Figure 27: Prompt for EasyR1 training and evaluation.
+sc5q4	new	chenDoesReinforcementLearning2025	29	extra	large	1	1	uncropped	Box also holds Figure 29 prompt panel and Figure 28 caption.	Figure 28: Prompt for VeRL training on Omni-math-train and evaluation on Omni-math-eval an
+585ef	new	chenDoesReinforcementLearning2025	29	extra	large	1	1		box also holds Figure 28 prompt and its caption	Figure 29: Prompt for Mistral and Magistral model evaluation.
+qdysm	new	chenReConcileRoundTableConference2024	2	ok	-	0	0		-	Figure 1: An illustration of the main differences between RECONCILE and prior works. While
+wcg3w	new	chenReConcileRoundTableConference2024	4	ok	-	0	0		-	Figure 2: Overview of RECONCILE with ChatGPT, Bard, and Claude2, consisting of three phase
+m2f8d	new	chenReConcileRoundTableConference2024	5	ok	-	0	0		-	Figure 3: Method for choosing convincing samples for each agent. A convincing sample for C
+nr2ed	new	chenReConcileRoundTableConference2024	9	ok	-	0	0		-	Figure 4: RECONCILE achieves better and faster consensus. (a) Comparison of RECONCILE with
+99t4d	new	chenReConcileRoundTableConference2024	14	ok	-	0	0		-	Figure 5: The prompts used in RECONCILE consist of an initial prompt and a discussion prom
+cux2a	new	chenReConcileRoundTableConference2024	17	extra	large	1	1		box also holds Figure 6 and its caption	Figure 7: An illustrative example showing that with access to demonstrations of convincing
+7kmpf	new	chenReConcileRoundTableConference2024	18	ok	-	0	0		-	Figure 8: An illustrative example of multi-agent debate with multiple instances of ChatGPT
+b9vu5	new	chenReConcileRoundTableConference2024	18	ok	-	0	0		-	Figure 9: Expected Calibration Error (ECE) (Naeini et al., 2015; Guo et al., 2017; Elias S
+mh5g2	new	chenReasoningModelsDont2025	2	missing	small	2	2	edge	"x-axis title ""Hints that the model might use..."" below box"	Figure 1: CoT faithfulness scores of reasoning models (Claude 3.7 Sonnet and DeepSeek R1) 
+w4rsk	new	chenReasoningModelsDont2025	3	ok	-	0	0		-	Figure 2: An example of an unfaithful CoT generated by Claude 3.7 Sonnet. The model answer
+q8783	new	chenReasoningModelsDont2025	6	ok	-	0	0		-	Figure 3: Model response to hints. We evaluate how often models use the provided hints by 
+6nnzm	new	chenReasoningModelsDont2025	7	missing	small	2	2	edge	"x-axis title ""Hints that the model might use..."" below box"	Figure 4: Faithfulness comparison across difficulty levels. CoT faithfulness scores on MML
+afwm3	new	chenReasoningModelsDont2025	8	ok	-	0	0	cut	-	Figure 5: CoT faithfulness scores with outcome-based RL. Outcome-based RL initially increa
+q8f2u	new	chenReasoningModelsDont2025	9	missing	small	2	2		bottom strip of panel background and divider line below bottom edge	Figure 6: Left: We RL Claude 3.7 Sonnet on synthetic environments with injected reward hac
+wktf3	new	chenReasoningModelsDont2025	10	missing	small	2	2	edge	x-axis title line below the plot lies outside the box	Figure 7: CoT verbalization rates of reward hacks during RL. In 5 out of 6 environments, C
+wb3w8	new	chuSFTMemorizesRL2025	2	ok	-	0	0		-	Figure 1: A comparative study of RL and SFT on the visual navigation environment V-IRL (Ya
+y8ht3	new	chuSFTMemorizesRL2025	4	ok	-	0	0		-	Figure 2: An example of the sequential revision formulation with a verifier. The model gen
+bvvnw	new	chuSFTMemorizesRL2025	4	ok	-	0	0	edge	-	Figure 3: An template of our prompt update for constructing $ v_{t+1}^m $. The brown parts
+vhvkx	new	chuSFTMemorizesRL2025	5	missing	large	1	1	edge	navigation instruction text box below map outside box	Figure 4: Demonstration of one navigation task in V-IRL. Agent navigates from place to pla
+pbyc5	new	chuSFTMemorizesRL2025	6	ok	-	0	0		-	Figure 5: Success rate (\%) - GFLOPs trendlines for RL and SFT on GeneralPoints and V-IRL.
+mekc5	new	chuSFTMemorizesRL2025	7	ok	-	0	0	cut	x-axis title touches bottom edge	Figure 6: Comparison of out-of-distribution performance under rule variants. We report the
+y45hx	new	chuSFTMemorizesRL2025	7	ok	-	0	0		-	Figure 7: Comparison of out-of-distribution performance under visual variants. Similar to 
+xe9ah	new	chuSFTMemorizesRL2025	8	ok	-	0	0		-	Figure 8: Recognition vs. success rate for RL and SFT under different variants in GP-VL. W
+a8d2f	new	chuSFTMemorizesRL2025	8	ok	-	0	0		-	Figure 9: RL experiments on GP-L without SFT initialization. All trials fail due to poor i
+q98dm	new	chuSFTMemorizesRL2025	8	ok	-	0	0		-	Figure 10: In-distribution vs. OOD performance growth on GP-L. We record RL experiments wi
+3gmzz	new	chuSFTMemorizesRL2025	14	none	-	1	1	uncropped	no red box on page	Figure 11: An example of our prompt update for constructing $ v_{t+1}^n $ using $ v_t^n $,
+3pjtc	new	chuSFTMemorizesRL2025	15	none	-	1	1	uncropped	no red box on the prompt figure	Figure 12: An example of our prompt update for constructing $ v_{t+1}^n $ using $ v_t^n $,
+tjhj6	new	chuSFTMemorizesRL2025	16	ok	-	0	0		-	Figure 13: An example of our prompt update for constructing $ v_{t+1}^n $ using $ v_t^n $,
+tzt83	new	chuSFTMemorizesRL2025	17	none	-	1	1	uncropped	no red box on the prompt figure	Figure 14: An example of our prompt update for constructing $ v_{t+1}^{in} $ using $ v_{t}
+x894n	new	chuSFTMemorizesRL2025	18	ok	-	0	0		-	Figure 15: SFT experiments on GP-L with suboptimal trajectories. Similar to results in Fig
+5xxzd	new	chuSFTMemorizesRL2025	19	missing	small	2	2	cut	shared x-axis label cut by bottom edge	Figure 16: Ablation studies on GeneralPoints-VL SFT. We ablate the learning rate and repor
+4k6zy	new	chuSFTMemorizesRL2025	19	ok	-	0	0		-	Figure 17: Ablation studies on GeneralPoints-VL RL. Echoing Figure 16, we ablate the learn
+5hrb3	new	chuSFTMemorizesRL2025	20	ok	-	0	0		-	Figure 18: Overall success rate (%) - GFLOPs for V-IRL-VL under rule variants. Due to the 
+m8dpw	new	chuSFTMemorizesRL2025	20	ok	-	0	0		-	Figure 19: Out-of-distribution per-step accuracy (%) - GFLOPs for V-IRL-VL under rule vari
+88yz6	new	chuSFTMemorizesRL2025	20	none	-	1	1	uncropped	Figure 20 prompt box has no red box	Figure 20: Example model outputs without SFT initialization. We record model responses usi
+999q7	new	chuSFTMemorizesRL2025	21	ok	-	0	0		-	Figure 21: Failed example of V-IRL transition due to overfitting. This phenomenon happens 
+q4kvz	new	dhuliawalaChainofVerificationReducesHallucination2024	3	ok	-	0	0		-	Figure 1: Chain-of-Verification (CoVe) method. Given a user query, a large language model 
+jmt3f	new	dhuliawalaChainofVerificationReducesHallucination2024	7	ok	-	0	0		-	Figure 2: FACTSCORE performance distribution across head, torso and tail facts for CoVe va
+ueg45	new	dhuliawalaChainofVerificationReducesHallucination2024	13	ok	-	0	0		-	Figure 3: For longform generation, the Chain-of-Verification (CoVE) Factor + Revise method
+strqj	new	dhuliawalaChainofVerificationReducesHallucination2024	14	ok	-	0	0		-	Figure 4: ChatGPT generates several hallucinations for this question, e.g. Hillary Clinton
+vf8yd	new	dhuliawalaChainofVerificationReducesHallucination2024	15	ok	-	0	0		-	Figure 5: Even when the longform answer is provided for a rewritten query (see query from 
+rgwvc	new	dhuliawalaChainofVerificationReducesHallucination2024	15	ok	-	0	0		-	Figure 6: Shortform questions (which could be verification questions) appear to be answere
+2xwwy	new	dhuliawalaChainofVerificationReducesHallucination2024	16	ok	-	0	0		-	Figure 8: Examples where questions asking for a fact are answered correctly, but verifying
+tdzrk	new	duImprovingFactualityReasoning2024	2	ok	-	0	0		-	Figure 1. Multiagent Debate Improves Reasoning and Factual Accuracy. Accuracy of tradition
+fvkh7	new	duImprovingFactualityReasoning2024	3	ok	-	0	0		-	Figure 2. Illustration of Debate. Illustration of the debate procedure. Prompts are shorte
+b69a4	new	duImprovingFactualityReasoning2024	4	none	-	1	1	uncropped	no red box on the prompt table figure above caption	Figure 3. Prompts to induce long and short form debate. Responses of other agents to quest
+9e97c	new	duImprovingFactualityReasoning2024	4	none	-	1	1	uncropped	no red box on the figure	Figure 4. Illustration of Solving Math. Reasoning between agents is omitted.
+dyjky	new	duImprovingFactualityReasoning2024	5	ok	-	0	0		-	Figure 5. Illustration of Solving Grade School Math. Reasoning between agents omitted.
+uq2km	new	duImprovingFactualityReasoning2024	5	ok	-	0	0		-	Figure 6. Synergy with Other Methods. Performance of debate increases with use of zero-sho
+v9n95	new	duImprovingFactualityReasoning2024	6	none	-	1	1	uncropped	Figure 7 questions and rounds uncovered; red box holds Figure 8	Figure 7. Illustration of MMLU. Illustration of debate when answering factual tasks. Reaso
+effz9	new	duImprovingFactualityReasoning2024	6	ok	-	0	0		-	Figure 8. Debate with Uncertain Answers. For uncertain facts, multiple language agents gen
+bwh2h	new	duImprovingFactualityReasoning2024	7	ok	-	0	0		-	Figure 9. (a) Performance with Increased Agents. Performance improves as the number of und
+r2z24	new	duImprovingFactualityReasoning2024	7	ok	-	0	0		top title close to edge but inside	Figure 10. Performance vs Debate Length. Prompts which induce longer debate improve perfor
+erg8u	new	duImprovingFactualityReasoning2024	7	missing	small	2	2	cut	top edge cuts through plot title	Figure 11. Effect of Summarization. When there are many agents in a debate, responses from
+w5pcg	new	duImprovingFactualityReasoning2024	8	ok	-	0	0		-	Figure 12. Illustration of Generating Biographies. Illustration of generating bullet biogr
+6ujgj	new	duImprovingFactualityReasoning2024	9	ok	-	0	0		-	Figure 13. Debate Between chatGPT and Bard. Illustration of debate between different model
+g74te	new	duImprovingFactualityReasoning2024	12	ok	-	0	0		-	Figure A1. Effect of Prompts on Consensus. Using a short debate prompt induces faster cons
+vbrdu	new	duImprovingFactualityReasoning2024	12	ok	-	0	0		-	Figure A2. Effect of Debate on Perplexity. Using multiple rounds of debate decreases the p
+598q4	new	duImprovingFactualityReasoning2024	15	none	-	1	1	uncropped	no red box on the prompt table figure	Figure A3. Self Reflection Prompts. List of self-reflection prompts used in each task
+ajsvq	new	duImprovingFactualityReasoning2024	15	none	-	1	1	uncropped	biography example figure has no red box	Figure A5. Example Biography chatGPT Evaluations. To evaluate the accuracy of biographies,
+e8nn7	new	duImprovingFactualityReasoning2024	16	none	-	1	1	uncropped	prompt table figure has no red box	Figure A4. Multiagent Debate Prompts. List of prompts used in each task.
+9d8bj	new	duImprovingFactualityReasoning2024	17	ok	-	0	0		-	Figure A6. Example of a correct GSM8K Debate.
+ayumv	new	duImprovingFactualityReasoning2024	18	missing	small	2	2	cut	first User Input line cut by top edge	Figure A7. Example of Correct GSM8K Debate.
+qwrkv	new	duImprovingFactualityReasoning2024	19	missing	large	1	1	cut	top User Input text (4 lines) outside; edge cuts its last line	Figure A8. Example of Correct GSM8K Debate.
+9vbqx	new	duImprovingFactualityReasoning2024	20	ok	-	0	0		-	Figure A9. Example of Correct GSM8K Debate.
+42hch	new	duImprovingFactualityReasoning2024	21	missing	large	1	1	split,edge,cut	box covers only right ~third; top prompt and left agent column missing; tiny checkmark crops	Figure A10. Example of Correct GSM8K Debate.
+hfmng	new	duImprovingFactualityReasoning2024	22	missing	large	1	1	cut	top User Input lines above box; edge cuts through fourth line	Figure A11. Example of Incorrect GSM8K Debate.
+pp3za	new	duImprovingFactualityReasoning2024	23	missing	large	1	1	edge,cut	first User Input, Round 1 and second User Input above box; top edge cuts line	Figure A12. Example of Incorrect GSM8K Debate.
+ks37v	new	duImprovingFactualityReasoning2024	24	missing	small	2	2	cut	first User Input line cut by top edge	Figure A13. Example of Incorrect GSM8K Debate.
+pjd9x	new	duImprovingFactualityReasoning2024	25	missing	small	2	2	edge	top Instruction line cut by top edge	Figure A14. Example of Arithmetic Debate.
+ctugd	new	duImprovingFactualityReasoning2024	26	none	-	1	1	split,edge	only small check/cross icons boxed; text panels uncovered	Figure A15. Example of Arithmetic Debate with Summarization. Four separate agents particip
+jsq73	new	duImprovingFactualityReasoning2024	27	none	-	1	1	uncropped	red boxes cover only the check/cross icons	Figure A16. Example of MMLU Debate.
+na72a	new	duImprovingFactualityReasoning2024	28	missing	large	1	1	edge,cut	only Round 2 covered; instruction, Round 1, Round 2 header outside	Figure A17. Example of Biography Debate. While we found that generated biographies after d
+9h4sy	new	duImprovingFactualityReasoning2024	29	none	-	1	1	uncropped	no red box on page	Figure A18. Example of Chess Debate.
+75zq2	new	duImprovingFactualityReasoning2024	30	none	-	1	1	uncropped	debate figure has no red box	Figure A19. Example of Arithmetic Debate.
+2eed3	new	duImprovingFactualityReasoning2024	31	missing	small	2	2	edge	Top instruction line cut by top edge.	Figure A20. Example of Arithmetic Debate.
+7xfdb	new	dvijothamEnhancingReliabilityAccuracy2023	27	missing	small	2	2	edge	"panel a title ""Deployment architecture"" sits above box"	Figure 1
+b9tsn	new	dvijothamEnhancingReliabilityAccuracy2023	28	ok	-	0	0		"Blue box is bare ""Figure 2"" label; figure above fully boxed."	Figure 2
+ve4gr	new	dvijothamEnhancingReliabilityAccuracy2023	28	ok	-	0	0	uncropped	legend text 'function' just touches right edge	Figure 1d | Underspecification in Threshold Search. The dataset is plotted by tagging each
+qc32f	new	dvijothamEnhancingReliabilityAccuracy2023	29	missing	small	2	2		blue box is bare 'Figure 3' label under figure; last letter of legend cut right	Figure 3
+z444n	new	dvijothamEnhancingReliabilityAccuracy2023	29	missing	small	2	2	uncropped	right edge clips last letter of legend 'operating point'	Figure 2 | Performance of CoDoC in breast cancer prediction compared to a standalone diagn
+6evby	new	dvijothamEnhancingReliabilityAccuracy2023	30	missing	small	2	2	edge	blue box is bare 'Figure 4' label; right edge cuts legend 'points'	Figure 4
+84rme	new	dvijothamEnhancingReliabilityAccuracy2023	30	missing	small	2	2	uncropped	"right edge cuts legend text ""Diagnostic AI operating points"""	Figure 3: Performance of CoDoC in tuberculosis prediction. Performance of CoDoC in TB scre
+fwyhc	new	dvijothamEnhancingReliabilityAccuracy2023	31	ok	-	0	0		blue box is bare 'Figure 5' label for figure above	Figure 5
+k7dxq	new	dvijothamEnhancingReliabilityAccuracy2023	31	ok	-	0	0	uncropped	"figure labelled ""Figure 5"" on page but content matches this caption"	Figure 4: Limitations of confidence-based deferral. The bottom row depicts the strongest p
+4uwwd	new	dvijothamEnhancingReliabilityAccuracy2023	32	ok	-	0	0		"blue box is bare ""Figure 6"" label; whole plot in box"	Figure 6
+sh3f5	new	dvijothamEnhancingReliabilityAccuracy2023	32	ok	-	0	0	uncropped	"stray ""Figure 6"" label between plot and caption; content matches caption"	Figure 5: Performance of CoDoC in breast cancer prediction on a US mammography dataset (US
+88kaq	new	dvijothamEnhancingReliabilityAccuracy2023	33	ok	-	0	0		"blue box is ""Figure 7"" label below the chart"	Figure 7
+2e48a	new	dvijothamEnhancingReliabilityAccuracy2023	33	ok	-	0	0	uncropped	"figure labelled ""Figure 7"" but matches this caption's content"	Figure 6: Subgroup breakdown across age groups (left) and breast density grades (right) on
+cf9me	new	estornellMultiLLMDebateFramework2024	8	ok	-	0	0		-	Figure 1: Probability that each model echoes the majority answer at round $ t = 11 $, as t
+feehu	new	estornellMultiLLMDebateFramework2024	8	ok	-	0	0		-	Figure 2: Average accuracy improvement as a function of response diversity at round 0 of d
+4u7h7	new	estornellMultiLLMDebateFramework2024	9	ok	-	0	0		-	Figure 3: Accuracy per round, our method and SoM when combing GPT-3.5 with Llama-3 or Mist
+wz9qk	new	estornellMultiLLMDebateFramework2024	18	none	-	1	1	uncropped	no red box on the Q&A text-box figure	Figure 4: Example of a common misconception between models and a refutation of that miscon
+zasw3	new	fengDontHallucinateAbstain2024	3	ok	-	0	0		-	Figure 1: Overview of collaboration-based approaches for LLM abstention: COOPERATE and COM
+7ta22	new	fengDontHallucinateAbstain2024	5	ok	-	0	0		-	Figure 2: Four outcomes of AbstainQA.
+trad8	new	fengDontHallucinateAbstain2024	7	ok	-	0	0		-	Figure 3: Performance of abstain mechanisms in the abstain absolute scenarios where the LL
+8sknz	new	fengDontHallucinateAbstain2024	7	ok	-	0	0		-	Figure 4: Performance of COMPETE with MISTRAL-7B in the two-step abstain and retrieval set
+mahnb	new	fengDontHallucinateAbstain2024	8	ok	-	0	0		-	Figure 5: Abstain rate on Election23QA with Mistral-7B divided into where the election tak
+h5uqy	new	fengDontHallucinateAbstain2024	8	ok	-	0	0		-	Figure 6: Performance of abstain mechanisms with ChatGPT solving 3-hop questions in K-Cros
+7yspb	new	fengDontHallucinateAbstain2024	9	missing	small	2	2		legend line above plot outside box	Figure 7: Abstain precision and recall of approaches on MMLU with Mistral-7B. While most a
+88vag	new	fengDontHallucinateAbstain2024	15	ok	-	0	0		-	Figure 8: Performance of INSTRUCTION TUNING when trained with one dataset/LLM and tested f
+byjz5	new	fengDontHallucinateAbstain2024	16	ok	-	0	0		-	Figure 9: Performance with three abstain mechanisms with increasing size of model paramete
+h2vaz	new	fengDontHallucinateAbstain2024	20	ok	-	0	0		-	Figure 10: Model performance of without retrieval, with retrieval, and retrieval+abstain s
+eekvg	new	fengDontHallucinateAbstain2024	21	ok	-	0	0		-	Figure 11: Model performance in the multi-hop knowledge reasoning setting.
+6k56b	new	fengDontHallucinateAbstain2024	22	ok	-	0	0		extra white margin at bottom	Figure 12: Performance of the COMPETE mechanism with Mistral-7B across the 57 subtasks in 
+287x8	new	ferberAutonomousMedicalArtificial2026	3	ok	-	0	0		-	Fig. 1 | MIRA workflow. MIRA is an autonomous medical AI agent that operates within an EHR
+34ctn	new	ferberAutonomousMedicalArtificial2026	4	ok	-	0	0		-	Fig. 2 | Evaluation of patient agent robustness. a, Bar charts quantifying response stabil
+vr5m5	new	ferberAutonomousMedicalArtificial2026	5	ok	-	0	0		-	Fig. 3 | Diagnostic accuracy, reasoning and test selection performance of MIRA compared wi
+633dx	new	ferberAutonomousMedicalArtificial2026	7	ok	-	0	0		-	Fig. 4 | Disease management and guideline adherence of MIRA. a, Top five procedures reques
+6una3	new	ferberAutonomousMedicalArtificial2026	8	missing	small	2	2	cut	panel f x-axis label 'Observed risk difference' cut at bottom	Fig. 5 | Safety and robustness evaluation of MIRA. Disease management safety of MIRA was e
+wywnf	new	ferberAutonomousMedicalArtificial2026	18	ok	-	0	0	edge	page header rule touches top edge	Extended Data Fig. 1 | Diagnostic accuracy and test-selection performance of MIRA compared
+bfbwn	new	ferberAutonomousMedicalArtificial2026	19	ok	-	0	0	edge	-	Extended Data Fig. 2 | MIRA Reasoning Traces. Decision traces of MIRA for each target diag
+b6ws9	new	ferberAutonomousMedicalArtificial2026	20	ok	-	0	0	edge	-	Extended Data Fig. 3 | MIRA Diagnostic Test selection compared with board-certified physic
+dprkv	new	ferberAutonomousMedicalArtificial2026	21	ok	-	0	0	edge	-	Extended Data Fig. 4 | MIRA Admission Medication Prescription. (A) Line plot illustrating 
+dsc3k	new	ferberAutonomousMedicalArtificial2026	22	ok	-	0	0	edge	-	Extended Data Fig. 5 | Home-medication reconciliation (documentation) task. (A) Overview o
+avpyr	new	ferberAutonomousMedicalArtificial2026	23	ok	-	0	0	edge,table	-	Extended Data Fig. 6 | Disease management performance of MIRA compared with physicians of 
+xzhdq	new	ferberAutonomousMedicalArtificial2026	24	ok	-	0	0	edge	page header rule touches top edge	Extended Data Fig. 7 | Procedure Requesting Performance of MIRA versus Board-certified Phy
+ry62b	new	ferberAutonomousMedicalArtificial2026	25	ok	-	0	0	edge	-	Extended Data Fig. 8 | Procedure Match Precision. Forest plot of the precision difference 
+p293b	new	ferberAutonomousMedicalArtificial2026	26	ok	-	0	0	edge	page header rule touches top edge	Extended Data Fig. 9 | Difference in guideline adherence (AI (MIRA) - board-certified phys
+9hqu6	new	ferberAutonomousMedicalArtificial2026	27	ok	-	0	0	edge	-	Extended Data Fig.10 | Data curation - Consort Diagram. Overview of the dataset curation p
+7mb24	new	ferberDevelopmentValidationAutonomous2025	2	missing	small	2	2	cut	Agent pipeline title cut by top edge	Fig. 1 | High-level overview of the LLM agent framework. A schematic overview of our LLM a
+dvsn2	new	ferberDevelopmentValidationAutonomous2025	3	ok	-	0	0		grey figure background extends slightly past right and bottom	Fig. 2 | Tool use and RAG improves LLM performance. a, Top, to demonstrate the superiority
+kfbdp	new	ferberDevelopmentValidationAutonomous2025	4	missing	small	2	1	edge,cut	bottom edge cuts answer text panel; last ~1.5 lines outside	Fig. 3 | Details of the agent's pipeline in patient case evaluation. The full agent's pipe
+be9we	new	ferberDevelopmentValidationAutonomous2025	5	ok	-	0	0		-	Fig. 4 | Performance of the agent's pipeline in patient case evaluation. Results from benc
+ubgde	new	ferberDevelopmentValidationAutonomous2025	7	ok	-	0	0		thin strip of gray panel background outside top/right	Fig. 5 Benchmarking of tool use for Llama-3 70B, Mixtral 8x7B (both open-weight models) an
+6djhw	new	ferberDevelopmentValidationAutonomous2025	14	ok	-	0	0		caption is a see-next-page stub; whole figure inside box	Extended Data Fig.1| See next page for caption.
+rxvpb	new	ferberDevelopmentValidationAutonomous2025	15	nofig	-	0	0	uncropped	Caption-only page; figure is on another page.	Extended Data Fig. 1 | Patient case population and bias investigation. We show more detail
+dr6u4	new	gaoPALProgramaidedLanguage2023	2	ok	-	0	0		-	Figure 1: A diagram illustrating PAL: Given a mathematical reasoning question, Chain-of-th
+ngwz2	new	gaoPALProgramaidedLanguage2023	3	ok	-	0	0		-	Figure 2: A close-up of a single example from a PAL prompt. Chain-of-thought reasoning is 
+8mvat	new	gaoPALProgramaidedLanguage2023	4	none	-	1	1	uncropped	no red box around question box and code box	Figure 3: Example prompt for the mathematical reasoning tasks, from the GSM8K benchmark.
+bm36v	new	gaoPALProgramaidedLanguage2023	4	none	-	1	1	uncropped	no red box around question box and code box	Figure 4: An example for a PAL prompt in the COLORED OBJECTS task. For space consideration
+9cs27	new	gaoPALProgramaidedLanguage2023	5	none	-	1	1	uncropped	no red box on the prompt/code figure	Figure 5: An example for a PAL prompt in the OBJECT COUNTING task. The base LM is expected
+5nrxq	new	gaoPALProgramaidedLanguage2023	6	ok	-	0	0		-	Figure 6: The solve rate on COLORED OBJECTS with respect to the number of objects included
+3sges	new	gaoPALProgramaidedLanguage2023	7	missing	small	2	2		x-axis tick labels cut by bottom edge; 002 past right edge	Figure 7: PAL with different models on GSM8K: though the absolute accuracies with code-cus
+kyf4s	new	gaoPALProgramaidedLanguage2023	7	ok	-	0	0		-	Figure 8: PAL with NL LMs on GSM8K: though CoT outperforms PAL with text-davinci-001, once
+cc53m	new	gaoPALProgramaidedLanguage2023	8	ok	-	0	0		-	Figure 9: Ablation study of PAL prompt formats. We consider the original PAL prompt, it wi
+bq8sc	new	gaoPALProgramaidedLanguage2023	14	none	-	1	1	uncropped	no red box on page; code panels (a)-(c) uncropped	Figure 10: Role of text in PAL: three different reasoning steps for the question Olivia ha
+rj76h	new	gaoPALProgramaidedLanguage2023	17	none	-	1	1	uncropped	no red box on the code panels	Figure 11: Ablations of the original example solution for the few-shot prompting experimen
+vtrfc	new	gaoPALProgramaidedLanguage2023	18	missing	small	2	2	edge,cut	x-axis label cut by bottom edge	Figure 12: Comparison of solve rates between PAL and baselines as the number of samples in
+7k3xf	new	gaoPALProgramaidedLanguage2023	20	missing	small	2	2	edge	subcaption '(b) In PAL...' line cut by bottom edge	Figure 13: ChatGPT with PAL and CoT to answer a user-posted question
+pjzcx	new	gaoPALProgramaidedLanguage2023	21	missing	small	2	2	edge	panel (c) subcaption with its letter lies below box	Figure 14: ChatGPT with PAL and CoT to answer a user-posted question
+ypvgp	new	gaoPALProgramaidedLanguage2023	26	none	-	1	1	uncropped	no red box on the three prompt boxes	Figure 15: Prompts for Math data sets.
+umfuc	new	gaoPALProgramaidedLanguage2023	29	none	-	1	1	uncropped	no red box on page	Figure 17
+jt7hx	new	gaoPALProgramaidedLanguage2023	31	none	-	1	1	uncropped	no red box on page; code listing uncropped	Figure 19: Prompt used for mathematical reasoning (1/2)
+7qr7z	new	gaoPALProgramaidedLanguage2023	32	none	-	1	1	uncropped	no red box on page	Figure 20: Prompt used for mathematical reasoning (2/2)
+c93xa	new	gaoPALProgramaidedLanguage2023	33	none	-	1	1	uncropped	no red box on page; code listing uncropped	Figure 21: Prompt used for OBJECT COUNTING.
+3eesw	new	gaoPALProgramaidedLanguage2023	34	none	-	1	1	uncropped	no red box on the code listing	Figure 22: Prompt used for REPEAT COPY.
+mynhd	new	gaoPALProgramaidedLanguage2023	35	none	-	1	1	uncropped	Code snippets (a) and (b) have no red box	Figure 23: Example model generation snippets on Reasoning about Color Object.
+vwn5y	new	gaoPALProgramaidedLanguage2023	35	none	-	1	1	uncropped	no red box on the code snippet figure	Figure 24: Generated Snippets for one question (...We then delete the penguin named Bernar
+7qfqr	new	gaoPALProgramaidedLanguage2023	36	none	-	1	1	uncropped	no red box on page	Figure 25: Example model generation on Date Understanding.
+nn6qp	new	gohGPT4AssistanceImprovement2025	2	ok	-	0	0		-	Fig.1 | Study flow diagram. The study included 92 practicing attending physicians and resi
+u7w96	new	gohGPT4AssistanceImprovement2025	4	ok	-	0	0		-	Fig. 2 | Comparison of the primary outcome for physicians with LLM and with conventional r
+h57u5	new	gohGPT4AssistanceImprovement2025	4	ok	-	0	0		-	Fig. 3 | Comparison of the primary outcome according to GPT alone versus physician with GP
+8cgmq	new	gohGPT4AssistanceImprovement2025	5	missing	small	2	2	cut	"second line of x tick label ""resources only"" cut at bottom"	Fig. 4 | Comparison of the time spent per case by physicians using GPT-4 and physicians us
+3fktc	new	gohGPT4AssistanceImprovement2025	9	ok	-	0	0	cut	-	Extended Data Fig.1 | Correlation between Time Spent in Seconds and Total Score. This figu
+f394h	new	halawiApproachingHumanLevelForecasting2024	2	ok	-	0	0	edge	subcaption (a) inside box	Figure 1: Overview of our retrieval and reasoning systems. Our retrieval system retrieves 
+hsv5f	new	halawiApproachingHumanLevelForecasting2024	6	ok	-	0	0		-	Figure 2: Our method of self-supervised training. For each question, the method produces m
+tk8un	new	halawiApproachingHumanLevelForecasting2024	7	ok	-	0	0		subcaptions inside box	Figure 3: System strengths. Our system outperforms the crowd on the validation set when: (
+va6jk	new	halawiApproachingHumanLevelForecasting2024	15	missing+extra	large	1	1	edge	section heading and body text included; last prompt line and frame cut	Figure 4: The simple zero-shot prompt used for baseline evaluations. No retrieval is perfo
+qb7cd	new	halawiApproachingHumanLevelForecasting2024	16	ok	-	0	0		-	Figure 5: The scratchpad prompt used for baseline evaluations. No retrieval is performed. 
+hde8y	new	halawiApproachingHumanLevelForecasting2024	19	ok	-	0	0		-	Figure 6: Prompt for categorizing questions based on the provided options. The prompt pres
+q6s8j	new	halawiApproachingHumanLevelForecasting2024	20	none	-	1	1	uncropped	prompt box above caption has no red box	Figure 7: The prompt for flagging ill-defined forecasting questions in our dataset. The pr
+jj6bw	new	halawiApproachingHumanLevelForecasting2024	20	ok	-	0	0		extra small box around colorbar inside the main box	Figure 8: Location mentions in all binary questions in our full dataset. We visualize all 
+k6qc6	new	halawiApproachingHumanLevelForecasting2024	22	missing	small	2	2	edge,cut	plot title cut by top edge	Figure 9: Distribution of the opening dates of the questions in our full datasets, ordered
+8ycsp	new	halawiApproachingHumanLevelForecasting2024	23	none	-	1	1	uncropped	prompt box above caption has no red box	Figure 10: All scratchpad prompts begin with a question's basic information, followed by r
+6zx4v	new	halawiApproachingHumanLevelForecasting2024	24	ok	-	0	0		-	Figure 11: The scratchpad reasoning prompt that gets lowest Brier score on validation set.
+urxvc	new	halawiApproachingHumanLevelForecasting2024	25	ok	-	0	0	edge	subcaptions (a) and (b) inside	Figure 12: Prompts to generate search queries based on the question's data.
+4uyy9	new	halawiApproachingHumanLevelForecasting2024	26	ok	-	0	0	edge	-	Figure 13: Prompt used to rate the relevance of an article with respect to a question. The
+2rrry	new	halawiApproachingHumanLevelForecasting2024	26	ok	-	0	0	edge	-	Figure 14: The summarization prompt we use in our retrieval system. The prompt provides a 
+nuppr	new	halawiApproachingHumanLevelForecasting2024	30	ok	-	0	0		panel subcaptions inside box	Figure 15: Our system is naturally well calibrated on both (a) validation and (c) test. Th
+2vkvn	new	halawiApproachingHumanLevelForecasting2024	33	ok	-	0	0	edge	-	"Figure 16: A response of the fine-tuned model on the question ""Will Kevin McCarthy resign "
+dqqfa	new	halawiApproachingHumanLevelForecasting2024	34	ok	-	0	0	edge,cut	first text line touches top edge; frame hairline outside	Figure 17: A response from our fine-tuned model on the question “Will Reddit announce chan
+r43k6	new	halawiApproachingHumanLevelForecasting2024	35	ok	-	0	0	edge	-	Figure 18: A response from our fine-tuned model on the question “Will Israel carry out and
+ukd48	new	halawiApproachingHumanLevelForecasting2024	36	none	-	1	1	uncropped	no red box on page	Figure 19: A response from our fine-tuned model on the question “Will Trump attend the fir
+6w2ru	new	halawiApproachingHumanLevelForecasting2024	37	ok	-	0	0	edge	-	Figure 20: A response from our fine-tuned model on the question “Will ‘Barbie’ gross 2x mo
+9gw8h	new	jiMitigatingLLMHallucination2023	1	ok	-	0	0		-	Figure 1: An example of hallucinated Generative QA $ ^{2} $. PTEN mutation is not typicall
+r6g2w	new	jiMitigatingLLMHallucination2023	4	ok	-	0	0		-	Figure 2: The incidence of each category of problematic answers in each model.
+kg794	new	jiMitigatingLLMHallucination2023	5	ok	-	0	0		-	Figure 3: The Google Ngrams Frequency of each category of problematic answers.
+sdeeb	new	jiMitigatingLLMHallucination2023	6	ok	-	0	0		-	Figure 4: The overview of interactive self-reflection method, comprising (1) Factual Knowl
+zv2gc	new	jiMitigatingLLMHallucination2023	15	missing	small	2	2	edge	orange Submit button strip below box excluded	Figure 5: The UI for human evaluation on fact-consistency.
+33f7g	new	jiMitigatingLLMHallucination2023	15	missing	small	2	2	edge	orange Submit button at bottom-right cut by bottom edge	Figure 6: The UI for human evaluation on question-consistency and tangentiality.
+emkhe	new	jiangHealthSystemscaleLanguage2023	2	ok	-	0	0		-	Fig. 1 | Overview of the language model-based approach for clinical prediction. a, We quer
+qdv9v	new	jiangHealthSystemscaleLanguage2023	3	ok	-	0	0		-	Fig. 2 | Overall temporal test performance across five tasks. a, The five tasks include th
+qavgx	new	jiangHealthSystemscaleLanguage2023	4	missing	large	1	1	edge	panels c, d tables below box; bottom edge cuts Fine-tune header	Fig. 3 | Retrospective study of NYUTron's readmission prediction. a, On 20 cases sampled f
+htem6	new	jiangHealthSystemscaleLanguage2023	5	ok	-	0	0		-	Fig. 4 | Prospective study of NYUTron's predictive performance. a, NYUTron had an AUC of 7
+psz3e	new	jiangHealthSystemscaleLanguage2023	13	missing	small	2	2		panel letters a and b outside box	Extended Data Fig.1 | Difference between random test and temporal test. a, AUC curve for t
+qdhav	new	jiangHealthSystemscaleLanguage2023	14	ok	-	0	0		-	Extended Data Fig. 2 | Benchmarking NYUTron against a traditional NLP model and other lang
+xnfyw	new	jiangHealthSystemscaleLanguage2023	15	ok	-	0	0		-	Extended Data Fig. 3 | Examples of pretraining corpora. We include here some examples from
+gm47q	new	jiangHealthSystemscaleLanguage2023	16	ok	-	0	0	edge,cut	x-axis title touches bottom edge	Extended Data Fig. 4 | Comparison of NYUTron's and BioClinicalBERT's performance on MIMIC-
+6kzqz	new	jiangHealthSystemscaleLanguage2023	17	missing	small	2	2	edge	"x-axis label ""Month"" of panel b cut by bottom edge"	Extended Data Fig. 5 | Bias analysis stratifying NYUTron's performance by clinical departm
+2jntq	new	jiangHealthSystemscaleLanguage2023	18	ok	-	0	0	edge	top edge touches page header rule	Extended Data Fig. 6 | Bias analysis stratifying NYUTron's performance by age groups and m
+y43qm	new	jiangHealthSystemscaleLanguage2023	19	ok	-	0	0	edge	top edge near page header rule	Extended Data Fig. 7 | Detailed statistics of the comparison between language models and l
+2pkqg	new	jiangHealthSystemscaleLanguage2023	20	split	large	1	1	uncropped	panels a, b, c, d in four separate boxes; panel letters outside	Extended Data Fig. 8 | Additional information about readmission prediction. a, Visualizati
+5sat8	new	jiangMedAgentBenchVirtualEHR2025	3	ok	-	0	0		-	Figure 1. Schematic Diagram of MedAgentBench Framework.
+mfa6p	new	jiangMedAgentBenchVirtualEHR2025	7	none	-	1	1	uncropped	no red box on panels A-C	Figure 2. Example Successful Trajectory and Common Error Patterns in MedAgentBench.
+bwenw	new	jiangSELFINCORRECTLLMsStruggle2025	1	ok	-	0	0		-	Figure 1: Two phases evaluated in our paper. In the generation phase, the model is fed wit
+2sp4f	new	jinHiddenFlawsExpertlevel2024	2	missing	small	2	2	edge	"title ""207 NEJM Image Challenges"" above box excluded"	Fig. 1 | Evaluation Procedure for GPT-4 with Vision (GPT-4V). This figure illustrates the 
+p39rh	new	jinHiddenFlawsExpertlevel2024	3	ok	-	0	0		-	Fig. 2 | Evaluation results. a Average multi-choice accuracies achieved by various models 
+86syz	new	johriEvaluationFrameworkClinical2025	3	missing	small	2	2		Top edge cuts through the Case vignette heading	Fig. 1 | CRAFT-MD: a framework for evaluating the conversational abilities of clinical LLM
+qch3j	new	johriEvaluationFrameworkClinical2025	4	ok	-	0	0		-	Fig. 2 | Effect of replacing case vignettes with simulated doctor-patient conversations in
+vb76t	new	johriEvaluationFrameworkClinical2025	6	ok	-	0	0		-	Fig. 3 | Trends in vignette and conversational formats across skin disease datasets. Resul
+rzqdq	new	johriEvaluationFrameworkClinical2025	7	ok	-	0	0		-	Fig. 4 | Evaluation of coupled image interpretation and conversational capabilities of GPT
+fxjd4	new	johriEvaluationFrameworkClinical2025	8	ok	-	0	0		rotated x labels touch bottom edge	Fig. 5 | Continuous monitoring of LLMs. Evolution of mean diagnostic accuracy between the 
+57wz6	new	johriEvaluationFrameworkClinical2025	15	split	large	1	1	edge,cut	panels a,b and c in separate boxes; shared legend outside both	Extended Data Fig. 1 | Distribution of case vignettes across medical specialties and sourc
+xyu28	new	johriEvaluationFrameworkClinical2025	16	none	-	1	1	uncropped	no red box on page	Extended Data Fig.2 | Examples of summarized conversations. (i) an ideal summarized conver
+wy2pp	new	johriEvaluationFrameworkClinical2025	17	missing	small	2	2	edge,cut	legend row at bottom cut by red edge	Extended Data Fig. 3 | Distribution of clinical LLM's accuracy in 4-choice MCQ across the 
+72fv8	new	johriEvaluationFrameworkClinical2025	18	ok	-	0	0	cut	all four panels and legend inside box	Extended Data Fig. 4 | Distribution of clinical LLM's accuracy in FRQ across the medical s
+uu5fu	new	johriEvaluationFrameworkClinical2025	19	ok	-	0	0		-	Extended Data Fig. 5 | Trends in vignette and conversational formats in dermatology datase
+259w4	new	jorfAgentRxBenchmarkStudy2026	6	ok	-	0	0	cut	-	Figure 1: Overview of the agentic evaluation frameworks considered within the AgentRx benc
+mc2hd	new	jorfAgentRxBenchmarkStudy2026	19	ok	-	0	0		top sliver of caption line inside box	Figure B2: Bar graphs showing the difference in ECE between the unimodal and multimodal se
+xbtx6	new	jorfAgentRxBenchmarkStudy2026	20	ok	-	0	0		-	Figure C1: Radar charts showing how the single agent setup benefits more from the multimod
+ay4tz	new	kapoorAIAgentsThat2025	4	ok	-	0	0		-	Figure 1: Our simple baselines offer Pareto improvements over SOTA agents. We run each age
+wnfvc	new	kapoorAIAgentsThat2025	7	ok	-	0	0	uncropped	-	Figure 2: Joint optimization maintains accuracy while significantly reducing cost. All mea
+tugjz	new	kapoorAIAgentsThat2025	22	ok	-	0	0		-	Figure 4: HumanEval results with a complete x- and y-axis. The figure shows accuracy vs. A
+msg68	new	kapoorAIAgentsThat2025	23	missing	small	2	2	edge,cut	x-axis title cut through by bottom edge	Figure 5: Accuracy vs. inference time curves for HumanEval. This figure shows the accuracy
+7mq2y	new	kapoorAIAgentsThat2025	25	ok	-	0	0		-	Figure 6: Robustness checks with June 2023 versions of GPT models. This figure shows the r
+hu7k4	new	kapoorAIAgentsThat2025	27	ok	-	0	0		-	Figure 7: Error bars for our HotPotQA analysis. The figure shows retrieval accuracy vs. AP
+r7avb	new	kapoorAIAgentsThat2025	27	ok	-	0	0		both panels with subcaptions inside one box	Figure 9: Pareto frontiers returned by joint optimization. This figure shows the Pareto fr
+29yn2	new	kapoorAIAgentsThat2025	28	ok	-	0	0		-	Figure 8: With increased use, the total cost of running an agent is dominated by the varia
+3kbd5	new	kapoorAIAgentsThat2025	28	ok	-	0	0		-	Figure 10: HotPotQA analysis with GPT-4. Agentic systems can often bridge the accuracy gap
+64485	new	kargerForecastBenchDynamicBenchmark2025	10	ok	-	0	0		subcaptions (a)/(b) inside box	Figure 1: The graphs show the linear relationship between the Brier scores from Table 2 an
+t3g8x	new	kargerForecastBenchDynamicBenchmark2025	25	missing	large	1	1	edge	question and background text at top of screenshot outside box	Figure 2: An example market-based question from the human survey.
+nzq5p	new	kargerForecastBenchDynamicBenchmark2025	26	none	-	1	1	edge	box covers only bottom prediction rows of the screenshot	Figure 3: An example question generated from a data provider, in this case DBnomics, from 
+bjas8	new	kargerForecastBenchDynamicBenchmark2025	28	extra	large	1	1	edge,table	Box also holds Table 17 and its note text.	Figure 4: Zero-shot Prompt from Halawi et al. (2024)
+p9mq3	new	kargerForecastBenchDynamicBenchmark2025	29	ok	-	0	0		-	Figure 5: Scratchpad Prompt modified from Halawi et al. (2024)
+jb8tm	new	kargerForecastBenchDynamicBenchmark2025	30	ok	-	0	0		-	Figure 6: Superforecaster prompt 1
+xbqjc	new	kargerForecastBenchDynamicBenchmark2025	31	ok	-	0	0		-	Figure 7: Superforecaster prompt 2
+yzs84	new	kargerForecastBenchDynamicBenchmark2025	31	none	-	1	1	uncropped	Figure 8 prompt box has no red box; only Figure 7 cropped	Figure 8: Superforecaster prompt 3
+kdw6b	new	kargerForecastBenchDynamicBenchmark2025	32	none	-	1	1	uncropped	Figure 9 prompt box above caption has no red box; red box is Figure 10	Figure 9: Combination prompt that includes information about both non-market questions. Th
+udsna	new	kargerForecastBenchDynamicBenchmark2025	32	ok	-	0	0		-	Figure 10: Question validation prompt
+6vhjp	new	kimCorrelatedErrorsLarge2025	2	missing	small	2	2	edge,cut	panel labels (a) HuggingFace and (b) Helm cut by bottom edge	Figure 1. Agreement when both models are wrong. Models are sorted by accuracy. More accura
+xzfd7	new	kimCorrelatedErrorsLarge2025	5	ok	-	0	0		right-column titles truncated in source, not by crop	Figure 2. Evaluating LLM-as-judge on HELM. In each plot, one model is used as the judge. E
+frr66	new	kimCorrelatedErrorsLarge2025	7	ok	-	0	0		subfigure captions (a) and (b) inside box	Figure 3. Systemic exclusion (fraction of resumes with no job offers) when p = 0.25: (a) f
+nv8s6	new	kimCorrelatedErrorsLarge2025	7	ok	-	0	0		-	Figure 4. The effect of “true applicant rating” on match probability across different mark
+qxn49	new	kimCorrelatedErrorsLarge2025	8	ok	-	0	0		subcaptions (a) and (b) inside the box	Figure 5. Market outcomes depending on firm LLM usage: (a) gives average applicant rank, (
+qspyt	new	kimCorrelatedErrorsLarge2025	14	ok	-	0	0	edge	-	Figure 6. Cluster analysis for selecting resumes and job descriptions in RESUMES.
+wy4gb	new	kimCorrelatedErrorsLarge2025	15	ok	-	0	0		-	Figure 7. The prompts used to score the fit of a resume to a job description. The first pr
+kskbh	new	kimCorrelatedErrorsLarge2025	16	ok	-	0	0		-	Figure 8. Evaluating LLM-as-judge on HUGGINGFACE. In each plot, one model is used as the j
+6vyyc	new	kimCorrelatedErrorsLarge2025	17	ok	-	0	0		subcaptions (a)/(b) inside box	Figure 9. Correlation heatmaps on RESUMES.
+nuv6z	new	kimCorrelatedErrorsLarge2025	18	ok	-	0	0		subcaptions (a) and (b) inside the box	Figure 10. Replication of matching markets experiments given LLM-determined applicant pref
+eewk4	new	kimFinalAnswerEvaluating2026	2	ok	-	0	0		-	Figure 1. An example of agents returning the same answer through different trajectories gi
+usxfc	new	kimFinalAnswerEvaluating2026	4	ok	-	0	0		-	Figure 2. Tool outputs are stored in the evidence bank, which is used to detect hallucinat
+ksd6f	new	kimFinalAnswerEvaluating2026	6	ok	-	0	0		-	Figure 3. Time Efficiency Comparison of LLM Evaluators using TRACE on Meta-GTA dataset.
+awy8r	new	kimFinalAnswerEvaluating2026	9	ok	-	0	0		-	Figure 4. Model accuracy based on the number of tokens used and dialogue turns.
+vrd7r	new	kimFinalAnswerEvaluating2026	16	missing	large	1	1	edge,cut	Task heading, query line and top of photo above box	Figure 5. Case study: Both agents are correct but trajectory efficiency is different in GP
+y3bsb	new	kimFinalAnswerEvaluating2026	17	missing	small	2	2	edge	Task title and snippet heading cut by top edge	Figure 6. Case study: Both agents (GPT-4.1 and Qwen-72B) are incorrect but GPT-4.1 traject
+759t2	new	kimFinalAnswerEvaluating2026	18	none	-	1	1	uncropped	Task Instruction prompt box has no red box	Figure 7. Prompt for generating multiple ground-truth paths.
+qv4mt	new	kimFinalAnswerEvaluating2026	19	none	-	1	1	uncropped	prompt box figure has no red box	Figure 8. Prompt for generating inefficiency in the Meta evaluation dataset.
+744dp	new	kimFinalAnswerEvaluating2026	20	none	-	1	1	uncropped	no red box on page; prompt figure uncropped	Figure 9. Prompt for generating hallucinations in the Meta evaluation dataset.
+4bzhc	new	kimFinalAnswerEvaluating2026	21	none	-	1	1	uncropped	prompt box figure has no red box	Figure 10. Prompt for generating adaptivity in the Meta evaluation dataset.
+7wzd8	new	kimFinalAnswerEvaluating2026	22	none	-	1	1	uncropped	Task Instruction prompt box has no red box	Figure 11. Prompt for validating augmented multiple ground-truth paths.
+y7m2r	new	kimFinalAnswerEvaluating2026	23	none	-	1	1	uncropped	Task Instruction prompt box has no red box	Figure 12. Prompt for validating augmented inefficiency in the Meta evaluation dataset.
+n2jcp	new	kimFinalAnswerEvaluating2026	24	none	-	1	1	uncropped	no red box on page	Figure 13. Prompt for validating augmented hallucinations in the Meta evaluation dataset.
+gffpa	new	kimFinalAnswerEvaluating2026	25	none	-	1	1	uncropped	prompt box has no red box	Figure 14. Prompt for validating augmented adaptivity in the Meta evaluation dataset.
+b3k6m	new	kimFinalAnswerEvaluating2026	26	none	-	1	1	uncropped	no red box on the page	Figure 15. TRACE Prompt for evaluating inefficiency.
+hrjsc	new	kimFinalAnswerEvaluating2026	27	none	-	1	1	uncropped	Prompt box of Figure 16 has no red box	Figure 16. TRACE Prompt for evaluating hallucinations.
+75ufp	new	kimFinalAnswerEvaluating2026	28	none	-	1	1	uncropped	no red box on the prompt figure	Figure 17. TRACE Prompt for evaluating adaptivity.
+y2rke	new	kimFinalAnswerEvaluating2026	29	none	-	1	1	uncropped	no red box on the prompt figure	Figure 18. Prompt provided to LLM for the trajectory generation.
+vkaa2	new	kimFinalAnswerEvaluating2026	30	none	-	1	1	uncropped	no red box on the prompt figure	Figure 19. Formatting prompt for correcting LLM outputs.
+tsxvz	new	leeClinicalDecisionSupport2025	3	ok	-	0	0		-	Fig. 1 | Overview of the pseudo-notes generation and multiple embedding model for Electron
+grvzp	new	leeClinicalDecisionSupport2025	4	ok	-	0	0		-	Fig. 2 | Model component study. Comparing Different Model Variants on Area under the Recei
+q62q9	new	leeClinicalDecisionSupport2025	5	ok	-	0	0		-	Fig. 3 | MEME vs instruction-tuned GPT-4. Predicting Emergency Department (ED) Disposition
+pe327	new	leeClinicalDecisionSupport2025	5	ok	-	0	0		-	Fig. 5 | Performance of the ED disposition task across and within datasets. This figure il
+35wna	new	leeClinicalDecisionSupport2025	5	ok	-	0	0		-	Fig. 4 | Performance generalization via few-shot learning. F1 score, AUROC (Area Under the
+rs4wv	new	leeClinicalDecisionSupport2025	6	ok	-	0	0	cut	figure title touches top edge	Fig. 6 | MEME backbone performance. Longitudinal Performance Metrics of MEME with Differen
+epvck	new	liLargeLanguageModelbased2025	3	ok	-	0	0		-	Fig. 1| Study overview. a, The framework of predicting overall and organ-specific ages usi
+4fgjk	new	liLargeLanguageModelbased2025	4	ok	-	0	0		-	Fig. 2 | Validation of LLM-predicted overall and organ-specific ages. a, We constructed se
+uedqc	new	liLargeLanguageModelbased2025	6	nofig	-	0	0	uncropped	figure is not on this page	Fig. 3 | Validation of LLM-based age gaps. a, We constructed separate linear or logistic r
+hff52	new	liLargeLanguageModelbased2025	8	ok	-	0	0		-	Fig. 4 | Advantages of leveraging LLMs for aging assessment. a,b, Generalizability of the 
+prmms	new	liLargeLanguageModelbased2025	11	ok	-	0	0	edge	-	Fig. 6 | Interpretability analysis of LLMs for aging assessment. a,b, CoT prompting was em
+qr3xk	new	liLargeLanguageModelbased2025	22	none	-	1	1	uncropped	no red box on the two prompt panels	Extended Data Fig. 1 | Prompt template used in LLMs. The prompt template consists of 2 com
+49njt	new	liLargeLanguageModelbased2025	25	nofig	-	0	0		caption only; figure is on another page	Extended Data Fig. 3 | Repeated validation of LLM-based age gaps in the UKB. a, b. We comp
+64jhr	new	liLargeLanguageModelbased2025	26	ok	-	0	0		whole multi-panel figure a-h inside one box	Extended Data Fig.4| See next page for caption.
+carbp	new	liLargeLanguageModelbased2025	27	nofig	-	0	0	uncropped	caption-only page; figure is on another page	Extended Data Fig. 4 | Generalizability of the LLM-based aging assessment framework to oth
+6xn4d	new	liLargeLanguageModelbased2025	28	missing	large	1	2	edge,cut	top title cut in half; bottom 'Analysis and prediction' label outside	Extended Data Fig. 5 | An example of leveraging LLMs to dynamically and longitudinally ass
+h53g9	new	liLargeLanguageModelbased2025	29	ok	-	0	0		caption stub only; whole figure inside box	Extended Data Fig. 6| See next page for caption.
+9kuj8	new	liLargeLanguageModelbased2025	30	nofig	-	0	0	uncropped	caption only; figure is on another page	Extended Data Fig. 6 | Identification of proteomic biomarkers associated with organ-specif
+sakw8	new	liLargeLanguageModelbased2025	31	ok	-	0	0		-	Extended Data Fig.7| See next page for caption.
+gagpy	new	liLargeLanguageModelbased2025	32	nofig	-	0	0	uncropped	caption-only page; figure on another page	Extended Data Fig. 7 | Identification of aging-related proteins by LLMs and prediction of 
+9mh76	new	liLargeLanguageModelbased2025	34	nofig	-	0	0		figure is not on this page	Extended Data Fig. 8 | Associations of LLM-based organ-specific age gaps and 270 diseases.
+8xkbk	new	liLargeLanguageModelbased2025	36	nofig	-	0	0		caption only; figure is on another page	Extended Data Fig. 9 | Developing 270 diseases risk prediction models in the UKB. We devel
+fwgh7	new	liLargeLanguageModelbased2025	37	missing	small	2	2		"panel letter ""a"" above top edge excluded"	Extended Data Fig. 10 | Multi-agent pipeline for robust and reliable clinical application.
+spn5c	new	liangEncouragingDivergentThinking2024	1	ok	-	0	0		-	Figure 1: Disagreement between two adjacent iterations with respect to the iteration of de
+7cxs6	new	liangEncouragingDivergentThinking2024	3	ok	-	0	0		-	Figure 2: Framework of Multi-Agent Debate. Here we designate the devil ( $ \text{🐱} $) as 
+th8gx	new	liangEncouragingDivergentThinking2024	7	missing	small	2	2		"Bottom edge cuts through x-axis title ""Level""."	Figure 3: Translation performance with respect to the debate level on Lexical.
+4cy3t	new	liangEncouragingDivergentThinking2024	7	missing	small	2	2	cut	x-axis label 'Iteration' cut by bottom edge	Figure 4: Distribution of iteration rounds and a human score of each iteration subset.
+zchft	new	liangEncouragingDivergentThinking2024	8	ok	-	0	0		-	Figure 5: Performance with respect to the iteration of debate or self-reflection.
+sb383	new	liaoEHRR1ReasoningEnhancedFoundational2025	2	missing	small	2	2	edge	panel heading a. EHR Analysis Tasks cut by top edge	Figure 1 | Overview of the EHR tasks and the proposed method. a. EHR Analysis Tasks. EHR a
+xx253	new	liaoEHRR1ReasoningEnhancedFoundational2025	4	split	large	1	1	split,cut	panels a and c boxed separately; panel b text boxes uncovered	Figure 2 | Overview of reasoning data in EHR-Ins. a The sample size of each task in the re
+dnt2p	new	liaoEHRR1ReasoningEnhancedFoundational2025	5	missing	large	1	1	edge	Left-side category and item tables of the figure lie outside box	Figure 3 | Overview of EHR-Ins and EHR-Bench.. The hierarchical ring chart displays the di
+wxwju	new	liaoEHRR1ReasoningEnhancedFoundational2025	7	ok	-	0	0		-	Figure 4 | Performance comparison of EHR-R1 and nine baseline LLMs across 24 decision-maki
+35ng4	new	liaoEHRR1ReasoningEnhancedFoundational2025	9	ok	-	0	0		-	Figure 5 | Performance comparison of EHR-R1 and seven baseline LLMs on 18 risk-prediction 
+mwmk9	new	liaoEHRR1ReasoningEnhancedFoundational2025	10	ok	-	0	0		-	Figure 6 | Performance comparison of EHR-R1 and baseline LLMs in generalization evaluation
+m6unw	new	liaoEHRR1ReasoningEnhancedFoundational2025	12	ok	-	0	0	cut	-	Figure 7 | Ablation experiments results on decision making tasks of EHR-Bench. The figure 
+m8wse	new	liaoEHRR1ReasoningEnhancedFoundational2025	15	ok	-	0	0		-	Figure 8 | Overview of Data curation pipeline. The pipeline for our data curation process 
+truwn	new	liaoEHRR1ReasoningEnhancedFoundational2025	18	ok	-	0	0	cut	top edge touches panel a title	Figure 9 | Overview of Thinking-Graph-Driven Reasoning Synthesis. The whole pipeline compr
+vghjh	new	liaoEHRR1ReasoningEnhancedFoundational2025	48	none	-	1	1	uncropped	no red box on the figure	Supplementary Figure 1 | A case study of EHR Trajectory, Medical Relation, and Reasoning C
+vkf9q	new	lightmanLetsVerifyStep2024	3	ok	-	0	0		-	Figure 1: A screenshot of the interface used to collect feedback for each step in a soluti
+s93a7	new	lightmanLetsVerifyStep2024	4	ok	-	0	0		-	Figure 2: Two solutions to the same problem, graded by the PRM. The solution on the left i
+3fb2e	new	lightmanLetsVerifyStep2024	5	ok	-	0	0		-	Figure 3: A comparison of outcome-supervised and process-supervised reward models, evaluat
+w4djh	new	lightmanLetsVerifyStep2024	6	ok	-	0	0		Subcaptions (a) and (b) inside box	Figure 4: A comparison of different forms of outcome and process supervision. Mean and sta
+rgy8v	new	lightmanLetsVerifyStep2024	14	ok	-	0	0		-	Figure 5: Two histograms comparing the distribution of problem difficulty levels and subje
+cazkk	new	lightmanLetsVerifyStep2024	16	ok	-	0	0		-	Figure 6: A breakdown of ORM vs PRM performance by problem difficulty.
+cun8k	new	luTriageAgentBetterMultiAgents2024	1	ok	-	0	0		-	Figure 1: Illustration of the clinical triage task.
+kxrhe	new	luTriageAgentBetterMultiAgents2024	3	ok	-	0	0		-	Figure 2: A framework of our proposed heterogeneous multi-agent collaboration method, TRIA
+9fyv8	new	luTriageAgentBetterMultiAgents2024	8	ok	-	0	0		-	Figure 3: Ablation study results. (a), (b) and (c) show the impact of agent structure comp
+8s2w9	new	luTriageAgentBetterMultiAgents2024	9	ok	-	0	0		-	Figure 4: Ratio of different categories of error cases.
+dvy7r	new	luTriageAgentBetterMultiAgents2024	14	ok	-	0	0		-	Figure 5: Topology Structure Comparisons of previous methods
+qaxbm	new	minFActScoreFinegrainedAtomic2023	1	ok	-	0	0		bottom ellipsis bullet just touches lower edge	Figure 1: An overview of FACTSCORE, a fraction of atomic facts (pieces of information) sup
+69f6a	new	minFActScoreFinegrainedAtomic2023	5	ok	-	0	0		-	Figure 2: FACTSCORE across varying frequency levels of human entities (top) and relative p
+4nffb	new	minFActScoreFinegrainedAtomic2023	9	ok	-	0	0		-	Figure 3: Ranking between 13 subjects (human and 12 LMs), rated by the two best variants o
+2aehs	new	minFActScoreFinegrainedAtomic2023	17	ok	-	0	0		-	Figure 4: A case in which $ Fl_{MICRO} $ and Error Rate (ER) rank two evaluators different
+w3w4t	new	minFActScoreFinegrainedAtomic2023	20	ok	-	0	0		-	Figure 5: Impact of different subsets of random samples in prompts. The FACTSCORES to 13 s
+7r7wx	new	minFActScoreFinegrainedAtomic2023	24	ok	-	0	0		-	Figure 6: Instructions for data annotation in Section 4. We also provided a demonstration 
+uyd4g	new	minFActScoreFinegrainedAtomic2023	25	missing	large	1	1	edge	upper screenshot (Step 1 page) outside box	Figure 7: An interface for data annotation in Section 4. Annotators were able to navigate 
+bdvbn	new	mizrahiStateWhatArt2024	2	ok	-	0	0	cut	-	Figure 1: Evaluation of different OpenAI models on the homophones task from LMENTRY over f
+hggtq	new	mizrahiStateWhatArt2024	6	ok	-	0	0		-	Figure 2: Model performance and ranking induced by pairs of paraphrases that exhibit the m
+9pv64	new	mizrahiStateWhatArt2024	6	none	-	1	1	uncropped	Figure 3 heatmap has no red box; red box is Figure 2	Figure 3: Model and task performance divergence. For each LMENTRY task, we show the number
+k8quh	new	mizrahiStateWhatArt2024	7	none	-	1	1	uncropped	no red box on the heatmap figure	Figure 4: Average performance differences between various models for the most common minim
+rjh8x	new	mizrahiStateWhatArt2024	9	ok	-	0	0		-	Figure 5: Percentage of instruction paraphrases with accuracy higher than 5% in T5 models 
+2duph	new	mizrahiStateWhatArt2024	10	ok	-	0	0		-	Figure 6: The performance of various models according to the metrics proposed in Section 5
+kp3ds	new	mizrahiStateWhatArt2024	11	ok	-	0	0		-	Figure 7: Comparison of the maximum performance of four OpenAI models using original promp
+533ss	new	noriSequentialDiagnosisLanguage2025	4	ok	-	0	0		beige page-art margin outside box, no content lost	Figure 1: Example of an AI agent solving a sequential-diagnosis reasoning problem.
+fjfup	new	noriSequentialDiagnosisLanguage2025	6	ok	-	0	0		-	Figure 2: Multiagent orchestration in the SDBench benchmark. A corpus of NEJM CPC cases is
+77xr6	new	noriSequentialDiagnosisLanguage2025	8	ok	-	0	0		-	Figure 3: Participating physicians and models are provided with a case abstract to begin t
+zzzju	new	noriSequentialDiagnosisLanguage2025	9	ok	-	0	0		-	Figure 4: Prompt used for baseline performance estimation.
+vr5j5	new	noriSequentialDiagnosisLanguage2025	10	ok	-	0	0		beige background fill extends beyond box; no content lost	Figure 5: Overview of the MAI-Dx Orchestrator
+senhw	new	noriSequentialDiagnosisLanguage2025	12	ok	-	0	0		-	Figure 6: Interface developed for physicians to attempt cases from SDBench.
+n2eyy	new	noriSequentialDiagnosisLanguage2025	13	missing	large	1	2	edge	two-line title above box; top edge cuts second title line	Figure 7: Pareto-frontier showing diagnostic accuracy versus average cumulative medical co
+94vrh	new	noriSequentialDiagnosisLanguage2025	15	missing	small	2	2	edge	chart title above top edge excluded	Figure 8: Accuracy improvements delivered by MAI-DxO (no budget constraints) across differ
+g4dtz	new	noriSequentialDiagnosisLanguage2025	16	missing	small	2	2	edge	Top edge cuts through first title line Pareto Frontier Comparison	Figure 9: Pareto frontier curves of MAI-DxO and baseline prompting across validation and h
+zqkek	new	noriSequentialDiagnosisLanguage2025	23	ok	-	0	0		-	Figure 10: Case level scores of MAI-DxO variants and clinicians across the 56 case test se
+2tjr2	new	palekaPitfallsEvaluatingLanguage2026	4	ok	-	0	0	edge	subcaptions outside; faint screenshot divider line slightly past right edge	Figure 1: Examples of hard-to-filter temporal leakage in search engines.
+pd2rm	new	palekaPitfallsEvaluatingLanguage2026	5	ok	-	0	0	edge	subcaptions (a)/(b) just below box, outside; panels complete	Figure 2: Knowledge cutoff inconsistency in gpt-4o-2024-08-06: when jailbroken, the model 
+5n9gj	new	palekaPitfallsEvaluatingLanguage2026	12	ok	-	0	0	edge	-	Figure 3: Search results with date restriction showing an article with January 2024 public
+8scj3	new	palekaPitfallsEvaluatingLanguage2026	13	ok	-	0	0		-	Figure 4: Additional examples of retrieval bias in search engines when using date restrict
+q9r96	new	palekaPitfallsEvaluatingLanguage2026	14	ok	-	0	0		-	Figure 5: Manifold emphasizes Personal use-cases over News and current events, whereas the
+cppev	new	palekaPitfallsEvaluatingLanguage2026	15	ok	-	0	0		-	Figure 6: Resolved questions from Manifold Markets by month, with colors representing the 
+5typh	new	palekaPitfallsEvaluatingLanguage2026	15	ok	-	0	0		-	Figure 7: The gap between the knowledge cutoff and when the model is relevant is getting s
+ac5m3	new	palekaPitfallsEvaluatingLanguage2026	21	ok	-	0	0		-	Figure 8: ForecastBench obtains questions from multiple sources, but from each source, que
+pxcaq	new	rencZeroShotHealth2024	2	ok	-	0	0		-	Fig. 1 | Implementing the ETHOS model with EMR data. a Extraction of raw patient data from
+u567h	new	rencZeroShotHealth2024	3	ok	-	0	0		-	Fig. 2 | Tokenization and embedding visualizations of MIMIC-IV data. a Overview of key ins
+ty72a	new	rencZeroShotHealth2024	4	missing	small	2	2		bottom x-axis tick labels (0.0 0.5 1.0) below box	Fig. 3 | Receiver Operating Characteristic (ROC) curves for predictive tasks via the ETHOS
+4d29t	new	rencZeroShotHealth2024	7	ok	-	0	0		-	Fig. 4 | Stages of PHT construction and tokenization in ETHOS. The process begins with ass
+59hmm	new	rencZeroShotHealth2024	9	split	large	1	1	edge	a+c, b plot, d plot separate; b and d header bars outside	Fig. 5 | ETHOS model performance on SOFA estimation and DRG classification. a Estimation o
+tckgc	new	sandmannBenchmarkEvaluationDeepSeek2025	2	ok	-	0	0		-	Fig. 1 | Model performance for diagnosis tasks. a–d, Bubble plots showing the results of t
+7yp8y	new	sandmannBenchmarkEvaluationDeepSeek2025	3	ok	-	0	0		-	Fig. 2 | Model performance for treatment recommendation tasks. a–c, Bubble plots showing t
+z3jtz	new	sandmannBenchmarkEvaluationDeepSeek2025	7	missing	small	2	2	edge	"headings ""Setting"" and ""Evaluation"" above the box are outside"	Extended Data Fig.1 | Visual abstract.
+vfz5a	new	sandmannBenchmarkEvaluationDeepSeek2025	8	ok	-	0	0		-	Extended Data Fig. 2 | Summarized model performances for diagnosis and treatment recommend
+tbdk7	new	savageLargeLanguageModel2024	3	none	-	1	1	uncropped	no red box around Confidence Elicitation diagram	Figure 1. One-step confidence elicitation (CE) compared to two-step CE.
+jfz53	new	savageLargeLanguageModel2024	4	ok	-	0	0	edge	ends of grey title band outside box; only empty fill lost	Figure 2. Demonstration of sample consistency (SC) methods. Multiple forward passes of a m
+fcz3z	new	savageLargeLanguageModel2024	5	ok	-	0	0		-	Figure 3. Outline of study methods shown for a single LLM and two uncertainty proxies, but
+3esxh	new	savageLargeLanguageModel2024	7	ok	-	0	0		-	Figure 4. Receiver operator characteristic area under the curve (ROC AUC) with 95% CIs for
+pbsqt	new	savageLargeLanguageModel2024	9	missing	large	1	2	edge	column titles 'Expected Calibration Error' and 'Brier Score' above box	Figure 6. Calibration measures of expected calibration error and brier scores for uncertai
+pkra3	new	sclarQuantifyingLanguageModels2024	2	ok	-	0	0		-	Figure 1: Slight modifications in prompt format templating may lead to significantly diffe
+zhjuq	new	sclarQuantifyingLanguageModels2024	6	ok	-	0	0		subcaptions (a)-(c) inside box	Figure 2: Spread comparison between evaluating the same task under different models or n-s
+nfptj	new	sclarQuantifyingLanguageModels2024	6	ok	-	0	0		-	Figure 3: Spread across models and n-shots.
+z9rbv	new	sclarQuantifyingLanguageModels2024	6	ok	-	0	0		-	Figure 4: Probability that model $ M $ performs worse than $ M' $ by at least $ d $ when u
+grrh8	new	sclarQuantifyingLanguageModels2024	7	ok	-	0	0		-	Figure 5: Example of accuracy variance for different choices of constants in $ S_{1} $ for
+m3jgq	new	sclarQuantifyingLanguageModels2024	8	ok	-	0	0		-	Figure 6: Probability that an atomic change (e.g. changing a space, separator) has a given
+cbyj7	new	sclarQuantifyingLanguageModels2024	8	ok	-	0	0		-	Figure 7: Cumulative ratio of tasks that can be classified with at most a accuracy using t
+ab97u	new	sclarQuantifyingLanguageModels2024	8	ok	-	0	0		-	Figure 8: Probability of observing a spread increase of at least d when increasing sample 
+g5r7b	new	sclarQuantifyingLanguageModels2024	8	ok	-	0	0		-	Figure 9: Difference between the true sample spread and each algorithm-found spread with r
+yt9h2	new	sclarQuantifyingLanguageModels2024	13	ok	-	0	0		-	Figure 10: Visualization of a complex prompt format showing its parsing and which constant
+r6c4s	new	sclarQuantifyingLanguageModels2024	15	ok	-	0	0		-	Figure 11: Comparison between Llama-2-7B and Llama-2-70B spreads. Llama-2-70B was computed
+546dq	new	sclarQuantifyingLanguageModels2024	16	ok	-	0	0		subcaptions inside box	Figure 12: Probability of a prompt p being worse than $ p' $ by at least d points using mo
+u9kzy	new	sclarQuantifyingLanguageModels2024	17	ok	-	0	0		subcaptions inside box	Figure 13: Spread comparison between evaluating the same task under different models or n-
+f36kt	new	sclarQuantifyingLanguageModels2024	17	ok	-	0	0		-	Figure 14: Spread across models and n-shots. Exact prefix matching metric.
+kfrsm	new	sclarQuantifyingLanguageModels2024	17	ok	-	0	0		-	Figure 15: Probability that model M performs worse than $ M' $ by at least d when using fo
+3y8dd	new	sclarQuantifyingLanguageModels2024	17	ok	-	0	0		subfigure captions inside box	Figure 16: Accuracy metric used can strongly impact final performance. 53 Super Natural-In
+kpzuj	new	sclarQuantifyingLanguageModels2024	18	ok	-	0	0		subfigure captions inside box	Figure 17: Spread comparison between evaluating the same task under different models or n-
+uwvyk	new	sclarQuantifyingLanguageModels2024	19	ok	-	0	0		-	Figure 18: Instruction Induction tasks' spreads and accuracy across models. Exact prefix m
+n7bgm	new	sclarQuantifyingLanguageModels2024	19	ok	-	0	0		-	Figure 19: Spread across n-shots for LLaMA-2-7B, considering ROUGE-L and BERTScore metrics
+2beah	new	sclarQuantifyingLanguageModels2024	20	ok	-	0	0		-	Figure 20: Accuracy distribution across 500 formats for 30 tasks evaluated on 250 samples 
+dfjcr	new	sclarQuantifyingLanguageModels2024	21	ok	-	0	0		-	Figure 21: Plot of the top two principal components of the last decoder layer of the promp
+wmqp8	new	sclarQuantifyingLanguageModels2024	22	ok	-	0	0		-	Figure 22: Variance by feature value for Llama-7B 1-shot. Evaluated 31 tasks with 500 form
+puu2m	new	sclarQuantifyingLanguageModels2024	23	missing	small	2	2	edge	Bottom panel tick labels cut and its x-axis title below box	Figure 23: Variance by feature value for Llama-7B 1-shot. Evaluated 31 tasks with 500 form
+3gzvn	new	sclarQuantifyingLanguageModels2024	24	ok	-	0	0		-	Figure 24: Variance by feature value for Llama-7B 1-shot. Evaluated 31 tasks with 500 form
+z6eu5	new	sclarQuantifyingLanguageModels2024	24	ok	-	0	0		-	Figure 25: Spreads found using Thompson Sampling for 320 formats, budget of 40000 evaluati
+qhhnh	new	shah-mohammadiUnderstandingUncertaintyLarge2026	4	ok	-	0	0		-	Figure 1 Overview of the conformal prediction pipeline. (Prompting & Sampling) Concatenate
+646ss	new	shah-mohammadiUnderstandingUncertaintyLarge2026	5	ok	-	0	0		-	Figure 2 Distribution of nonconformity scores by outcome class in the calibration set, wit
+hawt3	new	shah-mohammadiUnderstandingUncertaintyLarge2026	6	ok	-	0	0		-	Figure 3 Scatter plot of nonconformity scores versus note length, stratified by in-hospita
+v6kqk	new	shah-mohammadiUnderstandingUncertaintyLarge2026	7	ok	-	0	0		-	Figure 4 Credibility vs Confidence in GPT Predictions. Each point is a model prediction; d
+7zds9	new	shaoLLMAgentsKnow2026	2	ok	-	0	0		-	Figure 1: Contrasting accuracy with epistemic competence. Both scenarios yield the correct
+be8pq	new	shaoLLMAgentsKnow2026	3	missing	small	2	2		Quality pie title at top right cut by top edge	Figure 2: Overview of the SeekBench dataset and annotation schema. Each trace comprises mu
+gbc9z	new	shaoLLMAgentsKnow2026	8	ok	-	0	0		-	Figure 3: RQI Analysis Summary. Left: RQI by model level, showing the overall reasoning qu
+tkr4b	new	shaoLLMAgentsKnow2026	9	ok	-	0	0		-	Figure 4: Recovery Analysis. Left: ERFs by model showing recovery from low to sufficient e
+9dzhn	new	shaoLLMAgentsKnow2026	9	ok	-	0	0		-	Figure 5: Evidence State Drives Answer Probability and Accuracy. Lines: Answer probability
+ef3u6	new	shaoLLMAgentsKnow2026	17	ok	-	0	0		-	Figure 6: Inter-annotator agreement for SeekBench. (Left) Per-field annotation agreement a
+z3cgk	new	shaoLLMAgentsKnow2026	18	ok	-	0	0		-	Figure 7: Model Pareto Frontier Analysis. Trade-off between normalized per-trace cost (x-a
+xcbzb	new	shaoLLMAgentsKnow2026	20	missing	small	2	2	edge	"overall title ""Comprehensive Dataset Statistics"" above box"	Figure 8: Comprehensive Dataset Statistics. (Top-left:) Distribution of traces across seve
+jr45h	new	shaoLLMAgentsKnow2026	22	ok	-	0	0		-	Figure 9: Annotation schema overview with definitions and examples. Abbreviations: Def=Def
+88fa2	new	shaoLLMAgentsKnow2026	25	ok	-	0	0		-	Figure 10: Evidence-conditioned reasoning quality for evidence state $ k \in 0,1,2 $ acros
+3hfnq	new	shaoLLMAgentsKnow2026	25	ok	-	0	0		-	Figure 11: Type-Level Evidence-Conditioned Groundedness. Expected groundedness for each re
+t382c	new	shaoLLMAgentsKnow2026	26	ok	-	0	0		-	Figure 12: Comprehensive Recovery Analysis. Evidence Recovery Function (ERF) showing the c
+rhc64	new	shaoLLMAgentsKnow2026	27	ok	-	0	0		-	Figure 13: Evidence-Calibrated Answering by RL Agents. Left: Answering propensity for each
+bmjzq	new	shaoLLMAgentsKnow2026	28	ok	-	0	0		-	Figure 14: Evidence-Conditioned Answer Timing Analysis. For each model group, we plot the 
+55scy	new	shaoLLMAgentsKnow2026	32	ok	-	0	0		-	Figure 15: Tool Distribution. Tool usage distribution across different agents and benchmar
+7abz6	new	shenThinkingVsDoing2025	2	ok	-	0	0		-	Figure 1: We propose a new-axis of test-time scaling for agents: scaling the number of int
+r8xuj	new	shenThinkingVsDoing2025	4	missing	small	2	2		x tick labels row cut by bottom edge	Figure 2: Scaling test-time interaction by prompting the agent to “re-check” its answer.
+7p7ks	new	shenThinkingVsDoing2025	5	ok	-	0	0		-	Figure 3: Top: Task success rate vs. total compute cost measured in tokens per trajectory,
+sckf6	new	shenThinkingVsDoing2025	6	missing	small	2	2	edge	legend row at bottom cut by red edge	Figure 4: Online RL with different values of maximum interaction horizon. Left: success ra
+k6e8n	new	shenThinkingVsDoing2025	9	ok	-	0	0		-	Figure 5: Dynamics of TTI during training. The green area represents the phase where the m
+s9ay3	new	shenThinkingVsDoing2025	10	ok	-	0	0		-	Figure 6: We apply test-time re-checks to TTI checkpoints.
+wrdjv	new	shiPHOAgentsLargeLanguage2026	6	nofig	-	0	0		caption at page top; figure not on this page	Figure 1: The Framework of PHO-Agents. PHO-Agents integrates the EHR-based predictive mode
+n2w6a	new	shiPHOAgentsLargeLanguage2026	10	ok	-	0	0	edge	-	Figure 2: Case study of predicting irAEs in a cancer patient receiving ICI therapy.
+pts3a	new	shiPHOAgentsLargeLanguage2026	12	ok	-	0	0		-	Figure 3: Per-patient computational cost of PHO-Agents across three clinical datasets. We 
+kqnmw	new	shinnReflexionLanguageAgents2023	2	ok	-	0	0		-	Figure 1: Reflexion works on decision-making 4.1, programming 4.3, and reasoning 4.2 tasks
+qaseu	new	shinnReflexionLanguageAgents2023	4	ok	-	0	0		-	Figure 2: (a) Diagram of Reflexion. (b) Reflexion reinforcement algorithm
+fwehv	new	shinnReflexionLanguageAgents2023	6	ok	-	0	0		-	Figure 3: (a) AlfWorld performance across 134 tasks showing cumulative proportions of solv
+hc8wg	new	shinnReflexionLanguageAgents2023	6	ok	-	0	0		-	Figure 4: Chain-of-Thought (CoT) and ReAct. Reflexion improves search, information retriev
+mm7ae	new	shinnReflexionLanguageAgents2023	13	none	-	1	1	uncropped	no red box on the trajectory text figure	Figure 5: [Top] An AlfWorld trajectory in which the agent failed due to inefficient planni
+wdjym	new	shinnReflexionLanguageAgents2023	14	ok	-	0	0		-	Figure 6: Reflexion vs React performance on WebShop across 100 customer shopping requests.
+sfmum	new	shinnReflexionLanguageAgents2023	17	none	-	1	1	uncropped	no red box on the HotPotQA trial text figure	Figure 7: Two HotPotQA trials within the same environment and task. The Reflexion + ReAct 
+bwash	new	stroeblLimitsInferenceScaling2026	2	ok	-	0	0		Panel description texts inside box are part of the figure	Figure 1: Overview of our main findings.
+2espd	new	stroeblLimitsInferenceScaling2026	3	ok	-	0	0		-	Figure 2: Schematic illustration of various resampling techniques for inference scaling.
+qtus3	new	stroeblLimitsInferenceScaling2026	6	ok	-	0	0		-	Figure 3: Generalization gap with infinite compute budget. We show the relationship betwee
+2fsc7	new	stroeblLimitsInferenceScaling2026	7	ok	-	0	0		-	Figure 4: Inference scaling curves in the presence of a cost for false positives. We show 
+sydtb	new	stroeblLimitsInferenceScaling2026	7	ok	-	0	0		-	Figure 5: False positive rate as a function of the number of attempts K for Llama 3.1 70B 
+3rrpv	new	stroeblLimitsInferenceScaling2026	8	missing	small	2	2	edge,cut	group labels HumanEval+ and MBPP+ cut by bottom edge	Figure 6: Distribution of task difficulties for Llama 3.1 8B and GPT-4o on HumanEval+ and 
+e3fvu	new	stroeblLimitsInferenceScaling2026	9	ok	-	0	0		-	Figure 7: False positives tend to be lower-quality code than correct implementations. For 
+upamk	new	stroeblLimitsInferenceScaling2026	19	ok	-	0	0		-	Figure 8: Distribution of task difficulties across models on MBPP+.
+t3efw	new	stroeblLimitsInferenceScaling2026	20	ok	-	0	0		-	Figure 9: Distribution of task difficulties across models on HumanEval+.
+twsrn	new	stroeblLimitsInferenceScaling2026	21	ok	-	0	0		-	Figure 10: False positive rates as a function of the number of attempts K in HumanEval+. K
+m8m5d	new	stroeblLimitsInferenceScaling2026	21	ok	-	0	0		subcaptions HumanEval+/MBPP+ inside	Figure 11: Relationship between the conditional accuracy after passing the standard unit t
+ugjk2	new	stroeblLimitsInferenceScaling2026	22	ok	-	0	0		-	Figure 12: Worst-case upper and lower bounds for our HumanEval+ and MBPP+ analysis. We sho
+sv8uk	new	stroeblLimitsInferenceScaling2026	24	ok	-	0	0		-	Figure 13: Even with zero computational cost, the optimal number of samples is finite and 
+bpy9z	new	stroeblLimitsInferenceScaling2026	25	ok	-	0	0		-	Figure 14: Heatmap of optimal number of samples K for various false positive cost vs. true
+thnew	new	stroeblLimitsInferenceScaling2026	27	ok	-	0	0		-	Figure 15: Inference scaling curves in the presence of a cost for GPT-4o. In addition to t
+494yu	new	stroeblLimitsInferenceScaling2026	28	ok	-	0	0		-	Figure 16: False positives tend to be lower-quality code compared to correct solutions acr
+4gsk4	new	stroeblLimitsInferenceScaling2026	29	ok	-	0	0		-	Figure 17: Prompt templates for each metric of code readability we consider in our experim
+g5e6v	new	stroeblLimitsInferenceScaling2026	29	none	-	1	1	uncropped	code listings a) and b) have no red box; box above is Figure 17	Figure 18: Example implementation that passes the standard tests but is incorrect. In Huma
+tpe64	new	stroeblLimitsInferenceScaling2026	30	none	-	1	1	uncropped	code listing figure has no red box	Figure 19: HumanEval/15 asks to generate a space-delimited sequence of numbers. The implem
+37sn3	new	stroeblLimitsInferenceScaling2026	30	none	-	1	1	uncropped	code listing figure has no red box	Figure 20: HumanEval/19 asks to sort space-delimited number words. The implementation gene
+ug3cg	new	stroeblLimitsInferenceScaling2026	30	none	-	1	1	uncropped	no red box on the code boxes of Figure 21	Figure 21: Exemplary implementation that passes the standard tests but is incorrect. In MB
+th6p9	new	stroeblLimitsInferenceScaling2026	31	none	-	1	1	uncropped	code box figure has no red box	Figure 22: HumanEval/6 requires parsing nested parentheses groups. The implementation gene
+b793r	new	stroeblLimitsInferenceScaling2026	31	none	-	1	1	uncropped	no red box on the code listing	Figure 23: HumanEval/149 asks to process a list of strings, removing odd-length strings an
+38wa9	new	stroeblLimitsInferenceScaling2026	31	none	-	1	1	uncropped	no red box covers the Figure 24 code listing	Figure 24: Example candidate implementation failing to adhere to camelCase naming conventi
+92h7y	new	stroeblLimitsInferenceScaling2026	32	none	-	1	1	uncropped	code listing above caption has no red box	Figure 25: HumanEval/30 asks to return positive numbers from a list. The implementation ge
+rzhat	new	stroeblLimitsInferenceScaling2026	32	none	-	1	1	uncropped	No red box on page; Figure 26 code listing uncovered.	Figure 26: MBPP/238 asks to count non-empty substrings in a string. The implementation gen
+frcxr	new	stroeblLimitsInferenceScaling2026	32	none	-	1	1	uncropped	no red box on code listing above caption	Figure 27: MBPP/565 asks to split a string into characters. The implementation generated b
+6ny3h	new	stroeblLimitsInferenceScaling2026	32	none	-	1	1	uncropped	no red box on the code listing	Figure 28: MBPP/74 asks to check if words follow given patterns. The implementation genera
+c6fch	new	stroeblLimitsInferenceScaling2026	33	none	-	1	1	uncropped	no red box on page	Figure 29: MBPP/166 asks to count pairs of integers with even XOR. The implementation gene
+4qr26	new	stroeblLimitsInferenceScaling2026	33	none	-	1	1	uncropped	Figure 30 code listing has no red box	Figure 30: MBPP/594 asks to write a function to find the difference between the first even
+9nvvh	new	suSupervisedFinetuningSynthetic2026	2	ok	-	0	0	edge	-	Figure 1: Example training records constructed from one participant record. The three colu
+e4uz9	new	suSupervisedFinetuningSynthetic2026	3	ok	-	0	0		-	Figure 2: SFT ROC-AUC performance by rationale format and base model.
+w23jt	new	suSupervisedFinetuningSynthetic2026	4	ok	-	0	0		-	Figure 3: Parameter-level SFT diagnostics for the additional summary insights. All panels 
+t7suf	new	suSupervisedFinetuningSynthetic2026	5	ok	-	0	0		-	Figure 4: Feature-level error analysis for the best no-rationale and free-rationale SFT co
+9n66d	new	suSupervisedFinetuningSynthetic2026	7	ok	-	0	0		legend row touches top edge	Figure 5: Few-shot ablation in the training-free setting. Bars show metric means over matc
+qru8g	new	suSupervisedFinetuningSynthetic2026	7	ok	-	0	0		-	Figure 6: Feature and generated-rationale analysis for deterministic Qwen3-8B few-shot and
+5x9q9	new	suSupervisedFinetuningSynthetic2026	15	none	-	1	1	uncropped	Figure 7 example table has no red box	Figure 7: Divergent validation examples from the best no-rationale and free-rationale SFT 
+8u8ky	new	suSupervisedFinetuningSynthetic2026	16	ok	-	0	0		subcaptions inside	Figure 8: SFT performance by rationale format and by rationale format crossed with trainin
+8qet5	new	suSupervisedFinetuningSynthetic2026	17	ok	-	0	0		-	Figure 9: Additional SFT PR-AUC, F1 score, and Recall by base model and by base model cros
+pa96w	new	suSupervisedFinetuningSynthetic2026	20	ok	-	0	0		subcaptions (a)-(h) inside the box	Figure 10: Zero-shot baseline performance by prompt format and by base model. Panels A–B p
+x3a4n	new	suSupervisedFinetuningSynthetic2026	21	ok	-	0	0		panel subcaptions inside box	Figure 11: Zero-shot base-model-by-prompt-format interaction panels for ROC-AUC, PR-AUC, F
+6a4c3	new	tamFrameworkHumanEvaluation2024	2	ok	-	0	0	uncropped	-	Fig. 1 | Healthcare applications of LLMs. The reviewed studies showcased a diverse range o
+5h7uk	new	tamFrameworkHumanEvaluation2024	4	ok	-	0	0	cut	x-axis title touches bottom edge	Fig. 2 | Top 10 medical specialties. The literature review revealed a diverse range of med
+u3s3a	new	tamFrameworkHumanEvaluation2024	7	ok	-	0	0		-	Fig. 3 | Number of evaluation samples. The left panel shows the distribution of sample siz
+y8y2v	new	tamFrameworkHumanEvaluation2024	8	ok	-	0	0		-	Fig. 4 | Number of human evaluators. The left panel shows the distribution of the number o
+879yv	new	tamFrameworkHumanEvaluation2024	8	missing	small	2	2		last letter of plot title cut by right edge	Fig. 5 | Number of evaluation samples vs. number of human evaluators. An inverse relations
+qrvnn	new	tamFrameworkHumanEvaluation2024	10	ok	-	0	0		bottom leaf boxes touch red bottom edge	Fig. 6 | Decision tree for choosing the right statistical test based on type of assessment
+cz3h2	new	tamFrameworkHumanEvaluation2024	12	ok	-	0	0	uncropped	-	Fig. 7 | The proposed QUEST human evaluation framework, delineating the multi-stage proces
+ujdpy	new	tamFrameworkHumanEvaluation2024	13	ok	-	0	0		-	Fig. 8 | A visual summary of the application of QUEST human evaluation framework in the ca
+hcab9	new	tamFrameworkHumanEvaluation2024	15	missing	small	2	2		"bottom of ""Included"" side box cut by bottom edge"	Fig. 9 | Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) flow 
+xh5bf	new	tamLetMeSpeak2024	1	ok	-	0	0		-	Figure 1: GPT-3.5-turbo prompted with GSM8K math questions in standard natural language an
+ees4n	new	tamLetMeSpeak2024	3	ok	-	0	0		-	Figure 2: When comparing reasoning related task such as GSM8K, Last Letter and Shuffled Ob
+45y3r	new	tamLetMeSpeak2024	4	ok	-	0	0		-	Figure 3: Classification related tasks on DDXPlus, Sports, Task280 and Multifin in differe
+4jbje	new	tamLetMeSpeak2024	6	ok	-	0	0		-	Figure 4: Comparison of different formats in classification related tasks on DDXPlus, Spor
+86tmk	new	tamLetMeSpeak2024	6	ok	-	0	0		-	Figure 5: We found high parsing errors in Table 3 can be patched by calling a second promp
+pm8ck	new	tamLetMeSpeak2024	6	ok	-	0	0		-	Figure 6: Comparison of JSON, YAML, XML with Natural Language (NL) response on reasoning r
+fm3zr	new	tamLetMeSpeak2024	9	ok	-	0	0		-	Figure 7: Agreement scores among all LLMs on the final extracted answers.
+tma7v	new	tamLetMeSpeak2024	11	ok	-	0	0	split,edge	-	Figure 8: Exact Match scores on GSM8K and Last Letter on reasoning related datasets. Class
+ez6pd	new	tamLetMeSpeak2024	13	extra	large	1	1	uncropped	box also holds two body-text lines and Figure 10 prompt box	Figure 9: GSM8K Task Description Variations
+vhw7j	new	tamLetMeSpeak2024	13	extra	large	1	1		includes Figure 9 box, its caption and two body-text lines	Figure 10: Last Letter Task Description Variations
+e9ngz	new	tamLetMeSpeak2024	14	extra	large	1	1	uncropped	box also holds most of the Figure 12 prompt box	Figure 11: Shuffle object Task Description Variations
+negbr	new	tamLetMeSpeak2024	14	missing+extra	large	1	1	edge	includes all of Figure 11; cuts last line and bottom of Figure 12 box	Figure 12: DDXPlus Task Description Variations
+nvbzy	new	tamLetMeSpeak2024	15	extra	large	1	1	uncropped	box also holds most of the Figure 14 text box	Figure 13: Sports Task Description Variations
+rk53u	new	tamLetMeSpeak2024	15	missing+extra	large	1	1		includes all of Figure 13; bottom of Figure 14 frame cut off	Figure 14: Task 280 Task Description Variations
+fjj9h	new	tamLetMeSpeak2024	16	ok	-	0	0	edge	-	Figure 15: MultiFin Task Description Variations
+sars6	new	tamLetMeSpeak2024	16	ok	-	0	0	edge	-	Figure 16: Variation 1 for direct Answering format with only answer field in all 4 format.
+3gzph	new	tamLetMeSpeak2024	17	extra	large	1	1	uncropped	box also holds the whole Figure 18 prompt panel	Figure 17: Variation 2 for direct Answering format with only answer field in all 4 format.
+hkyty	new	tamLetMeSpeak2024	17	extra	large	1	1		box also holds Figure 17 prompt panel on the left	Figure 18: Variation 3 for direct Answering format with only answer field in all 4 format.
+p3nmh	new	tamLetMeSpeak2024	18	extra	large	1	1		box also holds the Figure 20 prompt box	Figure 19: Reasoning response prompt - Variation 1
+8gta6	new	tamLetMeSpeak2024	18	extra	large	1	1	uncropped	box also holds Figure 19 prompt panel on the left	Figure 20: Reasoning response prompt - Variation 2
+xstjj	new	tamLetMeSpeak2024	19	none	-	1	1	uncropped	no red box on page	Figure 21: Reasoning response prompt - Variation 3
+dpazw	new	traubOvercomingCommonFlaws2024	3	missing	large	1	1	edge	panel b) requirements table outside every red box	Figure 1: The AUGRC metric based on Generalized Risk overcomes common flaws in current eva
+8cyj5	new	traubOvercomingCommonFlaws2024	6	ok	-	0	0		-	Figure 2: The proposed AUGRC metric resolves shortcomings of AURC. All figures are based o
+mv5qd	new	traubOvercomingCommonFlaws2024	8	ok	-	0	0		-	Figure 3: Substantial differences in method rankings for AUGRC and AURC. On 5 out of 6 dat
+csaue	new	traubOvercomingCommonFlaws2024	9	ok	-	0	0		-	Figure 4: The conceptual shortcomings of AURC affects method assessment in practice. We il
+79ex4	new	traubOvercomingCommonFlaws2024	14	ok	-	0	0		-	Figure 5: Visualization of the relationship between AUGRC and AUROC $ _{f} $. (a) The Sele
+3wcp9	new	traubOvercomingCommonFlaws2024	18	ok	-	0	0		-	Figure 6: Method ranking analysis for distribution shifts. This figure displays the result
+yadh2	new	traubOvercomingCommonFlaws2024	19	ok	-	0	0		-	Figure 7: Method ranking analysis without correction for multiple testing. In contrast to 
+xspqn	new	turpinLanguageModelsDont2023	5	ok	-	0	0		-	Figure 1: Accuracy micro-averaged across BBH tasks (i.e., weighting by task sample size). 
+s8unm	new	tyenLLMsCannotFind2024	5	ok	-	0	0		-	Figure 1: Graph of mistake location accuracies for each prompting method (excluding GPT-4-
+anq2f	new	tyenLLMsCannotFind2024	7	ok	-	0	0		-	Figure 2: Visualization of our backtracking method, which is used to feed mistake location
+ytyr6	new	tyenLLMsCannotFind2024	8	ok	-	0	0		-	Figure 3: $ \Delta\text{accuracy}\downarrow $ and $ \Delta\text{accuracy}_x $ on each data
+ck3r9	new	tyenLLMsCannotFind2024	14	ok	-	0	0		-	Figure 4: Screenshot of the user interface for a question from the tracking shuffled objec
+u2g97	new	vaccaroWhenCombinationsHumans2024	2	ok	-	0	0		-	Fig.1 | Forest plots of all effect sizes (k = 370) included in the meta-analysis. a,b, The
+6dpnw	new	vaccaroWhenCombinationsHumans2024	4	missing	small	2	2	cut	Negative / Positive axis labels cut by bottom edge	Fig. 2 | Results from the three-level meta-regression models for the moderator variables. 
+hvgmw	new	venkitDeepTRACEAuditingDeep2026	5	ok	-	0	0		right-edge metric text touches red line	Figure 1: Illustrative diagram of the processing of a deep research agents response into t
+vvhhj	new	venkitDeepTRACEAuditingDeep2026	8	ok	-	0	0		subcaptions (a) and (b) inside box	Figure 2: Quantitative Evaluation of three GSE – You.com, BingChat, and Perplexity – based
+g7y4b	new	venkitDeepTRACEAuditingDeep2026	17	missing	small	2	2	edge	Segment 1/2/3 labels below screenshots outside box	Figure 3: Screenshots of responses from GPT-5 Deep Research to the debate question, “why s
+msb3u	new	venkitDeepTRACEAuditingDeep2026	18	ok	-	0	0		"subcaption ""(a) Screenshot 4"" inside box"	Figure 4: Screenshots of responses from GPT-5 Deep Research to the debate question, “why s
+trawr	new	wangHumanLargeLanguage2026	25	nofig	-	0	0	uncropped	caption-only page, figure not on this page	Figure 2. Meta-analytic effects of human–AI collaboration (H+AI) versus human-only (H). Pa
+wszxz	new	wangHumanLargeLanguage2026	25	nofig	-	0	0	uncropped	caption only; figure not on this page	Figure 3. Risk of bias (RoB) summary for randomized studies (Panel A) and the non-randomiz
+t6xgj	new	wangKnowledgeGraphAugmented2026	2	ok	-	0	0	edge,cut	-	Figure 1: General pipeline for KG-guided CoT data generation. Observed clinical features a
+pdkac	new	wangKnowledgeGraphAugmented2026	4	ok	-	0	0		-	Figure 2: Schematic and example of KG-guided CoT generation and filtering. Observed clinic
+b9ed5	new	wangKnowledgeGraphAugmented2026	7	ok	-	0	0		-	Figure 3: Clinician preference for KG-guided explanations vs. the untuned baseline across 
+va7ug	new	wangKnowledgeGraphAugmented2026	10	split	large	1	1	edge	top panels and bottom prompt in separate boxes; bottom panel title outside	Figure 4: Prompt templates used in our KG-guided CoT pipeline: (top-left) disease-relevant
+864vh	new	wangMedAgentProEvidencebasedMultimodal2026	2	ok	-	0	0	cut	-	Figure 1: Comparison of diagnostic outcomes for two diseases across mainstream VLMs, medic
+88eca	new	wangMedAgentProEvidencebasedMultimodal2026	3	ok	-	0	0		-	Figure 2: Overview of the MedAgent-Pro. MedAgent-Pro performs diagnosis through a hierarch
+fwdh8	new	wangMedAgentProEvidencebasedMultimodal2026	4	ok	-	0	0		-	Figure 3: The illustration of the RAG process, which leverages a two-step retrieval.
+2wzay	new	wangMedAgentProEvidencebasedMultimodal2026	5	ok	-	0	0		-	Figure 4: A detailed case study for glaucoma diagnosis. The blue text indicates the agents
+vvep9	new	wangMedAgentProEvidencebasedMultimodal2026	8	ok	-	0	0		-	Figure 5: Ablation on quantitative indicator analysis that reveals how segmentation accura
+v94rw	new	wangMedAgentProEvidencebasedMultimodal2026	9	ok	-	0	0		-	Figure 6: Diagnostic plan complexity vs. clinician assessment by subtasks on MIMIC.
+ypkdn	new	wangMedAgentProEvidencebasedMultimodal2026	9	ok	-	0	0		subcaptions (a) and (b) inside	Figure 7: Evaluation on glaucoma and chest X-ray diagnosis by clinical experts.
+ems6e	new	wangMedAgentProEvidencebasedMultimodal2026	22	ok	-	0	0		-	Figure 8: Comparison of two kinds of decision-making ways on Glaucoma diagnosis.
+7ejs2	new	wangMedAgentProEvidencebasedMultimodal2026	25	ok	-	0	0		-	Figure 9: Example diagnostic cases from the NEJM dataset.
+34vxq	new	wangMedAgentProEvidencebasedMultimodal2026	26	ok	-	0	0		-	Figure 10: Example of noisy labels with different noise types
+ukhg9	new	wangMedAgentProEvidencebasedMultimodal2026	29	none	-	1	1	uncropped	no red box on the page	Figure 11: Qualitative comparison on glaucoma diagnosis with general VLMs. Green texts hig
+2yp43	new	wangMedAgentProEvidencebasedMultimodal2026	30	none	-	1	1	uncropped	no red box on the comparison table figure	Figure 12: Qualitative comparison on chest X-ray diagnosis with general VLMs. Green texts 
+23d4t	new	wenKnowYourLimits2025	2	ok	-	0	0		-	Figure 1: Our proposed framework for abstention in language models. Starting with input qu
+8mnd6	new	wenKnowYourLimits2025	4	ok	-	0	0	split,edge	-	Figure 2: Methods to improve LLM abstention grouped by pretraining, alignment, and inferen
+9sc3g	new	wornowContextCluesEvaluating2025	2	ok	-	0	0		-	Figure 1: The central claims of this paper. (a) EHRs are sequences: An EHR is simply a tim
+hdb5t	new	wornowContextCluesEvaluating2025	6	ok	-	0	0		-	Figure 2: EHR data exhibits a high degree of variation in time intervals between events. F
+srt5u	new	wornowContextCluesEvaluating2025	7	ok	-	0	0		-	Figure 3: EHR data exhibits a higher degree of repetition than natural language, as measur
+n9rbx	new	wornowContextCluesEvaluating2025	9	ok	-	0	0		-	Figure 4: Median perplexity (PPL) by token position for different models – GPT (far left),
+9fr4e	new	wornowContextCluesEvaluating2025	16	ok	-	0	0		-	Figure 5: Distributions of patient data from the EHR-OMOP dataset across (A) training and 
+zyjzc	new	wornowContextCluesEvaluating2025	20	ok	-	0	0		panel subcaptions inside box	Figure 6: For each EHRSHOT task, we plot the CDF of the number of raw clinical events (lef
+zy8kh	new	wornowContextCluesEvaluating2025	24	ok	-	0	0		-	Figure 7: A high-level overview of our experimental pipeline, from data generation to fina
+zhn2n	new	wornowContextCluesEvaluating2025	26	ok	-	0	0		-	Figure 8: Distribution of n-gram repetition rates across patients in the EHR-OMOP validati
+w3ken	new	wornowContextCluesEvaluating2025	29	ok	-	0	0		-	Figure 9: AUROC by context length and architecture across all 14 tasks evaluated from EHRS
+zjkm8	new	wornowContextCluesEvaluating2025	35	ok	-	0	0		-	Figure 10: Few-Shot Evaluation: Average AUROC scores for each model and context length acr
+h5pn8	new	wornowContextCluesEvaluating2025	36	ok	-	0	0		-	Figure 11: Reproduction of Figure 4 for the GPT architecture, but with rotary positional e
+867h3	new	wornowContextCluesEvaluating2025	36	missing	small	2	2	cut	Top edge cuts through plot title.	Figure 12: Reproduction of Figure 1b, but with models trained using Artificial Time Tokens
+5ppew	new	wornowEHRSHOTEHRBenchmark2023	3	missing	small	2	2	edge	"figure title ""EHRSHOT Baseline Models"" cut by top edge"	Figure 1: Overview of EHRSHOT. $ \underline{\text{Black boxes}} $ represent open source co
+6xpce	new	wornowEHRSHOTEHRBenchmark2023	6	ok	-	0	0	cut	-	Figure 2: Summary of Benchmark Tasks. Each subfigure contains one of the 4 types of predic
+nvfxz	new	wornowEHRSHOTEHRBenchmark2023	9	ok	-	0	0	cut	legend touches bottom edge	Figure 3: Aggregated AUROC across all subtasks within each of the 4 task categories for $ 
+qaga3	new	xiaDemystifyingLLMBasedSoftware2025	5	ok	-	0	0		-	Figure 1: Overview of AGENTLESS.
+w9tec	new	xiaDemystifyingLLMBasedSoftware2025	7	ok	-	0	0		-	Figure 2: File skeleton format.
+at2vn	new	xiaDemystifyingLLMBasedSoftware2025	7	ok	-	0	0		-	Figure 3: Search/Replace edit format.
+76ddn	new	xiaDemystifyingLLMBasedSoftware2025	8	none	-	1	1	uncropped	code box figure has no red box	Figure 4: Example reproduction test.
+nuhp6	new	xiaDemystifyingLLMBasedSoftware2025	11	ok	-	0	0		-	Figure 5: Venn diagram for issue fixes.
+5b8u3	new	xiaDemystifyingLLMBasedSoftware2025	14	ok	-	0	0		-	Figure 6: Repair performance as the number of patch samples increases.
+cxdwn	new	xiaDemystifyingLLMBasedSoftware2025	14	ok	-	0	0		-	Figure 7: Reproduction test and repair results as number of samples increases.
+a3ddf	new	xiaDemystifyingLLMBasedSoftware2025	15	ok	-	0	0		-	Figure 8: Categorization and corresponding breakdown of the SWE-bench Lite problems.
+wyque	new	xiaDemystifyingLLMBasedSoftware2025	17	ok	-	0	0		-	Figure 9: Solve rate of selected approaches (orange means open-source while indigo means c
+z3wcg	new	xuLargeLanguageModel2026	3	missing	small	2	2	edge,cut	"title ""Construction of AKI-PM and AKI-RAM"" cut by top edge"	Fig. 1 | Overview of workflow. We developed two large-scale domain-adapted language models
+bk5hf	new	xuLargeLanguageModel2026	4	ok	-	0	0	edge	-	Fig. 2 | Comparative performance of AKI-PM and other LLMs. Predictive performance comparis
+6q6ck	new	xuLargeLanguageModel2026	5	ok	-	0	0		-	Fig. 3 | Performance of the AKI-PM for AKI prediction in sub-populations. Performance of A
+ap28g	new	xuLargeLanguageModel2026	6	ok	-	0	0		-	Fig. 4 | Performance evaluation of the AKI-RAM for reasoning AKI risk factors. The ability
+9hp25	new	xuLargeLanguageModel2026	8	ok	-	0	0		-	Fig. 5 | The selection process for the fine-tuning dataset in Peking University First Hosp
+2ymds	new	xuLargeLanguageModel2026	9	ok	-	0	0		-	Fig. 6 | The selection process for validation datasets in the four independent hospitals. 
+w5a7w	new	xuRAMEHRRetrievalAugmentation2024	3	ok	-	0	0		-	Figure 1: An overview of retrieval augmentation framework (left) and a detailed workflow o
+89a7t	new	xuRAMEHRRetrievalAugmentation2024	5	ok	-	0	0	edge	-	Figure 2: Results for Additional Studies. (a), (b), (c) is for MIMIC dataset, the results 
+bm2gm	new	xuRAMEHRRetrievalAugmentation2024	5	ok	-	0	0		-	Figure 3: Parameter studies of $ \beta $ and $ \lambda $ on both datasets.
+mc8nq	new	xuRAMEHRRetrievalAugmentation2024	5	ok	-	0	0		-	Figure 4: Comparing knowledge summarized by RAM-EHR and directly generated by LLM promptin
+hvezy	new	xuRAMEHRRetrievalAugmentation2024	12	ok	-	0	0		panel subcaptions inside box	Figure 5: Results for additional studies on the effect of (a) $ f_{\theta} $, (b) $ g_{\ph
+ecpka	new	yangTransformEHRTransformerbasedEncoderdecoder2023	3	ok	-	0	0		-	Fig. 1 | Exemplar EHR sequence of a patient (white, male, age 51). This EHR contains demog
+9bncu	new	yangTransformEHRTransformerbasedEncoderdecoder2023	3	ok	-	0	0		-	Fig. 2 | How model learns the correlation of ICD codes by recovering the masked ICD codes 
+c5eam	new	yangTransformEHRTransformerbasedEncoderdecoder2023	4	missing	small	2	2	cut	Step 1: heading cut by top edge	Fig. 3 | TransformEHR architecture and pretrain-finetune paradigm. During Step 1, Transfor
+gwfxe	new	yeJusticePrejudiceQuantifying2025	2	ok	-	0	0		-	Figure 1: The comparison of the robustness rates (scores) of all models, a higher score in
+2dep9	new	yeJusticePrejudiceQuantifying2025	3	ok	-	0	0		-	Figure 2: CALM, the proposed framework for bias assessment in LLM-as-a-Judge. On a selecte
+ep6gt	new	yeJusticePrejudiceQuantifying2025	3	ok	-	0	0		-	Figure 3: Examples of answer modification for bias injection. Left: Verbosity bias. Right:
+hqvyt	new	yeJusticePrejudiceQuantifying2025	7	missing	small	2	2	edge	right end of legend box cut by red edge	Figure 4: Overall RR, ER, and AIR with the dashed line representing the consistency rate. 
+dudyr	new	yeJusticePrejudiceQuantifying2025	8	ok	-	0	0		-	Figure 5: Heat map of model Z-score normalization score of self-enhancement bias.
+7r4yr	new	yeJusticePrejudiceQuantifying2025	9	ok	-	0	0		-	Figure 6: (a) and (b) show the comparisons of model error rates for refinement-aware bias 
+da7gm	new	yeJusticePrejudiceQuantifying2025	22	ok	-	0	0	cut	-	Figure 7: Overall BIS, AIR and Error Rate.
+mg264	new	yeJusticePrejudiceQuantifying2025	22	ok	-	0	0		panel subcaptions inside box	Figure 8: The above three images demonstrate a comparison of robustness rate among various
+9svnw	new	yeJusticePrejudiceQuantifying2025	22	ok	-	0	0		-	Figure 9: (a) shows the impact of the number of answers n on the robustness rate in positi
+vkn8z	new	yeJusticePrejudiceQuantifying2025	25	ok	-	0	0		-	Figure 10: Case study: Sentiment bias. In the example above, we initially had the Claude-3
+ehddr	new	yeJusticePrejudiceQuantifying2025	26	ok	-	0	0		-	Figure 11: Case study: Refinement-aware bias. In the example above, we asked the model to 
+dxj8k	new	yeJusticePrejudiceQuantifying2025	27	ok	-	0	0		-	Figure 12: Case study: Authority bias. In the example above, we have a question along with
+65avt	new	yeJusticePrejudiceQuantifying2025	28	ok	-	0	0		-	Figure 13: Case study: Bandwagon-effect bias. In the example above, we have a question alo
+rp3h5	new	yeJusticePrejudiceQuantifying2025	29	ok	-	0	0		-	Figure 14: Screenshot of Human Evaluation
+633j5	new	yeJusticePrejudiceQuantifying2025	30	ok	-	0	0		-	Figure 15: Prompt template for pairwise comparison.
+84sej	new	yeJusticePrejudiceQuantifying2025	30	ok	-	0	0		-	Figure 16: Prompt template for triadic comparison.
+x53u7	new	yeJusticePrejudiceQuantifying2025	31	ok	-	0	0		-	Figure 17: Prompt template for quadruple comparison.
+xzyby	new	yeJusticePrejudiceQuantifying2025	32	ok	-	0	0		-	Figure 18: Prompt template for CoT pairwise comparison.
+fexwp	new	yeJusticePrejudiceQuantifying2025	32	none	-	1	1	uncropped	Figure 19 prompt box has no red box; red box holds Figure 18	Figure 19: Prompt template for generating pair responses.
+7fshc	new	yeJusticePrejudiceQuantifying2025	33	extra	small	2	2	edge	page header line and blank space included above the prompt box	Figure 20: Prompt template for expanding sentence length.
+m7ye2	new	yeJusticePrejudiceQuantifying2025	33	ok	-	0	0		-	Figure 21: Prompt template for expanding sentence length.
+wt62g	new	yeJusticePrejudiceQuantifying2025	34	ok	-	0	0		-	Figure 22: Prompt template for compassion-fade bias.
+pvmqj	new	yeJusticePrejudiceQuantifying2025	34	ok	-	0	0		-	Figure 23: Prompt template for bandwagon-effect bias.
+f9dqy	new	yeJusticePrejudiceQuantifying2025	35	none	-	1	1	uncropped	red box covers Figure 25 only, not Figure 24	Figure 24: Prompt template for authority bias evaluation.
+hxqtu	new	yeJusticePrejudiceQuantifying2025	35	ok	-	0	0		-	Figure 25: Prompt template for generating book source.
+nxzva	new	yeJusticePrejudiceQuantifying2025	36	ok	-	0	0		-	Figure 26: Prompt template for generating URL.
+wgkdc	new	yeJusticePrejudiceQuantifying2025	36	ok	-	0	0		-	Figure 27: Prompt template for generating quote.
+t3xmb	new	yeJusticePrejudiceQuantifying2025	37	ok	-	0	0		-	Figure 28: Prompt template for sentiment bias evaluation.
+8hqbx	new	yeJusticePrejudiceQuantifying2025	37	ok	-	0	0		-	Figure 29: Prompt template for sentiment bias evaluation.
+5p4sh	new	yeJusticePrejudiceQuantifying2025	38	ok	-	0	0		-	Figure 30: Prompt template for diversity bias evaluation.
+rz2mt	new	yeJusticePrejudiceQuantifying2025	38	ok	-	0	0		-	Figure 31: Prompt template for distraction bias evaluation.
+848m4	new	yeJusticePrejudiceQuantifying2025	39	ok	-	0	0		extra white margin above prompt box	Figure 32: Prompt template for refinement-aware bias generation.
+92cg2	new	yeJusticePrejudiceQuantifying2025	39	ok	-	0	0		-	Figure 33: Prompt template for refinement-aware bias evaluation.
+6nhuk	new	yeJusticePrejudiceQuantifying2025	40	ok	-	0	0	edge	-	Figure 34: Prompt template for bias analysis.
+bv5xq	new	zhangAgenticContextEngineering2026	1	ok	-	0	0		-	Figure 1: Overall Performance Results. Our proposed framework, ACE, consistently outperfor
+va846	new	zhangAgenticContextEngineering2026	3	ok	-	0	0		-	Figure 2: Context Collapse. Monolithic rewriting of context by an LLM can collapse it into
+fsmsg	new	zhangAgenticContextEngineering2026	4	ok	-	0	0		-	Figure 3: Example ACE-Generated Context on the AppWorld Benchmark (partially shown). ACE-g
+zpvve	new	zhangAgenticContextEngineering2026	5	ok	-	0	0		-	Figure 4: The ACE Framework. Inspired by Dynamic Cheatsheet, ACE adopts an agentic archite
+fs3g9	new	zhangAgenticContextEngineering2026	23	ok	-	0	0		-	Figure 5: The AppWorld leaderboard as accessed on 09/2025.
+kajyk	new	zhangAgenticContextEngineering2026	24	missing	large	1	1	edge,cut	opening prompt paragraphs above box; top edge cuts a line	Figure 6: ICL-baseline Generator prompt on AppWorld
+875p4	new	zhangAgenticContextEngineering2026	25	missing	large	1	1	edge	opening prompt paragraphs above the box are outside; top edge cuts a line	Figure 7: Dynamic Cheatsheet Generator prompt on AppWorld
+gp33t	new	zhangAgenticContextEngineering2026	26	ok	-	0	0		-	Figure 8: GEPA prompt on AppWorld
+tca6h	new	zhangAgenticContextEngineering2026	27	ok	-	0	0		-	Figure 9: ACE Generator prompt on AppWorld
+pepc9	new	zhangAgenticContextEngineering2026	28	ok	-	0	0		-	Figure 10: ACE Reflector prompt on AppWorld
+dndts	new	zhangAgenticContextEngineering2026	29	ok	-	0	0		-	Figure 11: ACE Curator prompt on AppWorld
+f4f7d	new	zhangAgenticContextEngineering2026	30	ok	-	0	0		-	Figure 12: ACE Generator prompt on FINER
+juhgn	new	zhangAgenticContextEngineering2026	31	ok	-	0	0		-	Figure 13: ACE Reflector prompt on FINER
+yvqt2	new	zhangAgenticContextEngineering2026	32	ok	-	0	0		-	Figure 14: ACE Curator prompt on FINER
+pyv3u	new	zhangOnpremiseMedicalAI2026a	3	ok	-	0	0		-	Fig. 1 | On-premise autonomous clinical agent: simulation architecture and evaluation fram
+tqmmk	new	zhangOnpremiseMedicalAI2026a	4	nofig	-	0	0	uncropped	figure is not on this page	Fig. 2 | Diagnostic performance of a fully on-premise clinical agent across standardized b
+vde5s	new	zhangOnpremiseMedicalAI2026a	6	nofig	-	0	0	uncropped	figure not on this page; only the caption is here	Fig. 3 | Discriminative power of confidence metrics across diagnostic outcome and reasonin
+rq99f	new	zhangOnpremiseMedicalAI2026a	8	split	large	1	1	split	four boxes for panels; Case C and Case D text panels outside all boxes	Fig.4 | Confidence-state interactions and diagnostic outcomes.
+sj49f	new	zhangOnpremiseMedicalAI2026a	9	ok	-	0	0		-	Fig. 5 | Stress testing decisional trust under induced information scarcity. For a and b, 
+85gsa	new	zhangOnpremiseMedicalAI2026a	10	split	large	1	1	split,edge,cut	three boxes a, b, c; panel c label, title, bottom label also cut	Fig. 6 | Operationalizing trust through selective autonomy using
+mq7xd	new	zhangOnpremiseMedicalAI2026a	22	ok	-	0	0		-	Extended Data Fig. 1 | Benchmark demographic composition and subgroup diagnostic accuracy.
+kgdmf	new	zhangOnpremiseMedicalAI2026a	23	missing	small	2	2		first letters of 'Pulmonary Embolism' tick label cut at bottom edge	Extended Data Fig. 2 | Effect of the DDx Critic Agent on diagnostic accuracy. Mean diagnos
+cf5kh	new	zhangOnpremiseMedicalAI2026a	24	missing	small	2	2	cut	Appendicitis title cut by top edge	Extended Data Fig. 3 | Discriminability of confidence metrics across disease categories. P
+pcyg4	new	zhangOnpremiseMedicalAI2026a	25	ok	-	0	0		-	Extended Data Fig. 4 | External benchmark evaluation and triage simulation on VivaBench. a
+hm93k	new	zhangOnpremiseMedicalAI2026a	26	ok	-	0	0		panel i rotated tick labels close to bottom edge	Extended Data Fig. 5 | Implementation sensitivity analyses of behavioral consistency. Acro
+hs3fh	new	zhangOnpremiseMedicalAI2026a	27	missing	large	1	2	edge	Two-line x-axis title cut/outside bottom edge.	Extended Data Fig. 6 | Validation of LLM-based evaluation against standard fuzzy matching.
+gfdhk	new	zhuClinicRealmReevaluatingLarge2026	2	ok	-	0	0		-	Fig. 1 | Comparative performance and recommendations for model selection in non-generative
+63czj	new	zhuClinicRealmReevaluatingLarge2026	12	missing	small	2	2		bottom edge clips outlines of last-row boxes	Fig. 2 | Hierarchically structured error taxonomy for LLM-generated clinical reasoning. Th
+zsxkr	new	zhuClinicRealmReevaluatingLarge2026	13	ok	-	0	0		-	Fig. 3 | Web-based interface for the human evaluation study. Expert evaluators were presen
