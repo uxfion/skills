@@ -67,7 +67,7 @@ v2 在 2026-10-09/10 被用在一个研究项目上：166 篇 + 235 篇两批入
 ### 3.4 等待、挂起、一轮即止
 
 - **等待**：`fetch_file --wait-gate` 每 15 秒只读一次 `state`（不导航；读本身也让 opencli 的标签租约保持活跃），每 2 秒扫一次下载目录。返回 `passed`（重跑同一条命令，已完成的跳过）、`taken`（这一篇的文件已被认领）或 `timeout`（5 分钟）。
-- **挂起**：超时后 agent 在 `sites.json` 记 `{"<登录主机>": {"state": "gate_pending", "session": "p2z"}}`，**门禁标签页留着、不再导航**：之后的 `fetch_file` 调用带 `--keepalive p2z`，每处理一篇读一次该会话的 `state`（保持租约——opencli 自有会话的标签页闲置超时会被回收，2026-10-12 核实——也看它是否已通过；这是脚本做的，不靠 agent 记得），直到用户说好了或运行结束才关；`--wait-gate` 超时时在输出里提示带上 `--keepalive`。其余工作换一个会话名、开在后台窗口（`--session p2z-2 --window background`，不抢用户的焦点）。之后流里再落到同一登录主机的记录直接记 `gate_pending`、不停、不等，所以只有不经这道登录的站点继续推进。其他站点做完后，对挂起的主机再试一次（再提醒一次）；仍不过 → `gate_timeout`。用户说"继续 / 登好了"随时恢复。
+- **挂起**：超时后 agent 在 `sites.json` 记 `{"<sso-host>": {"state": "gate_pending", "session": "p2z"}}`，**门禁标签页留着、不再导航**：之后的 `fetch_file` 调用带 `--keepalive p2z`，每处理一篇读一次该会话的 `state`（保持租约——opencli 自有会话的标签页闲置超时会被回收，2026-10-12 核实——也看它是否已通过；这是脚本做的，不靠 agent 记得），直到用户说好了或运行结束才关；`--wait-gate` 超时时在输出里提示带上 `--keepalive`。其余工作换一个会话名、开在后台窗口（`--session p2z-2 --window background`，不抢用户的焦点）。之后流里再落到同一登录主机的记录直接记 `gate_pending`、不停、不等，所以只有不经这道登录的站点继续推进。其他站点做完后，对挂起的主机再试一次（再提醒一次）；仍不过 → `gate_timeout`。用户说"继续 / 登好了"随时恢复。
 - **两级失败**（B#36）：
   - **路线级**——这条路不通，别的路线照走：`no_pdf_link`、`not_pdf`、`wrong_file`、`unknown_page`（agent 判断后）；同一（路线, 起点）组合不再重试。
   - **结论级**——这篇在这个主机上就是取不到：`no_access`、`proxy_unconfigured`、`not_public`、`site_blocked`、`gate_timeout`。记录有结论级失败后，`fetch_file` 对它**一律跳过，除非 `--retry CODE` 点名该类**——新办法只对它能解决的那一类失败重试一次（B#36 补充「你这都重复几次了」）。
@@ -286,17 +286,17 @@ v2 的身份模型（citationKey）、`--cite` 解析、流约定（§3.3）、�
 ```json
 // ~/.config/paper-to-zotero/config.json（600；字段都可缺，缺则对应能力跳过）
 {
-  "contact_email": "…",                       // Unpaywall 必填；Crossref / OpenAlex 的 mailto
+  "contact_email": "<email>",                 // Unpaywall 必填；Crossref / OpenAlex 的 mailto
   "institution": {
-    "auth_hosts": ["sso.example.edu"],        // 机构认证主机：落到这里 = 用户能过的门禁
-    "proxy": "example.idm.oclc.org",          // 代理主机后缀：其上的 "Host Needed" / 404 = proxy_unconfigured
-    "discovery": {"type": "primo", "base": "https://example.primo.exlibrisgroup.com", "vid": "…", "tab": "…", "scope": "…"},
-    "aggregators": {"proquest": {"proxy_host": "…", "accountid": "…"}}
+    "auth_hosts": ["<sso-host>"],             // 机构认证主机：落到这里 = 用户能过的门禁
+    "proxy": "<proxy-domain>",                // 代理主机后缀（代理后的主机 = <主机名点换连字符>.<proxy-domain>）：其上的 "Host Needed" / 404 = proxy_unconfigured
+    "discovery": {"type": "primo", "base": "https://<discovery-host>", "vid": "<vid>", "tab": "<tab>", "scope": "<scope>"},
+    "aggregators": {"proquest": {"proxy_host": "www-proquest-com.<proxy-domain>", "accountid": "<accountid>"}}
   }
 }
 ```
 
-OpenAlex key 沿用 `~/.config/openalex/api_key`（已存在）。`contact_email` 由用户自己填——向 Unpaywall 发送邮箱要用户同意。publishers.md 只写这个格式，不写任何机构的值。缓存：`~/.cache/paper-to-zotero/{pace,venues}/`。
+OpenAlex key 沿用 `~/.config/openalex/api_key`（已存在）。`contact_email` 由用户自己填——向 Unpaywall 发送邮箱要用户同意。publishers.md 只写这个格式，不写任何机构的值；机构相关的值在仓库里一律写成占位符（AGENTS.md）。缓存：`~/.cache/paper-to-zotero/{pace,venues}/`。
 
 ## 7. 文档
 

@@ -95,7 +95,7 @@
 
 - 来源：使用 · 2026-10-09
 - 现场：ProQuest 的 `fulltextPDF` 页面把 PDF 放进同源的 pdf.js iframe，外层页面没有下载链接，下载按钮在 iframe 里。在检索系统里点 “Get PDF” 会新开一个标签页，这个标签页不归当前 opencli 会话管，`wait download` 也等不到下载；`bind` 有时会绑到之前的旧标签页上。
-- 可行做法：直接用 `<proquest 代理主机>/docview/<id>/fulltextPDF` 打开页面，等 `iframe.contentWindow.PDFViewerApplication.pdfDocument` 就绪，用 `getData()` 取出字节，再经 `eval` 以 base64 带出。这样 Downloads 里不留文件。
+- 可行做法：直接用 `www-proquest-com.<proxy-domain>/docview/<id>/fulltextPDF` 打开页面，等 `iframe.contentWindow.PDFViewerApplication.pdfDocument` 就绪，用 `getData()` 取出字节，再经 `eval` 以 base64 带出。这样 Downloads 里不留文件。
 - 方向：把这个做法写进 publishers.md，或做成脚本（和第 11 条共用“页面内取字节”的部分）。
 - 状态：open
 
