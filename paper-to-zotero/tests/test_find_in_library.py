@@ -349,6 +349,19 @@ class FindInLibraryTest(unittest.TestCase):
         self.assertEqual((summary["code"], summary["matched_by"]), ("near_match", "arxiv"))
         self.assertIn("ask the user", summary["hint"])
 
+    def test_same_title_with_another_doi_is_a_near_match(self):
+        """The library's preprint (10.48550 DOI) has the published record's exact title: not a plain found."""
+        published = {"slug": "pub", "item": {"itemType": "journalArticle", "DOI": "10.1000/pub.2", "title": "Pair Paper Title"}}
+        no_doi = {"slug": "ddpm", "item": {"itemType": "conferencePaper", "DOI": "10.1000/ddpm",
+                                           "title": "Denoising Diffusion Probabilistic Models"}}
+        r = self.run_script(stdin="\n".join(json.dumps(x) for x in (published, no_doi)))
+        out = [json.loads(line) for line in r.stdout.splitlines()]
+        self.assertEqual((out[0]["found"]["code"], out[0]["found"]["key"]), ("near_match", F))
+        self.assertIn("same title, different DOI", out[0]["found"]["reason"])
+        self.assertNotIn("matched_by", out[0]["found"])
+        # a library item without a DOI of its own is still trusted on the exact title
+        self.assertEqual((out[1]["found"]["code"], out[1]["found"]["matched_by"], out[1]["found"]["key"]), ("found", "title", B))
+
     def test_arxiv_only_records_keep_found(self):
         bare = {"slug": "pre", "item": {"itemType": "preprint", "archiveID": "arXiv:2401.00001", "title": "x"}}
         arxiv_doi = {"slug": "pre2", "item": {"itemType": "preprint", "DOI": "10.48550/arXiv.2401.00001v2", "title": "x"}}

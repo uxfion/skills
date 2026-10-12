@@ -238,7 +238,8 @@ find_in_library.py
   --readback  写 readback 字段，不再覆盖 found（found = 本轮开始前库里就有）；404 时删 readback、写 blocker，saved 不动；
              report、attach_file 读库内现状时优先 readback（B#3）
   found       与 readback 同形，新增 matched_by（doi | arxiv | title；near_match 仍以 code 区分）与 dateAdded，供 create_item 查重；
-             记录有自己的非 arXiv DOI 而只经 arXiv 号命中 → near_match（预印本 / 正式版一对）；记录的 distinct_from 里的 key
+             记录有自己的非 arXiv DOI 而只经 arXiv 号命中 → near_match（预印本 / 正式版一对）；题名完全相同、但库里那条带着
+             另一个 DOI（预印本的 10.48550、勘误）→ 同样 near_match，库里那条没有 DOI 时题名命中仍算 found；记录的 distinct_from 里的 key
              在每一级查找中都排除，排除后这一级为空就继续下一级
   near_match  未决：create_item 报 possible_duplicate、attach_file 报 unresolved_match，都不跳过也不写；agent 定为同一篇就把
              found 换成 {key}，不是就删 found、把 key 写进 distinct_from

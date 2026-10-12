@@ -34,7 +34,9 @@ gave the exact match) and the item's dateAdded, or code near_match (a title
 that contains / is contained in the other; no matched_by). A record whose
 item has its own non-arXiv DOI that the library lacks, but whose arXiv id
 hits, is a preprint/published pair: near_match with matched_by arxiv and a
-reason naming the DOI, never a plain found (the agent asks the user). The
+reason naming the DOI, never a plain found (the agent asks the user). Likewise
+an exact title whose library item carries a different DOI (the preprint's
+10.48550 DOI, a correction notice) is a near_match, not a found. The
 record's `distinct_from` [key...] lists library items the agent judged to be
 other papers: they are dropped from matches and near matches at every tier,
 and a tier left empty goes on to the next (DOI, arXiv id, title). not_found
@@ -647,6 +649,15 @@ def process_record(api: LocalApi, rec: dict, slug: str, do_readback: bool) -> tu
         near = [(it, why) for it, why in near if it["key"] not in excluded]
         searched += s
         matched_by = "title"
+        if doi:
+            # Same title, but the library item carries another DOI: another version (the preprint's 10.48550 DOI)
+            # or a notice about the paper, not this record's paper. Only the agent can tell.
+            other = [it for it in matches if normalize_doi(it["data"].get("DOI") or "")
+                     and normalize_doi(it["data"].get("DOI") or "") != normalize_doi(doi)]
+            if other:
+                matches = [it for it in matches if it not in other]
+                near = [(it, f"same title, different DOI: the library item has {it['data'].get('DOI')}, the record {doi}")
+                        for it in other] + near
     if not searched:
         return {"slug": slug, "code": "no_item", "hint": "The item has no DOI, arXiv id or title to search with."}, "failed"
     if pair:
