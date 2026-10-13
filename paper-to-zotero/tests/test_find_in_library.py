@@ -18,35 +18,29 @@ from pathlib import Path
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "find_in_library.py"
 LIB = "/api/users/0"
 
-A, ATT, B, C, D, E, F = "AAAAAAA1", "AAAAATT1", "BBBBBBB1", "CCCCCCC1", "DDDDDDD1", "EEEEEEE1", "FFFFFFF1"
+A, ATT, B, C, D, E = "AAAAAAA1", "AAAAATT1", "BBBBBBB1", "CCCCCCC1", "DDDDDDD1", "EEEEEEE1"
 ITEMS = {
     A: {"key": A, "version": 894, "data": {
         "key": A, "version": 894, "itemType": "journalArticle",
         "title": "Progressive Residual Learning With Memory Upgrade for Ultrasound Image Blind Super-Resolution",
         "date": "2022-09", "DOI": "10.1109/JBHI.2022.3142076", "url": "https://doi.org/10.1109/JBHI.2022.3142076",
-        "citationKey": "liuProgressiveResidualLearning2022", "collections": ["C1AAAAAA"], "tags": [{"tag": "JBHI", "type": 0}],
-        "dateAdded": "2024-03-01T08:00:00Z"}},
+        "citationKey": "liuProgressiveResidualLearning2022", "collections": ["C1AAAAAA"], "tags": [{"tag": "JBHI", "type": 0}]}},
     ATT: {"key": ATT, "version": 892, "data": {
         "key": ATT, "version": 892, "itemType": "attachment", "parentItem": A, "title": "PDF", "linkMode": "imported_url",
         "contentType": "application/pdf", "filename": "liu.pdf", "md5": "abc123"}},
     B: {"key": B, "version": 10, "data": {
         "key": B, "version": 10, "itemType": "preprint", "title": "Denoising Diffusion Probabilistic Models", "date": "2020",
         "DOI": "", "archiveID": "arXiv:2006.11239", "url": "https://arxiv.org/abs/2006.11239v2", "citationKey": "ho2020denoising",
-        "collections": [], "tags": [], "dateAdded": "2025-01-02T03:04:05Z"}},
+        "collections": [], "tags": []}},
     C: {"key": C, "version": 11, "data": {
         "key": C, "version": 11, "itemType": "conferencePaper", "title": "Deep Residual Learning for Image Recognition",
-        "date": "2016", "DOI": "", "url": "", "citationKey": "dupkey", "collections": [], "tags": [],
-        "dateAdded": "2026-10-12T09:00:00Z"}},
+        "date": "2016", "DOI": "", "url": "", "citationKey": "dupkey", "collections": [], "tags": []}},
     D: {"key": D, "version": 12, "data": {
         "key": D, "version": 12, "itemType": "journalArticle", "title": "Something Else Entirely", "date": "2019",
         "DOI": "", "citationKey": "dupkey", "collections": [], "tags": []}},
     E: {"key": E, "version": 13, "data": {
         "key": E, "version": 13, "itemType": "journalArticle", "title": "Deep Residual Learning for Image Recognition: Extended",
         "date": "2017", "DOI": "", "citationKey": "", "collections": [], "tags": []}},
-    F: {"key": F, "version": 14, "data": {
-        "key": F, "version": 14, "itemType": "preprint", "title": "Pair Paper Title", "date": "2024",
-        "DOI": "10.48550/arXiv.2401.00001", "archiveID": "arXiv:2401.00001", "url": "https://arxiv.org/abs/2401.00001",
-        "citationKey": "pair2024preprint", "collections": [], "tags": [], "dateAdded": "2024-01-05T00:00:00Z"}},
 }
 COLLECTIONS = [
     {"key": "C1AAAAAA", "version": 1, "data": {"key": "C1AAAAAA", "name": "医疗图像", "parentCollection": False}},
@@ -229,16 +223,9 @@ class FindInLibraryTest(unittest.TestCase):
         self.assertEqual(rows[0]["found"]["collections"], ["C1AAAAAA"])
         self.assertEqual(rows[0]["found"]["attachments"][0]["md5"], "abc123")
         self.assertTrue(re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", rows[0]["found"]["checked_at"]))
-        self.assertEqual((rows[0]["found"]["matched_by"], rows[0]["found"]["dateAdded"], rows[0]["found"]["date"]),
-                         ("doi", "2024-03-01T08:00:00Z", "2022-09"))
         self.assertEqual(rows[1]["found"]["key"], C, "DOI miss, then exact title")
-        self.assertEqual((rows[1]["found"]["matched_by"], rows[1]["found"]["dateAdded"]), ("title", "2026-10-12T09:00:00Z"))
         self.assertEqual(rows[2]["found"]["key"], B, "arXiv id from archiveID")
-        self.assertEqual(rows[2]["found"]["matched_by"], "arxiv")
         self.assertEqual((rows[3]["found"]["code"], rows[3]["found"]["key"]), ("near_match", D))
-        self.assertNotIn("matched_by", rows[3]["found"], "near_match is told apart by its code")
-        self.assertEqual(rows[3]["found"]["dateAdded"], "", "an item without dateAdded gives an empty string")
-        self.assertNotIn("readback", rows[0])
         self.assertNotIn("found", rows[4], "not_found leaves the record untouched")
         self.assertEqual(rows[4], {"slug": "r5", "item": {"itemType": "journalArticle", "title": "Nothing like this at all"}})
         self.assertNotIn("found", rows[5])
@@ -253,7 +240,7 @@ class FindInLibraryTest(unittest.TestCase):
         rows = self.lines(proc.stdout)
         self.assertEqual([(r["slug"], r["code"]) for r in rows[:-1]],
                          [("r1", "found"), ("r2", "found"), ("r3", "found"), ("r4", "near_match"), ("r5", "not_found"), ("r6", "no_item")])
-        self.assertEqual((rows[0]["key"], rows[0]["matched_by"]), (A, "doi"))
+        self.assertEqual(rows[0]["key"], A)
         self.assertEqual(rows[-1]["summary"], {"total": 6, "ok": 5, "skipped": 0, "failed": 1})
         self.assertEqual(json.loads(paths[0].read_text())["found"]["key"], A)
         self.assertEqual(paths[4].read_text(), before, "not_found record not rewritten")
@@ -269,131 +256,23 @@ class FindInLibraryTest(unittest.TestCase):
     def test_readback(self):
         s1 = self.write("s1.json", {"slug": "s1", "saved": {"key": A, "version": 1}})
         s2 = self.write("s2.json", {"slug": "s2", "found": {"key": "GONE1234"}, "citationKey": "gone"})
-        s3 = self.write("s3.json", {"slug": "s3", "found": {"key": A, "matched_by": "doi"}, "citationKey": "userkey"})
+        s3 = self.write("s3.json", {"slug": "s3", "found": {"key": A}, "citationKey": "userkey"})
         proc = self.run_script("-i", "--readback", str(s1), str(s2), str(s3))
         self.assertEqual(proc.returncode, 1, proc.stderr)
         rows = self.lines(proc.stdout)
         self.assertEqual([(r["slug"], r["code"]) for r in rows[:-1]], [("s1", "found"), ("s2", "missing_in_library"), ("s3", "found")])
         self.assertEqual(rows[-1]["summary"], {"total": 3, "ok": 2, "skipped": 0, "failed": 1})
         r1 = json.loads(s1.read_text())
-        self.assertNotIn("found", r1, "an item created this run is not `found` (B#3)")
-        self.assertEqual((r1["readback"]["key"], r1["readback"]["version"]), (A, 894))
-        self.assertEqual((r1["readback"]["dateAdded"], r1["readback"]["date"]), ("2024-03-01T08:00:00Z", "2022-09"))
-        self.assertEqual(r1["readback"]["attachments"][0]["md5"], "abc123")
-        self.assertNotIn("matched_by", r1["readback"])
+        self.assertEqual((r1["found"]["key"], r1["found"]["version"]), (A, 894))
         self.assertEqual(r1["citationKey"], "liuProgressiveResidualLearning2022")
         self.assertEqual(r1["saved"], {"key": A, "version": 1}, "saved untouched")
         r2 = json.loads(s2.read_text())
-        self.assertEqual(r2["found"], {"key": "GONE1234"}, "found left alone on 404")
-        self.assertNotIn("readback", r2)
+        self.assertNotIn("found", r2)
         self.assertTrue(r2["blocker"].startswith("missing_in_library: item GONE1234"))
         r3 = json.loads(s3.read_text())
-        self.assertEqual(r3["found"], {"key": A, "matched_by": "doi"}, "found is never overwritten by --readback")
         self.assertEqual(r3["citationKey"], "userkey", "the given key stays on the record")
-        self.assertEqual(r3["readback"]["citationKey"], "liuProgressiveResidualLearning2022", "readback carries the library's key")
+        self.assertEqual(r3["found"]["citationKey"], "liuProgressiveResidualLearning2022", "found carries the library's key")
         self.assertIn("userkey", proc.stderr)
-
-    def test_readback_404_drops_stale_readback_only(self):
-        rec = {"slug": "s4", "saved": {"key": "GONE5678", "version": 3}, "found": {"key": "GONE5678", "matched_by": "title"},
-               "readback": {"key": "GONE5678", "version": 3, "attachments": []}}
-        path = self.write("s4.json", rec)
-        proc = self.run_script("-i", "--readback", str(path))
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(self.lines(proc.stdout)[0], {"slug": "s4", "code": "missing_in_library", "key": "GONE5678"})
-        after = json.loads(path.read_text())
-        self.assertNotIn("readback", after)
-        self.assertEqual((after["saved"], after["found"]), (rec["saved"], rec["found"]))
-        self.assertIn("GONE5678", after["blocker"])
-
-    def test_readback_from_stdin_to_stdout(self):
-        proc = self.run_script("--readback", stdin=json.dumps({"slug": "x", "saved": {"key": B, "version": 1}}))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        row = self.lines(proc.stdout)[0]
-        self.assertEqual((row["readback"]["key"], row["readback"]["citationKey"]), (B, "ho2020denoising"))
-        self.assertNotIn("found", row)
-
-    def test_stream_stdin_for_duplicate_check(self):
-        """create_item pipes its pending records in and reads found.matched_by / found.dateAdded from stdout."""
-        recs = [{"slug": "a", "item": {"DOI": "10.1109/JBHI.2022.3142076", "title": "x"}},
-                {"slug": "b", "item": {"archiveID": "arXiv:2006.11239v2", "title": "y"}},
-                {"slug": "c", "item": {"title": "Deep Residual Learning for Image Recognition"}},
-                {"slug": "d", "item": {"title": "Nothing like this at all"}}]
-        proc = self.run_script(stdin="\n".join(json.dumps(r) for r in recs) + "\n")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        rows = self.lines(proc.stdout)
-        self.assertEqual([r["slug"] for r in rows], ["a", "b", "c", "d"], "stdout is one record per line, nothing else")
-        self.assertEqual([(r["found"]["matched_by"], r["found"]["dateAdded"]) for r in rows[:3]],
-                         [("doi", "2024-03-01T08:00:00Z"), ("arxiv", "2025-01-02T03:04:05Z"), ("title", "2026-10-12T09:00:00Z")])
-        self.assertNotIn("found", rows[3])
-        self.assertEqual(self.lines(proc.stderr)[-1], {"summary": {"total": 4, "ok": 4, "skipped": 0, "failed": 0}})
-
-    # --- preprint / published pair and distinct_from -------------------------------
-
-    def stream(self, *recs):
-        proc = self.run_script(stdin="\n".join(json.dumps(r) for r in recs) + "\n")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        return self.lines(proc.stdout)
-
-    def test_published_record_hitting_only_the_preprint_is_a_near_match(self):
-        published = {"slug": "pub", "item": {"itemType": "journalArticle", "DOI": "10.1000/pub.1", "title": "Pair Paper Title",
-                                            "extra": "arXiv: 2401.00001"}}
-        row = self.stream(published)[0]
-        self.assertEqual((row["found"]["code"], row["found"]["key"], row["found"]["matched_by"]), ("near_match", F, "arxiv"))
-        self.assertEqual(row["found"]["reason"],
-                         "preprint/published pair: the library item matched by arXiv id only; the record's DOI is 10.1000/pub.1")
-        self.assertEqual(row["found"]["dateAdded"], "2024-01-05T00:00:00Z")
-
-        path = self.write("pub.json", published)
-        proc = self.run_script("-i", str(path))
-        summary = self.lines(proc.stdout)[0]
-        self.assertEqual((summary["code"], summary["matched_by"]), ("near_match", "arxiv"))
-        self.assertIn("ask the user", summary["hint"])
-
-    def test_same_title_with_another_doi_is_a_near_match(self):
-        """The library's preprint (10.48550 DOI) has the published record's exact title: not a plain found."""
-        published = {"slug": "pub", "item": {"itemType": "journalArticle", "DOI": "10.1000/pub.2", "title": "Pair Paper Title"}}
-        no_doi = {"slug": "ddpm", "item": {"itemType": "conferencePaper", "DOI": "10.1000/ddpm",
-                                           "title": "Denoising Diffusion Probabilistic Models"}}
-        r = self.run_script(stdin="\n".join(json.dumps(x) for x in (published, no_doi)))
-        out = [json.loads(line) for line in r.stdout.splitlines()]
-        self.assertEqual((out[0]["found"]["code"], out[0]["found"]["key"]), ("near_match", F))
-        self.assertIn("same title, different DOI", out[0]["found"]["reason"])
-        self.assertNotIn("matched_by", out[0]["found"])
-        # a library item without a DOI of its own is still trusted on the exact title
-        self.assertEqual((out[1]["found"]["code"], out[1]["found"]["matched_by"], out[1]["found"]["key"]), ("found", "title", B))
-
-    def test_arxiv_only_records_keep_found(self):
-        bare = {"slug": "pre", "item": {"itemType": "preprint", "archiveID": "arXiv:2401.00001", "title": "x"}}
-        arxiv_doi = {"slug": "pre2", "item": {"itemType": "preprint", "DOI": "10.48550/arXiv.2401.00001v2", "title": "x"}}
-        rows = self.stream(bare, arxiv_doi)
-        for row in rows:
-            self.assertEqual((row["found"]["code"], row["found"]["key"], row["found"]["matched_by"]), ("found", F, "arxiv"), row["slug"])
-            self.assertNotIn("reason", row["found"])
-
-    def test_distinct_from_drops_keys_at_every_tier(self):
-        # DOI hit excluded -> title tier (exact match on another item).
-        r1 = {"slug": "r1", "distinct_from": [A],
-              "item": {"DOI": "10.1109/JBHI.2022.3142076", "title": "Deep Residual Learning for Image Recognition"}}
-        # Exact title excluded -> the near match that is left.
-        r2 = {"slug": "r2", "distinct_from": [C], "item": {"title": "Deep Residual Learning for Image Recognition"}}
-        # Exact and near title hits all excluded -> not found.
-        r3 = {"slug": "r3", "distinct_from": [C, E], "item": {"title": "Deep Residual Learning for Image Recognition"}}
-        # DOI hit excluded, arXiv hit with the record's own DOI -> pair.
-        r4 = {"slug": "r4", "distinct_from": [A], "item": {"DOI": "10.1109/JBHI.2022.3142076", "archiveID": "arXiv:2401.00001",
-                                                            "title": "Pair Paper Title"}}
-        # arXiv hit excluded -> title tier.
-        r5 = {"slug": "r5", "distinct_from": [F], "item": {"archiveID": "arXiv:2401.00001", "title": "Something Else Entirely"}}
-        # A single key as a string is accepted too.
-        r6 = {"slug": "r6", "distinct_from": A, "item": {"DOI": "10.1109/JBHI.2022.3142076", "title": "Nothing like this at all"}}
-        rows = {r["slug"]: r for r in self.stream(r1, r2, r3, r4, r5, r6)}
-        self.assertEqual((rows["r1"]["found"]["key"], rows["r1"]["found"]["matched_by"]), (C, "title"))
-        self.assertEqual((rows["r2"]["found"]["code"], rows["r2"]["found"]["key"]), ("near_match", E))
-        self.assertNotIn("found", rows["r3"])
-        self.assertEqual((rows["r4"]["found"]["code"], rows["r4"]["found"]["key"], rows["r4"]["found"]["matched_by"]),
-                         ("near_match", F, "arxiv"))
-        self.assertEqual((rows["r5"]["found"]["key"], rows["r5"]["found"]["matched_by"]), (D, "title"))
-        self.assertNotIn("found", rows["r6"])
-        self.assertEqual(rows["r1"]["distinct_from"], [A], "the record keeps its list")
 
     def test_stdin_forms_and_no_records(self):
         rec = {"slug": "x", "item": {"DOI": "10.1109/JBHI.2022.3142076"}}

@@ -2,85 +2,32 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Attach a verified PDF or HTML snapshot to existing Zotero items through the local write API, one item or a stream of records.
+"""Attach a PDF or HTML snapshot to existing Zotero items through the local write API, one item or a stream of records.
 
 Works the same for a just-created item and for an old one. Flow per file:
-pre-checks (file, url, item, existing children) -> identity check -> create
-the child attachment, or reuse an empty one left by an interrupted run ->
-3-step upload -> read back the md5. A child that already holds a file with
-the same md5 is reported as already attached and never uploaded twice.
+pre-checks (file, item, existing children) -> create the child attachment, or
+reuse an empty one left by an interrupted run -> 3-step upload -> read back
+the md5. A child that already holds a file with the same md5 is reported as
+already attached and never uploaded twice.
 
-The identity check gates every upload, --dry-run included, with no way
-around it. What writes nothing to the library needs no check: a file already
-attached (same md5), and a record skipped as library_has_attachment.
-- with a record (stream mode, --record): the md5 of the file about to be
-  uploaded equals the record's `pdf.md5` and `pdf.code` is a pass (ok,
-  ok_on_page_2, ok_on_page_3, ok_by_words), or it equals `pdf_accepted.md5`
-  and `pdf_accepted.reason` is not empty (the agent read page 1 and took the
-  file). Otherwise not_verified (exit 1): run check_pdf.py -i on the record
-  first, or read page 1 and write pdf_accepted. HTML snapshots alike.
-- without a record (--key/--cite --file --url): the parent item and the file
-  (with --file-version, if given) go to check_pdf.py (next to this script,
-  as one record on stdin); a code that is not a pass, or check_pdf unable to
-  check, refuses with not_verified, the check code and a short evidence
-  summary — unless --accept "<reason>" is given, which attaches and puts
-  `accepted` and `check_code` in the output.
-
-Record defaults (resolved as check_pdf.py resolves them, so both scripts
-mean the same file): the file is the record's `file` (relative to the
-record's directory; stdin records: the working directory), else --file
-(stream mode), else <slug>.pdf, else <slug>.html next to the record (<slug>
-= the record file's stem; stdin records have no such default).
-file_version is the record's `file_version`, else `snapshot` for an HTML
-file, else the `version` of the last line in <work>/fetch.jsonl (<work> =
-the parent of the record's directory) with the record's slug or stem, code
-"ok" and a version (`submitted` read as `preprint`), else `published`.
-
-Attachment title: the record's `attach_title`, else --title, else from
-file_version — published -> PDF, accepted -> Accepted manuscript, preprint ->
-Preprint, supplement -> Supplement, snapshot -> Snapshot, unknown -> Full
-text (version unknown) (any other value as written, first letter
-capitalized). In single mode the flags speak for that one item and win:
---title over `attach_title`, as --key/--file/--url/--file-version over the
-record's own.
-
-Single mode (--key/--cite --file --url, or --record PATH): stdout is exactly
-one JSON object with a stable `code` (`ok` or `already_attached` on
-success). Without a record, file_version is --file-version, else snapshot
-for an HTML file, else published. --record R takes from R what the flags
-leave out — the item key (saved.key, else found.key; a --key/--cite naming
-another item -> record_key_mismatch), the file (its default above; a given
---file is taken from the working directory as usual), the url, the
-file_version — checks the file against R (--accept does not apply), and
-after success writes `attach` back to R.
-
-A record's item key is `saved.key`, else `found.key` — but a `found` with
-code near_match (a similar title, or a preprint/published pair: probably
-another version of the paper) stops the record with unresolved_match (exit
-1; found_key, found_reason): the same paper -> replace found with {"key":
-"<key>"}; a different one -> delete found, add the key to distinct_from,
-run create_item.py. This holds in stream mode and with --record, whatever
---key says; `saved.key` always wins.
+Single mode (--key --file --url; v1, unchanged): stdout is exactly one JSON
+object with a stable `code` (`ok` or `already_attached` on success).
 
 Stream mode (record paths, or records on stdin as JSONL / a JSON array / one
-object): the item key as above; the file is the record default above; the
-url is `item.url`, else
+object): the item key is the record's `saved.key`, else `found.key`; the file
+is the record's `file` (relative to the record's directory; stdin records:
+the working directory), else --file; the url is `item.url`, else
 https://doi.org/<item.DOI>, else --url. A record whose `attach.md5_ok` is
-already true is skipped; a record with no file at all whose library state —
-`readback` (written by find_in_library.py --readback), else `found` — lists
-attachments is skipped as library_has_attachment; a file in hand for an
-item that already holds a PDF (another md5) is skipped as library_has_pdf
-unless the record says `need_file: true`; a file already attached
-(same md5) is skipped too, and `attach` is filled in. On success the record
-gains `attach = {key, md5_ok, filename, url, title, file_version,
-attached_at}`. Without -i the updated records go to stdout one per line, and
-one summary line per record plus the final {"summary": ...} go to stderr;
-with -i each changed record is written back to its file and stdout carries
-those summary lines instead. Exit 0 = every record ok or skipped, 1 = some
-failed (no_item_key, no_file, no_url, file_not_found, not_verified,
-item_not_found, upload_failed, ...), 2 = cannot check (Zotero unreachable,
-local API disabled, no key, key rejected, key belongs to another Zotero
-instance).
+already true is skipped; a file already attached (same md5) is skipped too,
+and `attach` is filled in either way. On success the record gains
+`attach = {key, md5_ok, filename, url, attached_at}`. Without -i the updated
+records go to stdout one per line, and one summary line per record plus the
+final {"summary": ...} go to stderr; with -i each changed record is written
+back to its file and stdout carries those summary lines instead. Exit 0 =
+every record ok or skipped, 1 = some failed (no_item_key, no_file, no_url,
+file_not_found, item_not_found, upload_failed, ...), 2 = cannot check (Zotero
+unreachable, local API disabled, no key, key rejected, key belongs to another
+Zotero instance).
 
 Diagnostics go to stderr; the API key is never printed.
 """
@@ -89,7 +36,6 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -97,7 +43,6 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import NamedTuple
 
 DEFAULT_BASE_URL = "http://127.0.0.1:23119"
 DEFAULT_KEY_FILE = "~/.config/zotero/local-api-key"
@@ -105,57 +50,6 @@ LIB = "/api/users/0"
 TITLE_MAX = 120
 ILLEGAL_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f\x7f]')
 CHILD_TYPES = {"attachment", "note", "annotation"}
-
-PASS_CODES = ("ok", "ok_on_page_2", "ok_on_page_3", "ok_by_words")
-VERSION_TITLES = {"published": "PDF", "accepted": "Accepted manuscript", "preprint": "Preprint",
-                  "supplement": "Supplement", "snapshot": "Snapshot", "unknown": "Full text (version unknown)"}
-VERSION_ALIASES = {"submitted": "preprint"}  # the older links' word for a preprint, still accepted
-CHECK_SCRIPT = Path(__file__).resolve().parent / "check_pdf.py"
-CHECK_TIMEOUT = 180
-EVIDENCE_KEYS = ("extractor", "title_page", "title_words", "doi_found", "first_author_found", "dois_on_page_1",
-                 "erratum_marker", "supplement_marker", "denial_marker", "page_count", "text_chars")
-EXCERPT_CHARS = 300
-RECORD_HINT = ("run check_pdf.py -i on the record first; if it does not pass, read page 1 and, if it is this paper, "
-               "write \"pdf_accepted\": {\"md5\": \"<md5>\", \"reason\": \"<what you read>\"} into the record")
-SINGLE_HINT = ("read page 1 (the pdf skill): if it is this paper, run again with --accept \"<what you read>\"; "
-               "otherwise get the right file")
-
-EPILOG = """\
-single mode (stdout: one JSON object):
-  --key K | --cite C  --file F --url U [--file-version V]
-                                         checks F with check_pdf.py against the parent item (V passed on as
-                                         the file_version); not a pass -> not_verified (check_code, evidence)
-                                         unless --accept "<reason>"
-  --record R [--key|--cite] [--file] [--url] [--file-version] [--title] [--filename]
-                                         what the flags leave out comes from R (saved.key / found.key, the
-                                         record's file default, item.url / DOI, file_version); the check comes
-                                         from R's pdf / pdf_accepted (--accept is refused: write pdf_accepted
-                                         into R); on success R gains `attach`
-  a file already attached (same md5) is already_attached without any check: nothing is written
-  exit 0 = ok | already_attached; 1 = not done (see code / hint); 2 = cannot check Zotero
-
-stream mode (record paths or stdin; -i writes records back):
-  item key saved.key, else found.key (found.code near_match -> unresolved_match, also with --record);
-  file: `file`, else --file, else <slug>.pdf, else <slug>.html next to
-  the record; url: item.url, else https://doi.org/<DOI>, else --url; title: attach_title, else --title,
-  else from file_version; attach.md5_ok -> skipped; no file but readback (else found) lists attachments ->
-  skipped (library_has_attachment); both, and an already attached file, need no check
-  exit 0 = every record ok or skipped; 1 = some failed; 2 = cannot check Zotero
-
-codes: ok | already_attached (single) / skipped (stream) | not_verified | no_item_key | no_file | no_url |
-  file_not_found | unsupported_file | invalid_pdf_url | proxied_url | unresolved_match | record_key_mismatch | record_invalid |
-  item_not_found | not_a_parent | upload_failed | md5_mismatch | write_failed | ... ;
-  exit 2: zotero_unreachable | local_api_disabled | no_key | key_rejected | server_mismatch
-
-titles from file_version: published PDF | accepted Accepted manuscript | preprint (or submitted) Preprint |
-  supplement Supplement | snapshot Snapshot | unknown Full text (version unknown); an HTML file without
-  file_version is a snapshot
-
-examples:
-  uv run attach_file.py -i <work>/records/*.json
-  uv run attach_file.py --record <work>/records/<slug>.json
-  uv run attach_file.py --cite <key> --file paper.pdf --url https://doi.org/<DOI> [--accept "<what you read>"]
-"""
 
 
 class Stop(Exception):
@@ -390,7 +284,7 @@ def upload_file(api, wh, akey, pdf_bytes, md5, filename, mtime, content_type):
     return "uploaded"
 
 
-# ---- the pre-checks, shared by both modes ------------------------------------
+# ---- the pre-checks and the attach itself, shared by both modes ----------------
 
 def check_url(url):
     """The canonical source URL to store on the attachment; proxy hosts are refused."""
@@ -406,35 +300,27 @@ def check_url(url):
     return url
 
 
-class Loaded(NamedTuple):
-    """A file read for upload."""
-    path: Path
-    data: bytes
-    kind: str          # pdf | html
-    content_type: str
-    ext: str
-    md5: str
-
-
 def load_file(path):
-    """Read the file -> Loaded; only a PDF or an HTML page saved as .html passes."""
+    """Read the file -> (path, bytes, kind, content_type, ext); only a PDF or an HTML page saved as .html passes."""
     pdf = Path(path).expanduser()
     if not pdf.is_file():
         raise Stop("file_not_found", 1, "Point --file (or the record's `file`) at the downloaded file.", file=str(pdf))
     pdf_bytes = pdf.read_bytes()
-    md5 = hashlib.md5(pdf_bytes).hexdigest()
     head = pdf_bytes[:2048].lstrip().lower()
     if pdf_bytes.startswith(b"%PDF-"):
-        return Loaded(pdf, pdf_bytes, "pdf", "application/pdf", ".pdf", md5)
+        return pdf, pdf_bytes, "pdf", "application/pdf", ".pdf"
     if pdf.suffix.lower() in (".html", ".htm") and (head.startswith(b"<!doctype") or head.startswith(b"<html") or b"<html" in head):
-        return Loaded(pdf, pdf_bytes, "html", "text/html", ".html", md5)
+        return pdf, pdf_bytes, "html", "text/html", ".html"
     raise Stop("unsupported_file", 1, "Only a PDF (%PDF- header) or an HTML page saved as .html is accepted; "
                "a \"PDF\" that is really HTML means the download returned a web page.",
                file=str(pdf), size=len(pdf_bytes), head=pdf_bytes[:16].decode("latin-1"))
 
 
-def get_parent(api, item_key):
-    """The parent item's data; a missing item or a child item stops here."""
+def attach_one(api, wh, item_key, pdf, pdf_bytes, kind, content_type, ext, url, title, filename_arg, dry_run):
+    """Attach one file to one item; returns the result fields with `code` ok | already_attached (v1's output shape)."""
+    md5 = hashlib.md5(pdf_bytes).hexdigest()
+    mtime = int(pdf.stat().st_mtime * 1000)
+
     item = get_json(api, f"{LIB}/items/{item_key}",
                     ("item_not_found", "No item with that key; check the key from create_item.py / find_in_library.py.",
                      {"item_key": item_key}))
@@ -442,112 +328,7 @@ def get_parent(api, item_key):
     if data.get("itemType") in CHILD_TYPES or data.get("parentItem"):
         raise Stop("not_a_parent", 1, "Attachments hang off a regular item; pass the parent item's key.",
                    item_key=item_key, item_type=data.get("itemType"), parent_item=data.get("parentItem"))
-    return data
-
-
-# ---- the identity check: a precondition of every upload ---------------------
-
-def verify_record(rec, f):
-    """The record's own check of this very file -> output fields; anything else is not_verified."""
-    pdf = rec.get("pdf") if isinstance(rec.get("pdf"), dict) else None
-    code = pdf.get("code") if pdf else None
-    checked = pdf is not None and str(pdf.get("md5") or "").strip().lower() == f.md5
-    if checked and code in PASS_CODES:
-        return {"check_code": code}
-    acc = rec.get("pdf_accepted") if isinstance(rec.get("pdf_accepted"), dict) else None
-    reason = acc.get("reason") if acc else None
-    reason = reason.strip() if isinstance(reason, str) else ""
-    if acc and str(acc.get("md5") or "").strip().lower() == f.md5:
-        if reason:
-            return {"check_code": code if checked else None, "accepted": reason}
-        why = "pdf_accepted names this file but gives no reason"
-    elif pdf is None:
-        why = "the record has no `pdf`: this file was never checked"
-    elif not pdf.get("md5"):
-        why = "`pdf` has no md5 (checked by an older check_pdf.py): check again"
-    elif not checked:
-        why = "`pdf.md5` is another file's: the file changed or another one was checked"
-    else:
-        why = f"pdf.code {code} is not a pass"
-    raise Stop("not_verified", 1, RECORD_HINT, file=str(f.path), md5=f.md5, pdf_code=code, why=why)
-
-
-def json_values(text):
-    """Every JSON object found in text, which may mix JSON with log lines."""
-    decoder, out, i = json.JSONDecoder(), [], 0
-    while True:
-        i = text.find("{", i)
-        if i < 0:
-            return out
-        try:
-            value, end = decoder.raw_decode(text, i)
-        except ValueError:
-            i += 1
-            continue
-        out.append(value)
-        i = end
-
-
-def evidence_summary(evidence):
-    if not isinstance(evidence, dict):
-        return None
-    out = {k: evidence[k] for k in EVIDENCE_KEYS if evidence.get(k) is not None}
-    if isinstance(evidence.get("excerpt"), str):
-        out["excerpt"] = evidence["excerpt"][:EXCERPT_CHARS]
-    return out
-
-
-def run_check(data, f, file_version=None):
-    """check_pdf.py on {item, file[, file_version]} as one stdin record -> (code, exit status, evidence summary)."""
-    record = {"item": data, "file": str(f.path.resolve())}
-    if file_version:
-        record["file_version"] = file_version
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    try:
-        proc = subprocess.run([sys.executable, str(CHECK_SCRIPT)], input=json.dumps(record, ensure_ascii=False),
-                              capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
-                              timeout=CHECK_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        return "check_timeout", None, None
-    except OSError as e:
-        return "check_failed", None, {"error": str(e)}
-    out = json_values(proc.stdout)
-    for value in out:  # the checked record
-        if isinstance(value, dict) and isinstance(value.get("pdf"), dict):
-            return value["pdf"].get("code"), proc.returncode, evidence_summary(value["pdf"].get("evidence"))
-    for value in json_values(proc.stderr) + out:  # its summary line, or a failure of the whole run
-        if isinstance(value, dict) and isinstance(value.get("code"), str):
-            return value["code"], proc.returncode, None
-    tail = proc.stderr.strip()[-400:]
-    return "check_failed", proc.returncode, ({"stderr": tail} if tail else None)
-
-
-def verify_single(data, f, accept, file_version=None):
-    """check_pdf.py's verdict on a file without a record -> output fields; not a pass and no --accept -> not_verified."""
-    code, status, evidence = run_check(data, f, file_version)
-    log(f"check_pdf: {code} (exit {status})")
-    if status == 0 and code in PASS_CODES:
-        return {"check_code": code}
-    if accept:
-        log(f"not a pass; attached on --accept: {accept}")
-        return {"check_code": code, "accepted": accept}
-    extra = {"file": str(f.path), "md5": f.md5, "check_code": code}
-    if evidence:
-        extra["evidence"] = evidence
-    raise Stop("not_verified", 1, SINGLE_HINT, **extra)
-
-
-# ---- the attach itself, shared by both modes --------------------------------
-
-def attach_one(api, wh, item_key, f, url, title, filename_arg, dry_run, verify):
-    """Attach one file to one item; returns the result fields with `code` ok | already_attached (v1's shape).
-
-    verify(parent data) -> output fields, or raises not_verified: the identity check, run once it is clear that
-    something would be uploaded (a file already attached writes nothing and needs none), --dry-run included."""
-    md5 = f.md5
-    mtime = int(f.path.stat().st_mtime * 1000)
-    data = get_parent(api, item_key)
-    filename = clean_filename(filename_arg) if filename_arg else default_filename(data, f.ext)
+    filename = clean_filename(filename_arg) if filename_arg else default_filename(data, ext)
     if not filename:
         raise Stop("invalid_filename", 1, "Pass a usable --filename.", filename=filename_arg)
 
@@ -560,27 +341,24 @@ def attach_one(api, wh, item_key, f, url, title, filename_arg, dry_run, verify):
             continue
         if (cd.get("md5") or "").lower() == md5:
             return {"code": "already_attached", "item_key": item_key, "attachment_key": child["key"], "md5_ok": True,
-                    "filename": cd.get("filename"), "title": cd.get("title"), "reused_attachment": False, "md5": md5}
+                    "filename": cd.get("filename"), "reused_attachment": False, "md5": md5}
         if (reuse_key is None and cd.get("linkMode") in ("imported_url", "imported_file")
                 and not cd.get("md5") and cd.get("filename") == filename):
             reuse_key = child["key"]
-    verdict = verify(data)  # an upload is next: the file must be this paper
     if reuse_key:
         log(f"reusing empty attachment {reuse_key} (same filename, no file)")
 
     if dry_run:
-        return {"code": "ok", "dry_run": True, "item_key": item_key, "kind": f.kind, "filename": filename, "title": title,
-                "md5": md5, "size": len(f.data), "pdf_url": url, "reused_attachment": bool(reuse_key),
-                "attachment_key": reuse_key,
-                "existing_attachments": sum(1 for c in children if (c.get("data") or {}).get("itemType") == "attachment"),
-                **verdict}
+        return {"code": "ok", "dry_run": True, "item_key": item_key, "kind": kind, "filename": filename, "md5": md5,
+                "size": len(pdf_bytes), "pdf_url": url, "reused_attachment": bool(reuse_key), "attachment_key": reuse_key,
+                "existing_attachments": sum(1 for c in children if (c.get("data") or {}).get("itemType") == "attachment")}
 
     if reuse_key:
         akey, reused = reuse_key, True
     else:
         attachment = {"itemType": "attachment", "linkMode": "imported_url", "parentItem": item_key,
-                      "title": title, "contentType": f.content_type, "filename": filename, "url": url}
-        if f.kind == "html":
+                      "title": title, "contentType": content_type, "filename": filename, "url": url}
+        if kind == "html":
             attachment["charset"] = "utf-8"
         status, _, body = api.request("POST", f"{LIB}/items", [attachment], wh)
         check_common(status, body)
@@ -595,7 +373,7 @@ def attach_one(api, wh, item_key, f, url, title, filename_arg, dry_run, verify):
         akey, reused = result["successful"]["0"]["key"], False
         log(f"created attachment {akey}")
 
-    outcome = upload_file(api, wh, akey, f.data, md5, filename, mtime, f.content_type)
+    outcome = upload_file(api, wh, akey, pdf_bytes, md5, filename, mtime, content_type)
     after = get_json(api, f"{LIB}/items/{akey}",
                      ("attachment_not_found", "The attachment vanished after upload; re-run.", {"attachment_key": akey}))
     read_md5 = ((after.get("data") or {}).get("md5") or "").lower()
@@ -604,9 +382,8 @@ def attach_one(api, wh, item_key, f, url, title, filename_arg, dry_run, verify):
                    item_key=item_key, attachment_key=akey, md5_sent=md5, md5_read_back=read_md5 or None,
                    filename=(after.get("data") or {}).get("filename"))
     return {"code": "ok", "item_key": item_key, "attachment_key": akey, "md5_ok": True, "md5": md5,
-            "filename": (after.get("data") or {}).get("filename") or filename,
-            "title": (after.get("data") or {}).get("title") or title, "reused_attachment": reused,
-            "file_existed": outcome == "exists", **verdict}
+            "filename": (after.get("data") or {}).get("filename") or filename, "reused_attachment": reused,
+            "file_existed": outcome == "exists"}
 
 
 # ---- records (stream mode) -------------------------------------------------
@@ -716,101 +493,12 @@ def write_results(outcomes, in_place, stopped=None):
 
 
 def item_key_of(rec):
-    """The record's item key: saved.key, else found.key (spec 3.2). A found that is only a near match (a similar
-    title, a preprint/published pair: likely another version) is not an answer yet -> unresolved_match."""
-    saved = rec.get("saved")
-    if isinstance(saved, dict) and saved.get("key"):
-        return saved["key"]
-    found = rec.get("found")
-    if isinstance(found, dict) and found.get("key"):
-        if found.get("code") == "near_match":
-            key = found["key"]
-            raise Stop("unresolved_match", 1, f'same paper: replace found with {{"key": "{key}"}}; different paper: '
-                       "delete found, add the key to distinct_from, run create_item.py",
-                       found_key=key, found_reason=found.get("reason"))
-        return found["key"]
-    return None
-
-
-def library_state(rec):
-    """What the library holds for the record: `readback` (read after this run's writes), else `found`."""
-    for section in ("readback", "found"):
+    """The record's item key: saved.key, else found.key (spec 3.2)."""
+    for section in ("saved", "found"):
         block = rec.get(section)
-        if isinstance(block, dict):
-            return block
-    return {}
-
-
-def record_dir(path):
-    """The record's directory; stdin records: the working directory."""
-    return path.parent if path is not None else Path.cwd()
-
-
-def record_file(path, rec, fallback):
-    """The record's file, as check_pdf.py resolves it: `file` (relative to the record), else the fallback (--file),
-    else <stem>.pdf, else <stem>.html beside the record file; None when there is none."""
-    name = rec.get("file")
-    if isinstance(name, str) and name.strip():
-        file_path = Path(name.strip()).expanduser()
-        return file_path if file_path.is_absolute() else record_dir(path) / file_path
-    if fallback:
-        return Path(fallback).expanduser()
-    if path is not None:
-        for suffix in (".pdf", ".html"):
-            if (candidate := path.with_suffix(suffix)).is_file():
-                return candidate
+        if isinstance(block, dict) and block.get("key"):
+            return block["key"]
     return None
-
-
-def norm_version(value):
-    """A file_version as written, trimmed; `submitted` reads as preprint; empty -> None."""
-    value = value.strip() if isinstance(value, str) else ""
-    return VERSION_ALIASES.get(value, value) or None
-
-
-def file_version_of(path, rec, kind, override=None):
-    """--file-version, else `file_version`, else snapshot for an HTML file, else the `version` of the last ok line of
-    <work>/fetch.jsonl for this record (its slug or file stem), else published."""
-    given = norm_version(override) or norm_version(rec.get("file_version"))
-    if given:
-        return given
-    if kind == "html":
-        return "snapshot"
-    version = None
-    if path is not None:
-        slugs = {slug_of(path, rec), path.stem}
-        try:
-            lines = (path.absolute().parent.parent / "fetch.jsonl").read_text(encoding="utf-8", errors="replace").splitlines()
-        except OSError:
-            lines = []
-        for line in lines:
-            try:
-                row = json.loads(line)
-            except ValueError:
-                continue  # a torn or foreign line
-            if (isinstance(row, dict) and row.get("slug") in slugs and row.get("code") == "ok"
-                    and isinstance(row.get("version"), str) and row["version"].strip()):
-                version = row["version"].strip()
-    return norm_version(version) or "published"
-
-
-def version_title(version):
-    """The attachment title a file_version stands for; a value outside the list as written, first letter capitalized."""
-    if version in VERSION_TITLES:
-        return VERSION_TITLES[version]
-    text = version.replace("_", " ").strip()
-    return text[:1].upper() + text[1:] if text else "PDF"
-
-
-def record_title(rec):
-    title = rec.get("attach_title")
-    return title.strip() if isinstance(title, str) and title.strip() else None
-
-
-def attach_block(res, url, version):
-    """The record's `attach` after an upload or an already-attached file."""
-    return {"key": res["attachment_key"], "md5_ok": True, "filename": res["filename"], "url": url,
-            "title": res.get("title"), "file_version": version, "attached_at": now_iso()}
 
 
 def url_of(rec, fallback):
@@ -837,48 +525,43 @@ def attach_record(api, wh, o, args):
         o.set("skipped", "skipped", reason="attach.md5_ok", key=item_key, attachment_key=attach.get("key"))
         return
 
-    file_path = record_file(o.path, rec, args.file)
-    if file_path is None:
-        existing = library_state(rec).get("attachments")
+    name = rec.get("file")
+    if isinstance(name, str) and name.strip():
+        file_path = Path(name.strip()).expanduser()
+        if not file_path.is_absolute():
+            file_path = (o.path.parent if o.path is not None else Path.cwd()) / file_path
+    elif args.file:
+        file_path = Path(args.file).expanduser()
+    else:
+        found = rec.get("found") if isinstance(rec.get("found"), dict) else {}
+        existing = found.get("attachments")
         if existing:
             # Nothing to upload and the library already holds a file for this item: not a failure.
             o.set("skipped", "skipped", reason="library_has_attachment", key=item_key,
                   attachments=len(existing) if isinstance(existing, list) else existing)
             return
-        raise Stop("no_file", 1, "put the file next to the record as <slug>.pdf (or <slug>.html), name it in the "
-                   "record's `file`, or pass --file")
+        raise Stop("no_file", 1, "put the file name (relative to the record) in the record's `file`, or pass --file")
     url = url_of(rec, args.url)
     if not url:
         raise Stop("no_url", 1, "the record has neither item.url nor item.DOI: pass --url (the canonical article page)")
     url = check_url(url)
-    f = load_file(file_path)
-    held = [a for a in library_state(rec).get("attachments") or []
-            if isinstance(a, dict) and a.get("contentType") == "application/pdf"]
-    if held and rec.get("need_file") is not True and all(a.get("md5") != f.md5 for a in held):
-        # The item already has a PDF and nobody asked for another one: a second copy is clutter, not a fix.
-        o.set("skipped", "skipped", reason="library_has_pdf", key=item_key, attachment_key=held[0].get("key"),
-              hint="the library item already holds a PDF; to add this file as well (the published PDF beside a "
-                   "preprint), set need_file: true in the record and list the old attachment for trash_item.py")
-        return
-    version = file_version_of(o.path, rec, f.kind)
-    title = record_title(rec) or args.title or version_title(version)
+    pdf, pdf_bytes, kind, content_type, ext = load_file(file_path)
+    title = args.title or ("PDF" if kind == "pdf" else "Snapshot")
 
-    res = attach_one(api, wh, item_key, f, url, title, None, args.dry_run, lambda data: verify_record(rec, f))
-    verdict = {k: res[k] for k in ("check_code", "accepted") if k in res}
+    res = attach_one(api, wh, item_key, pdf, pdf_bytes, kind, content_type, ext, url, title, None, args.dry_run)
     if res["code"] == "already_attached":
-        if not args.dry_run:
-            rec["attach"] = attach_block(res, url, version)
-        o.set("skipped", "skipped", changed=not args.dry_run, reason="already_attached", key=item_key,
-              attachment_key=res["attachment_key"], filename=res["filename"], title=res["title"])
+        rec["attach"] = {"key": res["attachment_key"], "md5_ok": True, "filename": res["filename"], "url": url,
+                         "attached_at": now_iso()}
+        o.set("skipped", "skipped", changed=True, reason="already_attached", key=item_key,
+              attachment_key=res["attachment_key"], filename=res["filename"])
     elif res.get("dry_run"):
-        o.set("ok", "ok", dry_run=True, key=item_key, kind=f.kind, filename=res["filename"], title=title, url=url,
-              size=res["size"], reused_attachment=res["reused_attachment"], attachment_key=res["attachment_key"],
-              **verdict)
+        o.set("ok", "ok", dry_run=True, key=item_key, kind=kind, filename=res["filename"], url=url, size=res["size"],
+              reused_attachment=res["reused_attachment"], attachment_key=res["attachment_key"])
     else:
-        rec["attach"] = attach_block(res, url, version)
+        rec["attach"] = {"key": res["attachment_key"], "md5_ok": True, "filename": res["filename"], "url": url,
+                         "attached_at": now_iso()}
         o.set("ok", "ok", changed=True, key=item_key, attachment_key=res["attachment_key"], filename=res["filename"],
-              title=res["title"], file_version=version, reused_attachment=res["reused_attachment"],
-              file_existed=res["file_existed"], **verdict)
+              reused_attachment=res["reused_attachment"], file_existed=res["file_existed"])
 
 
 def run_stream(api, args):
@@ -904,124 +587,63 @@ def run_stream(api, args):
 
 
 def run_single(api, args):
-    """One item: from the flags (v1), or from --record with the flags as overrides."""
-    path = rec = None
-    if args.record:
-        path, rec = load_records([args.record])[0]
-        rec_key = item_key_of(rec)
-        if args.key and rec_key and args.key != rec_key:
-            raise Stop("record_key_mismatch", 1, "the record belongs to another item: drop --key / --cite, "
-                       "or pass the record of this item", item_key=args.key, record_key=rec_key, record=str(path))
-        args.key = args.key or rec_key
-        if not args.key:
-            raise Stop("no_item_key", 1, "the record has neither saved.key nor found.key: run create_item.py "
-                       "(or find_in_library.py) first, or pass --key / --cite", record=str(path))
-    file_path = Path(args.file).expanduser() if args.file else record_file(path, rec, None)
-    if file_path is None:
-        raise Stop("no_file", 1, "put the file next to the record as <slug>.pdf (or <slug>.html), name it in the "
-                   "record's `file`, or pass --file", record=str(path))
-    url = args.url or (url_of(rec, None) if rec is not None else None)
-    if not url:
-        raise Stop("no_url", 1, "the record has neither item.url nor item.DOI: pass --url (the canonical article page)",
-                   record=str(path))
-    pdf_url = check_url(url)
-    f = load_file(file_path)
-    if rec is not None:
-        version = file_version_of(path, rec, f.kind, args.file_version)
-        title = args.title or record_title(rec) or version_title(version)
-        verify = lambda data: verify_record(rec, f)
-    else:
-        version = norm_version(args.file_version) or ("snapshot" if f.kind == "html" else "published")
-        title = args.title or version_title(version)
-        # no record to vouch for the file: check_pdf.py checks it against the parent item
-        verify = lambda data: verify_single(data, f, args.accept, norm_version(args.file_version))
+    pdf_url = check_url(args.url)
+    pdf, pdf_bytes, kind, content_type, ext = load_file(args.file)
+    title = args.title or ("PDF" if kind == "pdf" else "Snapshot")
 
     server_id = live_server_id(api)
-    wh = write_headers(load_key(args.key_file, server_id), server_id)
-    res = attach_one(api, wh, args.key, f, pdf_url, title, args.filename, args.dry_run, verify)
-    code = res.pop("code")
-    if rec is not None:
-        res["record"] = str(path)
-        if not args.dry_run:
-            rec["attach"] = attach_block(res, pdf_url, version)
-            try:
-                save_record(path, rec)
-            except OSError as e:
-                raise Stop("write_failed", 1, "the record file could not be rewritten; what was written to Zotero stands",
-                           **res, attach_code=code, error=str(e))
-    emit(code, 0, **res)
+    key = load_key(args.key_file, server_id)
+    wh = write_headers(key, server_id)
+    res = attach_one(api, wh, args.key, pdf, pdf_bytes, kind, content_type, ext, pdf_url, title, args.filename, args.dry_run)
+    emit(res.pop("code"), 0, **res)
 
 
 def parse_args():
     p = argparse.ArgumentParser(
         description="Attach a file — a PDF, or an HTML snapshot of the article page when no PDF can be had — "
-                    "to an existing Zotero item via the local write API (3-step upload, md5 read back), only once "
-                    "it has passed check_pdf.py or been accepted on a reading of page 1: one item "
-                    "(--key/--cite --file --url, or --record) or a stream of records.",
-        epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
+                    "to an existing Zotero item via the local write API (3-step upload, md5 read back): "
+                    "one item (--key --file --url) or a stream of records.",
+        epilog="Single mode: exit 0 = done (code ok or already_attached); 1 = not done, see code/hint. "
+               "Stream mode: exit 0 = every record ok or skipped; 1 = some record failed (its code is in its summary line). "
+               "Both: 2 = cannot check (zotero_unreachable, local_api_disabled, no_key, key_rejected, server_mismatch). "
+               "Records: the item key is saved.key, else found.key; the file is `file` (relative to the record), else --file; "
+               "the url is item.url, else https://doi.org/<DOI>, else --url; attach.md5_ok already true -> skipped.")
     p.add_argument("records", nargs="*", metavar="RECORD",
-                   help="record files (stream mode); none, and no --key / --cite / --record: records are read from stdin")
+                   help="record files (stream mode); none, and no --key: records are read from stdin")
     p.add_argument("-i", "--in-place", action="store_true",
                    help="stream mode: write each updated record back to its file; stdout gets one summary line per record")
     p.add_argument("--key", metavar="ITEMKEY", help="single mode: key of the parent item (8 characters)")
     p.add_argument("--cite", metavar="CITEKEY", help="single mode: the parent item's citationKey, resolved to its key")
-    p.add_argument("--record", metavar="PATH",
-                   help="single mode: the paper's record; supplies the item key, file and url the flags leave out, "
-                        "vouches for the file (pdf / pdf_accepted), and gets `attach` written back")
     p.add_argument("--file", "--pdf", dest="file", metavar="PATH",
                    help="the file to upload: a PDF, or an .html page saved from the browser (--pdf is an alias); "
-                        "a relative path is taken from the working directory, also with --record; "
-                        "stream mode: for records without `file`, ahead of <slug>.pdf / <slug>.html (as check_pdf.py --pdf)")
+                        "stream mode: fallback for records without `file`")
     p.add_argument("--url", "--pdf-url", dest="url", metavar="URL",
                    help="canonical source URL stored on the attachment (fall back to https://doi.org/<DOI>); "
                         "EZproxy-style hosts are rejected; stream mode: fallback for records without item.url / item.DOI")
     p.add_argument("--filename", metavar="NAME",
                    help="single mode: filename inside Zotero; default '<firstCreator> - <year> - <title>.<ext>' from the parent item")
-    p.add_argument("--title",
-                   help="attachment title; default from file_version (PDF, Accepted manuscript, Preprint, Supplement, "
-                        "Snapshot, Full text (version unknown)); stream mode: for records without attach_title; "
-                        "single mode: wins over attach_title")
-    p.add_argument("--file-version", metavar="V",
-                   help="single mode: the file's version — published, accepted, preprint (or submitted), supplement, "
-                        "snapshot, unknown; without a record it goes to check_pdf.py (doi_mismatch is checked for "
-                        "published only) and to the derived title; with --record it overrides the record's file_version")
-    p.add_argument("--accept", metavar="REASON",
-                   help="single mode without a record: attach although check_pdf.py does not pass the file, "
-                        "because you read page 1 and it is this paper; the reason goes into the output")
-    p.add_argument("--dry-run", action="store_true",
-                   help="run the pre-checks, the identity check included (unless the file is already attached); write nothing")
+    p.add_argument("--title", help="attachment title (default: PDF, or Snapshot for an HTML file)")
+    p.add_argument("--dry-run", action="store_true", help="run the pre-checks only; write nothing")
     p.add_argument("--key-file", default=DEFAULT_KEY_FILE, metavar="PATH",
                    help="JSON file holding the local API key (default: %(default)s); env ZOTERO_LOCAL_API_KEY overrides")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="local API base URL (default: %(default)s)")
     args = p.parse_args()
     if args.key and args.cite:
         p.error("--key and --cite exclude each other")
-    if args.accept is not None and not args.accept.strip():
-        p.error("--accept needs the reason: what page 1 showed")
-    if args.file_version is not None and not args.file_version.strip():
-        p.error("--file-version needs a value")
-    if args.key or args.cite or args.record:
+    if args.key or args.cite:
         if args.records:
-            p.error("--key / --cite / --record (single mode) and record paths (stream mode) exclude each other")
+            p.error("--key / --cite (single mode) and record paths (stream mode) exclude each other")
         if args.in_place:
-            p.error("-i belongs to stream mode; --record writes its record back by itself")
-        if args.record and args.accept is not None:
-            p.error("--accept is for a file without a record; with --record, write pdf_accepted into the record")
-        if not args.record and (not args.file or not args.url):
-            p.error("single mode needs --key or --cite, --file and --url (or --record)")
+            p.error("-i belongs to stream mode")
+        if not args.file or not args.url:
+            p.error("single mode needs --key or --cite, --file and --url")
     else:
         if args.filename:
             p.error("--filename belongs to single mode; stream mode names files from the parent item")
-        if args.accept is not None:
-            p.error("--accept belongs to single mode without a record; records carry pdf_accepted")
-        if args.file_version is not None:
-            p.error("--file-version belongs to single mode; records carry file_version")
         if not args.records and args.in_place:
             p.error("-i needs record paths: records from stdin have no file to write back to")
         if not args.records and sys.stdin.isatty():
-            p.error("pass record files, pipe records to stdin, or use --key --file --url / --record for single mode")
-    if args.accept is not None:
-        args.accept = args.accept.strip()
+            p.error("pass record files, pipe records to stdin, or use --key --file --url for single mode")
     return args
 
 
@@ -1030,7 +652,7 @@ def main():
     api = Api(args.base_url)
     if args.cite:
         args.key = resolve_cite(api, args.cite)
-    if args.key or args.record:
+    if args.key:
         run_single(api, args)
     else:
         run_stream(api, args)

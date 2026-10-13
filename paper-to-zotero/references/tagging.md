@@ -27,7 +27,7 @@ Rules per dimension:
 
 - **Prefix** is lowercase and fixed; the value is the term as the field writes it (mostly English), one canonical spelling per concept — `task/Super-resolution`, never also `task/Superresolution`. Tags are case-sensitive in Zotero, so check the existing tag list before typing a new spelling.
 - **Up to 5 per dimension.** Tag what discriminates: a paper's methods and tasks, the modality it works on, the datasets it introduces or is evaluated on (as stated in the paper — never from memory). A branch that is widely searched under a broader family gets the family too (a rectified-flow paper carries `method/Flow Matching` and `method/Diffusion`; a text-to-image paper carries `task/Text-to-image` and `task/Image generation`). A dimension that would only repeat the title's noise is left empty.
-- **Common name** only when the community actually uses one — usually the model name (`CycleGAN`, `Restormer`), which is often absent from the title; when a paper is known under two names, give both (`Stable Diffusion` and `LDM`). Never coin a name. A bare tag names a **model or system** people cite by that name (`GPT-4`, `Med-PaLM`). A benchmark or corpus takes `dataset/` (`dataset/GSM8K`, `dataset/MIMIC-CDM`); a method or idea, however catchy its name (`Scalable oversight`, `Temperature scaling`, `Semantic entropy`), takes `method/` or `task/` when that is how the user would look for the paper, and stays untagged otherwise. (One 2026-10 batch made 115 bare tags; the user then had to sort the datasets and concepts out by hand.)
+- **Common name** only when the community actually uses one — usually the model name (`CycleGAN`, `Restormer`), which is often absent from the title; when a paper is known under two names, give both (`Stable Diffusion` and `LDM`). Never coin a name.
 - **Venue** (journal, conference, workshop, preprint server) is `venue/` plus the standard abbreviation without a year (the year is a field); the prefix lets the tag selector list every venue at once, and typing the bare abbreviation still finds it. A journal without a community abbreviation (beyond TMI, MedIA, JBHI, TIM, NC…) takes its NLM abbreviation as PubMed prints it *and* the initialism, e.g. `venue/Comput Biol Med` and `venue/CBM`, so both spellings find it. A preprint gets `venue/arXiv`; an arXiv copy of a paper known to be published elsewhere gets both `venue/arXiv` and the venue.
 - **Article type** only when it is how the user would look for the paper: a survey or review gets `type/Survey`; a regular research paper gets none.
 - **Dataset** uses the dataset's own name as its authors write it.
@@ -38,7 +38,7 @@ Rules per dimension:
 1. List the library's existing tags (`uv run scripts/read_library.py tags`) — the spelling reference: one spelling per concept.
 2. From the item's title, abstract, venue and, when needed, the PDF's first page, pick the tags above — the existing spelling where the concept already has a tag, a new tag where it does not.
 3. Write source keywords as automatic tags and curated tags as manual tags, so the two stay distinguishable in Zotero.
-4. Report: the curated tags chosen, which of them are new to the library, and the source keywords kept. After a batch, list every new tag once, grouped by prefix, so the user can look them over in one go.
+4. Report: the curated tags chosen, which of them are new to the library, and the source keywords kept.
 
 ## Tidying existing items
 

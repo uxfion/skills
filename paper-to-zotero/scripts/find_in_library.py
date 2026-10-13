@@ -26,31 +26,15 @@ Search strategy
   cite_not_found / cite_ambiguous (exit 1).
 
 Record stream: record files as arguments (or records on stdin as JSONL, an
-array or one object). Records with saved.key / found.key are skipped unless
---readback; the others are deduplicated by their item's DOI, then arXiv id,
-then title, and a hit writes `found` = the item was in the library before
-this run: code found, with matched_by doi | arxiv | title (the lookup that
-gave the exact match) and the item's dateAdded, or code near_match (a title
-that contains / is contained in the other; no matched_by). A record whose
-item has its own non-arXiv DOI that the library lacks, but whose arXiv id
-hits, is a preprint/published pair: near_match with matched_by arxiv and a
-reason naming the DOI, never a plain found (the agent asks the user). Likewise
-an exact title whose library item carries a different DOI (the preprint's
-10.48550 DOI, a correction notice) is a near_match, not a found. The
-record's `distinct_from` [key...] lists library items the agent judged to be
-other papers: they are dropped from matches and near matches at every tier,
-and a tier left empty goes on to the next (DOI, arXiv id, title). not_found
-leaves the record untouched. --readback reads records with saved.key / found.key
-back by key into `readback` (the library's state now; `found` is never
-touched by it); a key no longer in the library -> code missing_in_library,
-`readback` removed, a `blocker` noted, `saved` and `found` left alone (exit
-1). `found` and `readback` share one shape: {code, key, version,
-citationKey, title, date, dateAdded, collections (keys), tags, attachments
-[{key, contentType, linkMode, filename, md5}], checked_at}; `found` adds
-matched_by (and duplicates / reason / candidates when they apply). Without
--i the full records go to stdout as JSONL and the summary to stderr; with -i
-each record is written back to its file and stdout gets one summary line
-per record plus {"summary": {total, ok, skipped, failed}}.
+array or one object). A record with saved.key / found.key and --readback is
+read back by key and its `found` refreshed (missing -> code
+missing_in_library, `found` removed, a `blocker` noted; exit 1). Without
+--readback such records are skipped; the others are deduplicated by their
+item's DOI, then arXiv id, then title, and a hit writes `found` (code found
+/ near_match); not_found leaves the record untouched. Without -i the full
+records go to stdout as JSONL and the summary to stderr; with -i each record
+is written back to its file and stdout gets one summary line per record plus
+{"summary": {total, ok, skipped, failed}}.
 
 Exit codes, single lookups: 0 = not found (safe to import); 1 = found or near
 match (the agent decides); for --key / --cite 0 = found, 1 = not_found.
@@ -362,7 +346,7 @@ def describe(api: LocalApi, item: dict, paths: dict[str, str]) -> dict:
 
 
 def readback(api: LocalApi, item: dict, code: str = "found") -> dict:
-    """The library facts for one item (collection keys, not paths): the shape of both `found` and `readback`."""
+    """The record's `found` object: the library facts for one item (collection keys, not paths)."""
     data = item["data"]
     return {
         "code": code,
@@ -370,8 +354,6 @@ def readback(api: LocalApi, item: dict, code: str = "found") -> dict:
         "version": item.get("version"),
         "citationKey": data.get("citationKey") or "",
         "title": data.get("title") or "",
-        "date": data.get("date") or "",
-        "dateAdded": data.get("dateAdded") or "",
         "collections": list(data.get("collections") or []),
         "tags": list(data.get("tags") or []),
         "attachments": attachments_of(api, item["key"]),
@@ -599,22 +581,21 @@ def process_record(api: LocalApi, rec: dict, slug: str, do_readback: bool) -> tu
     """Update one record; returns (summary line, outcome ok|skipped|failed)."""
     key = (rec.get("saved") or {}).get("key") or (rec.get("found") or {}).get("key")
     if key and do_readback:
-        # `readback` is the library's state now; `found` keeps meaning "in the library before this run" (B#3).
         item, _ = api.get(f"{LIB}/items/{key}", allow_404=True)
         if not isinstance(item, dict) or item.get("key") != key:
-            rec.pop("readback", None)
+            rec.pop("found", None)
             rec["blocker"] = f"missing_in_library: item {key} is no longer in the library ({now_iso()}); recreate it or fix saved/found"
             return {"slug": slug, "code": "missing_in_library", "key": key}, "failed"
-        rec["readback"] = readback(api, item)
+        rec["found"] = readback(api, item)
         cite = item["data"].get("citationKey") or ""
         if cite:
             if rec.get("citationKey") and rec["citationKey"] != cite:
                 print(f"{slug}: citationKey in the library is {cite!r}; the record keeps the given {rec['citationKey']!r} "
-                      f"(readback.citationKey has the library's)", file=sys.stderr)
+                      f"(found.citationKey has the library's)", file=sys.stderr)
             else:
                 rec["citationKey"] = cite
         return {"slug": slug, "code": "found", "key": key, "citationKey": cite, "version": item.get("version"),
-                "attachments": len(rec["readback"]["attachments"])}, "ok"
+                "attachments": len(rec["found"]["attachments"])}, "ok"
     if key:
         return {"slug": slug, "code": "skipped", "reason": "already in the library (saved / found); use --readback to refresh", "key": key}, "skipped"
 
@@ -622,64 +603,26 @@ def process_record(api: LocalApi, rec: dict, slug: str, do_readback: bool) -> tu
     if not isinstance(item, dict) or not item:
         return {"slug": slug, "code": "no_item", "hint": "The record has no `item` to search with; run doi_to_item.py first."}, "failed"
     doi, aid, title = identifiers_of(item)
-    # Library items the agent judged to be other papers: dropped at every tier, so the lookup goes on to the next one.
-    distinct = rec.get("distinct_from")
-    excluded = {k for k in ([distinct] if isinstance(distinct, str) else distinct or []) if isinstance(k, str)}
     matches: list = []
     near: list = []
-    pair: list = []
     searched: list = []
-    matched_by = ""
     if doi:
         matches, _, s = lookup_doi(api, doi)
-        matches = [it for it in matches if it["key"] not in excluded]
         searched += s
-        matched_by = "doi"
     if not matches and aid:
-        hits, _, s = lookup_arxiv(api, aid)
-        hits = [it for it in hits if it["key"] not in excluded]
+        matches, _, s = lookup_arxiv(api, aid)
         searched += s
-        if hits and doi:
-            pair = hits  # the record has its own (published) DOI that the library lacks: the arXiv hit is the preprint
-        else:
-            matches, matched_by = hits, "arxiv"
-    if not matches and not pair and normalize_title(title):
+    if not matches and normalize_title(title):
         matches, near, s = lookup_title(api, title)
-        matches = [it for it in matches if it["key"] not in excluded]
-        near = [(it, why) for it, why in near if it["key"] not in excluded]
         searched += s
-        matched_by = "title"
-        if doi:
-            # Same title, but the library item carries another DOI: another version (the preprint's 10.48550 DOI)
-            # or a notice about the paper, not this record's paper. Only the agent can tell.
-            other = [it for it in matches if normalize_doi(it["data"].get("DOI") or "")
-                     and normalize_doi(it["data"].get("DOI") or "") != normalize_doi(doi)]
-            if other:
-                matches = [it for it in matches if it not in other]
-                near = [(it, f"same title, different DOI: the library item has {it['data'].get('DOI')}, the record {doi}")
-                        for it in other] + near
     if not searched:
         return {"slug": slug, "code": "no_item", "hint": "The item has no DOI, arXiv id or title to search with."}, "failed"
-    if pair:
-        it = pair[0]
-        why = f"preprint/published pair: the library item matched by arXiv id only; the record's DOI is {item.get('DOI') or doi}"
-        rec["found"] = readback(api, it, code="near_match")
-        rec["found"]["matched_by"] = "arxiv"
-        rec["found"]["reason"] = why
-        if len(pair) > 1:
-            rec["found"]["candidates"] = [{"key": o["key"], "title": o["data"].get("title"), "reason": why} for o in pair[1:]]
-        return {"slug": slug, "code": "near_match", "key": it["key"], "matched_by": "arxiv", "title": (it["data"].get("title") or "")[:80],
-                "reason": why, "hint": "The library holds the preprint of this published paper: ask the user whether to add the "
-                "published version as its own item or keep the preprint (SKILL.md). If it is a different paper, delete `found` "
-                "and add its key to `distinct_from`."}, "ok"
     if matches:
         rec["found"] = readback(api, matches[0])
-        rec["found"]["matched_by"] = matched_by
         if len(matches) > 1:
             rec["found"]["duplicates"] = [it["key"] for it in matches[1:]]
         return {"slug": slug, "code": "found", "key": rec["found"]["key"], "citationKey": rec["found"]["citationKey"],
-                "matched_by": matched_by, "title": rec["found"]["title"][:80],
-                "attachments": len(rec["found"]["attachments"])}, "ok"
+                "title": rec["found"]["title"][:80], "attachments": len(rec["found"]["attachments"])}, "ok"
     if near:
         it, why = near[0]
         rec["found"] = readback(api, it, code="near_match")
@@ -687,8 +630,7 @@ def process_record(api: LocalApi, rec: dict, slug: str, do_readback: bool) -> tu
         if len(near) > 1:
             rec["found"]["candidates"] = [{"key": o["key"], "title": o["data"].get("title"), "reason": w} for o, w in near[1:]]
         return {"slug": slug, "code": "near_match", "key": it["key"], "title": (it["data"].get("title") or "")[:80], "reason": why,
-                "hint": "Compare with the target paper; if it is a different paper, delete `found` from the record and add "
-                "its key to `distinct_from`."}, "ok"
+                "hint": "Compare with the target paper; delete `found` from the record if it is a different paper."}, "ok"
     return {"slug": slug, "code": "not_found", "searched": searched}, "ok"
 
 
@@ -724,9 +666,8 @@ def main(argv: list[str] | None = None) -> int:
         "  uv run find_in_library.py --arxiv 2006.11239v2\n"
         '  uv run find_in_library.py --title "Denoising Diffusion Probabilistic Models"\n'
         "  uv run find_in_library.py --cite liuProgressiveResidualLearning2022\n"
-        "  uv run find_in_library.py -i records/*.json            # dedupe by DOI / arXiv / title -> found (+ matched_by, dateAdded)\n"
-        "  uv run find_in_library.py -i --readback records/*.json # read saved.key / found.key back -> readback (found untouched)\n"
-        "  cat records.jsonl | uv run find_in_library.py          # stream: records on stdin, updated records on stdout",
+        "  uv run find_in_library.py -i records/*.json            # dedupe by DOI / arXiv / title -> found\n"
+        "  uv run find_in_library.py -i --readback records/*.json # refresh found from saved.key / found.key",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     what = parser.add_mutually_exclusive_group()
@@ -737,8 +678,7 @@ def main(argv: list[str] | None = None) -> int:
     what.add_argument("--cite", metavar="CITE", help="describe the item with this citation key")
     parser.add_argument("records", nargs="*", metavar="RECORD", help="stream mode: record files; none = read records from stdin")
     parser.add_argument("-i", "--in-place", action="store_true", help="write each record back to its file; stdout gets one summary line per record")
-    parser.add_argument("--readback", action="store_true",
-                        help="stream mode: read records that have saved.key / found.key back into `readback` (found is left as it was)")
+    parser.add_argument("--readback", action="store_true", help="stream mode: refresh `found` of records that have saved.key / found.key")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help=f"local API base URL (default {DEFAULT_BASE_URL})")
     parser.add_argument("-v", "--verbose", action="store_true", help="log each request to stderr")
     args = parser.parse_args(argv)

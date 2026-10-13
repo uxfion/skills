@@ -132,45 +132,6 @@ class TestReport(unittest.TestCase):
         rc, out, _ = self.run_script("--json", "--no-resolve", stdin=json.dumps(rec))
         self.assertEqual(json.loads(out)["rows"][0]["citationKey"], "liuProgressiveResidualLearning2022")
 
-    def test_readback_preferred_over_found(self):
-        rec = {"slug": "pre2021thing", "item": {"itemType": "journalArticle", "title": "Draft Title", "date": "2020"},
-               "collection": "COLLSUB1", "tags": [],
-               "found": {"key": "FOUNDKEY", "citationKey": "oldKey", "title": "Old Title", "date": "2019", "collections": ["COLLROOT"],
-                         "tags": [{"tag": "a", "type": 0}], "attachments": []},
-               "readback": {"key": "FOUNDKEY", "citationKey": "newKey", "title": "Library Title", "date": "2021-05",
-                            "collections": ["COLLROOT", "COLLSUB1"], "tags": [{"tag": "a", "type": 0}, {"tag": "b", "type": 1}],
-                            "attachments": [{"key": "ATT00001", "contentType": "application/pdf", "linkMode": "imported_file"}]}}
-        rc, out, err = self.run_script("--json", stdin=json.dumps(rec, ensure_ascii=False))
-        self.assertEqual(rc, 0, err)
-        row = json.loads(out)["rows"][0]
-        self.assertEqual({k: row[k] for k in ("citationKey", "title", "year", "item_key", "collections", "tags", "file")},
-                         {"citationKey": "newKey", "title": "Library Title", "year": "2021", "item_key": "FOUNDKEY",
-                          "collections": ["自然图像", "自然图像/Diffusion"], "tags": 2, "file": "PDF"})
-
-        # Without readback, found is the library's state.
-        rec.pop("readback")
-        rc, out, _ = self.run_script("--json", "--no-resolve", stdin=json.dumps(rec, ensure_ascii=False))
-        row = json.loads(out)["rows"][0]
-        self.assertEqual((row["citationKey"], row["title"], row["year"], row["collections"], row["tags"], row["file"]),
-                         ("oldKey", "Old Title", "2019", ["COLLROOT"], 1, None))
-
-    def test_item_key_prefers_readback_then_saved(self):
-        rec = {"slug": "s", "item": {"title": "T"}, "saved": {"key": "SAVEDKEY"}, "readback": {"key": "SAVEDKEY", "collections": []}}
-        rc, out, _ = self.run_script("--json", "--no-resolve", stdin=json.dumps(rec))
-        self.assertEqual(json.loads(out)["rows"][0]["item_key"], "SAVEDKEY")
-        rec = {"slug": "s", "item": {"title": "T"}, "saved": {"key": "SAVEDKEY"}, "found": {"key": "OTHERKEY"}}
-        rc, out, _ = self.run_script("--json", "--no-resolve", stdin=json.dumps(rec))
-        self.assertEqual(json.loads(out)["rows"][0]["item_key"], "SAVEDKEY")
-
-    def test_collection_list_on_record(self):
-        rec = {"slug": "multi2026", "item": {"title": "Two Homes", "date": "2026"}, "collection": ["COLLROOT", "COLLSUB1"],
-               "tags": [{"tag": "t", "type": 0}]}
-        rc, out, err = self.run_script(stdin=json.dumps(rec))
-        self.assertEqual(rc, 0, err)
-        self.assertIn("| *multi2026* | Two Homes | 2026 | — | 自然图像; 自然图像/Diffusion | 1 | — |", out)
-        rc, out, _ = self.run_script("--json", "--no-resolve", stdin=json.dumps({**rec, "collection": "COLLROOT"}))
-        self.assertEqual(json.loads(out)["rows"][0]["collections"], ["COLLROOT"])
-
     def test_unreachable_api_prints_keys(self):
         rc, out, err = self.run_script(str(self.dir / "liu2022progressive.json"), base="http://127.0.0.1:1")
         self.assertEqual(rc, 0)
