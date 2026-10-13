@@ -4,38 +4,46 @@ Read before step 0 when the request covers two or more papers — a list, a .bib
 
 ## The records are the state
 
-Every paper is one file, `<work>/records/<slug>.json`, and every script is a filter over records: paths in (glob them), the updated record out, `-i` to write it back in place. What a record contains says how far its paper got — `item` drafted, `found` in the library, `saved` created, `file` in hand, `pdf` checked, `attach` uploaded, `blocker` waiting on someone. There is no other state file: when in doubt, `find_in_library.py --readback -i <work>/records/*.json` refreshes every record from Zotero, and `report.py` turns the records into the table you report.
+Every paper is one file, `<work>/records/<slug>.json`, and every script is a filter over records: paths in (glob them), the updated record out, `-i` to write it back in place. What a record holds says how far its paper got — `item` drafted, `published_candidates` listed, `found` in the library before this run, `links` listed, `pdf` checked, `saved` created, `attach` uploaded, `blocker` waiting on someone. Files are not record fields: a paper's file is `records/<slug>.pdf` (or `.accepted.pdf`, `.preprint.pdf`, `.html` for a snapshot) — its name carries its version — and every fetching attempt is a line in `<work>/fetch.jsonl`. So the scripts that fetch never write records, and subagents editing records never collide with them.
 
-```bash
-uv run scripts/doi_to_item.py --ids ids.txt --out-dir <work>/records       # one record per identifier; `id<TAB>citation key` per line
-uv run scripts/find_in_library.py -i <work>/records/*.json                # found ones get record.found
-uv run scripts/check_item.py -i <work>/records/*.json
-# … edit each record's item, tags, collection (in parallel, see below) …
-uv run scripts/create_item.py -i <work>/records/*.json --collection <key>  # skips found/saved; ≤50 per POST
-# … PDFs one by one into records/<slug>.pdf, record.file set …
-uv run scripts/check_pdf.py -i <work>/records/*.json
-uv run scripts/attach_file.py -i <work>/records/*.json                    # skips md5_ok
-uv run scripts/find_in_library.py --readback -i <work>/records/*.json && uv run scripts/report.py <work>/records/*.json
-```
-
-Author keywords and abstracts usually turn up on the article page, i.e. after `create_item.py` has run: add them to the item with `file_and_tag.py --cite <key> --add-tags-file …` and `update_item.py --cite <key> --patch …` (and to the record, so it stays the truth of the run). A paper the library already holds with a file needs nothing from `attach_file.py`; it reports `skipped`. A citation key you gave that differs from the library's stays in the record — the report marks the difference — and is only pinned onto the existing item when the user says so.
-
-Every script skips what is already done and reports it as `skipped`, so the same command line is also the recovery: after an interruption, a crash or a "继续", run it again. With `-i` the scripts print one summary line per record, not the record — read those, not the files.
+Every script skips what is already done and says so (`skipped`), so the same command line is also the recovery: after an interruption, a crash or a "继续", run it again. With `-i` the scripts print one summary line per record — read those, not the files.
 
 A .bib or .ris the user has is a list source, not something to import as is: `doi_to_item.py --bib ref.bib` takes each entry's DOI (else arXiv id, else title) as the identifier and its citation key as the slug and `citationKey`, so the created items carry the keys the manuscript cites.
 
+## The run
+
+**1. Triage** (main conversation, minutes):
+
+```bash
+uv run scripts/doi_to_item.py --ids ids.txt --out-dir <work>/records       # `id<TAB>citation key` per line
+uv run scripts/find_in_library.py -i <work>/records/*.json
+uv run scripts/fulltext_links.py -i <work>/records/*.json
+```
+
+Settle the versions now, before anything is created (step 2 of SKILL.md): each arXiv record's `published_candidates`, checked against its arXiv comment; papers.cool's venue search for the rest, one request at a time; `--redraft` the ones you confirm, then rerun `find_in_library.py` and `fulltext_links.py` on them. Put every question in one message (below). And say early what you foresee needing the user for: "8 of these go through the institutional login — if you can, log in now (Ctrl+N, a normal window)".
+
+**2. First pass.** With the watcher of step 0 running, walk the chain (SKILL.md step 3) over the records that have no file, a stage at a time across all of them: the open published copies over HTTP, then the publisher pages (a site at a time), then the discovery system, then accepted manuscripts and preprints over HTTP. Every command carries `--pass 1`. When `fetch.py --via page` stops, the page is yours: look, act (the Gate rule, references/publishers.md), record a conclusion with `--verdict`, and rerun the same command.
+
+**3. Save what is in hand:** `check_pdf.py -i`, `create_item.py -i`, `attach_file.py -i`. Every paper gets its item now, with or without a file.
+
+**4. Second pass:** the same chain with `--pass 2` for the records still without a file. Time has passed since the first: a login, a rate limit or a flaky site may have recovered.
+
+**5. Last pass, with the user.** Everything else is done first. Then tell the user, in the conversation and with a push notification, which papers remain and what each needs ("3 wait for the institutional login, 2 were found nowhere"), and wait for them; while they are away, those papers stay as they are and the rest of the report can go out. With the user there, walk the chain once more with `--pass 3`. What still has no file gets its snapshot (`fetch.py --via snapshot --pass 3`), checked and attached like a PDF, and goes into the report as 无法获取.
+
+**6.** Read back, report, clear residue (SKILL.md steps 4–6; `claim.py --sweep` lists what is left in Downloads).
+
 ## Ask once, then run
 
-Pin all papers first (step 1 for each), then put every question in one message: candidates to choose between, preprint-or-published pairs, destinations for papers the user did not place. Scope the user has already set — destination, version preference, what may be renamed or removed — holds for the whole run; ask again only about a paper it does not cover. Nobody to ask → `tmp` and say so in the report.
+Pin all papers first (step 1 for each), then put every question in one message: candidates to choose between, preprint-or-published pairs, published versions you could not confirm, destinations for papers the user did not place. Scope the user has already set — destination, version preference, what may be renamed or removed — holds for the whole run; ask again only about a paper it does not cover. Nobody to ask → the published version, `tmp`, and say so in the report.
 
 ## What runs in parallel
 
-Pinning, drafting, abstracts and tags touch only metadata services — split them over subagents (at most five). Fetching PDFs does not: one `p2z` session, one paper at a time, so only one gate ever waits on the user and a login passed once serves every paper on that site. A subagent that hits a gate alerts the main conversation with `SendMessage` (the Gate rule) — it has no other way to reach the user's screen.
+The scripts that call outside services in bulk (`doi_to_item.py`, `fulltext_links.py`, `fetch.py --via http`) run in the main conversation, one at a time: each paces its own requests and stops a service that answers 429, which only works while there is one caller. Subagents (at most five) take the judgment work beside it — tags, abstracts, checking published-version candidates on papers.cool — one request at a time per service. The browser has one driver, the main conversation: one gate at a time waits on the user, and a login passed once serves every paper behind it. Google Scholar only from the browser driver, at most once a minute across the run. A subagent that has to reach the user does so with `SendMessage` to the main conversation, the only one on the user's screen.
 
-## Sites, gates and blockers
+## The user in the loop
 
-Keep `<work>/sites.json`: `{"<host>": "ok" | "no_subscription" | "gate_pending"}`. A site the user declared unsubscribed is not asked to log in again this run; its papers take the no-PDF branch. A gate that times out stops the papers on that site — the next one would hit the same page — while other sites and the metadata work continue. Write the record's `blocker` (page, time, what is missing) for every paper left waiting; the report lists them, and the work directory stays until they are resolved or the user drops them.
+The user may click a PDF button, download a paper or log in while you work, in any pass — that only speeds things up. `claim.py` files any new PDF in Downloads that matches exactly one paper and passes the check; a second copy goes to `<work>/stray/`, and a file that matches nothing or several papers stays in Downloads untouched, since it may be the user's own. You still fetch every paper yourself: their help is never the plan.
 
 ## Report
 
-`report.py` prints the table (citation key, title, year, item key, collections, tags, PDF / snapshot / —, blocker) and the counts, all from the read-back — never from the run log or from memory. Add the per-paper details that matter (substitutions, sources named, gates hit) and the **skill notes**: what this skill lacked, got wrong or made you work around. One-off code you wrote lives in `<work>/scratch/`; it is residue like everything else in the work directory.
+`report.py` prints the table (citation key, title, year, item key, collections, tags, PDF / snapshot / —, blocker) and the counts from the read-back, then the sections that apply: 无法获取 with every try pass by pass, alternate versions, attachments to clean, new tags by prefix, what is left in Downloads and `unverified/`, and the pages `fetch.py` stopped at with your verdicts. Add the per-paper details that matter (substitutions, sources named, gates hit) and the **skill notes**: what this skill lacked, got wrong or made you work around. One-off code you wrote lives in `<work>/scratch/`; it is residue like everything else in the work directory.
