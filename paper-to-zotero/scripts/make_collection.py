@@ -32,7 +32,6 @@ import urllib.request
 from pathlib import Path
 
 DEFAULT_BASE_URL = "http://127.0.0.1:23119"
-DEFAULT_KEY_FILE = "~/.config/zotero/local-api-key"
 LIB = "/api/users/0"
 PAGE = 100
 KEY_RE = re.compile(r"^[A-Z0-9]{8}$")
@@ -113,26 +112,28 @@ def live_server_id(api):
     return sid
 
 
-def load_key(key_file, server_id):
-    """Return the API key; ZOTERO_LOCAL_API_KEY overrides the key file. Never printed."""
-    env = os.environ.get("ZOTERO_LOCAL_API_KEY")
-    if env:
-        return env.strip()
-    path = Path(key_file).expanduser()
-    if not path.is_file():
-        raise Stop("no_key", 2, "No local API key yet; run ready.py --authorize first (or set ZOTERO_LOCAL_API_KEY).",
-                   key_file=str(path))
+def config_path():
+    return Path(os.environ.get("PAPER_TO_ZOTERO_CONFIG") or Path.home() / ".config" / "paper-to-zotero" / "config.json")
+
+
+def load_key(server_id):
+    """The local API key from the config file's "zotero" block (ready.py --authorize writes it). Never printed."""
+    path = config_path()
     try:
-        info = json.loads(path.read_text(encoding="utf-8"))
-        key = info["key"]
-    except (ValueError, KeyError, TypeError) as e:
-        raise Stop("no_key", 2, "The key file is unreadable; run ready.py --authorize again.",
-                   key_file=str(path), error=str(e))
-    saved = info.get("serverID")
-    if saved and saved != server_id:
-        raise Stop("server_mismatch", 2, "The saved key was issued by another Zotero instance; run ready.py --authorize again.",
-                   key_file=str(path))
-    return key
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        config = {}
+    except (OSError, ValueError) as e:
+        raise Stop("config_unreadable", 2, "The config file is unreadable; fix it, then retry.",
+                   config=str(path), error=str(e))
+    zot = config.get("zotero") if isinstance(config, dict) else None
+    zot = zot if isinstance(zot, dict) else {}
+    if not isinstance(zot.get("key"), str) or not zot["key"]:
+        raise Stop("no_key", 2, "No local API key yet; run ready.py --authorize first.", config=str(path))
+    if zot.get("serverID") and zot["serverID"] != server_id:
+        raise Stop("server_mismatch", 2, "The key was issued by another Zotero instance; run ready.py --authorize again.",
+                   config=str(path))
+    return zot["key"]
 
 
 def write_headers(key, server_id, version=None):
@@ -238,8 +239,6 @@ def parse_args():
     p.add_argument("--name", required=True, metavar="NAME", help="the collection's name (exact match decides `exists`)")
     p.add_argument("--parent", metavar="COLLKEY", help="key of the parent collection; omitted = top level")
     p.add_argument("--dry-run", action="store_true", help="check for an existing collection and the parent; create nothing")
-    p.add_argument("--key-file", default=DEFAULT_KEY_FILE, metavar="PATH",
-                   help="JSON file holding the local API key (default: %(default)s); env ZOTERO_LOCAL_API_KEY overrides")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="local API base URL (default: %(default)s)")
     args = p.parse_args()
     if args.parent is not None and not KEY_RE.match(args.parent):
@@ -251,7 +250,7 @@ def main():
     args = parse_args()
     api = Api(args.base_url)
     server_id = live_server_id(api)
-    api_key = load_key(args.key_file, server_id)
+    api_key = load_key(server_id)
     run(api, args, api_key, server_id)
 
 

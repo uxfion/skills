@@ -6,12 +6,19 @@
 
 One call answers: is Zotero's local API up; is a usable write key stored
 (with --authorize and no usable key, obtain one: Zotero shows a dialog and
-the user must click Always Allow); where the browser puts downloads; is
+the user must click Always Allow); are pdftotext and pdfinfo (poppler-utils)
+on PATH; what the config file holds; where the browser puts downloads; is
 opencli on PATH. It creates <work>/records/, <work>/scratch/ and the
 <work>/.started marker (an existing marker is left alone and its mtime
 reported: that is a resumed run), lists what already lies in <work>
 (never deleting anything) and prints the library's collection tree with
 paths such as "自然图像/Diffusion".
+
+Config: one JSON file, $PAPER_TO_ZOTERO_CONFIG or
+~/.config/paper-to-zotero/config.json, mode 0600, every field optional:
+{"zotero": {"key", "serverID"}, "openalex_key", "institution": {"proxy",
+"discovery"}}. --authorize writes the "zotero" block and keeps the rest.
+Only presence is reported, never a value.
 
 Downloads directory: --downloads > $PAPER_TO_ZOTERO_DOWNLOADS > under WSL
 the Windows Downloads folder (powershell.exe, then cmd.exe %USERPROFILE%)
@@ -22,7 +29,8 @@ stdout: exactly one JSON object with a stable `code` (`ok` when ready);
 diagnostics go to stderr; the key itself is never printed. Exit 0 = ready,
 1 = not ready (no_key, authorize_denied, authorize_timeout,
 authorize_single_use, authorize_failed), 2 = cannot check
-(zotero_unreachable, local_api_disabled, server_mismatch).
+(zotero_unreachable, local_api_disabled, server_mismatch, config_unreadable,
+no_pdftotext: install poppler-utils, see references/install.md).
 """
 import argparse
 import json
@@ -38,10 +46,9 @@ from datetime import datetime
 from pathlib import Path
 
 DEFAULT_BASE_URL = "http://127.0.0.1:23119"
-DEFAULT_KEY_FILE = "~/.config/zotero/local-api-key"
 DEFAULT_WORK = os.path.join(os.environ.get("TMPDIR") or "/tmp", "paper-to-zotero")
 DEFAULT_SESSION = "p2z"
-ENV_KEY = "ZOTERO_LOCAL_API_KEY"
+ENV_CONFIG = "PAPER_TO_ZOTERO_CONFIG"
 ENV_DOWNLOADS = "PAPER_TO_ZOTERO_DOWNLOADS"
 APP_NAME = "paper-to-zotero"
 AUTHORIZE_WAIT = 300  # seconds the user gets to click Always Allow
@@ -60,7 +67,9 @@ HINT_TIMEOUT = ("Nobody clicked within the wait; the dialog may still be open in
 HINT_SINGLE_USE = ("The user clicked Allow, so the key would die after one write; nothing was saved. Ask for "
                    "Always Allow, then re-run with --authorize.")
 HINT_MISMATCH = ("The stored key was issued by another Zotero instance; re-run with --authorize to authorize "
-                 "this one (the key file is replaced).")
+                 "this one (the config's zotero block is replaced).")
+HINT_NO_PDFTOTEXT = ("pdftotext and pdfinfo (poppler-utils, a system package) are required to check PDFs; tell the "
+                     "user and install it only with their OK (references/install.md).")
 HINT_UNREACHABLE = "Start Zotero, then retry; check --base-url if it is not the default."
 HINT_DISABLED = ("Ask the user to enable the local API in Zotero Settings > Advanced ('Allow other applications "
                  "on this computer to communicate with Zotero'), then retry.")
@@ -148,29 +157,53 @@ def live_server_id(api):
     return sid
 
 
-def key_status(key_file, server_id):
-    """What is known about the write key without ever reading it into the output: present, issued by this instance."""
-    path = Path(key_file).expanduser()
-    status = {"present": False, "server_match": None, "key_file": str(path)}
-    if os.environ.get(ENV_KEY, "").strip():
-        log(f"key from {ENV_KEY}; which instance issued it cannot be checked")
-        status["present"] = True
-        return status
-    if not path.is_file():
-        log(f"no key file at {path}")
-        return status
+def config_path():
+    return Path(os.environ.get(ENV_CONFIG) or Path.home() / ".config" / "paper-to-zotero" / "config.json")
+
+
+def read_config():
+    """The config file as a dict; {} when it does not exist. An unparseable file stops the run: --authorize must not
+    overwrite what it cannot read."""
+    path = config_path()
     try:
-        info = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(info.get("key"), str) or not info["key"]:
-            raise ValueError("no 'key' string")
-    except (OSError, ValueError, AttributeError) as e:
-        log(f"key file {path} is unreadable ({e}); treated as absent")
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as e:
+        raise Stop("config_unreadable", 2, "Fix or remove the config file, then retry.", config=str(path), error=str(e))
+    if not isinstance(data, dict):
+        raise Stop("config_unreadable", 2, "The config file must hold one JSON object.", config=str(path))
+    return data
+
+
+def config_summary(config):
+    """Which settings are present, never their values; plus a warning when others can read the file."""
+    path = config_path()
+    inst = config.get("institution") if isinstance(config.get("institution"), dict) else {}
+    zot = config.get("zotero") if isinstance(config.get("zotero"), dict) else {}
+    out = {"file": str(path), "exists": path.is_file(), "zotero_key": bool(zot.get("key")),
+           "openalex_key": bool(config.get("openalex_key")),
+           "institution": {"proxy": bool(inst.get("proxy")), "discovery": bool(inst.get("discovery"))}}
+    try:
+        if path.is_file() and path.stat().st_mode & 0o077:
+            out["warning"] = "loose_permissions: run chmod 600 on the config file"
+    except OSError:
+        pass
+    return out
+
+
+def key_status(config, server_id):
+    """What is known about the write key without ever reading it into the output: present, issued by this instance."""
+    zot = config.get("zotero") if isinstance(config.get("zotero"), dict) else {}
+    status = {"present": False, "server_match": None}
+    if not isinstance(zot.get("key"), str) or not zot["key"]:
+        log(f"no zotero key in {config_path()}")
         return status
     status["present"] = True
-    saved = info.get("serverID")
+    saved = zot.get("serverID")
     status["server_match"] = None if not saved else saved == server_id
     if status["server_match"] is False:
-        log(f"key file {path}: issued by server {saved}, the running server is {server_id}")
+        log(f"zotero key issued by server {saved}, the running server is {server_id}")
     return status
 
 
@@ -178,18 +211,24 @@ def key_usable(status):
     return status["present"] and status["server_match"] is not False
 
 
-def save_key_file(path, key, server_id):
-    """Write the record with mode 0600, replacing any previous file atomically."""
+def save_key(key, server_id):
+    """Write the "zotero" block into the config file, keeping every other field; mode 0600, replaced atomically."""
+    path = config_path()
+    config = read_config()
+    config["zotero"] = {"key": key, "serverID": server_id,
+                        "created": datetime.now().astimezone().isoformat(timespec="seconds")}
     path.parent.mkdir(parents=True, exist_ok=True)
-    record = {"key": key, "serverID": server_id, "appName": APP_NAME, "remember": True,
-              "created": datetime.now().astimezone().isoformat(timespec="seconds")}
     tmp = path.with_name(path.name + ".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(record, f, indent=2)
+        json.dump(config, f, indent=2, ensure_ascii=False)
         f.write("\n")
     os.replace(tmp, path)
     os.chmod(path, 0o600)
+
+
+def find_poppler():
+    return {name: shutil.which(name) for name in ("pdftotext", "pdfinfo")}
 
 
 def retry_after(headers, body):
@@ -205,7 +244,7 @@ def retry_after(headers, body):
         return 15
 
 
-def authorize(api, server_id, key_file, wait):
+def authorize(api, server_id, wait):
     """POST /api/local/authorize: Zotero shows a dialog and answers when the user clicks; 429 waits Retry-After.
 
     Returns (code, hint, extra). Saves the key on success; a single-use key (Allow) is not saved.
@@ -242,11 +281,8 @@ def authorize(api, server_id, key_file, wait):
             return "authorize_failed", "Zotero answered 200 without a key; report this.", {"status": status, "waited_s": waited}
         if not granted.get("remember"):
             return "authorize_single_use", HINT_SINGLE_USE, {"waited_s": waited}
-        path = Path(key_file).expanduser()
-        if path.exists():
-            log(f"replacing {path}")
-        save_key_file(path, key, server_id)
-        log(f"key saved to {path} (mode 0600)")
+        save_key(key, server_id)
+        log(f"key saved to the zotero block of {config_path()} (mode 0600)")
         return "ok", None, {"waited_s": waited}
     if status == 403:
         try:
@@ -422,8 +458,9 @@ def parse_args():
                     "and opencli, prepare the work directory and print the collection tree.",
         epilog="Exit 0 = ready; 1 = not ready (no_key: tell the user to click Always Allow, then re-run with --authorize; "
                "authorize_denied, authorize_timeout, authorize_single_use, authorize_failed); 2 = cannot check "
-               "(zotero_unreachable, local_api_disabled, server_mismatch). Output is one JSON object on stdout; "
-               "the key is never printed.")
+               "(zotero_unreachable, local_api_disabled, server_mismatch, config_unreadable, no_pdftotext). Output is "
+               f"one JSON object on stdout; no key or other config value is ever printed. Config: ${ENV_CONFIG} or "
+               "~/.config/paper-to-zotero/config.json.")
     p.add_argument("--work", default=DEFAULT_WORK, metavar="DIR",
                    help="work directory; records/, scratch/ and the .started marker are created in it (default: %(default)s)")
     p.add_argument("--session", default=DEFAULT_SESSION, metavar="NAME",
@@ -433,11 +470,9 @@ def parse_args():
                         "(the Windows Downloads folder under WSL, xdg-user-dir DOWNLOAD, ~/Downloads)")
     p.add_argument("--authorize", action="store_true",
                    help="when no usable key is stored, ask Zotero for one: it shows a dialog and the user must click "
-                        "Always Allow; the key is saved to --key-file with mode 0600")
+                        "Always Allow; the key is saved in the config file's zotero block (mode 0600)")
     p.add_argument("--timeout", type=float, default=AUTHORIZE_WAIT, metavar="SECONDS",
                    help="how long --authorize waits for the click (default: %(default)s)")
-    p.add_argument("--key-file", default=DEFAULT_KEY_FILE, metavar="PATH",
-                   help="JSON file holding the local API key (default: %(default)s); env ZOTERO_LOCAL_API_KEY overrides")
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="local API base URL (default: %(default)s)")
     return p.parse_args()
 
@@ -446,24 +481,31 @@ def main():
     args = parse_args()
     api = Api(args.base_url)
     server_id = live_server_id(api)
-    key = key_status(args.key_file, server_id)
-    code, hint, extra = "ok", None, {}
+    config = read_config()
+    key = key_status(config, server_id)
+    code, hint, extra, exit_code = "ok", None, {}, 0
     if not key_usable(key):
         if args.authorize:
-            code, hint, extra = authorize(api, server_id, args.key_file, args.timeout)
+            code, hint, extra = authorize(api, server_id, args.timeout)
             if code == "ok":
-                key = key_status(args.key_file, server_id)
+                config = read_config()
+                key = key_status(config, server_id)
         elif key["server_match"] is False:
-            raise Stop("server_mismatch", 2, HINT_MISMATCH, key_file=key["key_file"])
+            raise Stop("server_mismatch", 2, HINT_MISMATCH, config=str(config_path()))
         else:
             code, hint = "no_key", HINT_NO_KEY
+    if code != "ok":
+        exit_code = 1
+    poppler = find_poppler()
+    if code == "ok" and not all(poppler.values()):
+        code, hint, exit_code = "no_pdftotext", HINT_NO_PDFTOTEXT, 2
     work = prepare_work(args.work)
-    facts = {"zotero": {"reachable": True, "base_url": api.base}, "key": key,
-             "downloads_dir": resolve_downloads(args.downloads), "opencli": find_opencli(),
+    facts = {"zotero": {"reachable": True, "base_url": api.base}, "key": key, "config": config_summary(config),
+             "poppler": poppler, "downloads_dir": resolve_downloads(args.downloads), "opencli": find_opencli(),
              "work_dir": work["work_dir"], "records_dir": work["records_dir"], "session": args.session,
              "started": work["started"], "resumed": work["resumed"], "leftovers": work["leftovers"],
              "collections": collection_tree(api)}
-    emit(code, 0 if code == "ok" else 1, hint, **facts, **extra)
+    emit(code, exit_code, hint, **facts, **extra)
 
 
 if __name__ == "__main__":

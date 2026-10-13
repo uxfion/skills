@@ -70,10 +70,9 @@ class P2zTest(unittest.TestCase):
             port = s.getsockname()[1]
         tmp = Path(tempfile.mkdtemp(prefix="p2z-dispatch-"))
         try:
-            env = {k: v for k, v in os.environ.items() if k != "ZOTERO_LOCAL_API_KEY"}
-            env["HOME"] = str(tmp)
+            env = dict(os.environ, HOME=str(tmp), PAPER_TO_ZOTERO_CONFIG=str(tmp / "config.json"))
             done = subprocess.run([sys.executable, str(P2Z), "ready", "--base-url", f"http://127.0.0.1:{port}",
-                                   "--work", str(tmp / "work"), "--key-file", str(tmp / "key"), "--downloads", str(tmp)],
+                                   "--work", str(tmp / "work"), "--downloads", str(tmp)],
                                   capture_output=True, text=True, env=env, timeout=60)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)

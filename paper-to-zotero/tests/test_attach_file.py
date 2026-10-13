@@ -136,8 +136,8 @@ class Base(unittest.TestCase):
         cls.server = HTTPServer(("127.0.0.1", 0), Handler)
         cls.base_url = f"http://127.0.0.1:{cls.server.server_address[1]}"
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
-        cls.key_file = Path(tempfile.mkdtemp(prefix="attach_key_")) / "key.json"
-        cls.key_file.write_text(json.dumps({"key": API_KEY, "serverID": SERVER_ID}), encoding="utf-8")
+        cls.config = Path(tempfile.mkdtemp(prefix="attach_conf_")) / "config.json"
+        cls.config.write_text(json.dumps({"zotero": {"key": API_KEY, "serverID": SERVER_ID}}), encoding="utf-8")
 
     @classmethod
     def tearDownClass(cls):
@@ -148,19 +148,23 @@ class Base(unittest.TestCase):
         self.state = self.server.state = State()
         self.tmp = Path(tempfile.mkdtemp(prefix="attach_test_"))
 
-    def run_script(self, *argv, stdin=None, base_url=None, cwd=None):
-        env = {k: v for k, v in os.environ.items() if k != "ZOTERO_LOCAL_API_KEY"}
-        cmd = [sys.executable, str(SCRIPT), *argv, "--base-url", base_url or self.base_url, "--key-file", str(self.key_file)]
+    def run_script(self, *argv, stdin=None, base_url=None, cwd=None, path=None):
+        env = dict(os.environ, PAPER_TO_ZOTERO_CONFIG=str(self.config))
+        if path is not None:
+            env["PATH"] = path
+        cmd = [sys.executable, str(SCRIPT), *argv, "--base-url", base_url or self.base_url]
         return subprocess.run(cmd, input=stdin, capture_output=True, text=True, env=env, cwd=cwd)
 
     def record(self, slug, content=PDF_BYTES, file_name=None, **extra):
-        """A record with `saved.key`, `item.DOI` and a file next to it; extras override or remove (None) fields."""
+        """A record with `saved.key`, `item.DOI`, a file next to it and a passing `pdf` for that file; extras override
+        or remove (None) fields."""
         rec = {"slug": slug, "item": {"itemType": "journalArticle", "title": "A Paper", "DOI": "10.1000/xyz"},
                "saved": {"key": PARENT, "version": 5, "created_at": "2026-09-23T00:00:00Z"}}
         if content is not None:
             name = file_name or f"{slug}.pdf"
             (self.tmp / name).write_bytes(content)
             rec["file"] = name
+            rec["pdf"] = {"code": "ok", "md5": hashlib.md5(content).hexdigest()}
         for k, v in extra.items():
             if v is None:
                 rec.pop(k, None)
@@ -182,10 +186,11 @@ class SingleMode(Base):
     def test_v1_attach_then_already_attached(self):
         pdf = self.tmp / "paper.pdf"
         pdf.write_bytes(PDF_BYTES)
-        r = self.run_script("--key", PARENT, "--file", str(pdf), "--url", "https://doi.org/10.1000/xyz")
+        r = self.run_script("--key", PARENT, "--file", str(pdf), "--url", "https://doi.org/10.1000/xyz",
+                            "--accept", "read page 1")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         out = json.loads(r.stdout)
-        self.assertEqual(out["code"], "ok")
+        self.assertEqual((out["code"], out["accepted"], out["title"]), ("ok", "read page 1", "PDF"))
         self.assertEqual(out["item_key"], PARENT)
         self.assertEqual(out["attachment_key"], "ATTACH01")
         self.assertTrue(out["md5_ok"])
@@ -217,11 +222,37 @@ class SingleMode(Base):
         self.assertEqual((r.returncode, json.loads(r.stdout)["code"]), (1, "unsupported_file"))
         r = self.run_script("--key", "NOPE0000", "--file", str(pdf), "--url", "https://doi.org/1")
         self.assertEqual((r.returncode, json.loads(r.stdout)["code"]), (1, "item_not_found"))
-        r = self.run_script("--key", PARENT, "--file", str(pdf), "--url", "https://doi.org/1", "--dry-run")
+        r = self.run_script("--key", PARENT, "--file", str(pdf), "--url", "https://doi.org/1", "--dry-run",
+                            "--accept", "x")
         self.assertEqual(r.returncode, 0)
         self.assertTrue(json.loads(r.stdout)["dry_run"])
         self.assertEqual(self.state.posts, [])
         self.assertEqual(self.run_script("--key", PARENT, "--file", str(pdf)).returncode, 2)  # --url missing
+
+    def stub_poppler(self, text):
+        """pdftotext / pdfinfo stubs that print `text` for any file: check_pdf's verdict is then fixed."""
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        (bin_dir / "text.txt").write_text(text + "\f", encoding="utf-8")
+        (bin_dir / "pdftotext").write_text(f"#!/bin/sh\nexec /bin/cat '{bin_dir / 'text.txt'}'\n", encoding="utf-8")
+        (bin_dir / "pdfinfo").write_text("#!/bin/sh\necho 'Pages: 1'\n", encoding="utf-8")
+        for name in ("pdftotext", "pdfinfo"):
+            (bin_dir / name).chmod(0o755)
+        return str(bin_dir)
+
+    def test_single_mode_checks_the_file_against_the_item(self):
+        pdf = self.tmp / "paper.pdf"
+        pdf.write_bytes(PDF_BYTES)
+        path = self.stub_poppler("An unrelated paper about lungs\nSomeone Else")
+        r = self.run_script("--key", PARENT, "--file", str(pdf), "--url", "https://doi.org/10.1000/xyz", path=path)
+        out = json.loads(r.stdout)
+        self.assertEqual((r.returncode, out["code"], out["check"]["code"]), (1, "not_verified", "title_not_found"))
+        self.assertIn("--accept", out["hint"])
+        self.assertEqual(self.state.posts, [])
+        path = self.stub_poppler("A Paper: With Colon\nWei Liu, Jing Zhang")
+        r = self.run_script("--key", PARENT, "--file", str(pdf), "--url", "https://doi.org/10.1000/xyz", path=path)
+        out = json.loads(r.stdout)
+        self.assertEqual((r.returncode, out["code"], out["check"]), (0, "ok", "ok"), r.stderr)
 
 
 class StreamMode(Base):
@@ -270,7 +301,7 @@ class StreamMode(Base):
     def test_stdin_forms_relative_to_cwd(self):
         (self.tmp / "x.pdf").write_bytes(PDF_BYTES)
         rec = {"slug": "s", "item": {"title": "t", "url": "https://publisher.example/article/1"},
-               "saved": {"key": PARENT}, "file": "x.pdf"}
+               "saved": {"key": PARENT}, "file": "x.pdf", "pdf": {"code": "ok", "md5": hashlib.md5(PDF_BYTES).hexdigest()}}
         r = self.run_script(stdin=json.dumps(rec) + "\n", cwd=str(self.tmp))
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(self.lines(r.stdout)[0]["attach"]["url"], "https://publisher.example/article/1")  # item.url first
@@ -307,7 +338,8 @@ class StreamMode(Base):
 
     def test_found_key_and_flag_fallbacks(self):
         p = self.record("f", saved=None, found={"key": PARENT2, "version": 2},
-                        item={"itemType": "journalArticle", "title": "no doi"}, content=None)
+                        item={"itemType": "journalArticle", "title": "no doi"}, content=None,
+                        pdf={"code": "ok_by_words", "md5": hashlib.md5(PDF_BYTES).hexdigest()})
         pdf = self.tmp / "elsewhere.pdf"
         pdf.write_bytes(PDF_BYTES)
         r = self.run_script("-i", "--file", str(pdf), "--url", "https://doi.org/10.9/fallback", "--title", "Preprint (arXiv v2)", str(p))
@@ -365,6 +397,39 @@ class StreamMode(Base):
         self.assertNotIn("attach", json.loads(p.read_text()))
         r = self.run_script("--dry-run", str(p))
         self.assertNotIn("attach", self.lines(r.stdout)[0])
+
+    def test_only_a_checked_file_is_uploaded(self):
+        p1 = self.record("unchecked", pdf=None)
+        p2 = self.record("stale", pdf={"code": "ok", "md5": "0" * 32})
+        p3 = self.record("failed", pdf={"code": "title_not_found", "md5": hashlib.md5(PDF_BYTES).hexdigest()})
+        p4 = self.record("accepted", pdf=None, pdf_accepted={"reason": "page 1 shows the title in small caps"})
+        r = self.run_script("-i", str(p1), str(p2), str(p3), str(p4))
+        self.assertEqual(r.returncode, 1)
+        out = self.lines(r.stdout)
+        self.assertEqual([o["code"] for o in out[:4]], ["not_verified", "not_verified", "not_verified", "ok"])
+        self.assertIn("pdf_accepted", out[0]["hint"])
+        self.assertEqual(out[1]["md5_matches"], False)
+        self.assertEqual(len(self.state.posts), 1)
+
+    def test_title_follows_the_version_in_the_file_name(self):
+        self.record("v", content=None)
+        for name, parent_type, title in (("v.preprint.pdf", "journalArticle", "Preprint (arXiv)"),
+                                         ("v.accepted.pdf", "journalArticle", "Accepted manuscript")):
+            self.setUp()
+            self.state.items[PARENT]["itemType"] = parent_type
+            (self.tmp / name).write_bytes(PDF_BYTES)
+            p = self.record("v", content=None, pdf={"code": "ok", "md5": hashlib.md5(PDF_BYTES).hexdigest()})
+            r = self.run_script("-i", str(p))
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertEqual(self.attachments_of(PARENT)[0]["title"], title, name)
+            rec = json.loads(p.read_text())
+            self.assertEqual((rec["attach"]["title"], rec["attach"]["version"]), (title, name.split(".")[1]))
+        self.setUp()
+        self.state.items[PARENT]["itemType"] = "preprint"
+        (self.tmp / "w.preprint.pdf").write_bytes(PDF_BYTES)
+        p = self.record("w", content=None, pdf={"code": "ok", "md5": hashlib.md5(PDF_BYTES).hexdigest()})
+        self.run_script("-i", str(p))
+        self.assertEqual(self.attachments_of(PARENT)[0]["title"], "PDF", "a preprint's own PDF is just the PDF")
 
     def test_unreachable_and_argument_errors(self):
         p = self.record("a")

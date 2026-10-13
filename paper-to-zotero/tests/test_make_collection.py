@@ -4,6 +4,7 @@
 # ///
 """Tests for scripts/make_collection.py against a minimal fake of the Zotero local API."""
 import json
+import tempfile
 import os
 import subprocess
 import sys
@@ -12,6 +13,9 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+CONFIG_DIR = tempfile.TemporaryDirectory(prefix="p2z_conf_")  # removed at exit
+CONFIG = Path(CONFIG_DIR.name) / "config.json"
+CONFIG.write_text(json.dumps({"zotero": {"key": "test-key"}}), encoding="utf-8")
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "make_collection.py"
 SERVER_ID = "test-server-id"
 LIB = "/api/users/0"
@@ -101,7 +105,7 @@ class Base(unittest.TestCase):
         self.server.server_close()
 
     def run_script(self, *args):
-        env = dict(os.environ, ZOTERO_LOCAL_API_KEY="test-key")
+        env = dict(os.environ, PAPER_TO_ZOTERO_CONFIG=str(CONFIG))
         p = subprocess.run([sys.executable, str(SCRIPT), "--base-url", self.base, *args], capture_output=True, text=True, env=env)
         return p.returncode, json.loads(p.stdout), p.stderr
 

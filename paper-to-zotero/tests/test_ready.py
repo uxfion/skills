@@ -123,8 +123,14 @@ class ReadyTest(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="p2z-ready-"))
         self.downloads = self.tmp / "dl"
         self.downloads.mkdir()
-        self.key_file = self.tmp / "keys" / "local-api-key"
+        self.config = self.tmp / "conf" / "config.json"
         self.work = self.tmp / "work"
+        self.bin = self.tmp / "bin"  # stub poppler, so the result does not depend on this machine
+        self.bin.mkdir()
+        for name in ("pdftotext", "pdfinfo"):
+            stub = self.bin / name
+            stub.write_text("#!/bin/sh\nexit 0\n")
+            stub.chmod(0o755)
         self.server = None
 
     def tearDown(self):
@@ -136,16 +142,25 @@ class ReadyTest(unittest.TestCase):
         self.server = MockZotero(**kw)
         return self.server
 
-    def write_key(self, server_id=SERVER_ID):
-        self.key_file.parent.mkdir(parents=True, exist_ok=True)
-        self.key_file.write_text(json.dumps({"key": SECRET, "serverID": server_id}))
+    def write_config(self, config):
+        self.config.parent.mkdir(parents=True, exist_ok=True)
+        self.config.write_text(json.dumps(config))
+        self.config.chmod(0o600)
 
-    def run_ready(self, *args, base_url=None, env_extra=None, downloads=True):
-        env = {k: v for k, v in os.environ.items() if k not in ("ZOTERO_LOCAL_API_KEY", "PAPER_TO_ZOTERO_DOWNLOADS")}
+    def write_key(self, server_id=SERVER_ID, **other):
+        self.write_config({"zotero": {"key": SECRET, "serverID": server_id}, **other})
+
+    def saved_config(self):
+        return json.loads(self.config.read_text())
+
+    def run_ready(self, *args, base_url=None, env_extra=None, downloads=True, poppler=True):
+        env = {k: v for k, v in os.environ.items() if k != "PAPER_TO_ZOTERO_DOWNLOADS"}
         env["HOME"] = str(self.tmp)
+        env["PAPER_TO_ZOTERO_CONFIG"] = str(self.config)
+        env["PATH"] = (str(self.bin) + os.pathsep if poppler else "") + "/nonexistent-bin"
         env.update(env_extra or {})
         argv = [sys.executable, str(SCRIPT), "--base-url", base_url or self.server.base_url,
-                "--key-file", str(self.key_file), "--work", str(self.work), *args]
+                "--work", str(self.work), *args]
         if downloads:
             argv += ["--downloads", str(self.downloads)]
         done = subprocess.run(argv, capture_output=True, text=True, env=env, timeout=60)
@@ -165,7 +180,8 @@ class ReadyTest(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertEqual(out["code"], "ok")
         self.assertEqual(out["zotero"], {"reachable": True, "base_url": self.server.base_url})
-        self.assertEqual(out["key"], {"present": True, "server_match": True, "key_file": str(self.key_file)})
+        self.assertEqual(out["key"], {"present": True, "server_match": True})
+        self.assertEqual(out["poppler"], {"pdftotext": str(self.bin / "pdftotext"), "pdfinfo": str(self.bin / "pdfinfo")})
         self.assertEqual(out["downloads_dir"], str(self.downloads))
         self.assertEqual(set(out["opencli"]), {"found", "path"})
         self.assertEqual(out["work_dir"], str(self.work))
@@ -179,13 +195,33 @@ class ReadyTest(unittest.TestCase):
         self.assertTrue((self.work / ".started").is_file())
         self.assertEqual(out["started"][:4], time.strftime("%Y"))
 
-    def test_env_key_counts_as_present_with_unknown_match(self):
+    def test_config_summary_reports_presence_only(self):
         self.start()
-        rc, out, _ = self.run_ready(env_extra={"ZOTERO_LOCAL_API_KEY": SECRET})
-        self.assertEqual(rc, 0)
-        self.assertEqual(out["code"], "ok")
-        self.assertEqual(out["key"]["present"], True)
-        self.assertIsNone(out["key"]["server_match"])
+        self.write_key(openalex_key="OA-SECRET-123", institution={"proxy": "proxy.example.edu"})
+        rc, out, _ = self.run_ready()
+        self.assertEqual((rc, out["code"]), (0, "ok"))
+        self.assertEqual(out["config"], {"file": str(self.config), "exists": True, "zotero_key": True,
+                                         "openalex_key": True,
+                                         "institution": {"proxy": True, "discovery": False}})
+        dumped = json.dumps(out)
+        self.assertNotIn("OA-SECRET-123", dumped)
+        self.assertNotIn("proxy.example.edu", dumped)
+
+    def test_loose_config_permissions_warn(self):
+        self.start()
+        self.write_key()
+        self.config.chmod(0o644)
+        _, out, _ = self.run_ready()
+        self.assertIn("loose_permissions", out["config"]["warning"])
+
+    def test_no_pdftotext_cannot_check(self):
+        self.start()
+        self.write_key()
+        rc, out, _ = self.run_ready(poppler=False)
+        self.assertEqual((rc, out["code"]), (2, "no_pdftotext"))
+        self.assertEqual(out["poppler"], {"pdftotext": None, "pdfinfo": None})
+        self.assertIn("install.md", out["hint"])
+        self.assertIn("collections", out, "the facts are still reported")
 
     def test_default_session_is_p2z(self):
         self.start()
@@ -200,20 +236,20 @@ class ReadyTest(unittest.TestCase):
         rc, out, _ = self.run_ready()
         self.assertEqual(rc, 1)
         self.assertEqual(out["code"], "no_key")
-        self.assertEqual(out["key"], {"present": False, "server_match": None, "key_file": str(self.key_file)})
+        self.assertEqual(out["key"], {"present": False, "server_match": None})
         self.assertIn("Always Allow", out["hint"])
         self.assertIn("--authorize", out["hint"])
         self.assertIn("collections", out, "the facts are still reported so the agent can plan")
         self.assertTrue((self.work / ".started").is_file())
-        self.assertFalse(self.key_file.exists())
+        self.assertFalse(self.config.exists())
 
-    def test_unreadable_key_file_is_absent(self):
+    def test_unreadable_config_stops(self):
         self.start()
-        self.key_file.parent.mkdir(parents=True)
-        self.key_file.write_text("not json")
-        rc, out, _ = self.run_ready()
-        self.assertEqual((rc, out["code"]), (1, "no_key"))
-        self.assertFalse(out["key"]["present"])
+        self.config.parent.mkdir(parents=True)
+        self.config.write_text("not json")
+        rc, out, _ = self.run_ready("--authorize")
+        self.assertEqual((rc, out["code"]), (2, "config_unreadable"))
+        self.assertEqual(self.config.read_text(), "not json", "--authorize never overwrites what it cannot read")
 
     def test_server_mismatch(self):
         self.start()
@@ -231,13 +267,12 @@ class ReadyTest(unittest.TestCase):
         rc, out, err = self.run_ready("--authorize", "--timeout", "20")
         self.assertEqual(rc, 0, out)
         self.assertEqual(out["code"], "ok")
-        self.assertEqual(out["key"], {"present": True, "server_match": True, "key_file": str(self.key_file)})
+        self.assertEqual(out["key"], {"present": True, "server_match": True})
         self.assertIn("waited_s", out)
-        saved = json.loads(self.key_file.read_text())
+        saved = self.saved_config()["zotero"]
         self.assertEqual(saved["key"], SECRET)
         self.assertEqual(saved["serverID"], SERVER_ID)
-        self.assertTrue(saved["remember"])
-        self.assertEqual(stat.S_IMODE(self.key_file.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(self.config.stat().st_mode), 0o600)
         posts = [r for r in self.server.requests if r[0] == "POST"]
         self.assertEqual(len(posts), 2, "429 is retried after Retry-After")
         self.assertEqual(posts[0][2].get("zotero-server-id"), SERVER_ID)
@@ -246,10 +281,13 @@ class ReadyTest(unittest.TestCase):
 
     def test_authorize_replaces_a_mismatched_key(self):
         self.start(authorize=[(200, {}, {"key": SECRET, "remember": True})])
-        self.write_key("SRV-OTHER")
+        self.write_key("SRV-OTHER", openalex_key="OA", institution={"proxy": "p.example"})
         rc, out, _ = self.run_ready("--authorize")
         self.assertEqual((rc, out["code"]), (0, "ok"))
-        self.assertEqual(json.loads(self.key_file.read_text())["serverID"], SERVER_ID)
+        saved = self.saved_config()
+        self.assertEqual(saved["zotero"]["serverID"], SERVER_ID)
+        self.assertEqual((saved["openalex_key"], saved["institution"]), ("OA", {"proxy": "p.example"}),
+                         "the rest of the config is kept")
 
     def test_authorize_is_skipped_when_a_key_is_usable(self):
         self.start(authorize=[(200, {}, {"key": "OTHER", "remember": True})])
@@ -257,14 +295,14 @@ class ReadyTest(unittest.TestCase):
         rc, out, _ = self.run_ready("--authorize")
         self.assertEqual((rc, out["code"]), (0, "ok"))
         self.assertEqual([r for r in self.server.requests if r[0] == "POST"], [])
-        self.assertEqual(json.loads(self.key_file.read_text())["key"], SECRET)
+        self.assertEqual(self.saved_config()["zotero"]["key"], SECRET)
 
     def test_authorize_denied(self):
         self.start(authorize=[(403, {}, {"denied": True})])
         rc, out, _ = self.run_ready("--authorize")
         self.assertEqual(rc, 1)
         self.assertEqual(out["code"], "authorize_denied")
-        self.assertFalse(self.key_file.exists())
+        self.assertFalse(self.config.exists())
         self.assertIn("collections", out)
 
     def test_authorize_single_use_key_is_not_saved(self):
@@ -272,14 +310,14 @@ class ReadyTest(unittest.TestCase):
         rc, out, _ = self.run_ready("--authorize")
         self.assertEqual((rc, out["code"]), (1, "authorize_single_use"))
         self.assertIn("Always Allow", out["hint"])
-        self.assertFalse(self.key_file.exists())
+        self.assertFalse(self.config.exists())
 
     def test_authorize_timeout(self):
         self.start(authorize=[("sleep", 3)])
         rc, out, _ = self.run_ready("--authorize", "--timeout", "1")
         self.assertEqual((rc, out["code"]), (1, "authorize_timeout"))
         self.assertIn("waited_s", out)
-        self.assertFalse(self.key_file.exists())
+        self.assertFalse(self.config.exists())
 
     # --- cannot check ---------------------------------------------------------------------------
 

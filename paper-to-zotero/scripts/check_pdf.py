@@ -2,121 +2,196 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Check that a PDF is the paper an item describes, with evidence from its first pages, for one file or a stream of records.
+"""Check that a PDF (or an HTML snapshot) is the paper an item describes, with evidence from its first pages, for one file, a stream of records, or one file against several records.
 
-Facts: %PDF- header and version, size, encryption, how much text the naive
-extractor got, the text of the first three pages, and whether the first page
-mentions supplementary material. The one rule: the whole title, normalized
-(NFKC, casefold, letters and digits only), occurs in a page's normalized
-text. The `evidence` object says on which page (title_page), whether the
-item's DOI and the first author's surname appear in the scanned pages,
-whether page 1 looks like a repository cover sheet in front of the paper
-(cover_page_suspected), whether the file looks like a whole proceedings or
-booklet rather than one paper (collection_suspected: title on page 3, or a
-file over 80 pages with the title after page 1), the page count, and an
-excerpt of page 1 and of the title page.
+Text: pages 1-3 come from poppler's `pdftotext -f 1 -l 3 -enc UTF-8` (split at
+form feeds) and the page count from `pdfinfo`. Both are required; without
+pdftotext on PATH the script stops with no_extractor (exit 2): install
+poppler-utils (references/install.md).
 
-Single mode (--item --pdf; v1, unchanged plus `evidence`): the rule is applied
-to the first page; codes ok | title_not_found | no_text_layer | encrypted |
-not_pdf | file_not_found (exit 1) | cannot_judge | item_unreadable (exit 2).
+Two ways to pass. A: the whole title, normalized (NFKC, casefold, letters
+and digits only), or one of the record's `alt_titles` / --alt-title, occurs in
+a page's normalized text -> ok | ok_on_page_2 | ok_on_page_3. B: at least 80%
+of the words of four or more letters of a title (ligatures, curly quotes and
+diacritics folded alike on both sides) occur in pages 1-3 (plain substrings,
+line-end hyphens joined, whitespace collapsed), AND the item's DOI occurs there
+too or the first author's surname occurs in the byline (the first 1500
+characters of page 1, where author lists are; a paper on the same topic has
+most of the title's words and may cite "Author et al." in its introduction)
+-> ok_by_words. Those four are the only passing codes.
+
+Three failures that override a pass, each only when unambiguous. The head of
+page 1 is the text of page 1 before the earliest position of a title (A), and
+never more than its first 500 characters; when no title is on page 1, it is
+those first 500 characters (an HTML snapshot: its <title> and title meta tags
+before the title). A marker counts only as a heading: at the start of a line
+(after Author / Publisher at most) and followed by a colon or the end of the
+line, or by a space and a dash or to / for / note / notice / regarding.
+  erratum_suspected     the head has Correction / Corrigendum / Erratum /
+                        Retraction (plural forms too), and the record's own
+                        title has none of these words
+  supplement_suspected  the head has Supplementary / Supplemental Material /
+                        Information / Appendix / Data / Methods / Online
+                        Content. Not checked when the file's version is
+                        supplement or the record's title says supplement
+  doi_mismatch          page 1 prints at least one DOI, none is the item's,
+                        and the item's DOI occurs nowhere in pages 1-3.
+                        Checked only when the file's version is published
+                        (accepted manuscripts and preprints print their own
+                        DOI). HTML: the page's citation_doi / dc.identifier /
+                        prism.doi meta tags stand for page 1.
+
+The file's version comes from its name, the convention of the work
+directory: <slug>.pdf published, <slug>.accepted.pdf, <slug>.preprint.pdf,
+<slug>.supplement.pdf, <slug>.html snapshot; --file-version overrides it. A
+file named as published whose page 1 carries arXiv's margin stamp
+("arXiv:2303.11366v4 [cs.AI] ...") counts as a preprint; `evidence.arxiv_stamp`
+holds the stamp.
+
+HTML snapshots: a file whose name does not end in .pdf and whose first 4 KB
+look like HTML (a .pdf holding HTML is a failed download: not_a_pdf). Script,
+style, noscript, template and svg are dropped, tags removed, entities
+unescaped; the <title>, citation_title, dc.title and og:title lines followed
+by the first 20000 characters of visible text are page 1, and A / B apply.
+An error, proxy or access page ("Host Needed", "Access denied", a block or
+robot check, "does not subscribe" and the like, in the titles or the first
+2000 characters) where A fails, or a page without any text -> not_the_article.
+
+Single mode (--item item.json --pdf FILE): the same verdict for one file,
+printed as one JSON object {code, evidence, md5, ...}.
 
 Stream mode (record paths, or records on stdin as JSONL / a JSON array / one
-object): the file is the record's `file` (relative to the record's directory;
-stdin records: the working directory), else --pdf, none -> no_file. Each
-record gains `pdf = {code, evidence, checked_at}`; codes ok (title on page 1)
-| ok_on_page_2 | ok_on_page_3 (a cover sheet, accept) | title_not_found |
-no_text_layer (also an encrypted file; evidence.encrypted) | not_a_pdf |
-cannot_judge (title under 10 characters). Without -i the updated records go
-to stdout one per line, and one summary line per record plus the final
+object). The file: the record's `file` (relative to the record's directory;
+stdin records: the working directory), else --pdf, else the first of
+<stem>.pdf, <stem>.accepted.pdf, <stem>.preprint.pdf, <stem>.supplement.pdf,
+<stem>.html next to the record (stem = the record file's name without
+.json); none -> no_file. Each record gains `pdf = {code, evidence, md5,
+checked_at}` (md5 of the checked file). Without -i the updated records go to
+stdout one per line, and one summary line per record plus the final
 {"summary": ...} go to stderr; with -i each record is written back to its
 file and stdout carries those summary lines instead. Exit 0 = every record
-ok / ok_on_page_n, 1 = some record is not (its code and evidence say why).
+passed, 1 = some record did not (its code and evidence say why).
 
-Pages are resolved through the page tree (trailer /Root -> /Pages -> /Kids,
-depth first, including objects packed in object streams). When that fails or
-yields no text at all, the first content streams in file order (up to about
-4000 characters) stand in for page 1 and nothing else is scanned;
-`first_page` (single mode) and `evidence.page_source` say which. File order
-is not page order in general (arXiv/pdfTeX files can write page 1 last),
-hence the page tree.
-
-Text extraction is deliberately minimal and standard-library only: streams are
-found by scanning for `stream ... endstream`, FlateDecode ones are inflated
-with zlib (other filters are skipped), and strings are taken from the text
-operators Tj, TJ, ' and ". There is no font, CMap or ToUnicode handling, so
-fonts with custom encodings (typical of subsetting, and all Identity-H CID
-fonts) yield garbage; that is reported as is, via text_chars and the excerpt.
-The only concession to fonts: control-range codes that the file's /Differences
-arrays (or TeX's OT1/T1 slots) assign to the ligatures ff, fi, fl, ffi, ffl are
-expanded, because those are common in arXiv PDFs and would break the title rule.
+--match FILE (records as in stream mode): judge one file against each record,
+FILE standing in for each record's file; never writes records. stdout: one
+line per record {slug, code, ...}, then {"matched": [slug...], "file", "md5",
+"file_version"}. Exit 0 = at least one record matched, 1 = none did, 2 =
+cannot check (FILE missing, records unreadable or none, no pdftotext).
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unicodedata
-import zlib
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 
-FIRST_PAGE_CHARS = 4000
 EXCERPT_CHARS = 600
-MAX_TEXT_CHARS = 300_000
 MIN_TITLE_CHARS = 10
 MAX_PAGES = 3
 COVER_MAX_CHARS = 2500  # a cover sheet is short; a paper's first page is not
 LONG_FILE_PAGES = 80    # over this, a title after page 1 suggests a whole booklet
+HEAD_CHARS = 500        # the head of page 1 never reaches further
+WORD_SHARE = 0.8        # path B
+BYLINE_CHARS = 1500     # path B: the first author counts here, before an introduction's citations
+TOOL_TIMEOUT = 60       # seconds, for pdftotext / pdfinfo
+HTML_SCAN_CHARS = 20_000
+DENIAL_SCAN_CHARS = 2000
+PASS_CODES = ("ok", "ok_on_page_2", "ok_on_page_3", "ok_by_words")
+VERSIONS = ("published", "accepted", "preprint", "supplement", "snapshot")
+NAME_VERSIONS = ((".accepted.pdf", "accepted"), (".preprint.pdf", "preprint"), (".supplement.pdf", "supplement"),
+                 (".html", "snapshot"), (".htm", "snapshot"))
+STEM_FILES = (".pdf", ".accepted.pdf", ".preprint.pdf", ".supplement.pdf", ".html")
 
-STREAM_START = re.compile(rb"(?<![A-Za-z])stream(?:\r\n|\n|\r)")
-OBJ_RE = re.compile(rb"(?<![0-9])(\d+)\s+(\d+)\s+obj\b")
-REF_RE = re.compile(rb"(\d+)\s+\d+\s+R\b")
-SKIP_DICT = re.compile(rb"/Subtype\s*/Image|/Type\s*/(?:XRef|ObjStm|Metadata|EmbeddedFile|Font\w*)"
-                       rb"|/Length[123]\b|/FunctionType|/ShadingType")
-FILTER_RE = re.compile(rb"/Filter\s*(?:\[([^\]]*)\]|/([A-Za-z0-9]+))")
-LENGTH_RE = re.compile(rb"/Length\s+(\d+)(?:\s+(\d+)\s+R)?")
 ENCRYPT_RE = re.compile(rb"/Encrypt\s*(?:\d+\s+\d+\s+R|<<)")
-DIFFERENCES_RE = re.compile(rb"/Differences\s*\[([^\]]*)\]")
-NAME_RE = re.compile(rb"/[^\s/\[\]()<>{}%]*")
-NUM_RE = re.compile(rb"[+-]?(?:\d+\.?\d*|\.\d+)")
-OP_RE = re.compile(rb"[A-Za-z'\"*]+")
-INLINE_IMAGE_END = re.compile(rb"\sEI(?=\s|$)")
-KIDS_RE = re.compile(rb"/Kids\s*(?:\[([^\]]*)\]|(\d+)\s+\d+\s+R)")
-CONTENTS_RE = re.compile(rb"/Contents\s*(?:(\d+)\s+\d+\s+R|\[([^\]]*)\])")
-ESCAPES = {ord("n"): 10, ord("r"): 13, ord("t"): 9, ord("b"): 8, ord("f"): 12}
-LIGATURE_NAMES = {b"ff", b"fi", b"fl", b"ffi", b"ffl"}
-# OT1 (0x0B-0x0F) and T1 (0x1B-0x1F) ligature slots of TeX fonts; /Differences arrays override.
-TEX_LIGATURES = {0x0B: "ff", 0x0C: "fi", 0x0D: "fl", 0x0E: "ffi", 0x0F: "ffl",
-                 0x1B: "ff", 0x1C: "fi", 0x1D: "fl", 0x1E: "ffi", 0x1F: "ffl"}
 SUPPLEMENT_RE = re.compile(r"supplement(?:ary|al)|appendix", re.I)
 # Phrases typical of the sheet a repository, publisher or institution puts in front of a paper.
 COVER_RE = re.compile(r"downloaded from|repository|this is a|author manuscript|accepted|citation:", re.I)
+# arXiv's margin stamp: "arXiv:2303.11366v4 [cs.AI] 10 Oct 2023", old style "arXiv:hep-th/9901001v1 [hep-th] ...".
+ARXIV_STAMP_RE = re.compile(r"arXiv:\s?(?:\d{4}\.\d{4,5}|[a-z\-]+(?:\.[A-Z]{2})?/\d{7})(?:v\d+)?\s*\[[^\]\n]{2,24}\]")
+
+# Head markers (matched on folded text, line by line). A heading, not a mention: line start, then a colon or the
+# line's end, or a space and a dash or a linking word ("Correction-based" and "Supplemental content" are no
+# headings). Both lists are living: extend them when a real file shows a new form.
+HEADING_TAIL = r"(?=[ \t]*(?:$|:)|[ \t]+(?:[\-–—]|(?:to|for|note|notice|regarding)\b))"
+ERRATUM_HEAD = re.compile(r"^[ \t]*((?:(?:author|authors'?|publisher'?s?|editorial)[ \t]+)?"
+                          r"(?:corrections?|corrigend(?:um|a)|errat(?:um|a)|retractions?)(?:[ \t]+(?:note|notice))?)"
+                          + HEADING_TAIL, re.M)
+ERRATUM_WORDS = re.compile(r"\b(?:corrections?|corrigend(?:um|a)|errat(?:um|a)|retractions?)\b")
+SUPPLEMENT_HEAD = re.compile(r"^[ \t]*((?:online[ \t]+|electronic[ \t]+)?supplement(?:ary|al)[ \t]+"
+                             r"(?:materials?|information|info|appendix|appendices|data|methods|online[ \t]+content))"
+                             + HEADING_TAIL, re.M)
+DOI_RE = re.compile(r"10\.\d{4,9}/[^\s\"<>]+")
+DOI_TRAIL = ".,;:)]}>'\"”’"
+# Pages that are not an article: proxy errors, access refusals, block and robot checks. Living list.
+DENIAL_RE = re.compile(r"host needed|access denied|access to this page has been denied|403 forbidden|access forbidden"
+                       r"|404 not found|page not found|you have been blocked|just a moment|attention required"
+                       r"|verify you are (?:a )?human|are you a robot|request rejected|does not subscribe"
+                       r"|you do not have access|institutional login")
+HTML_SNIFF = re.compile(rb"<(?:!doctype\s+html|html|head|body|title|meta)\b", re.I)
+HTML_SKIP = {"script", "style", "noscript", "template", "svg"}
+HTML_BLOCK = {"p", "div", "br", "li", "ul", "ol", "tr", "td", "th", "table", "section", "article", "header",
+              "footer", "nav", "main", "aside", "h1", "h2", "h3", "h4", "h5", "h6", "title", "dd", "dt", "figcaption"}
+HTML_TITLE_META = ("citation_title", "dc.title", "og:title")
+HTML_DOI_META = ("citation_doi", "dc.identifier", "prism.doi", "bepress_citation_doi")
+B_TRANSLATE = str.maketrans({"ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl",
+                             "’": "'", "‘": "'"})
+
+HINTS = {
+    "title_not_found": "compare `excerpt` and `title_words` with the title; if it is the paper after all, read page 1 "
+                       "and accept it in the record's pdf_accepted with your reason",
+    "no_text_layer": "no extractable text (scanned, or encrypted beyond pdftotext); read the first page with the pdf "
+                     "skill or by eye",
+    "not_a_pdf": "not a PDF (an HTML page saved as .pdf?); fetch the file again",
+    "cannot_judge": "title too short for the rule; judge from `excerpt`",
+    "file_not_found": "check the path",
+    "erratum_suspected": "page 1 opens with a correction / erratum / retraction notice (`erratum_marker`): the file "
+                         "is the notice, not the paper; get the article itself, and check the record's DOI is not "
+                         "the notice's",
+    "supplement_suspected": "page 1 opens as supplementary material (`supplement_marker`): get the main article, or "
+                            "name the file <slug>.supplement.pdf if the supplement is what is wanted",
+    "doi_mismatch": "page 1 prints another DOI (`dois_on_page_1`): another paper or another version; check the "
+                    "record's DOI, and name an accepted manuscript or preprint as such (<slug>.accepted.pdf, "
+                    "<slug>.preprint.pdf)",
+    "not_the_article": "an error, proxy or access page (`denial_marker`), or a page without text, not the article; "
+                       "do not attach it",
+    "no_extractor": "pdftotext / pdfinfo (poppler-utils, a system package) are required; tell the user and install "
+                    "it only with their OK (references/install.md)",
+}
 
 EPILOG = """\
-single mode codes (stdout `code`, exit status):
-  ok               0  the whole normalized title occurs in the first-page text
-  title_not_found  1  it does not; judge from `excerpt` / `evidence` (garbled text = custom font encoding)
-  no_text_layer    1  nothing decodable (scanned, or only unsupported filters)
-  encrypted        1  the file declares /Encrypt; text is not extracted
-  not_pdf          1  no %PDF- header
-  file_not_found   1  --pdf does not exist
-  cannot_judge     2  normalized title shorter than 10 characters; judge from `excerpt`
-  item_unreadable  2  --item is not a JSON object
+codes (single mode `code`, each record's `pdf.code` and summary line, --match lines):
+  pass, exactly these:  ok | ok_on_page_2 | ok_on_page_3 (whole title on that page) | ok_by_words (path B)
+  fail:  erratum_suspected | supplement_suspected | doi_mismatch | not_the_article (HTML) | title_not_found |
+         no_text_layer | not_a_pdf | cannot_judge | no_file | file_not_found
+  cannot check (exit 2): no_extractor (no pdftotext on PATH) | item_unreadable
+  single / stream exit: 0 = passed (every record), 1 = not
+  --match exit: 0 = at least one record matched, 1 = none did, 2 = cannot check; stdout: one line per record, then
+         {"matched": [slug...], "file", "md5", "file_version"}
 
-stream mode codes (in each record's `pdf.code` and summary line):
-  ok | ok_on_page_2 | ok_on_page_3   exit 0      title_not_found | no_text_layer | not_a_pdf |
-  cannot_judge | no_file | file_not_found   exit 1
+file = `file` (relative to the record) > --pdf > <stem>.pdf | .accepted.pdf | .preprint.pdf | .supplement.pdf | .html
+beside the record. Version = --file-version > the file name (a published-named file with arXiv's margin stamp is a
+preprint). `alt_titles` (list) and --alt-title (repeatable) are titles that also match.
 
-evidence: page_count, pages_scanned (<= 3), page_source (page_tree | file_order), page_chars, title_page
-(int | null), doi_found (bool | null: item has no DOI), first_author_found (bool | null), cover_page_suspected,
-collection_suspected, supplementary, text_chars, size_bytes, pdf_version, excerpt (page 1), excerpt_title_page
-(when the title is on a later page).
+evidence: page_count, pages_scanned (<= 3), extractor (pdftotext | html), page_chars, title_page (int | null),
+matched_title, title_words ({share, found, total, missing} of the best title), doi_found (bool | null: item has no
+DOI), first_author_found (bool | null), first_author_in_byline (in the first 1500 characters of page 1),
+dois_on_page_1, erratum_marker, supplement_marker (str | null), doi_mismatch (bool | null: not checked), file_version,
+arxiv_stamp, cover_page_suspected, collection_suspected, supplementary, encrypted, text_chars, size_bytes,
+pdf_version, excerpt (page 1), excerpt_title_page (when the title is on a later page); HTML also html_title,
+denial_marker.
 
 examples:
-  uv run check_pdf.py --item item.json --pdf paper.pdf
-  uv run check_pdf.py -i records/*.json                 # each record's `file`, `pdf` written back
+  uv run check_pdf.py -i records/*.json                          # each record's file, `pdf` written back
+  uv run check_pdf.py --match ~/Downloads/x.pdf records/*.json   # which record is this file?
+  uv run check_pdf.py --item item.json --pdf paper.pdf           # one file, one item
 """
 
 
@@ -126,7 +201,7 @@ def log(msg):
 
 def emit(code, exit_code, hint=None, **fields):
     out = {"code": code, **fields}
-    if hint and code != "ok":
+    if hint and exit_code:
         out["hint"] = hint
     print(json.dumps(out, ensure_ascii=False, indent=2))
     sys.exit(exit_code)
@@ -142,334 +217,6 @@ class Stop(Exception):
     def __init__(self, code, exit_code=1, hint=None, **extra):
         super().__init__(code)
         self.code, self.exit_code, self.hint, self.extra = code, exit_code, hint, extra
-
-
-# ------------------------------------------------------------ string decoding
-
-def ligature_table(data):
-    """TeX slots, overridden by the file's /Differences arrays where all fonts agree."""
-    seen = {}
-    for m in DIFFERENCES_RE.finditer(data):
-        code = 0
-        for tok in re.findall(rb"\d+|/[^\s/\[\]()<>{}%]*", m.group(1)):
-            if tok.isdigit():
-                code = int(tok)
-                continue
-            name = tok[1:]
-            if name in LIGATURE_NAMES and code < 0x20:
-                seen.setdefault(code, set()).add(name.decode("ascii"))
-            code += 1
-    table = dict(TEX_LIGATURES)
-    for code, names in seen.items():
-        if len(names) == 1:
-            table[code] = next(iter(names))
-        else:
-            table.pop(code, None)
-    return table
-
-
-def decode(raw, ligatures):
-    """Bytes of one PDF string -> text. cp1252 covers WinAnsi; controls are dropped."""
-    out = []
-    for ch in raw.decode("cp1252", errors="replace"):
-        code = ord(ch)
-        if code in ligatures:
-            out.append(ligatures[code])
-        elif ch in "\n\t" or (ch != "�" and unicodedata.category(ch) != "Cc"):
-            out.append(ch)
-    return "".join(out)
-
-
-def read_literal(buf, i):
-    """Parse a (...) string starting at buf[i]; returns (bytes, index after ')')."""
-    out = bytearray()
-    depth, i, n = 1, i + 1, len(buf)
-    while i < n:
-        c = buf[i]
-        if c == 0x5C:  # backslash
-            i += 1
-            if i >= n:
-                break
-            c = buf[i]
-            if c in ESCAPES:
-                out.append(ESCAPES[c])
-            elif 0x30 <= c <= 0x37:
-                j, val = i, 0
-                while j < n and j < i + 3 and 0x30 <= buf[j] <= 0x37:
-                    val = val * 8 + (buf[j] - 0x30)
-                    j += 1
-                out.append(val & 0xFF)
-                i = j
-                continue
-            elif c == 0x0D:
-                if buf[i + 1:i + 2] == b"\n":
-                    i += 1
-            elif c != 0x0A:
-                out.append(c)
-            i += 1
-        elif c == 0x28:
-            depth += 1
-            out.append(c)
-            i += 1
-        elif c == 0x29:
-            depth -= 1
-            i += 1
-            if depth == 0:
-                break
-            out.append(c)
-        else:
-            out.append(c)
-            i += 1
-    return bytes(out), i
-
-
-def read_hex(buf, i):
-    """Parse a <...> hex string starting at buf[i]."""
-    j = buf.find(b">", i + 1)
-    if j < 0:
-        j = len(buf)
-    digits = re.sub(rb"[^0-9A-Fa-f]", b"", buf[i + 1:j])
-    if len(digits) % 2:
-        digits += b"0"
-    return bytes.fromhex(digits.decode("ascii")), j + 1
-
-
-def skip_dict(buf, i):
-    depth, n = 0, len(buf)
-    while i < n:
-        if buf.startswith(b"<<", i):
-            depth += 1
-            i += 2
-        elif buf.startswith(b">>", i):
-            depth -= 1
-            i += 2
-            if depth == 0:
-                break
-        else:
-            i += 1
-    return i
-
-
-# ---------------------------------------------------------- content streams
-
-def text_from_content(buf, ligatures):
-    """Walk one content stream and collect the strings shown by Tj / TJ / ' / \"."""
-    out, operands, array = [], [], None
-    i, n = 0, len(buf)
-    while i < n:
-        c = buf[i]
-        target = array if array is not None else operands
-        if c in b" \t\r\n\x0c\x00":
-            i += 1
-        elif c == 0x28:
-            s, i = read_literal(buf, i)
-            target.append(decode(s, ligatures))
-        elif c == 0x3C:
-            if buf.startswith(b"<<", i):
-                i = skip_dict(buf, i)
-            else:
-                s, i = read_hex(buf, i)
-                target.append(decode(s, ligatures))
-        elif c == 0x5B:
-            array = []
-            i += 1
-        elif c == 0x5D:
-            operands.append(array if array is not None else [])
-            array = None
-            i += 1
-        elif c == 0x2F:
-            i = NAME_RE.match(buf, i).end()
-        elif c == 0x25:
-            j = buf.find(b"\n", i)
-            i = n if j < 0 else j + 1
-        elif c in b"+-.0123456789":
-            m = NUM_RE.match(buf, i)
-            if m:
-                try:
-                    target.append(float(m.group()))
-                except ValueError:
-                    pass
-                i = m.end()
-            else:
-                i += 1
-        elif c in b"{}":
-            i += 1
-        else:
-            m = OP_RE.match(buf, i)
-            if not m:
-                i += 1
-                continue
-            op = m.group()
-            i = m.end()
-            last = operands[-1] if operands else None
-            if op == b"Tj":
-                if isinstance(last, str):
-                    out.append(last)
-            elif op in (b"'", b'"'):
-                out.append("\n")
-                if isinstance(last, str):
-                    out.append(last)
-            elif op == b"TJ":
-                if isinstance(last, list):
-                    for el in last:
-                        if isinstance(el, str):
-                            out.append(el)
-                        elif isinstance(el, float) and el < -120:  # word gaps run -150..-350; pair kerns stay smaller
-                            out.append(" ")
-            elif op in (b"T*", b"ET", b"Tm"):
-                out.append("\n")
-            elif op in (b"Td", b"TD"):
-                out.append("\n" if isinstance(last, float) and last != 0 else " ")
-            elif op == b"BI":
-                m = INLINE_IMAGE_END.search(buf, i)
-                i = n if not m else m.end()
-            operands = []
-    return "".join(out)
-
-
-def parse_filters(dict_text):
-    m = FILTER_RE.search(dict_text)
-    if not m:
-        return []
-    if m.group(2):
-        return [m.group(2)]
-    return re.findall(rb"/([A-Za-z0-9]+)", m.group(1))
-
-
-def read_stream(data, m, stats):
-    """Decode the stream whose `stream` keyword is match m -> (dict_text, bytes or None)."""
-    start = m.end()
-    head = data[max(0, m.start() - 4000):m.start()]
-    k = head.rfind(b" obj")
-    dict_text = head[k:] if k >= 0 else head
-    filters = parse_filters(dict_text)
-    if filters and filters != [b"FlateDecode"]:
-        stats["unsupported"].update(f.decode("ascii") for f in filters)
-        return dict_text, None
-    raw = None
-    lm = LENGTH_RE.search(dict_text)
-    if lm and lm.group(2) is None:
-        length = int(lm.group(1))
-        if data[start + length:start + length + 12].lstrip().startswith(b"endstream"):
-            raw = data[start:start + length]
-    if raw is None:
-        end = data.find(b"endstream", start)
-        if end < 0:
-            return dict_text, None
-        raw = data[start:end]
-        raw = raw[:-2] if raw.endswith(b"\r\n") else raw[:-1] if raw[-1:] in (b"\n", b"\r") else raw
-    if filters:
-        try:
-            raw = zlib.decompressobj().decompress(raw)
-        except zlib.error:
-            stats["inflate_errors"] += 1
-            return dict_text, None
-    stats["decoded"] += 1
-    return dict_text, raw
-
-
-def iter_content_streams(data, stats):
-    """Decoded bytes of every stream that may be page content, in file order."""
-    for m in STREAM_START.finditer(data):
-        stats["streams"] += 1
-        head = data[max(0, m.start() - 4000):m.start()]
-        k = head.rfind(b" obj")
-        if SKIP_DICT.search(head[k:] if k >= 0 else head):
-            continue
-        _, raw = read_stream(data, m, stats)
-        if raw is not None:
-            yield raw
-
-
-class Objects:
-    """Lazy object lookup: raw `N G obj` bodies, plus objects packed in object streams."""
-
-    def __init__(self, data, stats):
-        self.data, self.stats = data, stats
-        self.raw = {int(m.group(1)): m.end() for m in OBJ_RE.finditer(data)}  # last definition wins
-        self.packed = None
-
-    def get(self, num):
-        """Object body up to its `stream` keyword, or None."""
-        if num in self.raw:
-            start = self.raw[num]
-            end = self.data.find(b"endobj", start, start + 200_000)
-            body = self.data[start:end if end >= 0 else start + 200_000]
-            sm = STREAM_START.search(body)
-            return body[:sm.start()] if sm else body
-        if self.packed is None:
-            self.packed = self._unpack()
-        return self.packed.get(num)
-
-    def stream(self, num):
-        """Decoded stream of raw object `num` (content streams are never packed)."""
-        start = self.raw.get(num)
-        if start is None:
-            return None
-        sm = STREAM_START.search(self.data, start, start + 4000)
-        return read_stream(self.data, sm, self.stats)[1] if sm else None
-
-    def _unpack(self):
-        packed = {}
-        for m in re.finditer(rb"/Type\s*/ObjStm", self.data):
-            sm = STREAM_START.search(self.data, m.end(), m.end() + 4000)
-            if not sm:
-                continue
-            dict_text, body = read_stream(self.data, sm, self.stats)
-            n, first = re.search(rb"/N\s+(\d+)", dict_text), re.search(rb"/First\s+(\d+)", dict_text)
-            if body is None or not n or not first:
-                continue
-            first = int(first.group(1))
-            header = body[:first].split()
-            pairs = [(int(header[i]), int(header[i + 1])) for i in range(0, min(len(header) - 1, 2 * int(n.group(1))), 2)]
-            for idx, (num, off) in enumerate(pairs):
-                end = pairs[idx + 1][1] if idx + 1 < len(pairs) else len(body) - first
-                packed[num] = body[first + off:first + end]
-        return packed
-
-
-def refs_in(objects, m, group_ref, group_array):
-    """Object numbers of an array given inline (group_array) or as a reference to an array object (group_ref)."""
-    if m.group(group_array) is not None:
-        return [int(x) for x in REF_RE.findall(m.group(group_array))]
-    ref = int(m.group(group_ref))
-    target = objects.get(ref) or b""
-    return [int(x) for x in REF_RE.findall(target)] if target.lstrip().startswith(b"[") else [ref]
-
-
-def page_tree_pages(data, stats, ligatures, limit=MAX_PAGES):
-    """Text of the first `limit` pages via the page tree, and the root's /Count -> (pages or None, count or None)."""
-    roots = re.findall(rb"/Root\s+(\d+)\s+\d+\s+R", data)
-    if not roots:
-        return None, None
-    objects = Objects(data, stats)
-    m = re.search(rb"/Pages\s+(\d+)\s+\d+\s+R", objects.get(int(roots[-1])) or b"")
-    if not m:
-        return None, None
-    root = int(m.group(1))
-    cm = re.search(rb"/Count\s+(\d+)", objects.get(root) or b"")
-    count = int(cm.group(1)) if cm else None
-    leaves, stack, seen = [], [root], set()
-    while stack and len(leaves) < limit:  # depth first, leftmost first
-        num = stack.pop()
-        if num in seen:
-            continue
-        seen.add(num)
-        body = objects.get(num)
-        if body is None:
-            continue
-        km = KIDS_RE.search(body)
-        if km is None:
-            leaves.append(body)
-        else:
-            stack.extend(reversed(refs_in(objects, km, 2, 1)))
-    pages = []
-    for body in leaves:
-        cm = CONTENTS_RE.search(body)
-        nums = refs_in(objects, cm, 1, 2) if cm else []
-        streams = [s for s in (objects.stream(n) for n in nums) if s is not None]
-        pages.append(clean("".join(text_from_content(s, ligatures) for s in streams)))
-    return (pages or None), count
 
 
 def clean(text):
@@ -497,124 +244,326 @@ def first_author_surname(item):
     return name or None
 
 
-# --------------------------------------------------------------- the check
+# ------------------------------------------------------------ poppler
 
-def build_evidence(pages, source, count, title, doi, surname):
-    """The §4.1 evidence object from the scanned pages."""
-    norm_title = normalize(title)
-    title_page = None
-    if len(norm_title) >= MIN_TITLE_CHARS:
-        for n, page in enumerate(pages, 1):
-            if norm_title in normalize(page):
-                title_page = n
-                break
-    scanned = "\n".join(pages)
-    doi_found = None if not doi else normalize(doi) in normalize(scanned)
-    author_found = None
-    if surname:
-        pattern = rf"(?<![^\W\d_]){re.escape(fold(surname))}(?![^\W\d_])"  # letter boundaries: 'Liu1' still matches
-        author_found = re.search(pattern, fold(scanned)) is not None
-    page1 = pages[0] if pages else ""
-    return {
-        "page_count": count,
-        "pages_scanned": len(pages),
-        "page_source": source,
-        "page_chars": [len(p) for p in pages],
-        "title_page": title_page,
-        "doi_found": doi_found,
-        "first_author_found": author_found,
-        "cover_page_suspected": title_page in (2, 3) and len(page1) < COVER_MAX_CHARS and COVER_RE.search(page1) is not None,
-        "collection_suspected": title_page is not None and (
-            title_page >= 3 or (count is not None and count > LONG_FILE_PAGES and title_page > 1)),
-        "supplementary": SUPPLEMENT_RE.search(page1[:EXCERPT_CHARS]) is not None,
-        "excerpt": page1[:EXCERPT_CHARS],
-        "excerpt_title_page": pages[title_page - 1][:EXCERPT_CHARS] if title_page and title_page > 1 else None,
-    }
+def require_pdftotext():
+    if not shutil.which("pdftotext"):
+        raise Stop("no_extractor", 2, HINTS["no_extractor"])
 
 
-def empty_evidence(**extra):
-    return {"page_count": None, "pages_scanned": 0, "page_source": None, "page_chars": [], "title_page": None,
-            "doi_found": None, "first_author_found": None, "cover_page_suspected": False, "collection_suspected": False,
-            "supplementary": False, "excerpt": "", "excerpt_title_page": None, **extra}
+def tool(name, argv):
+    """Run a poppler program -> CompletedProcess, or its status: absent | timeout | failed."""
+    exe = shutil.which(name)
+    if not exe:
+        return "absent"
+    try:
+        return subprocess.run([exe, *argv], capture_output=True, timeout=TOOL_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return "timeout"
+    except OSError:
+        return "failed"
 
 
-def check_file(pdf, title, doi=None, surname=None):
-    """Inspect one file -> (v1 code, exit code, hint, v1 facts, evidence)."""
-    if not pdf.is_file():
-        return "file_not_found", 1, "check the path; a fresh download is located with `wait download`", {"pdf": str(pdf)}, None
-    data = pdf.read_bytes()
-    facts = {"pdf": str(pdf), "size_bytes": len(data)}
+def pdftotext_pages(pdf):
+    """Pages 1-3 by pdftotext -> list of page texts ([] when it fails or finds no text)."""
+    p = tool("pdftotext", ["-f", "1", "-l", str(MAX_PAGES), "-enc", "UTF-8", str(pdf.absolute()), "-"])
+    if isinstance(p, str):
+        if p == "absent":
+            raise Stop("no_extractor", 2, HINTS["no_extractor"])
+        log(f"pdftotext: {p}")
+        return []
+    if p.returncode != 0:
+        log(f"pdftotext: exit {p.returncode}")
+        return []
+    pages = p.stdout.decode("utf-8", errors="replace").split("\f")
+    if len(pages) > 1 and not pages[-1].strip():
+        pages.pop()  # every page ends with a form feed
+    pages = [clean(page) for page in pages[:MAX_PAGES]]
+    return pages if any(pages) else []
+
+
+def pdfinfo_count(pdf):
+    p = tool("pdfinfo", [str(pdf.absolute())])
+    if isinstance(p, str):
+        return None
+    m = re.search(rb"^Pages:\s+(\d+)", p.stdout, re.M)
+    return int(m.group(1)) if m else None
+
+
+# ------------------------------------------------------------ HTML snapshots
+
+class HtmlText(HTMLParser):
+    """Visible text, <title> and meta tags of a page; script, style, noscript, template and svg dropped."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts, self.title, self.meta, self.skip, self.in_title = [], [], {}, 0, False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in HTML_SKIP:
+            self.skip += 1
+            return
+        if self.skip:
+            return
+        if tag == "title":
+            self.in_title = True
+        elif tag == "meta":
+            a = {k.lower(): (v or "").strip() for k, v in attrs}
+            name = (a.get("name") or a.get("property") or "").lower()
+            if name and a.get("content"):
+                self.meta.setdefault(name, []).append(a["content"])
+        if tag in HTML_BLOCK:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in HTML_SKIP:
+            self.skip = max(0, self.skip - 1)
+            return
+        if self.skip:
+            return
+        if tag == "title":
+            self.in_title = False
+        if tag in HTML_BLOCK:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if self.skip:
+            return
+        (self.title if self.in_title else self.parts).append(data)
+
+
+def extract_html(ex, data):
+    """Fill an Extraction from an HTML page: the title lines, then the visible text, are its one page."""
+    m = re.search(rb"charset\s*=\s*[\"']?([A-Za-z0-9_\-]+)", data[:4096], re.I)
+    try:
+        text = data.decode(m.group(1).decode("ascii") if m else "utf-8", errors="replace")
+    except LookupError:
+        text = data.decode("utf-8", errors="replace")
+    parser = HtmlText()
+    try:
+        parser.feed(text)
+        parser.close()
+    except Exception as e:  # html.parser is lenient; whatever it got so far is used
+        log(f"html: {e!r}")
+    doc_title = clean(" ".join(parser.title))
+    lines, seen = [], set()
+    for t in [doc_title, *(v for name in HTML_TITLE_META for v in parser.meta.get(name, []))]:
+        t = clean(t)
+        if t and t.casefold() not in seen:
+            seen.add(t.casefold())
+            lines.append(t)
+    titles = "\n".join(lines)
+    visible = clean("".join(parser.parts))
+    dois = []
+    for name in HTML_DOI_META:
+        for v in parser.meta.get(name, []):
+            key = doi_key(v)
+            if key and key not in dois:
+                dois.append(key)
+    denial = DENIAL_RE.search(fold(titles + "\n" + visible[:DENIAL_SCAN_CHARS]))
+    ex.kind, ex.extractor = "html", "html"
+    ex.pages = [(titles + "\n" + visible[:HTML_SCAN_CHARS]).strip()]
+    ex.text, ex.head_len = visible, len(titles)
+    ex.html_title, ex.meta_dois, ex.denial = doc_title or None, dois, denial.group() if denial else None
+    log(f"html: title {doc_title[:80]!r}, visible chars: {len(visible)}, meta DOIs: {dois or '-'}")
+
+
+# ------------------------------------------------------------ extraction
+
+class Extraction:
+    """One file, read once: its kind (pdf | html | other), pages 1-3, and the facts every verdict on it shares."""
+
+    def __init__(self, path, data):
+        self.path, self.size, self.md5 = path, len(data), hashlib.md5(data).hexdigest()
+        self.kind, self.pdf_version, self.encrypted, self.head_bytes = "other", None, False, data[:40].decode("latin-1")
+        self.pages, self.count, self.extractor, self.text, self.head_len = [], None, None, "", HEAD_CHARS
+        self.html_title = self.meta_dois = self.denial = None
+
+    def prepare(self):
+        """Derived forms of the pages, computed once for any number of records."""
+        page1 = self.pages[0] if self.pages else ""
+        self.norm_pages = [normalize(p) for p in self.pages]
+        self.norm_scanned = "".join(self.norm_pages)
+        scanned = "\n".join(self.pages)
+        self.folded = fold(scanned)
+        self.words_text = word_text(scanned)
+        if self.meta_dois is not None:
+            self.page1_dois = self.meta_dois
+        else:
+            self.page1_dois = list(dict.fromkeys(d.rstrip(DOI_TRAIL) for d in DOI_RE.findall(fold(page1))))
+        m = ARXIV_STAMP_RE.search(page1) if self.kind == "pdf" else None
+        self.arxiv_stamp = m.group() if m else None
+        return self
+
+
+def extract(path):
+    """Read one file -> Extraction, or None when it does not exist."""
+    if not path.is_file():
+        return None
+    data = path.read_bytes()
+    ex = Extraction(path, data)
     m = re.search(rb"%PDF-(\d\.\d)", data[:1024])
     if not m:
-        head = data[:40].decode("latin-1")
-        return ("not_pdf", 1, "not a PDF (an HTML page saved as .pdf?); fetch the file again", {**facts, "head": head},
-                empty_evidence(size_bytes=len(data), excerpt=head))
-    facts["pdf_version"] = m.group(1).decode("ascii")
-    if ENCRYPT_RE.search(data):
-        return ("encrypted", 1, "the PDF is encrypted; check the first page with the pdf skill or by eye", facts,
-                empty_evidence(size_bytes=len(data), pdf_version=facts["pdf_version"], encrypted=True))
+        if path.suffix.lower() != ".pdf" and HTML_SNIFF.search(data[:4096]):
+            extract_html(ex, data)  # a .pdf holding HTML is a failed download, not a snapshot
+        return ex.prepare()
+    ex.kind, ex.pdf_version, ex.extractor = "pdf", m.group(1).decode("ascii"), "pdftotext"
+    ex.encrypted = ENCRYPT_RE.search(data) is not None
+    ex.pages = pdftotext_pages(path)
+    ex.text = "\n".join(ex.pages)
+    ex.count = pdfinfo_count(path)
+    log(f"pdftotext: pages scanned: {len(ex.pages)}, page count: {ex.count}, text chars: {len(ex.text)}")
+    return ex.prepare()
 
-    stats = {"streams": 0, "decoded": 0, "inflate_errors": 0, "unsupported": set()}
-    ligatures = ligature_table(data)
-    parts, total = [], 0
-    for content in iter_content_streams(data, stats):
-        chunk = text_from_content(content, ligatures)
-        if chunk.strip():
-            parts.append(chunk)
-            total += len(chunk)
-        if total > MAX_TEXT_CHARS:
+
+def version_of(path, override, ex=None):
+    """--file-version > the file name; a published-named PDF with arXiv's margin stamp is a preprint."""
+    if override:
+        return override
+    name = path.name.lower()
+    version = next((v for suffix, v in NAME_VERSIONS if name.endswith(suffix)), "published")
+    if version == "published" and ex is not None and ex.arxiv_stamp:
+        return "preprint"
+    return version
+
+
+# --------------------------------------------------------------- the check
+
+def doi_key(doi):
+    """A DOI as compared: from '10.' on, lowercased, trailing punctuation stripped; None without one."""
+    if not isinstance(doi, str):
+        return None
+    low = doi.strip().lower()
+    i = low.find("10.")
+    return (low[i:].rstrip(DOI_TRAIL) or None) if i >= 0 else None
+
+
+def word_text(text):
+    """Text as path B compares it: ligatures, quotes and accents folded, line-end hyphens joined, spaces collapsed."""
+    return re.sub(r"\s+", " ", re.sub(r"-\n", "", fold(text.translate(B_TRANSLATE))))
+
+
+def title_words(title, words_text):
+    """Path B for one title -> (share found, report)."""
+    words = re.findall(r"[a-z]{4,}", fold(title.translate(B_TRANSLATE)))
+    missing = [w for w in words if w not in words_text]
+    share = (len(words) - len(missing)) / len(words) if words else 0.0
+    return share, {"share": round(share, 2), "found": len(words) - len(missing), "total": len(words),
+                   "missing": missing[:12]}
+
+
+def title_span(page, norm_title):
+    """Raw (start, end) of the first occurrence of a normalized title in a page, by bisecting on normalize()."""
+    lo, hi = 0, len(page)
+    while lo < hi:  # the shortest prefix that holds it ends the first occurrence
+        mid = (lo + hi) // 2
+        if norm_title in normalize(page[:mid]):
+            hi = mid
+        else:
+            lo = mid + 1
+    end, lo, hi = lo, 0, lo
+    while lo < hi:  # the latest start that still holds it begins that occurrence
+        mid = (lo + hi + 1) // 2
+        if norm_title in normalize(page[mid:end]):
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo, end
+
+
+def evidence_base(ex, file_version):
+    page1 = ex.pages[0] if ex.pages else ""
+    ev = {"page_count": ex.count, "pages_scanned": len(ex.pages), "extractor": ex.extractor,
+          "page_chars": [len(p) for p in ex.pages], "title_page": None, "matched_title": None, "title_words": None,
+          "doi_found": None, "first_author_found": None, "first_author_in_byline": None,
+          "dois_on_page_1": ex.page1_dois[:10], "erratum_marker": None, "supplement_marker": None,
+          "doi_mismatch": None, "file_version": file_version, "arxiv_stamp": ex.arxiv_stamp,
+          "cover_page_suspected": False, "collection_suspected": False,
+          "supplementary": SUPPLEMENT_RE.search(page1[:EXCERPT_CHARS]) is not None,
+          "encrypted": ex.encrypted, "text_chars": len(ex.text), "size_bytes": ex.size, "pdf_version": ex.pdf_version,
+          "excerpt": page1[:EXCERPT_CHARS] if ex.kind != "other" else ex.head_bytes, "excerpt_title_page": None}
+    if ex.kind == "html":
+        ev.update(html_title=ex.html_title, denial_marker=ex.denial)
+    return ev
+
+
+def judge(ex, title, alt_titles=(), doi=None, surname=None, file_version="published"):
+    """The verdict on one extracted file for one item -> (code, evidence)."""
+    ev = evidence_base(ex, file_version)
+    if ex.kind == "other":
+        return "not_a_pdf", ev
+    if ex.kind == "pdf" and not ex.text:
+        return "no_text_layer", ev
+    if ex.kind == "html" and not ex.pages[0]:
+        return "not_the_article", ev
+    pages, page1 = ex.pages, ex.pages[0]
+    titles = [t for t in dict.fromkeys([title, *alt_titles]) if t.strip()]
+    a_titles = [(t, n) for t in titles if len(n := normalize(t)) >= MIN_TITLE_CHARS]
+
+    # A: the first page that holds a whole title; the head of page 1 ends where a title starts.
+    title_page = matched = None
+    for k, norm_page in enumerate(ex.norm_pages, 1):
+        matched = next((t for t, n in a_titles if n in norm_page), None)
+        if matched:
+            title_page = k
             break
-    text = clean("".join(parts))
+    starts = [title_span(page1, n)[0] for t, n in a_titles if n in ex.norm_pages[0]]
+    head = fold(page1[:min([ex.head_len, *starts])])
 
-    first_page, first_text = "file_order", text[:FIRST_PAGE_CHARS]
-    try:
-        pages, count = page_tree_pages(data, stats, ligatures)
-    except Exception as e:  # the page tree is a best effort; file order remains the fallback
-        log(f"page tree: {e!r}")
-        pages, count = None, None
-    if pages and pages[0]:
-        first_page, first_text = "page_tree", pages[0]
-    if pages and any(pages):
-        source = "page_tree"
+    rdoi = doi_key(doi)
+    doi_found = None if not rdoi else normalize(rdoi) in ex.norm_scanned
+    author_found = in_byline = None
+    if surname:
+        pattern = rf"(?<![^\W\d_]){re.escape(fold(surname))}(?![^\W\d_])"  # letter boundaries: 'Liu1' still matches
+        author_found = re.search(pattern, ex.folded) is not None
+        in_byline = author_found and re.search(pattern, fold(page1[:BYLINE_CHARS])) is not None
+
+    # B: the best word share over all titles, corroborated by the DOI (pages 1-3) or the first author in the byline.
+    share, words, b_title = 0.0, None, None
+    for t in titles:
+        s, report = title_words(t, ex.words_text)
+        if words is None or s > share:
+            share, words, b_title = s, report, t
+    b_pass = share >= WORD_SHARE and bool(doi_found or in_byline)
+
+    title_fold = fold(title)
+    m = None if ERRATUM_WORDS.search(title_fold) else ERRATUM_HEAD.search(head)
+    erratum = m.group(1) if m else None
+    m = None if file_version == "supplement" or "supplement" in title_fold else SUPPLEMENT_HEAD.search(head)
+    supplement = m.group(1) if m else None
+    mismatch = None
+    if file_version == "published" and rdoi:
+        printed = ex.page1_dois
+        mismatch = bool(printed) and not any(rdoi in d or d in rdoi for d in printed) and doi_found is False
+
+    ev.update(title_page=title_page, title_words=words, doi_found=doi_found, first_author_found=author_found,
+              first_author_in_byline=in_byline, erratum_marker=erratum, supplement_marker=supplement,
+              doi_mismatch=mismatch, cover_page_suspected=title_page in (2, 3) and len(page1) < COVER_MAX_CHARS
+              and COVER_RE.search(page1) is not None,
+              collection_suspected=title_page is not None and (
+                  title_page >= 3 or (ex.count is not None and ex.count > LONG_FILE_PAGES and title_page > 1)),
+              excerpt_title_page=pages[title_page - 1][:EXCERPT_CHARS] if title_page and title_page > 1 else None)
+    if erratum:
+        code = "erratum_suspected"
+    elif supplement:
+        code = "supplement_suspected"
+    elif mismatch:
+        code = "doi_mismatch"
+    elif not a_titles:
+        code = "cannot_judge"
+    elif title_page:
+        code = "ok" if title_page == 1 else f"ok_on_page_{title_page}"
+    elif ex.kind == "html" and ex.denial:
+        code = "not_the_article"
+    elif b_pass:
+        code = "ok_by_words"
     else:
-        pages, source = [first_text], "file_order"
-    log(f"streams: {stats['streams']}, decoded: {stats['decoded']}, inflate errors: {stats['inflate_errors']}, "
-        f"unsupported filters: {sorted(stats['unsupported']) or '-'}, text chars: {len(text)}, first page: {first_page}, "
-        f"pages scanned: {len(pages)} ({source}), page count: {count}")
-
-    excerpt = first_text[:EXCERPT_CHARS]
-    facts.update(text_chars=len(text), first_page=first_page, title=title,
-                 supplementary=bool(SUPPLEMENT_RE.search(excerpt)), excerpt=excerpt)
-    evidence = build_evidence(pages, source, count, title, doi, surname)
-    evidence.update(text_chars=len(text), size_bytes=len(data), pdf_version=facts["pdf_version"])
-    if not text and not first_text:
-        return ("no_text_layer", 1, "no extractable text (scanned, or unsupported stream filters); read the first page "
-                "with the pdf skill or by eye", facts, evidence)
-
-    norm_title = normalize(title)
-    if len(norm_title) < MIN_TITLE_CHARS:
-        return "cannot_judge", 2, "title too short for the rule; judge from `excerpt`", facts, evidence
-    if norm_title in normalize(first_text):
-        return "ok", 0, None, facts, evidence
-    if norm_title in normalize(text):
-        facts["title_in_later_text"] = True
-    return ("title_not_found", 1, "compare `excerpt` with the title; garbled text means custom font encodings, "
-            "then read the first page with the pdf skill", facts, evidence)
+        code = "title_not_found"
+    ev["matched_title"] = matched if title_page else b_title if code == "ok_by_words" else None
+    return code, ev
 
 
-def stream_code(code, evidence):
-    """The stream-mode code for a file: page-aware where the v1 rule only looked at page 1."""
-    if code == "not_pdf":
-        return "not_a_pdf"
-    if code == "encrypted":
-        return "no_text_layer"
-    if code in ("ok", "title_not_found"):
-        tp = evidence["title_page"]
-        return "ok" if tp == 1 else f"ok_on_page_{tp}" if tp else "title_not_found"
-    return code
-
-
-# ---- records (stream mode) -------------------------------------------------
+# ---- records ----------------------------------------------------------------
 
 def slug_of(path, record):
     slug = record.get("slug")
@@ -678,8 +627,48 @@ def save_record(path, record):
         raise
 
 
+def record_item(rec):
+    """(title, DOI, first author's surname, alt titles) of a record."""
+    item = rec.get("item") if isinstance(rec.get("item"), dict) else {}
+    alts = rec.get("alt_titles")
+    alts = [alts] if isinstance(alts, str) else alts if isinstance(alts, list) else []
+    doi = item.get("DOI") if isinstance(item.get("DOI"), str) else None
+    return (str(item.get("title") or ""), doi, first_author_surname(item),
+            [a for a in alts if isinstance(a, str) and a.strip()])
+
+
+def record_file(path, rec, fallback):
+    """The file to check: `file` (relative to the record) > --pdf > the first <stem>.* file beside the record."""
+    name = rec.get("file")
+    if isinstance(name, str) and name.strip():
+        f = Path(name.strip()).expanduser()
+        return f if f.is_absolute() else (path.parent if path is not None else Path.cwd()) / f
+    if fallback:
+        return Path(fallback).expanduser()
+    if path is not None:
+        for suffix in STEM_FILES:
+            if (f := path.parent / (path.stem + suffix)).is_file():
+                return f
+    raise Stop("no_file", 1, "put the file beside the record as <slug>.pdf (or .accepted.pdf, .preprint.pdf, .html), "
+               "name it in the record's `file`, or pass --pdf")
+
+
+EXTRA_FIELD = {"erratum_suspected": "erratum_marker", "supplement_suspected": "supplement_marker",
+               "doi_mismatch": "dois_on_page_1", "not_the_article": "denial_marker"}
+
+
+def summary_fields(code, ev):
+    out = {"title_page": ev["title_page"], "page_count": ev["page_count"], "file_version": ev["file_version"],
+           "cover_page_suspected": ev["cover_page_suspected"], "collection_suspected": ev["collection_suspected"]}
+    if code in ("ok_by_words", "title_not_found") and ev["title_words"]:
+        out["title_words"] = ev["title_words"]["share"]
+    if code in EXTRA_FIELD:
+        out[EXTRA_FIELD[code]] = ev.get(EXTRA_FIELD[code])
+    return out
+
+
 class Outcome:
-    """One record's result: status ok | skipped | failed, its summary line, and whether the record changed."""
+    """One record's result: status ok | failed, its summary line, and whether the record changed."""
 
     def __init__(self, path, record):
         self.path, self.record, self.changed = path, record, False
@@ -693,9 +682,9 @@ class Outcome:
         self.set("failed", stop.code, changed, **stop.extra, **({"hint": stop.hint} if stop.hint else {}))
 
 
-def write_results(outcomes, in_place, stopped=None):
-    """Print the stream output; return the exit code (0 all ok/skipped, 1 any failed, the Stop's when stopped early)."""
-    counts = {"total": len(outcomes), "ok": 0, "skipped": 0, "failed": 0}
+def write_results(outcomes, in_place):
+    """Print the stream output; return the exit code (0 all ok, 1 any failed)."""
+    counts = {"total": len(outcomes), "ok": 0, "failed": 0}
     for o in outcomes:
         if in_place and o.changed and o.path is not None:
             try:
@@ -710,57 +699,68 @@ def write_results(outcomes, in_place, stopped=None):
         else:
             print(json.dumps(o.record, ensure_ascii=False))
             log(line)
-    if stopped is not None:
-        counts["stopped"] = stopped.code
-        log(f"stopped early: {stopped.code}" + (f" - {stopped.hint}" if stopped.hint else ""))
     summary = json.dumps({"summary": counts}, ensure_ascii=False)
     print(summary) if in_place else log(summary)
-    if stopped is not None:
-        return stopped.exit_code
     return 1 if counts["failed"] else 0
 
 
-def check_record(o, args):
+def check_record(o, args, cache):
     """Run the check for one record, filling its Outcome and the record's `pdf`."""
     rec = o.record
-    name = rec.get("file")
-    if isinstance(name, str) and name.strip():
-        pdf = Path(name.strip()).expanduser()
-        if not pdf.is_absolute():
-            pdf = (o.path.parent if o.path is not None else Path.cwd()) / pdf
-    elif args.pdf:
-        pdf = Path(args.pdf).expanduser()
-    else:
-        raise Stop("no_file", 1, "put the file name (relative to the record) in the record's `file`, or pass --pdf")
-    item = rec.get("item") if isinstance(rec.get("item"), dict) else {}
-    title = str(item.get("title") or "")
-    doi = item.get("DOI") if isinstance(item.get("DOI"), str) else None
-
-    code, _, hint, facts, evidence = check_file(pdf, title, doi, first_author_surname(item))
-    if evidence is None:  # file_not_found: nothing to record
-        raise Stop(code, 1, hint, file=str(pdf))
-    code = stream_code(code, evidence)
-    rec["pdf"] = {"code": code, "evidence": evidence, "checked_at": now_iso()}
-    fields = dict(file=str(pdf), title_page=evidence["title_page"], page_count=evidence["page_count"],
-                  cover_page_suspected=evidence["cover_page_suspected"],
-                  collection_suspected=evidence["collection_suspected"])
-    if code.startswith("ok"):
+    pdf = record_file(o.path, rec, args.pdf)
+    title, doi, surname, alts = record_item(rec)
+    key = str(pdf.absolute())
+    if key not in cache:
+        cache[key] = extract(pdf)
+    ex = cache[key]
+    if ex is None:  # file_not_found: nothing to record
+        raise Stop("file_not_found", 1, HINTS["file_not_found"], file=str(pdf))
+    code, evidence = judge(ex, title, alts + args.alt_title, doi, surname, version_of(pdf, args.file_version, ex))
+    rec["pdf"] = {"code": code, "evidence": evidence, "md5": ex.md5, "checked_at": now_iso()}
+    fields = {"file": str(pdf), **summary_fields(code, evidence)}
+    if code in PASS_CODES:
         o.set("ok", code, changed=True, **fields)
     else:
-        o.set("failed", code, changed=True, **fields, hint=hint)
+        o.set("failed", code, changed=True, **fields, hint=HINTS.get(code))
 
 
 def run_stream(args):
     entries = load_records(args.records)
-    outcomes = []
+    outcomes, cache = [], {}
     for path, rec in entries:
         o = Outcome(path, rec)
         outcomes.append(o)
         try:
-            check_record(o, args)
+            check_record(o, args, cache)
         except Stop as stop:
+            if stop.exit_code == 2:
+                raise
             o.fail(stop)
     sys.exit(write_results(outcomes, args.in_place))
+
+
+def run_match(args):
+    """One file against every record: a line per record, then the slugs it matched. Never writes records."""
+    try:
+        entries = load_records(args.records)
+    except Stop as stop:  # here exit 1 means "matched none"; a run that cannot check is 2
+        raise Stop(stop.code, 2, stop.hint, **stop.extra)
+    path = Path(args.match).expanduser()
+    ex = extract(path)
+    if ex is None:
+        raise Stop("file_not_found", 2, "the file to match does not exist", file=str(path))
+    version = version_of(path, args.file_version, ex)
+    matched = []
+    for rec_path, rec in entries:
+        title, doi, surname, alts = record_item(rec)
+        code, evidence = judge(ex, title, alts + args.alt_title, doi, surname, version)
+        slug = slug_of(rec_path, rec)
+        print(json.dumps({"slug": slug, "code": code, **summary_fields(code, evidence)}, ensure_ascii=False))
+        if code in PASS_CODES:
+            matched.append(slug)
+    print(json.dumps({"matched": matched, "file": str(path), "md5": ex.md5, "file_version": version},
+                     ensure_ascii=False))
+    sys.exit(0 if matched else 1)
 
 
 def run_single(args):
@@ -770,38 +770,50 @@ def run_single(args):
         if not isinstance(item, dict):
             raise ValueError("not a JSON object")
     except (OSError, ValueError) as e:
-        emit("item_unreadable", 2, "item.json must be a JSON object with a title", item=args.item, error=str(e))
-    title = str(item.get("title") or "")
+        raise Stop("item_unreadable", 2, "item.json must be a JSON object with a title", item=args.item, error=str(e))
+    pdf = Path(args.pdf).expanduser()
+    ex = extract(pdf)
+    if ex is None:
+        raise Stop("file_not_found", 1, HINTS["file_not_found"], file=str(pdf))
     doi = item.get("DOI") if isinstance(item.get("DOI"), str) else None
-    code, exit_code, hint, facts, evidence = check_file(Path(args.pdf), title, doi, first_author_surname(item))
-    if evidence is not None:
-        facts["evidence"] = evidence
-    emit(code, exit_code, hint, **facts)
+    code, evidence = judge(ex, str(item.get("title") or ""), args.alt_title, doi, first_author_surname(item),
+                           version_of(pdf, args.file_version, ex))
+    emit(code, 0 if code in PASS_CODES else 1, HINTS.get(code), file=str(pdf), md5=ex.md5, evidence=evidence)
 
 
 # ---------------------------------------------------------------------- main
 
 def parse_args():
     ap = argparse.ArgumentParser(
-        description="Check that a PDF carries the item's title on its first pages, and report evidence about it: "
-                    "one file (--item --pdf) or a stream of records.",
+        description="Check that a PDF (or an HTML snapshot) is the item's paper, from its first pages, and report "
+                    "evidence about it: a stream of records, one file against several records (--match), or one "
+                    "file and one item (--item --pdf). Needs pdftotext and pdfinfo (poppler-utils).",
         epilog=EPILOG, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("records", nargs="*", metavar="RECORD",
-                    help="record files (stream mode); none, and no --item: records are read from stdin")
+                    help="record files (stream mode, --match); none, and no --item: records are read from stdin")
     ap.add_argument("-i", "--in-place", action="store_true",
                     help="stream mode: write each updated record back to its file; stdout gets one summary line per record")
+    ap.add_argument("--match", metavar="FILE",
+                    help="judge FILE against every record (FILE stands in for each record's file); never writes records")
     ap.add_argument("--item", metavar="FILE", help="single mode: Zotero item JSON; the title is read from here")
     ap.add_argument("--pdf", metavar="FILE",
-                    help="single mode: the PDF to inspect; stream mode: fallback for records without `file`")
+                    help="single mode: the file to check; stream mode: the file for records without one")
+    ap.add_argument("--alt-title", action="append", default=[], metavar="TITLE",
+                    help="another title that also matches (repeatable; added to each record's alt_titles)")
+    ap.add_argument("--file-version", choices=VERSIONS, metavar="V",
+                    help="published | accepted | preprint | supplement | snapshot: overrides the version the file "
+                         "name gives")
     args = ap.parse_args()
     if args.item:
         if args.records:
             ap.error("--item (single mode) and record paths (stream mode) exclude each other")
-        if args.in_place:
-            ap.error("-i belongs to stream mode")
+        if args.in_place or args.match:
+            ap.error("-i and --match belong to stream mode")
         if not args.pdf:
             ap.error("single mode needs --item and --pdf")
     else:
+        if args.match and (args.in_place or args.pdf):
+            ap.error("--match never writes records (no -i), and FILE is the file (no --pdf)")
         if not args.records and args.in_place:
             ap.error("-i needs record paths: records from stdin have no file to write back to")
         if not args.records and sys.stdin.isatty():
@@ -811,8 +823,11 @@ def parse_args():
 
 def main():
     args = parse_args()
+    require_pdftotext()
     if args.item:
         run_single(args)
+    elif args.match:
+        run_match(args)
     else:
         run_stream(args)
 

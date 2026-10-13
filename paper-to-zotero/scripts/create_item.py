@@ -14,12 +14,22 @@ after the pre-checks. Output: exactly one JSON object on stdout with a stable
 
 Stream mode (record paths, or records on stdin as JSONL / a JSON array / one
 object): the same for each record's `item`. The destination is the record's
-`collection`, else --collection (neither -> no_collection); tags are the
-record's `tags` (absent -> the item's own, else none, with a warning on
-stderr); a record `citationKey` is written into the item, which Zotero pins.
-Records already carrying `saved.key` or `found.key` are skipped. Up to 50
-objects go in one POST; an object the server rejects fails only its own
-record. On success the record gains `saved = {key, version, created_at}` and
+`collection` (one key or a list), else --collection (repeatable; neither ->
+no_collection); tags are the record's `tags` (absent -> the item's own, else
+none, with a warning on stderr); a record `citationKey` is written into the
+item, which Zotero pins. Records already carrying `saved.key` or a resolved
+`found.key` are skipped; a `found` that is still a near_match is reported as
+possible_duplicate until the agent resolves it.
+
+Before anything is posted, the pending records go through find_in_library.py
+(one subprocess, records on stdin), so a duplicate never depends on the agent
+remembering to look: a DOI / arXiv hit writes `found` and the record is
+skipped as `exists` (its file is attached to that item later); a near match
+(title only, preprint/published pair, same title with another DOI) fails as
+possible_duplicate with its candidates and nothing is written. The agent then
+either sets `found` to {"key": KEY} (same paper) or adds KEY to the record's
+`distinct_from` (another paper) and re-runs. Up to 50 objects go in one POST;
+an object the server rejects fails only its own record. On success the record gains `saved = {key, version, created_at}` and
 the read-back is compared with what was sent (collections, tags, citationKey;
 a difference is `readback_mismatch` — the item exists, so `saved` is still
 recorded). Without -i the updated records go to stdout one per line, and
@@ -39,6 +49,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -47,13 +58,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_BASE_URL = "http://127.0.0.1:23119"
-DEFAULT_KEY_FILE = Path.home() / ".config" / "zotero" / "local-api-key"
-ENV_KEY = "ZOTERO_LOCAL_API_KEY"
 ITEMS_PATH = "/api/users/0/items"
 COLLECTION_KEY_RE = re.compile(r"^[A-Z0-9]{8}$")
 NOT_PARENT_TYPES = {"attachment", "note", "annotation"}
 POST_TIMEOUT = 60
 CHUNK = 50
+FIND_SCRIPT = Path(__file__).resolve().parent / "find_in_library.py"
 
 EXIT_OK, EXIT_FAIL, EXIT_CANNOT = 0, 1, 2
 
@@ -65,11 +75,12 @@ exit codes:
                          create_failed (server's code + message verbatim, nothing created) |
                          readback_mismatch (item exists: fix it with file_and_tag.py)
                          stream: some record failed (its code is in its summary line: no_collection, item_invalid,
-                         tags_invalid, collection_not_found, create_failed, readback_mismatch, ...);
+                         tags_invalid, collection_not_found, possible_duplicate, create_failed, readback_mismatch,
+                         ...); skipped records say why (saved, found, exists = a DOI / arXiv hit in the library);
                          no_records | record_invalid | input_invalid (nothing done)
-  2  cannot check        zotero_unreachable | local_api_disabled | no_key | key_file_invalid |
+  2  cannot check        zotero_unreachable | local_api_disabled | no_key | config_unreadable |
                          key_rejected | server_mismatch | server_id_required |
-                         library_not_editable | post_incomplete
+                         library_not_editable | post_incomplete | lookup_failed (find_in_library could not check)
 
 files:
   item.json   a Zotero item object (itemType, title, creators, ...) without key/version/
@@ -77,7 +88,8 @@ files:
   tags.json   a JSON list; each entry is "name" (manual tag) or {"tag": "name", "type": 0|1}
               (0 manual, 1 automatic); it is the item's complete tag list
   saved.json  written on success: item_key, version, collection, tags, title, itemType
-  record      {"slug", "item": {...}, "tags": [...], "collection": "KEY", "citationKey": "...", ...};
+  record      {"slug", "item": {...}, "tags": [...], "collection": "KEY" | ["KEY", ...], "citationKey": "...",
+              "distinct_from": ["KEY", ...], ...};
               gains "saved": {"key", "version", "created_at"}
 
 examples:
@@ -340,31 +352,32 @@ def live_server_id(api: Api) -> str:
     return server_id
 
 
-def load_key(key_file: Path, server_id: str) -> tuple[str, str]:
-    """Return (key, source). Stops with no_key / key_file_invalid / server_mismatch."""
-    env_key = os.environ.get(ENV_KEY)
-    if env_key:
-        log(f"key from {ENV_KEY} ({env_key[:4]}...)")
-        return env_key, "env"
-    if not key_file.exists():
+def config_path() -> Path:
+    return Path(os.environ.get("PAPER_TO_ZOTERO_CONFIG") or Path.home() / ".config" / "paper-to-zotero" / "config.json")
+
+
+def load_key(server_id: str) -> str:
+    """The local API key from the config file's "zotero" block (ready.py --authorize writes it). Never printed."""
+    path = config_path()
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        config = {}
+    except (OSError, ValueError) as e:
+        raise Stop("config_unreadable", EXIT_CANNOT, "the config file is unreadable: fix it, then re-run",
+                   config=str(path), detail=str(e))
+    zot = config.get("zotero") if isinstance(config, dict) else None
+    zot = zot if isinstance(zot, dict) else {}
+    if not isinstance(zot.get("key"), str) or not zot["key"]:
         raise Stop("no_key", EXIT_CANNOT,
                    "no key for the local write API: run ready.py --authorize first "
-                   "(the user clicks Always Allow in Zotero), then re-run", path=str(key_file))
-    try:
-        record = json.loads(key_file.read_text(encoding="utf-8"))
-        key = record["key"]
-        if not isinstance(key, str) or not key:
-            raise ValueError("empty key")
-    except (OSError, ValueError, KeyError, TypeError) as e:
-        raise Stop("key_file_invalid", EXIT_CANNOT, "the key file is unreadable: run ready.py --authorize again, then re-run",
-                   path=str(key_file), detail=str(e))
-    stored = record.get("serverID")
-    if stored != server_id:
+                   "(the user clicks Always Allow in Zotero), then re-run", config=str(path))
+    stored = zot.get("serverID")
+    if stored and stored != server_id:
         raise Stop("server_mismatch", EXIT_CANNOT,
                    "the stored key belongs to another Zotero instance: run ready.py --authorize again, then re-run",
-                   path=str(key_file), stored_server_id=stored, server_id=server_id)
-    log(f"key from {key_file} ({key[:4]}...), server matches")
-    return key, "file"
+                   config=str(path), stored_server_id=stored, server_id=server_id)
+    return zot["key"]
 
 
 def check_collection(api: Api, key: str) -> str:
@@ -433,7 +446,7 @@ def normalize_readback_tags(tags) -> list[dict]:
     return [{"tag": t.get("tag"), "type": t.get("type", 0)} for t in (tags or []) if isinstance(t, dict)]
 
 
-def readback(api: Api, created: dict, collection, tags: list[dict], citation_key):
+def readback(api: Api, created: dict, collections: list[str], tags: list[dict], citation_key):
     """Compare the created object with what was sent -> (filed, read_tags, tags_ok, citation_key_ok)."""
     data = created.get("data") or {}
     needed = ["collections", "tags"] + (["citationKey"] if citation_key is not None else [])
@@ -444,11 +457,12 @@ def readback(api: Api, created: dict, collection, tags: list[dict], citation_key
                 data = json.loads(body).get("data") or data
         except (Unreachable, ValueError, AttributeError):
             pass
-    filed = (collection in (data.get("collections") or [])) if collection else None
+    missing = [c for c in collections if c not in (data.get("collections") or [])]
+    filed = not missing if collections else None
     read_tags = normalize_readback_tags(data.get("tags"))
     tags_ok = {(t["tag"], t["type"]) for t in read_tags} == {(t["tag"], t["type"]) for t in tags}
     cite_ok = None if citation_key is None else data.get("citationKey") == citation_key
-    return filed, read_tags, tags_ok, cite_ok
+    return filed, read_tags, tags_ok, cite_ok, missing
 
 
 # ---- single mode (v1) ----------------------------------------------------
@@ -462,10 +476,12 @@ def run_single(api: Api, args: argparse.Namespace) -> None:
                    "fix item.json (check_item.py shows what the local API will do with each field), then re-run",
                    path=str(args.item), problems=problems)
 
-    collection = args.collection
-    if collection is not None and not COLLECTION_KEY_RE.match(collection):
-        raise Stop("collection_invalid", EXIT_FAIL,
-                   "a collection key is 8 characters like ABCD1234: take it from the collection tree", collection=collection)
+    collections = list(dict.fromkeys(args.collection or []))
+    for collection in collections:
+        if not COLLECTION_KEY_RE.match(collection):
+            raise Stop("collection_invalid", EXIT_FAIL,
+                       "a collection key is 8 characters like ABCD1234: take it from the collection tree",
+                       collection=collection)
 
     tag_problems: list[str] = []
     if args.tags_file is not None:
@@ -484,17 +500,17 @@ def run_single(api: Api, args: argparse.Namespace) -> None:
 
     # 2. Zotero side: reachable, key usable, collection exists.
     server_id = live_server_id(api)
-    api_key, key_source = load_key(args.key_file, server_id)
-    collection_name = check_collection(api, collection) if collection else None
+    api_key = load_key(server_id)
+    names = [check_collection(api, c) for c in collections]
 
     payload = {k: v for k, v in item.items() if k not in ("tags", "collections")}
-    payload["collections"] = [collection] if collection else []
+    payload["collections"] = collections
     payload["tags"] = tags
-    summary = dict(title=payload["title"], itemType=payload["itemType"], collection=collection,
-                   collection_name=collection_name, unfiled=collection is None, tags=tags)
+    summary = dict(title=payload["title"], itemType=payload["itemType"], collection=one_or_list(collections),
+                   collection_name=one_or_list(names), unfiled=not collections, tags=tags)
 
     if args.dry_run:
-        emit("ok", EXIT_OK, dry_run=True, key_source=key_source, server_id=server_id, **summary)
+        emit("ok", EXIT_OK, dry_run=True, server_id=server_id, **summary)
 
     # 3. The one write.
     result = post_items(api, [payload], api_key, server_id)
@@ -508,10 +524,10 @@ def run_single(api: Api, args: argparse.Namespace) -> None:
                    message="200 without successful[\"0\"]", response=result)
 
     item_key, version = created["key"], created.get("version")
-    filed, read_tags, tags_ok, _ = readback(api, created, collection, tags, None)
+    filed, read_tags, tags_ok, _, _ = readback(api, created, collections, tags, None)
     log(f"created {item_key} v{version}; filed={filed} tags_ok={tags_ok}")
 
-    saved = {"item_key": item_key, "version": version, "collection": collection, "tags": read_tags,
+    saved = {"item_key": item_key, "version": version, "collection": one_or_list(collections), "tags": read_tags,
              "title": payload["title"], "itemType": payload["itemType"]}
     args.out.write_text(json.dumps(saved, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -540,25 +556,59 @@ def lookup_collection(api: Api, key: str, cache: dict) -> str:
     return cache[key]
 
 
-def prepare_record(api: Api, rec: dict, slug, default_collection, cache: dict) -> dict:
-    """Pre-check one record -> {"skipped": (section, key)} or {"payload", "collection", "collection_name", "tags", "citation_key"}."""
-    for section in ("saved", "found"):
-        block = rec.get(section)
-        if isinstance(block, dict) and block.get("key"):
-            return {"skipped": (section, block["key"])}
+def one_or_list(values):
+    """One key prints as a string, several as a list (the record's own form)."""
+    values = list(values)
+    return values[0] if len(values) == 1 else values or None
+
+
+def collection_keys(value) -> list[str]:
+    if value is None or value == "":
+        return []
+    return [value] if isinstance(value, str) else list(value) if isinstance(value, list) else [value]
+
+
+def candidates_of(found: dict) -> list[dict]:
+    first = {"key": found.get("key"), "title": found.get("title"), "reason": found.get("reason")}
+    if found.get("matched_by"):
+        first["matched_by"] = found["matched_by"]
+    return [first] + [{"key": c.get("key"), "title": c.get("title"), "reason": c.get("reason")}
+                      for c in found.get("candidates") or [] if isinstance(c, dict)]
+
+
+HINT_DUPLICATE = ("the library may already hold this paper (see `candidates`): if it is the same paper, set the "
+                  "record's `found` to {\"key\": KEY}; if not, add KEY to `distinct_from`; then re-run. A "
+                  "preprint/published pair is the user's call.")
+
+
+def prepare_record(api: Api, rec: dict, slug, default_collections: list[str], cache: dict) -> dict:
+    """Pre-check one record -> {"skipped": (section, key)} or {"payload", "collections", "names", "tags", "citation_key"}."""
+    saved, found = rec.get("saved"), rec.get("found")
+    if isinstance(saved, dict) and saved.get("key"):
+        return {"skipped": ("saved", saved["key"])}
+    if isinstance(found, dict) and found.get("key"):
+        if found.get("code") == "near_match":
+            raise Stop("possible_duplicate", EXIT_FAIL, HINT_DUPLICATE, candidates=candidates_of(found))
+        return {"skipped": ("found", found["key"])}
+    distinct = rec.get("distinct_from")
+    if distinct is not None and not isinstance(distinct, str) and not (
+            isinstance(distinct, list) and all(isinstance(k, str) for k in distinct)):
+        raise Stop("distinct_from_invalid", EXIT_FAIL, "`distinct_from` is a list of item keys", distinct_from=distinct)
     item = rec.get("item")
     problems = check_item(item) if item is not None else ["the record has no `item`"]
     if problems:
         raise Stop("item_invalid", EXIT_FAIL, "fix the record's `item` (check_item.py shows what the local API will do "
                    "with each field), then re-run", problems=problems)
 
-    collection = rec.get("collection") or default_collection
-    if not collection:
+    collections = collection_keys(rec.get("collection")) or default_collections
+    if not collections:
         raise Stop("no_collection", EXIT_FAIL, "put the destination key in the record's `collection` or pass --collection")
-    if not isinstance(collection, str) or not COLLECTION_KEY_RE.match(collection):
-        raise Stop("collection_invalid", EXIT_FAIL, "a collection key is 8 characters like ABCD1234: take it from the tree",
-                   collection=collection)
-    collection_name = lookup_collection(api, collection, cache)
+    for collection in collections:
+        if not isinstance(collection, str) or not COLLECTION_KEY_RE.match(collection):
+            raise Stop("collection_invalid", EXIT_FAIL,
+                       "a collection key is 8 characters like ABCD1234: take it from the tree", collection=collection)
+    collections = list(dict.fromkeys(collections))
+    names = [lookup_collection(api, c, cache) for c in collections]
 
     tag_problems: list[str] = []
     if "tags" in rec:
@@ -581,12 +631,57 @@ def prepare_record(api: Api, rec: dict, slug, default_collection, cache: dict) -
         citation_key = citation_key.strip()
 
     payload = {k: v for k, v in item.items() if k not in ("tags", "collections")}
-    payload["collections"] = [collection]
+    payload["collections"] = collections
     payload["tags"] = tags
     if citation_key:
         payload["citationKey"] = citation_key  # Zotero (and Better BibTeX) pin a key set on creation
-    return {"payload": payload, "collection": collection, "collection_name": collection_name, "tags": tags,
+    return {"payload": payload, "collections": collections, "names": names, "tags": tags,
             "citation_key": citation_key}
+
+
+def look_up(base_url: str, pending: list) -> list[dict]:
+    """find_in_library.py over the pending records (stdin -> stdout, one record per line, same order) -> their `found`."""
+    lines = []
+    for o, _ in pending:
+        rec = o.record
+        distinct = rec.get("distinct_from") or []
+        lines.append(json.dumps({"slug": o.line["slug"], "item": rec.get("item"),
+                                 "distinct_from": [distinct] if isinstance(distinct, str) else distinct},
+                                ensure_ascii=False))
+    try:
+        done = subprocess.run([sys.executable, str(FIND_SCRIPT), "--base-url", base_url], input="\n".join(lines) + "\n",
+                              capture_output=True, text=True, timeout=600)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise Stop("lookup_failed", EXIT_CANNOT, "find_in_library.py could not run; nothing was posted", detail=str(e))
+    rows = []
+    for line in done.stdout.splitlines():
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            pass
+    if done.returncode >= 2 or len(rows) != len(pending):
+        raise Stop("lookup_failed", EXIT_CANNOT, "the duplicate check could not run; nothing was posted",
+                   exit=done.returncode, detail=done.stderr.strip()[-400:])
+    return [row.get("found") if isinstance(row.get("found"), dict) else None for row in rows]
+
+
+def settle_duplicates(base_url: str, pending: list, dry_run: bool) -> list:
+    """Look the pending records up; skip those already in the library (exists), fail the near matches; return the rest."""
+    if not pending:
+        return pending
+    rest = []
+    for (o, p), found in zip(pending, look_up(base_url, pending)):
+        if found and found.get("code") == "found":
+            if not dry_run:
+                o.record["found"] = found
+            extra = {"duplicates": found["duplicates"]} if found.get("duplicates") else {}
+            o.set("skipped", "exists", changed=not dry_run, key=found.get("key"), matched_by=found.get("matched_by"),
+                  citationKey=found.get("citationKey") or None, **extra)
+        elif found and found.get("code") == "near_match":
+            o.set("failed", "possible_duplicate", candidates=candidates_of(found), hint=HINT_DUPLICATE)
+        else:
+            rest.append((o, p))
+    return rest
 
 
 def post_pending(api: Api, pending: list, api_key: str, server_id: str) -> Stop | None:
@@ -616,11 +711,11 @@ def post_pending(api: Api, pending: list, api_key: str, server_id: str) -> Stop 
                 continue
             key, version = created["key"], created.get("version")
             o.record["saved"] = {"key": key, "version": version, "created_at": created_at}
-            filed, _, tags_ok, cite_ok = readback(api, created, p["collection"], p["tags"], p["citation_key"])
-            fields = dict(key=key, version=version, collection=p["collection"])
+            filed, _, tags_ok, cite_ok, missing = readback(api, created, p["collections"], p["tags"], p["citation_key"])
+            fields = dict(key=key, version=version, collection=one_or_list(p["collections"]))
             if filed is False or not tags_ok or cite_ok is False:
-                o.set("failed", "readback_mismatch", changed=True, **fields, filed=filed, tags_ok=tags_ok,
-                      citation_key_ok=cite_ok,
+                o.set("failed", "readback_mismatch", changed=True, **fields, filed=filed, collections_missing=missing,
+                      tags_ok=tags_ok, citation_key_ok=cite_ok,
                       hint=f"the item exists (`saved` recorded) but is not filed/tagged/keyed as sent: "
                            f"fix it with file_and_tag.py / update_item.py --key {key}")
             else:
@@ -630,18 +725,19 @@ def post_pending(api: Api, pending: list, api_key: str, server_id: str) -> Stop 
 
 def run_stream(api: Api, args: argparse.Namespace) -> None:
     entries = load_records(args.records)
-    if args.collection is not None and not COLLECTION_KEY_RE.match(args.collection):
-        raise Stop("collection_invalid", EXIT_FAIL, "a collection key is 8 characters like ABCD1234: take it from the tree",
-                   collection=args.collection)
+    for collection in args.collection or []:
+        if not COLLECTION_KEY_RE.match(collection):
+            raise Stop("collection_invalid", EXIT_FAIL,
+                       "a collection key is 8 characters like ABCD1234: take it from the tree", collection=collection)
     server_id = live_server_id(api)
-    api_key, _ = load_key(args.key_file, server_id)
+    api_key = load_key(server_id)
 
     outcomes, pending, cache = [], [], {}
     for path, rec in entries:
         o = Outcome(path, rec)
         outcomes.append(o)
         try:
-            prepared = prepare_record(api, rec, o.line["slug"], args.collection, cache)
+            prepared = prepare_record(api, rec, o.line["slug"], args.collection or [], cache)
         except Stop as stop:
             if stop.exit_code == EXIT_CANNOT:
                 raise  # nothing has been written yet: the whole run stops cleanly
@@ -653,11 +749,13 @@ def run_stream(api: Api, args: argparse.Namespace) -> None:
         else:
             pending.append((o, prepared))
 
+    pending = settle_duplicates(args.base_url, pending, args.dry_run)
     stopped = None
     if args.dry_run:
         for o, p in pending:
-            o.set("ok", "ok", dry_run=True, collection=p["collection"], collection_name=p["collection_name"],
-                  tags=len(p["tags"]), citationKey=p["citation_key"], title=p["payload"]["title"])
+            o.set("ok", "ok", dry_run=True, collection=one_or_list(p["collections"]),
+                  collection_name=one_or_list(p["names"]), tags=len(p["tags"]), citationKey=p["citation_key"],
+                  title=p["payload"]["title"])
     else:
         stopped = post_pending(api, pending, api_key, server_id)
     sys.exit(write_results(outcomes, args.in_place, stopped))
@@ -676,18 +774,16 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help="stream mode: write each updated record back to its file; stdout gets one summary line per record")
     parser.add_argument("--item", type=Path, metavar="item.json",
                         help="single mode: the item to create, in Zotero's item JSON format")
-    parser.add_argument("--collection", metavar="KEY",
-                        help="8-character key of the destination collection (from the tree ready.py prints); "
-                             "single mode: omitted = the item stays unfiled; stream mode: default for records without `collection`")
+    parser.add_argument("--collection", metavar="KEY", action="append",
+                        help="8-character key of a destination collection (from the tree ready.py prints), repeatable; "
+                             "single mode: omitted = the item stays unfiled; stream mode: default for records without "
+                             "`collection`")
     parser.add_argument("--tags-file", type=Path, metavar="tags.json",
                         help="single mode: complete tag list for the item (see files below)")
     parser.add_argument("--out", type=Path, metavar="saved.json",
                         help="single mode: where to write the result (required unless --dry-run)")
     parser.add_argument("--dry-run", action="store_true",
                         help="run every pre-check and report what would be sent; nothing is written")
-    parser.add_argument("--key-file", type=Path, default=DEFAULT_KEY_FILE,
-                        help=f"key stored by ready.py --authorize (default: %(default)s); "
-                             f"the environment variable {ENV_KEY} overrides it")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL,
                         help="Zotero's local server (default: %(default)s)")
     args = parser.parse_args(argv)
