@@ -98,7 +98,7 @@
 
 - 要点（通用部分）：访问被拦或缺信息时，先把能用的途径都试过，再说"做不到"；只有用户能过的关口（登录、验证码、授权），先通知用户、保留现场、给时间，不关页面、不绕开。
 - 留在 skill 的部分：OpenCLI 适配器、web read、浏览器的具体顺序，推送通知、等 5 分钟。
-- 来源：★`skills:web-access-fallback-ladder`（`tmp` 有副本）、`skills:mpu-sso-login-wait`、`skills:gate-alert-must-push`
+- 来源：★`skills:web-access-fallback-ladder`（`tmp` 有副本）、`skills:gate-login-wait`、`skills:gate-alert-must-push`
 - 为什么：09-21 至 09-22 在 paper-to-zotero 里纠正过多次：见到登录页就关、提醒没送到用户、被拦就放弃。
 - harness 现状：都没有。
 - 以前的决定：09-21 用户否决过把梯子放进全局（`skills:skill-design-conductor-principle` 第 9 条：梯子只设计进 skill，不落到只是用 skill 的人身上）。09-29 用户又挑了它。
