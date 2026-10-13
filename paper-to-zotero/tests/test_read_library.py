@@ -166,6 +166,10 @@ class ReadLibraryTest(unittest.TestCase):
         self.assertEqual(len(rows), 252)
         self.assertIn("ATT00001", {r["key"] for r in rows})
 
+    def test_tag_filter_is_passed_to_zotero(self):
+        self.run_script("items", "--tag", "venue/CVPR")
+        self.assertEqual(Handler.requests[0][1].get("tag"), "venue/CVPR")
+
     def test_collection_filter(self):
         rows = self.lines(self.run_script("items", "--collection", "C1AAAAAA"))
         self.assertEqual(len(rows), 50)

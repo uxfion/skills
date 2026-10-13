@@ -156,6 +156,8 @@ def cmd_items(api: Api, args) -> int:
             params["qmode"] = args.qmode
     if args.since is not None:
         params["since"] = args.since
+    if args.tag:
+        params["tag"] = args.tag
     base = f"{LIB}/collections/{args.collection}/items" if args.collection else f"{LIB}/items"
     if keys:
         # Explicit keys are wanted whatever their level, so no /top here; the local API also returns the
@@ -239,8 +241,15 @@ def cmd_schema(api: Api, args) -> int:
 def parse_args(argv=None):
     p = argparse.ArgumentParser(
         description="Read the Zotero library through the local API (GET only, no key) and print JSONL.",
-        epilog="Examples:\n"
+        epilog="Line shapes (one JSON object per line):\n"
+               "  items / item / children   the item's data, flat: {key, version, itemType, title, creators, ..., collections,\n"
+               "                            tags} - no `data` wrapper (jq '.title', not '.data.title')\n"
+               "  collections               {key, version, name, parentCollection, ...}; --tree adds path\n"
+               "  tags                      {tag, type, count}\n"
+               "  schema                    the schema object\n"
+               "Examples:\n"
                "  uv run read_library.py items --collection 9EYXTC2I --limit 20\n"
+               "  uv run read_library.py items --tag venue/CVPR\n"
                "  uv run read_library.py items --cite liuProgressiveResidualLearning2022\n"
                "  uv run read_library.py items --q 'residual learning' --qmode everything\n"
                "  uv run read_library.py collections --tree\n"
@@ -260,6 +269,7 @@ def parse_args(argv=None):
     s.add_argument("--q", metavar="TEXT", help="search text (Zotero quick search)")
     s.add_argument("--qmode", choices=("titleCreatorYear", "everything", "fields"), help="quick-search mode for --q (default: Zotero's)")
     s.add_argument("--since", type=int, metavar="VERSION", help="only items changed after this library version")
+    s.add_argument("--tag", metavar="TAG", help="only items with this tag (Zotero's tag filter: 'a || b' for either)")
     s.add_argument("--limit", type=int, metavar="N", help="at most N items in total")
     s.set_defaults(func=cmd_items)
 

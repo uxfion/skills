@@ -38,6 +38,10 @@ class Handler(BaseHTTPRequestHandler):
                                                               **({"deleted": True} if c.get("deleted") else {})}}
                     for c in self.server.collections[start:start + limit]]
             out, status = json.dumps(rows).encode("utf-8"), 200
+        elif parts.path == f"{LIB}/tags":
+            start = int(query.get("start", ["0"])[0])
+            rows = [{"tag": t, "meta": {"numItems": n}} for t, n in getattr(self.server, "tags", {}).items()][start:start + 100]
+            out, status = json.dumps(rows).encode("utf-8"), 200
         else:
             out, status = b"no route", 404
         self.send_response(status)
@@ -145,6 +149,107 @@ class TestReport(unittest.TestCase):
         self.assertEqual(json.loads(err.strip().splitlines()[-1])["code"], "no_records")
         rc, out, err = self.run_script(str(self.dir / "nothing-*.json"))
         self.assertEqual(json.loads(err.strip().splitlines()[-1])["code"], "record_not_found")
+
+
+class TestSections(unittest.TestCase):
+    """The sections, from a work directory as ready.py / fetch.py / claim.py leave it."""
+
+    def setUp(self):
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.server.collections, self.server.calls = COLLECTIONS, []
+        self.server.tags = {"method/Diffusion": 9, "method/BrandNew": 1, "task/Denoising": 2}
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        self.tmp = tempfile.TemporaryDirectory()
+        self.work = Path(self.tmp.name) / "work"
+        (self.work / "records").mkdir(parents=True)
+        (self.work / ".started").touch()
+        self.dl = Path(self.tmp.name) / "Downloads"
+        self.dl.mkdir()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.tmp.cleanup()
+
+    def record(self, slug, **rec):
+        (self.work / "records" / f"{slug}.json").write_text(json.dumps({"slug": slug, "item": {"title": slug}, **rec}))
+
+    def log(self, *lines):
+        with open(self.work / "fetch.jsonl", "a") as fh:
+            for line in lines:
+                fh.write(json.dumps(line) + "\n")
+
+    def run_json(self, *extra):
+        p = subprocess.run([sys.executable, str(SCRIPT), "--base-url", self.base, "--json", *extra,
+                            str(self.work / "records" / "*.json")], capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return json.loads(p.stdout).get("sections", {})
+
+    def test_not_obtained_lists_every_pass_and_the_never_tried(self):
+        self.record("got")
+        (self.work / "records" / "got.pdf").write_bytes(b"%PDF-1.4")
+        self.record("lost")
+        (self.work / "records" / "lost.html").write_text("<html></html>")
+        self.record("untried")
+        self.log({"event": "try", "slug": "lost", "pass": 1, "via": "http", "url": "https://repo.example/x", "result": "not_pdf"},
+                 {"event": "try", "slug": "lost", "pass": 1, "via": "page", "url": "https://pub.example/a",
+                  "result": "stopped", "why": "no_pdf_link"},
+                 {"event": "try", "slug": "lost", "pass": 1, "via": "page", "result": "no_access", "by": "agent"},
+                 {"event": "try", "slug": "lost", "pass": 3, "via": "snapshot", "url": "https://pub.example/a", "result": "ok"})
+        rows = {r["slug"]: r for r in self.run_json("--no-resolve")["not_obtained"]}
+        self.assertEqual(set(rows), {"lost", "untried"})
+        self.assertEqual(rows["lost"]["passes"], {
+            "1": ["http repo.example: not_pdf", "page pub.example: stopped (no_pdf_link)", "page: verdict no_access"],
+            "3": ["snapshot pub.example: ok"]})
+        self.assertTrue(rows["lost"]["snapshot"])
+        self.assertEqual(rows["untried"]["passes"], {})
+
+    def test_alternate_versions_and_attachments_to_clean(self):
+        self.record("pre", attach={"key": "ATT1", "md5_ok": True, "filename": "x.pdf", "title": "Preprint (arXiv)",
+                                   "version": "preprint"})
+        self.record("pub", attach={"key": "ATT2", "md5_ok": True, "filename": "y.pdf", "title": "PDF", "version": "published"},
+                    pdf={"code": "ok", "md5": "m1"},
+                    found={"key": "ITEM2", "attachments": [
+                        {"key": "ATT2", "contentType": "application/pdf", "title": "PDF"},
+                        {"key": "SNAP", "contentType": "text/html", "linkMode": "imported_url", "title": "Snapshot"},
+                        {"key": "OLDPRE", "contentType": "application/pdf", "title": "Preprint"},
+                        {"key": "TWICE", "contentType": "application/pdf", "title": "Full Text PDF", "md5": "m1"},
+                        {"key": "SUPP", "contentType": "application/pdf", "title": "Supplementary material"}]})
+        sections = self.run_json("--no-resolve")
+        self.assertEqual(sections["alternate_versions"], [{"slug": "pre", "version": "preprint", "title": "Preprint (arXiv)",
+                                                           "attachment_key": "ATT1"}])
+        self.assertEqual([(r["key"], r["reason"].split(" ")[0]) for r in sections["attachments_to_clean"]],
+                         [("SNAP", "snapshot"), ("OLDPRE", "preprint"), ("TWICE", "the")])
+
+    def test_new_tags_by_prefix(self):
+        self.record("a", saved={"key": "NEW1", "tags": [{"tag": "method/BrandNew", "type": 0}, {"tag": "method/Diffusion", "type": 0},
+                                                        {"tag": "task/Denoising", "type": 0}, {"tag": "auto", "type": 1}]})
+        self.record("b", saved={"key": "NEW2", "tags": [{"tag": "task/Denoising", "type": 0}]})
+        self.assertEqual(self.run_json()["new_tags"], {"method/": [{"tag": "method/BrandNew", "items": ["a"]}],
+                                                       "task/": [{"tag": "task/Denoising", "items": ["a", "b"]}]})
+        self.assertNotIn("new_tags", self.run_json("--no-resolve"))
+
+    def test_leftovers_and_stops(self):
+        self.record("x")
+        left = self.dl / "invoice.pdf"
+        left.write_bytes(b"%PDF")
+        (self.work / "unverified").mkdir()
+        (self.work / "unverified" / "x.page.pdf").write_bytes(b"%PDF")
+        self.log({"event": "claim", "file": "invoice.pdf", "result": "left", "why": "unmatched", "source": str(left)},
+                 {"event": "claim", "file": "gone.pdf", "result": "left", "why": "unmatched", "source": str(self.dl / "gone.pdf")},
+                 {"event": "claim", "file": "x.page.pdf", "slug": "x", "result": "unverified", "source": "https://pub.example/x.pdf"},
+                 {"event": "try", "slug": "x", "pass": 1, "via": "page", "url": "https://sso.example.edu/login",
+                  "result": "stopped", "why": "no_pdf_link"},
+                 {"event": "try", "slug": "x", "pass": 1, "via": "page", "result": "gate_timeout", "by": "agent"})
+        sections = self.run_json("--no-resolve")
+        self.assertEqual(sections["leftovers"], {"downloads": [{"file": "invoice.pdf", "why": "unmatched", "in_library": None}],
+                                                 "unverified": [{"file": "x.page.pdf", "source": "https://pub.example/x.pdf"}]})
+        self.assertEqual([(s["slug"], s["why"], s["verdict"]) for s in sections["stops"]], [("x", "no_pdf_link", "gate_timeout")])
+        p = subprocess.run([sys.executable, str(SCRIPT), "--no-resolve", str(self.work / "records" / "*.json")],
+                           capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        for title in ("### 无法获取", "### 残留", "### 停下与门禁"):
+            self.assertIn(title, p.stdout)
 
 
 if __name__ == "__main__":
