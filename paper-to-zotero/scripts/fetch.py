@@ -25,9 +25,12 @@
                   takes the current tab of the session for one record instead.
 
 Records are skipped when they already have a file (records/<slug>.pdf, .accepted.pdf, .preprint.pdf, .html) or
-when this pass already tried them by this route: <work>/fetch.jsonl holds a try line for (slug, --pass, --via)
-whose result is not "stopped". --verdict RESULT (one record) records the agent's own conclusion for it in that
-pass (no_access, gate_timeout, no_pdf, ...) without fetching, so a rerun goes past it and the report shows it.
+when this pass already tried them by this route: <work>/fetch.jsonl holds a try line for (slug, --pass, --via,
+and for http --version) whose result is not "stopped". A --start run (one record, a page the agent chose) is
+never skipped and never counts as the route's try, so `--via page --start <PMC page>` leaves the publisher's page
+to the plain `--via page` run. --verdict RESULT (one record) records the agent's own conclusion for it in that
+pass and route (no_access, gate_timeout, no_pdf, ...) without fetching, so a rerun goes past it and the report
+shows it.
 
 Every try is one line appended to <work>/fetch.jsonl: {"event": "try", "slug", "pass", "via", "url", "result",
 "at", "note"?}; result: ok | wrong_file (the check failed: claim.py moved it to unverified/) | not_pdf | no_link |
@@ -133,7 +136,7 @@ class Run:
         return any((self.work / "records" / (slug + s)).is_file() for s in STEM_FILES)
 
     def tried(self):
-        """Slugs with a try line for this pass and route whose result is not 'stopped'."""
+        """Slugs with a try line for this pass and route (http: and version) whose result is not 'stopped'."""
         done = set()
         try:
             with open(self.work / "fetch.jsonl", encoding="utf-8") as fh:
@@ -143,15 +146,19 @@ class Run:
                     except ValueError:
                         continue
                     if (isinstance(obj, dict) and obj.get("event") == "try" and obj.get("pass") == self.args.pass_
-                            and obj.get("via") == self.args.via and obj.get("result") != "stopped"):
+                            and obj.get("via") == self.args.via and obj.get("result") != "stopped"
+                            and not obj.get("start")
+                            and (self.args.via != "http" or obj.get("version", "published") == self.args.version)):
                         done.add(obj.get("slug"))
         except OSError:
             pass
         return done
 
     def log_try(self, slug, url, result, **extra):
-        line = {"event": "try", "slug": slug, "pass": self.args.pass_, "via": self.args.via, "url": url,
-                "result": result, **{k: v for k, v in extra.items() if v is not None}, "at": now_iso()}
+        line = {"event": "try", "slug": slug, "pass": self.args.pass_, "via": self.args.via,
+                "version": self.args.version if self.args.via == "http" else None, "start": self.args.start,
+                "url": url, "result": result, **extra, "at": now_iso()}
+        line = {k: v for k, v in line.items() if v is not None}
         data = (json.dumps(line, ensure_ascii=False) + "\n").encode("utf-8")
         fd = os.open(self.work / "fetch.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
         try:
@@ -476,7 +483,7 @@ def main():
             slug = slug_of(path, rec)
             if run.has_file(slug):
                 print(json.dumps({"slug": slug, "code": "skipped", "reason": "has_file"}))
-            elif slug in tried and not (args.via == "viewer" or args.current):
+            elif slug in tried and not (args.via == "viewer" or args.current or args.start):
                 print(json.dumps({"slug": slug, "code": "skipped", "reason": "tried", "pass": args.pass_, "via": args.via}))
             else:
                 todo.append((path, rec, slug))

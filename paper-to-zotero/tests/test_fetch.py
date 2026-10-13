@@ -288,6 +288,32 @@ class FetchTest(unittest.TestCase):
         r = self.run_script("--via", "http", "--version", "preprint", str(self.record("pre", links=links)))
         self.assertTrue((self.work / "records" / "pre.preprint.pdf").is_file(), "a preprint link files a preprint")
 
+    def test_each_version_is_its_own_route_in_a_pass(self):
+        links = [{"url": f"{self.base}/landing", "source": "openalex", "version": "published", "needs_browser": None},
+                 {"url": f"{self.base}/paper.pdf?pre", "source": "arxiv", "version": "preprint", "needs_browser": False}]
+        p = self.record("paper", links=links)
+        self.run_script("--via", "http", "--pass", "1", str(p))
+        self.assertEqual(self.tries()[-1]["result"], "not_pdf")
+        r = self.run_script("--via", "http", "--pass", "1", "--version", "accepted", str(p))
+        self.assertNotIn("skipped", [ln.get("code") for ln in self.lines(r.stdout)],
+                         "a published try does not stand for the accepted route")
+        self.assertEqual((self.tries()[-1]["version"], self.tries()[-1]["result"]), ("accepted", "no_link"))
+        self.run_script("--via", "http", "--pass", "1", "--version", "preprint", str(p))
+        self.assertTrue((self.work / "records" / "paper.preprint.pdf").is_file())
+
+    def test_a_start_page_leaves_the_publisher_route_open(self):
+        self.scene({"pages": {"https://pmc.example/x": {"href": "https://pmc.example/x", "title": "PMC"},
+                              "https://doi.org/10.1000/x.1": {"href": "https://pub.example/a", "title": TITLE,
+                                                               "pdf": "/a.pdf"}},
+                    "fetch": {"https://pub.example/a.pdf": {"bytes": b64(pdf(f"{TITLE}\nWei Liu"))}}})
+        p = self.record("paper")
+        r = self.run_script("--via", "page", "--pass", "1", "--start", "https://pmc.example/x", str(p))
+        self.assertEqual((r.returncode, self.tries()[-1]["start"]), (1, "https://pmc.example/x"))
+        self.run_script("--via", "page", "--pass", "1", "--start", "https://pmc.example/x", "--verdict", "no_pdf", str(p))
+        r = self.run_script("--via", "page", "--pass", "1", str(p))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue((self.work / "records" / "paper.pdf").is_file(), "the publisher's page was still tried")
+
     def test_snapshot_of_the_article_page(self):
         self.scene({"pages": {"https://doi.org/10.1000/x.1": {
             "href": "https://pub.example/article/1", "title": TITLE,

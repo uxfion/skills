@@ -317,7 +317,8 @@ def not_obtained(items, work, log_lines):
                 what = f"verdict {t.get('result')}"
             else:
                 what = t.get("result") + (f" ({t['why']})" if t.get("why") else "")
-            passes[t.get("pass", 1)].append(f"{t.get('via')} {host(t.get('url'))}".strip() + f": {what}")
+            route = t.get("via") + (f" ({t['version']})" if t.get("version") not in (None, "published") else "")
+            passes[t.get("pass", 1)].append(f"{route} {host(t.get('url'))}".strip() + f": {what}")
         out.append({"slug": row["slug"], "passes": {str(k): v for k, v in sorted(passes.items())},
                     "snapshot": (work is not None and (work / "records" / f"{row['slug']}.html").is_file())
                     or file_kind(attach) == "snapshot"})
