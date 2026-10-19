@@ -6,7 +6,7 @@ The second entry: the user asks for tags or collections to be tidied, a field fi
 
 A request to tidy a collection (整理) runs these five steps; a single fix the user names starts at step 2.
 
-1. **Check.** `uv run scripts/lint_items.py --collection <key> [--recursive]` reads the whole library once and lists each item of the collection that has a problem: duplicates anywhere in the library, an unfiled webpage, several PDFs, a date Zotero cannot parse, a swapped journal abbreviation, a missing DOI, abstract or identifier, a model name the abstract gives that no tag carries (`--help` lists the codes). `--crossref` adds a DOI candidate to each `missing_doi`, one request a second. Done when the summary line is in hand.
+1. **Check.** `uv run scripts/lint_items.py --collection <key> [--recursive]` reads the whole library once and lists each item of the collection that has a problem — duplicates anywhere in the library, stray webpages, extra PDFs, bad fields, a url that is not the version of record, a model name no tag carries (`--help` lists the codes). `--crossref` adds a DOI candidate to each `missing_doi`, one request a second. Done when the summary line is in hand.
 2. **List.** Turn the findings into one change list for the user: per item what you propose and why — the merge of a duplicate pair (below), the field fixes, the tags to add (references/tagging.md), what goes to the trash. A `patch` in a finding is mechanical and can go in as it is; every other code is yours to judge first — a venue that issues no DOI (ICML, ICLR) is expected under `missing_doi`, and a `duplicate_of` by title alone may be two papers. Done when every finding is in the list as a change or as left alone, with the reason.
 3. **Confirm.** Show the list (the `--dry-run` outputs of the scripts that will write it) and wait for the user's word on it; scope they grant holds for the rest of the task.
 4. **Write.** Each change with its script: fields `update_item.py` (a `patch` goes in a file: `--patch FILE`, one item per call), tags and collections `file_and_tag.py`, duplicates `merge_items.py`, the trash `trash_item.py`.
@@ -34,7 +34,7 @@ Take one collection at a time. Draft per item what [tagging.md](tagging.md) pres
 uv run scripts/file_and_tag.py --batch changes.json --dry-run
 ```
 
-An entry names its item by `key` or `cite`. Its `tags` is the item's *complete* target set (include the source keywords you are keeping, or the script removes them); `collection` replaces the item's collections. An item that only needs something *added* or taken out of one collection takes `add_tags` / `add_collection` / `remove_collection` instead, which leave the rest as it is (single item: `--add-tags-file` / `--add-collection` / `--remove-collection`). Only after the user confirms, run it without `--dry-run`. The first batch calibrates the scheme with the user; later batches follow it. An item whose metadata is broken (no date, venue or DOI) is noted for a field fix, not repaired in a tag batch.
+An entry names its item by `key` or `cite`. Its `tags` is the item's *complete* target set (include the source keywords you are keeping, or the script removes them); `collection` replaces the item's collections. An item that only needs something *added* or taken out of one collection takes `add_tags` / `add_collection` / `remove_collection` instead, which leave the rest as it is (single item: `--add-tags-file` / `--add-collection` / `--remove-collection`). Only after the user confirms, run it without `--dry-run`. The first batch calibrates the scheme with the user; later batches follow it. What to remove or merge: tagging.md, *Tidying existing items*. An item whose metadata is broken (no date, venue or DOI) is noted for a field fix, not repaired in a tag batch.
 
 ## Fixing fields
 
@@ -46,7 +46,7 @@ A paper without a DOI gets the identifier SKILL.md step 2 asks for — often the
 
 ## The trash
 
-Superseded attachments (a snapshot or a preprint PDF once the published PDF is attached), duplicate items the user agreed to drop, stray attachments: list them first — `trash_item.py --cite <key> --dry-run` (or `--key` for an attachment) shows item type, title and parent — and move them only after the user has confirmed the list. Moving to the trash is undoable (`--restore`); emptying it is the user's own act, and nothing here deletes permanently.
+Superseded attachments (a snapshot or a preprint PDF once the published PDF is attached), duplicate items the user agreed to drop, stray attachments: list them first — `trash_item.py --cite <key> --dry-run` (or `--key` for an attachment) shows item type, title and parent — and move them only after the user has confirmed the list. The trash is a 30-day undo: `--restore` brings an item back, and Zotero deletes for good what has sat in the trash longer (its `trashAutoEmptyDays` setting, 30 by default; unchanged on this user's Zotero, 2026-10-18). Nothing here empties the trash. So what goes there is what the user would not miss: for a duplicate, `merge_items.py` first carries over everything it holds.
 
 ## Duplicate items
 

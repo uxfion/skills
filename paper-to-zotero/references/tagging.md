@@ -42,4 +42,4 @@ Rules per dimension:
 
 ## Tidying existing items
 
-Work through the library in batches (one collection at a time). For each batch, produce the change list first — per item: source keywords kept, curated tags to add, tags proposed for removal, pre-scheme manual tags to rename when the user has released them — and write only after the user has confirmed it. An item whose metadata is broken (no date, venue or DOI) is noted for a separate fix, not repaired in a tag batch. Candidates for removal are automatic tags that discriminate nothing, such as publisher-generated index terms (`Training`, `Task analysis`, `Feature extraction`); spelling variants of one concept are merged to the canonical form. Subject categories from arXiv stay.
+The batch mechanics are organize.md's (*Tidying tags and collections*). What changes: automatic tags that discriminate nothing, such as publisher-generated index terms (`Training`, `Task analysis`, `Feature extraction`), are candidates for removal; spelling variants of one concept are merged to the canonical form; pre-scheme manual tags are renamed only when the user has released them. Subject categories from arXiv stay.

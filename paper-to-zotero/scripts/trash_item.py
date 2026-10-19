@@ -2,13 +2,14 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Move Zotero items or attachments to the trash (undoable), or restore them, once the user has confirmed the list.
+"""Move Zotero items or attachments to the trash (undoable for 30 days), or restore them, once the user has confirmed the list.
 
 Use it only after the user has seen and confirmed the list (run --dry-run
 first and show it): superseded attachments, duplicate items the user agreed to
-drop, stray attachments that never got a parent. The trash is undoable — the
-user, or --restore, brings an item back — and nothing here empties the trash
-or deletes anything permanently.
+drop, stray attachments that never got a parent. The trash is a 30-day undo:
+the user, or --restore, brings an item back, and Zotero deletes for good what
+has been in the trash longer (its trashAutoEmptyDays setting, 30 by default).
+Nothing here empties the trash or deletes anything itself.
 
 Items are named by --key (top-level items or child attachments / notes, by
 their own key) and/or --cite CITEKEY (resolved to the one top-level item
@@ -294,7 +295,7 @@ def split_values(values):
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Move Zotero items or attachments to the trash (undoable) or restore them, via the local write API. "
+        description="Move Zotero items or attachments to the trash (undoable for 30 days) or restore them, via the local write API. "
                     "Only after the user has confirmed the list: run --dry-run first and show it. "
                     "Nothing here empties the trash or deletes permanently.",
         epilog="Codes: ok | already_trashed | not_in_trash (skipped) | not_found | cite_not_found | cite_ambiguous | "
