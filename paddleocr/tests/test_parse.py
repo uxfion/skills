@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.9"
-# dependencies = []
+# dependencies = ["numpy", "opencv-python-headless", "pypdfium2"]
 # ///
 """Tests for scripts/parse.py: page ranges, tokens, the text-layer check, input resolution and the start-up path (no GPU needed)."""
 import importlib.util
@@ -17,6 +17,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "parse.py"
 spec = importlib.util.spec_from_file_location("parse", SCRIPT)
 P = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(P)
+sys.modules["parse"] = P          # figcheck.py imports the running parse.py
 
 PARAGRAPH = ("The diffusion model aligns the target image to match the style of the source domain while "
              "preserving the original spatial context of every scan in the handheld device collection.")
@@ -576,26 +577,6 @@ class FigureGroups(unittest.TestCase):
         self.assertEqual(figures, {"version": P.FIGURES, "layout_model": None, "layout_error": state["layout_error"]})
         _, _, figures = P.group_figures(one, "", {1: (1224, 1584)}, lambda page: None, Path("."), False, state)
         self.assertEqual(figures, {"version": P.FIGURES, "layout_model": None})
-
-    def test_caption_without_a_crop_is_flagged(self):
-        # 2026-10: sample outputs drawn as figures are read as text; their captions come with no crop
-        heights = {1: 1584, 2: 1584, 3: 1584}
-        blocks = [fb(1, "image", [100, 100, 1100, 400]), fb(2, "figure_title", [100, 410, 1100, 440], "Figure 1: Overview."),
-                  fb(3, "algorithm", [100, 500, 1100, 900], "So we want to find the greatest value ..."),
-                  fb(4, "figure_title", [100, 910, 1100, 940], "Figure 2: Revision model example 1."),
-                  fb(5, "figure_title", [100, 1000, 1100, 1030], "Figure 3: Caption set above its figure."),
-                  fb(6, "chart", [100, 1040, 1100, 1400]),
-                  fb(7, "image", [100, 100, 1100, 1450], page=2),
-                  fb(8, "text", [100, 90, 1100, 200], "Extended Data Fig. 4 | The figure on the page before.", page=3)]
-        self.assertEqual([(w["page"], w["block"]) for w in P.uncropped_figures(blocks, heights)], [(1, 4)])
-
-    def test_title_above_and_legend_below_are_one_figure(self):
-        # 2026-10, Science: "Figure 1. <title>" over the figure, "Figure 1: <legend>" under it
-        blocks = [fb(1, "figure_title", [100, 100, 1100, 130], "Figure 1. Performance of diagnosis generators"),
-                  fb(2, "chart", [100, 150, 1100, 600]),
-                  fb(3, "figure_title", [100, 610, 1100, 700], "Figure 1: Barplot showing the accuracy."),
-                  fb(4, "figure_title", [100, 800, 1100, 830], "Extended Data Fig. 1 | Drawn as text.")]
-        self.assertEqual([w["block"] for w in P.uncropped_figures(blocks, {1: 1584})], [4])
 
     def test_markdown_takes_the_whole_figure(self):
         md = ("<!-- page 2 -->\n\nText before.\n\na\n\n![](imgs/p02_a.jpg)\n\nb\n\n![](imgs/p02_b.jpg)\n\n"

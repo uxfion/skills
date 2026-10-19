@@ -14,6 +14,7 @@ For each document this writes
                               reading order: page, label, text, bbox (page-image pixels),
                               level (headings), image, merged_into (content moved to that id)
   OUTDIR/<stem>/imgs/         figure crops, p<NN>_ prefixed
+  OUTDIR/<stem>/checks/       an overlay for each figure_check warning: the page, its crops numbered
 
 checks the result against the PDF text layer, and prints one JSON summary line per document
 on stdout (progress goes to stderr). A document whose JSON already records the same source
@@ -29,6 +30,14 @@ that model cannot load, captions alone, and stderr says so. A skipped document p
 this grouping existed is grouped from its pages rendered again ("regrouped": true; every other
 Markdown line is kept); "regroup" in its summary says why one was not (--photo pages cannot be
 rendered again: --force parses anew).
+
+Then each figure caption is checked against its crops (figcheck.py): no crop, a figure in several
+crops, a crop that holds two figures or a table, a crop edge through text, or an extent found from
+the caption outwards that differs from the crops; a figure that fails gets a figure_check warning,
+an overlay and a note before it in the Markdown, "<!-- figure_check: ... [p<page>#<caption id> ...] -->".
+A skipped document whose figures older checks examined, or none, is checked again ("figures_checked":
+true; "figures_check" says why not; --photo pages, which cannot be rendered again, get the checks
+that need no page image).
 
 The model reads a PDF's pages rendered at 144 dpi, and its crops come from those pages. Each crop
 from a PDF is cut again from its page rendered at --crop-dpi (default 300): the file and its
@@ -58,8 +67,10 @@ Warnings in the summary and the JSON:
   low_coverage        under 80% of the page's text-layer word trigrams were found
   repetition          a block repeats one fragment, or cycles through the same words (decoding ran away)
   empty_page          a page yielded no text
-  uncropped_figure    a figure caption with no figure crop beside it: the figure was read as text or a
-                      table, or missed (or no figure is there: a list of figure captions)
+  figure_check        a figure whose crops may be wrong, for the agent to judge when a task uses it:
+                      "reasons" (no_crop, split, two_figures, table, edge_cut, second_opinion), "crops"
+                      (numbered as on the overlay), "second_opinion" (the extent found from the caption),
+                      "overlay"; "block" is the caption
   no_text_layer       pages that cannot be checked (scans, images)
 A warning about one block carries "block" (its id) and, for a PDF, "region": the block's box in
 PDF points [x, y, w, h], ready for pdftotext -layout -x -y -W -H. The summary's min_coverage is
@@ -106,6 +117,8 @@ from pathlib import Path
 
 FORMAT = 2               # bump when the output changes, so older parses are redone
 CHECK = 4                # bump when the checks change, so older parses are checked again (no GPU)
+FIGURE_CHECK = 1         # bump when the figure check (figcheck.py) changes, so older parses are checked again
+FIGURE_CODES = {"figure_check", "uncropped_figure"}   # the figure check's warnings (uncropped_figure: its older name)
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 NOISE_LABELS = ["number", "header", "header_image", "footer", "footer_image"]
 FIGURE_LABELS = {"figure", "image", "chart", "seal", "header_image", "footer_image"}
@@ -588,13 +601,11 @@ def in_order(missing: Counter, toks: list[str]) -> list[str]:
     return out
 
 
-def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None],
-                   heights: dict[int, float] | None = None) -> tuple[list[dict], list[dict]]:
-    """Per-page check results and warnings.
+def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]) -> tuple[list[dict], list[dict]]:
+    """Per-page check results and warnings about the text (figures: figcheck.py).
 
     `blocks` carry id/page/label/text/bbox (page-image pixels); `layer` maps each page to its text-layer
-    characters [(ch, x, y)] in the same pixels, or None when the page has no text layer; `heights`, each page's
-    image height, enables the uncropped_figure check.
+    characters [(ch, x, y)] in the same pixels, or None when the page has no text layer.
     """
     by_id = {b["id"]: b for b in blocks}
     layer_grams = {p: set(ngrams(words(tokens(layer_text(c, lambda x, y: True), layer=True)))) if c else set()
@@ -675,8 +686,6 @@ def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None],
         if b["label"] == "table" and (empty := empty_columns(b["text"])):
             warnings.append({"code": "table_empty_column", "page": b["page"], "block": b["id"], "detail": ", ".join(empty)})
     warnings.extend(formula_number_gaps(blocks))
-    if heights:
-        warnings.extend(uncropped_figures(blocks, heights))
     for b in blocks:
         if b["label"] != "table" and (loop := repetition(b["text"])):
             warnings.append({"code": "repetition", "page": b["page"], "block": b["id"], "detail": loop})
@@ -714,14 +723,13 @@ def layer_chars(pdf, page_no: int, image_size: tuple) -> list[tuple] | None:
 def run_checks(doc: dict, blocks: list[dict], sizes: list[tuple]) -> tuple[list[dict], list[dict]]:
     """check_document against the document's text layer, with each page's image size in its info and, for a PDF,
     each one-block warning's box in PDF points ("region", for pdftotext -x -y -W -H)."""
-    heights = {page: h for page, (_, h) in zip(doc["pages"], sizes)}
     if doc["kind"] != "pdf":
-        pages_info, warnings = check_document(blocks, {page: None for page in doc["pages"]}, heights)
+        pages_info, warnings = check_document(blocks, {page: None for page in doc["pages"]})
     else:
         import pypdfium2 as pdfium
         pdf = pdfium.PdfDocument(str(doc["path"]))
         layer = {page: layer_chars(pdf, page, size) for page, size in zip(doc["pages"], sizes)}
-        pages_info, warnings = check_document(blocks, layer, heights)
+        pages_info, warnings = check_document(blocks, layer)
         by_id = {b["id"]: b for b in blocks}
         for w in warnings:
             if "block" in w:
@@ -927,38 +935,6 @@ def group_page(blocks: list[dict], layout: list[dict] | None, height: float, cha
     return figures
 
 
-def uncropped_figures(blocks: list[dict], heights: dict[int, float]) -> list[dict]:
-    """uncropped_figure warnings: figure captions that no crop goes with. Each figure crop (a "figure" block, or an
-    image or chart in none) goes with the nearest caption below it sharing its columns, else the nearest above it
-    (captions set above figures); a caption left over marks a figure the VL model read as text (a prompt, a sample
-    output) or as a table, or missed (2026-10: 7 of 303 captions in 22 papers). A caption naming the same figure as
-    one on its page that has a crop is that figure's other part (Science: a title above the figure, a legend below).
-    A caption at the top of a page whose page before ends in a crop without a caption is that crop's (Nature
-    Extended Data: figure page, then caption)."""
-    out, orphan = [], None
-    for page in sorted(heights):
-        pblocks = [b for b in blocks if b["page"] == page and b["bbox"]]
-        reach = UNCROPPED_REACH * heights[page]
-        crops = [b["bbox"] for b in pblocks if b["label"] == "figure" or (b["label"] in ("image", "chart") and "merged_into" not in b)]
-        captions = [b for b in pblocks if is_caption(b)]
-        taken, spare = set(), None
-        for x1, y1, x2, y2 in crops:
-            cols = [c for c in captions if min(x2, c["bbox"][2]) > max(x1, c["bbox"][0])]
-            below = [c for c in cols if y1 < c["bbox"][1] and y2 <= c["bbox"][3] and c["bbox"][1] - y2 <= reach]
-            above = [c for c in cols if c["bbox"][1] <= y1 and c["bbox"][3] < y2 and y1 - c["bbox"][3] <= reach]
-            if below or above:
-                taken.add((min(below, key=lambda c: c["bbox"][1]) if below else max(above, key=lambda c: c["bbox"][3]))["id"])
-            elif y2 > heights[page] / 2:
-                spare = True
-        cropped = {figure_id(c) for c in captions if c["id"] in taken}
-        for c in captions:
-            if c["id"] in taken or figure_id(c) in cropped or (orphan and page == orphan + 1 and c["bbox"][1] < heights[page] / 3):
-                continue
-            out.append({"code": "uncropped_figure", "page": page, "block": c["id"], "detail": c["text"].strip()[:100]})
-        orphan = page if spare else None
-    return out
-
-
 def regroup_markdown(markdown: str, figures: list[tuple[dict, list[dict], list[dict]]]) -> str:
     """`markdown` with, for each (figure, members, panel letters), the figure's crop on its first member's image line,
     the other members' image lines gone, and the letters' lines (bare, usually right before their image) gone from
@@ -1011,6 +987,16 @@ def layout_model(state: dict):
                   f"({type(e).__name__}: {e})", file=sys.stderr, flush=True)
             state["layout"], state["layout_error"] = None, f"{type(e).__name__}: {e}"
     return state["layout"]
+
+
+def page_layout(state: dict, key: str | None, page: int, image_of) -> list[dict] | None:
+    """The layout model's whole-figure boxes on a page of a document (key), run once and shared by figure grouping
+    and the figure check; None when the model is not there or fails on the page."""
+    cache = state.setdefault("layout_pages", {})
+    if (key, page) not in cache:
+        model = layout_model(state)
+        cache[(key, page)] = layout_boxes(model, image_of(page)) if model else None
+    return cache[(key, page)]
 
 
 def layout_boxes(model, image) -> list[dict] | None:
@@ -1099,13 +1085,16 @@ def store_recrop(json_path: Path, doc: dict, dpi: int) -> dict:
 
 
 def group_figures(blocks: list[dict], markdown: str, sizes: dict, image_of, outdir: Path, charts: bool,
-                  state: dict) -> tuple[list[dict], str, dict]:
+                  state: dict, key: str | None = None) -> tuple[list[dict], str, dict]:
     """Put the figures that several blocks make up back together, on each page with two or more figure blocks
     (sizes: page -> (width, height); image_of(page): the page image the boxes refer to). Each figure becomes a
     "figure" block before its first member, its members and panel letters get merged_into its id, its crop goes
     to outdir/imgs, and regroup_markdown puts that crop in the Markdown. Returns (blocks, markdown, the record for
-    parser.figures: the layout model's name, or None when no page used it, and why when it failed to load)."""
+    parser.figures: the layout model's name, or None when no page used it, and why when it failed to load). key names
+    the document for the layout model's boxes, which the figure check uses again."""
     width = max(2, len(str(max(sizes))))
+    seen = {}
+    image_of = (lambda f: lambda page: seen[page] if page in seen else seen.setdefault(page, f(page)))(image_of)
     by_id = {b["id"]: b for b in blocks}
     next_id = max(by_id, default=-1) + 1
     kinds = {"image"} if charts else {"image", "chart"}
@@ -1114,14 +1103,11 @@ def group_figures(blocks: list[dict], markdown: str, sizes: dict, image_of, outd
         pblocks = [b for b in blocks if b["page"] == page]
         if sum(b["label"] in kinds and bool(b["bbox"]) and "merged_into" not in b for b in pblocks) < 2:
             continue
-        image, layout, needed = None, None, True
-        if model := layout_model(state):
-            image = image_of(page)
-            if (layout := layout_boxes(model, image)) is not None:
-                used = model[0]
+        needed = True
+        if (layout := page_layout(state, key, page, image_of)) is not None:
+            used = state["layout"][0]
         for g in group_page(pblocks, layout, sizes[page][1], charts):
-            if image is None:
-                image = image_of(page)
+            image = image_of(page)
             w, h = sizes[page]
             x1, y1, x2, y2 = g["bbox"]
             bbox = [max(0, x1), max(0, y1), min(w, x2), min(h, y2)]
@@ -1158,14 +1144,99 @@ def regroup(json_path: Path, md_path: Path, doc: dict, state: dict) -> dict:
         pdf.init_forms()
     markdown = md_path.read_text(encoding="utf-8")
     blocks, markdown, figures = group_figures(record["blocks"], markdown, sizes, lambda page: page_image(doc, page, sizes[page], pdf),
-                                              md_path.parent, record["parser"].get("options", {}).get("charts", False), state)
+                                              md_path.parent, record["parser"].get("options", {}).get("charts", False), state,
+                                              str(doc["path"]))
     if len(blocks) > len(record["blocks"]):
         md_path.write_text(markdown, encoding="utf-8")
+        record["parser"].pop("figure_check", None)      # the crops changed: check the figures again
     if len(blocks) > len(record["blocks"]) or record["parser"].get("check", 1) < CHECK:
-        record["pages"], record["warnings"] = run_checks(doc, blocks, list(sizes.values()))
+        record["pages"], text = run_checks(doc, blocks, list(sizes.values()))
+        record["warnings"] = text + [w for w in record.get("warnings", []) if w["code"] in FIGURE_CODES]
         record["parser"]["check"] = CHECK
     record["blocks"] = blocks
     record["parser"]["figures"] = figures
+    json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
+    return record
+
+
+def check_figures(doc: dict, blocks: list[dict], markdown: str, sizes: dict, image_of, outdir: Path, state: dict,
+                  photo: bool = False) -> tuple[list[dict], str, dict]:
+    """The figure check (figcheck.py) of a parse: its figure_check warnings, each with an overlay in outdir/checks
+    and, for a PDF, its caption's region in points; the Markdown with a note at each reported figure; the record for
+    parser.figure_check. image_of(page): the page image the boxes refer to; without one (image_of None: --photo
+    pages cannot be rendered again), only the checks that need none run. --photo pages do not line up with the
+    text layer, which then stays out as for images."""
+    sys.modules.setdefault("parse", sys.modules[__name__])
+    if str(Path(__file__).resolve().parent) not in sys.path:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import figcheck
+    images, key = {}, str(doc["path"])
+
+    def image(page):
+        if page not in images:
+            try:
+                images[page] = image_of(page) if image_of else None
+            except Exception as e:  # noqa: BLE001 - this page is checked without its image
+                print(f"[paddleocr] {doc['stem']}: page {page} not rendered for the figure check ({type(e).__name__}: {e})",
+                      file=sys.stderr, flush=True)
+                images[page] = None
+        return images[page]
+
+    pdf = layers = text_in = None
+    if doc["kind"] == "pdf":
+        import pypdfium2 as pdfium
+        pdf = pdfium.PdfDocument(str(doc["path"]))
+    if pdf is not None and not photo:
+        layers = {page: figcheck.font_chars(pdf, page, size) for page, size in sizes.items()}
+
+        def text_in(page, box):
+            p = pdf[page - 1]
+            left, _, _, top = p.get_cropbox()
+            width_pt, height_pt = p.get_size()
+            sx, sy = sizes[page][0] / width_pt, sizes[page][1] / height_pt
+            return p.get_textpage().get_text_bounded(left=left + box[0] / sx, bottom=top - box[3] / sy,
+                                                     right=left + box[2] / sx, top=top - box[1] / sy)
+    warnings = figcheck.figure_warnings(blocks, sizes, layers, text_in, image,
+                                        lambda page: page_layout(state, key, page, image))
+    by_id = {b["id"]: b for b in blocks}
+    width = max(2, len(str(max(sizes))))
+    for w in warnings:
+        drawn = w["crops"][0].get("page", w["page"]) if w.get("crops") else w["page"]
+        if (img := image(drawn)) is not None:
+            name = f"checks/p{w['page']:0{width}d}_{w['block']}.jpg"
+            figcheck.draw_overlay(img, w, [b for b in blocks if b["page"] == drawn and b["bbox"]],
+                                  by_id[w["block"]] if drawn == w["page"] else None, outdir / name)
+            w["overlay"] = name
+        if pdf is not None:
+            width_pt, height_pt = pdf[w["page"] - 1].get_size()
+            sx, sy = sizes[w["page"]][0] / width_pt, sizes[w["page"]][1] / height_pt
+            x1, y1, x2, y2 = by_id[w["block"]]["bbox"]
+            w["region"] = [int(x1 / sx) - 4, int(y1 / sy) - 4, int((x2 - x1) / sx) + 8, int((y2 - y1) / sy) + 8]
+    checked = {"version": FIGURE_CHECK}
+    if any(v is None for v in images.values()):
+        checked["skipped"] = ["edge_cut", "second_opinion"]
+    if state.get("layout_error") and any(v is not None for v in images.values()):
+        checked["layout_error"] = state["layout_error"]
+    return warnings, figcheck.annotate(markdown, warnings, by_id), checked
+
+
+def store_figure_check(json_path: Path, md_path: Path, doc: dict, state: dict) -> dict:
+    """Run the figure check over a stored parse, from its pages rendered again, and store it: its warnings in the
+    JSON in place of the older figure warnings, its notes in the Markdown (every other line, fixes included, stays)."""
+    record = json.loads(json_path.read_text(encoding="utf-8"))
+    sizes = {p["page"]: (p["width"], p["height"]) for p in record["pages"]}
+    photo = record["parser"].get("options", {}).get("photo", False)
+    pdf = None
+    if doc["kind"] == "pdf" and not photo:
+        import pypdfium2 as pdfium
+        pdf = pdfium.PdfDocument(str(doc["path"]))
+        pdf.init_forms()
+    image_of = None if photo else (lambda page: page_image(doc, page, sizes[page], pdf))
+    warnings, markdown, checked = check_figures(doc, record["blocks"], md_path.read_text(encoding="utf-8"), sizes,
+                                                image_of, md_path.parent, state, photo)
+    md_path.write_text(markdown, encoding="utf-8")
+    record["warnings"] = [w for w in record.get("warnings", []) if w["code"] not in FIGURE_CODES] + warnings
+    record["parser"]["figure_check"] = checked
     json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
     return record
 
@@ -1314,11 +1385,12 @@ def out_paths(doc: dict, args) -> tuple[Path, Path, Path]:
 
 
 def recheck(json_path: Path, doc: dict) -> dict:
-    """Run the current checks over a parse that older ones checked and store the results in its JSON. The
-    Markdown, with any fixes made to it, stays as it is."""
+    """Run the current text checks over a parse that older ones checked and store the results in its JSON; the
+    figure check's warnings stay. The Markdown, with any fixes made to it, stays as it is."""
     record = json.loads(json_path.read_text(encoding="utf-8"))
     sizes = [(p["width"], p["height"]) for p in record["pages"]]
-    record["pages"], record["warnings"] = run_checks(doc, record["blocks"], sizes)
+    record["pages"], text = run_checks(doc, record["blocks"], sizes)
+    record["warnings"] = text + [w for w in record.get("warnings", []) if w["code"] in FIGURE_CODES]
     record["parser"]["check"] = CHECK
     json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
     return record
@@ -1346,6 +1418,12 @@ def process(doc: dict, args, state: dict) -> dict:
                 summary["recrop"] = f"crops not cut again: {type(e).__name__}: {e}"
         if old["parser"].get("check", 1) < CHECK:
             old = recheck(json_path, doc)
+        if old["parser"].get("figure_check", {}).get("version", 0) < FIGURE_CHECK:
+            try:
+                old = store_figure_check(json_path, md_path, doc, state)
+                summary["figures_checked"] = True
+            except Exception as e:  # noqa: BLE001 - the parse stays as it was; the next run tries again
+                summary["figures_check"] = f"figures not checked: {type(e).__name__}: {e}"
         if stale:
             summary["rechecked"] = True
         summary.update(skipped="up_to_date", pages=len(old["pages"]), warnings=old.get("warnings", []))
@@ -1388,7 +1466,8 @@ def process(doc: dict, args, state: dict) -> dict:
     markdown, figures = header + "\n\n" + "\n\n".join(parts) + "\n", None
     try:
         blocks, markdown, figures = group_figures(copy.deepcopy(blocks), markdown, dict(zip(doc["pages"], sizes)),
-                                                  lambda page: images[doc["pages"].index(page)], outdir, args.charts, state)
+                                                  lambda page: images[doc["pages"].index(page)], outdir, args.charts, state,
+                                                  str(doc["path"]))
     except Exception as e:  # noqa: BLE001 - keep the parse; a later run without --force groups it
         print(f"[paddleocr] {doc['stem']}: figures not grouped ({type(e).__name__}: {e})", file=sys.stderr, flush=True)
     cut_at = None
@@ -1399,6 +1478,14 @@ def process(doc: dict, args, state: dict) -> dict:
         except Exception as e:  # noqa: BLE001 - keep the pipeline's crops; a later run without --force cuts them
             print(f"[paddleocr] {doc['stem']}: crops left at 144 dpi ({type(e).__name__}: {e})", file=sys.stderr, flush=True)
     pages_info, warnings = run_checks(doc, blocks, sizes)
+    checked = None
+    try:
+        figure_warnings, markdown, checked = check_figures(doc, blocks, markdown, dict(zip(doc["pages"], sizes)),
+                                                           lambda page: images[doc["pages"].index(page)], outdir, state, args.photo)
+        warnings += figure_warnings
+    except Exception as e:  # noqa: BLE001 - keep the parse; a later run without --force checks its figures
+        summary["figures_check"] = f"figures not checked: {type(e).__name__}: {e}"
+        print(f"[paddleocr] {doc['stem']}: {summary['figures_check']}", file=sys.stderr, flush=True)
 
     import paddleocr
     md_path.write_text(markdown, encoding="utf-8")
@@ -1414,6 +1501,8 @@ def process(doc: dict, args, state: dict) -> dict:
         record["parser"]["figures"] = figures
     if cut_at:
         record["parser"]["crop_dpi"] = cut_at
+    if checked:
+        record["parser"]["figure_check"] = checked
     json_path.write_text(json.dumps(record, ensure_ascii=False, indent=1), encoding="utf-8")
 
     counts = {}
