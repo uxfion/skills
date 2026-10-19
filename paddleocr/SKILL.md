@@ -23,67 +23,63 @@ Speed depends on the backend, named in each summary's `backend`. Whenever the vl
 
 Run anything beyond a few pages in the background and wait for it to exit; each document's summary line reaches stdout when that document is done. Pages finish in batches, so the per-page lines on stderr (prefixed `[paddleocr]`, among Paddle's own log lines) come in bursts.
 
-- Parses made by an earlier version of this skill: rerun with the same output directory and options. They are upgraded in place — figures regrouped, crops cut again at 300 dpi, checks rerun, figures checked, your Markdown fixes kept — without parsing again; other options parse anew and overwrite the Markdown.
+- Parses made by an earlier version of this skill: rerun with the same output directory and options. They are upgraded in place — figures regrouped, crops cut again at 300 dpi, checks rerun, figures checked, your Markdown fixes kept — without parsing again; other options, or `--force`, parse anew and overwrite the Markdown, fixes included.
 - Only part of a long document is needed (a thesis chapter, a paper without its appendix): `--pages 3-12`; the output keeps the original page numbers.
 - Photographed or skewed pages: `--photo`.
 - Figure detail too fine for the default 300 dpi crops (small print inside a figure): `--crop-dpi 600`; on a parsed PDF it only cuts the crops again.
 - A paper in Zotero, named by title, author or citation key: [references/zotero.md](references/zotero.md) finds its PDF.
 - `<outdir>`, an absolute path: where the user wants it, else your scratch or work directory — never this skill's directory or the folder another program keeps the PDF in.
 
-Done when every input has its summary line without `error`. `skipped: up_to_date` means an earlier parse with the same file and options is already there; with `rechecked: true`, newer checks have just re-examined it, and its Markdown may already carry fixes (`<!-- from … -->`) for some of the warnings; with `regrouped: true`, its figures split into panels have just been put back together; with `recropped: true`, its crops have just been cut again at `--crop-dpi`; with `figures_checked: true`, its figures have just been checked (step 3).
+Done when every input has its summary line without `error`. `skipped: up_to_date` means an earlier parse with the same file and options is already there. The other flags say what a rerun has just done:
 
-### 2. Check
+- `rechecked: true`: newer checks have re-examined the parse, and its Markdown may already carry fixes (`<!-- from … -->`) for some of the warnings.
+- `regrouped: true`: figures that were split into panels have been put back together.
+- `recropped: true`: the crops have been cut again at `--crop-dpi`.
+- `figures_checked: true`: the figures have been checked, and step 2 settles them.
 
-Each summary's `warnings` mark where the parse lost, garbled or invented text. Settle every one against the source:
+### 2. Settle
 
-- **A PDF** has its page's text layer, `pdftotext -layout -f <N> -l <N> <pdf> -` (a warning's `region` goes in as `-x -y -W -H`, in points), and its image, `pdftoppm -f <N> -l <N> -r 100 -png <pdf> <prefix>`, which you view. Tables and small print need `-r 300`; a region crop there takes the points × 300/72, as pdftoppm counts pixels.
-- **Image input** is its own source: the input image, cropped and enlarged where print is small.
+A parse comes with warnings about what it may have got wrong. The JSON's `warnings` flag text the parse may have lost, garbled or invented. A `figure_check` note in the Markdown flags a figure whose crop may be wrong. Settling means checking each against the source and fixing the Markdown.
 
-Fix `<stem>.md` at its page, with an HTML comment on the line before each fixed block: `<!-- from text layer: what changed -->` or `<!-- from page image: … -->`. A rebuilt table stays HTML, with `rowspan`/`colspan` for multi-level headers and an empty cell heading an unheaded column. The JSON stays as parsed, and `--force` or a rerun with other options overwrites the Markdown, fixes included.
+That is routine work, so hand each document to a subagent on a smaller model that can view images (in Claude Code, `sonnet`). Give it:
 
-The warnings, by remedy:
+- the absolute path of [references/settle.md](references/settle.md), its brief;
+- the document's folder, `<outdir>/<stem>`;
+- its source: the PDF, or the image input.
 
-- **Lost or misread** — the text layer has it, the parse does not; restore it from the text layer:
-  - `table_mismatch`: the table lost cells, often a whole column, and the remaining values can sit under the wrong headers (2026-10: five of the twenty text tables in six test papers). Rebuild it from `pdftotext -layout` over the warning's `region`, check it against the page image, and replace the table.
-  - `missing_numbers`: numbers the parse lacks or misread.
-  - `missing_text`: a run of words, sampled in `detail` — a dropped line, author affiliations read as icons. Labels and legends of a complex figure, a watermark or a download stamp are false alarms.
-  - `low_coverage`: the page as a whole matched poorly — a garbled text layer (odd font encodings) or a page dense with formulas; compare a paragraph of the page image with the Markdown.
-- **Invented** — the parse has text the source lacks; delete it, or replace the block from the text layer or image:
-  - `extra_text`: words the text layer lacks, typically the model finishing a sentence that is cut off at the page end.
-  - `foreign_script`: CJK, kana or Hangul characters the text layer lacks, mixed into the text (2026-10: 「年第」 and 「个」 inside an English sentence with inline math); `detail` quotes each spot. The words around them are often garbled too: rebuild the passage from the text layer.
-  - `repetition`: one phrase looped dozens of times, or a block cycling through the same words (2026-10: a 23-name author line run on to 8,857 characters). Keep one pass, checked against the source.
-- **Misplaced**:
-  - `table_empty_column`: a headed column empty in every row, the values slid one column over; often a figure grid read as a table. Realign from the source.
-  - `formula_number_gap`: equation numbers missing from a run; find those equations in the source and add each as `\tag*{(n)}` to its formula.
-- **Figure in doubt** — left for step 3, which takes it up when your task needs that figure:
-  - `figure_check`: a figure whose crops may be wrong; `reasons` says how — `no_crop` (read as text or a table, or missed; false alarms: a list of figure captions, a sentence opening with "Figure 2."), `split`, `two_figures`, `table` (a table drawn into the figure), `edge_cut` (an edge through text or lines), `second_opinion` (the extent found from the caption outwards differs). A note in the Markdown marks the figure.
-- **Unchecked** — nothing to check against:
-  - `unchecked_table`: a table embedded as an image; compare the values you will use with the page image.
-  - `no_text_layer`: scans and images. Look first at the last block of every page, where the model invents the rest of a sentence cut at the page end; then at small print (author lines, affiliations, superscripts); then at every table you will use, cell by cell.
-  - `empty_page`: confirm from the image that the page is blank or purely graphic.
+Each document goes to one subagent, which is then the only writer of its Markdown. Separate documents go to separate subagents, at most five running at once unless the user sets another limit.
 
-A block in the JSON with a `merged_into` id lost nothing: its content moved into that earlier block (a paragraph continued across a column, a table continued on the next page, a panel or panel letter into its whole `figure`). Text inside figures is not transcribed and is not checked.
+- A document with no warnings needs no subagent.
+- In a batch parsed for later use, each document is settled when a task first reads it. Until then its warnings stay in its JSON and its notes in its Markdown.
+- Without subagents, follow the brief yourself.
 
-Done when every warning but `figure_check` is settled as a fix, a false alarm, or a gap you will name to the user.
+Done when every document you will read has its subagent's report back: fixed, false alarms, open, figures.
 
 ### 3. Read and report
 
-Read `<stem>.md` — all of it when the task is the paper, the sections that matter when it is one question:
+Read `<stem>.md`: all of it when the task is the paper, the sections that matter when it is one question.
 
-- `<!-- page N -->` precedes each page; cite pages by it.
-- Formulas are LaTeX (`display_formula` blocks in the JSON), numbered as `\tag*{(n)}`; tables are HTML, and a table continued over pages is one table at its first page. A `<table>` whose caption says "Fig." is a figure grid read as a table.
-- Figures are `![](imgs/…)` crops followed by their captions; open a crop when an answer depends on what a figure shows. A figure of several panels is one crop, a `figure` block in the JSON; each panel keeps its own crop (its block's `image`) for a closer look. `--figure-text` adds the text inside figures; `--charts` turns charts into data tables, with values the model read off the plot — verify them against the crop.
-  - Most figures come out whole. A figure the checks doubt carries a note before it, `<!-- figure_check: <reasons> [p<page>#<caption id> checks/….jpg] -->`. Settle every such figure your task rests on; a needless look costs little, a wrong figure costs the answer:
-    1. Open its overlay (`checks/…jpg`): the page with the caption in blue, every crop numbered in its own colour, the second opinion dashed green. Judge the numbered crops first, on their own: does one crop hold the whole figure, and only it — no other figure, table or body text? Then weigh the reasons and the second opinion.
-    2. Whole and clean: keep it, and open the note with `figure kept:` in place of `figure_check:`.
-    3. Otherwise cut a crop (below), starting from the warning's `second_opinion` box (pixels like the JSON boxes) when it looks right, else from the JSON boxes, and open the note with `from page image: figure cropped by hand;`. The second opinion is a candidate: view its crop before you use it.
-    4. A `no_crop` figure that is text the Markdown already holds, its colours and layout adding nothing: open the note with `figure kept: the text is in the Markdown;`.
+- `<!-- page N -->` precedes each page; cite pages by it. A `<!-- from … -->` comment before a block marks a settled fix.
+- Formulas are LaTeX (`display_formula` blocks in the JSON), numbered as `\tag*{(n)}`. Tables are HTML, and a table continued over pages is one table, at its first page. A `<table>` whose caption says "Fig." is a figure grid read as a table.
+- Figures are `![](imgs/…)` crops, each followed by its caption. Open a crop when an answer depends on what a figure shows.
+  - A figure of several panels is one crop, a `figure` block in the JSON. Each panel keeps its own crop (its block's `image`) for a closer look.
+  - `--figure-text` adds the text inside figures. `--charts` turns charts into data tables, with values the model read off the plot; verify those against the crop.
+  - The note before a figure says how it was settled. `figure kept:` means the crop was whole, or its text is in the Markdown. `from page image: figure cropped by hand` means it was cut anew.
+  - A note still opening with `figure_check:` was left open. View the figure on the page image before relying on it.
+  - A crop that lacks what its caption describes, such as a panel or labels the model read as text: send that figure to a subagent the same way, naming it by page and caption.
+- Running heads, page numbers and page footers live only in the JSON (`--keep-all` keeps them in the Markdown). Footnotes and margin notes, such as the arXiv stamp, stay in the text.
+- The JSON gives positions: `label`, `bbox` in page-image pixels (`pages[].width` / `height`), and heading `level`. A block with a `merged_into` id has moved into that block. The summary's `blocks` counts blocks by label.
 
-    Change only the note's opening; its bracket is how a later check knows the note. A figure without a note that still lacks what its caption describes (a panel, labels the model read as text) gets a crop cut the same way.
-  - To cut a crop, crop the PDF page at the parse's `crop_dpi` (the JSON's `parser`; 144 when absent), the JSON box, in 144 dpi pixels, times k = crop_dpi/144: `pdftoppm -f <N> -l <N> -r <crop_dpi> -x <x1·k> -y <y1·k> -W <width·k> -H <height·k> -singlefile -png <pdf> <outdir>/<stem>/imgs/p<NN>_fig<number>_cut` (image input: crop the input image at the JSON box itself). Start from the JSON box of what the model made of the figure — the table or text blocks right above its caption, or the incomplete crop — then view the crop and move its edges until it holds the whole figure and no caption or body text; the figure can be wider than its caption or sit beside it. Put its `![](imgs/…png)` line in place of the incomplete crop's line, or right before the caption when there was none, with the figure's note above it (`<!-- from page image: figure cropped by hand -->` when it had none); keep the blocks the model read from the figure, as their text is the figure's words.
-- Running heads, page numbers and page footers live only in the JSON (`--keep-all` keeps them in the Markdown); footnotes and margin notes, such as the arXiv stamp, stay in the text.
-- The JSON gives positions: `label`, `bbox` in page-image pixels (`pages[].width` / `height`), heading `level`. The summary's `blocks` counts blocks by label.
+The checks see only what a text layer can prove, so a settled parse is not yet a verified one.
 
-The checks see only what a text layer can prove, so a parse without warnings is not yet a verified one. Done when every number, equation (with its number) and table cell your answer rests on has been confirmed in the text layer or the page image and is cited by page, and every figure it rests on has been seen whole, in its crop or the page image, its note settled.
+Done when two things hold:
 
-Report the Markdown and JSON paths, the summary's `min_coverage` (or that the pages had no text layer), the fixes you made, what you took from figure images rather than text, the figures you recropped or kept after a check, and any warning left open — `figure_check` notes on figures you did not use included, as a count.
+- every number, equation (with its number) and table cell your answer rests on has been confirmed in the source (the commands are under Sources in [references/settle.md](references/settle.md)), and is cited by page;
+- every figure the answer rests on has been seen whole, in its crop or on the page image.
+
+Report:
+
+- the Markdown and JSON paths;
+- the summary's `min_coverage`, or that the pages had no text layer;
+- the settle report: the fixes, the figures recropped or kept, and anything left open;
+- what you took from figure images rather than text.
