@@ -1,17 +1,8 @@
 # /// script
 # dependencies = ["pypdfium2", "numpy", "pillow", "scipy"]
 # ///
-"""region_slim8.py PARSE_JSON PDF OUT_JSON PLUSL_DIR [--no-layer]: region_slim.py plus two dropped rules that the slim
-run showed it needs (post hoc, SLIM.md): a heading stops growth only when running text follows it, and body-text
-lines from the text layer cap the far edge. Otherwise the frozen second opinion (sha256 286305bd...) cut down to its
-core rules.
-
-Kept: roles by evidence (text-layer font and size > geometry > whole-figure boxes > VL labels); captions; growing from
-a caption until running text, another caption or a heading; whole-figure boxes; the crop as connected ink; one block,
-one caption. Dropped: every rule added after a page went wrong (running heads, mid-page noise, raster run-ons,
-wide-line and long-title tests, table-caption continuations and table notes, blocks inside VL pictures, two-column
-caption tails and legends, the heading-over-text test, formulas as stops, the extra proximity cases, body-line caps,
-blocks and ink between a figure and its caption)."""
+"""region_s7h.py PARSE_JSON PDF OUT_JSON PLUSL_DIR [--no-layer]: region_slim.py plus one dropped rule (post hoc,
+SLIM.md): a heading stops growth only when running text follows it. Derived from region_slim8.py by switching the other rule back off."""
 import json, sys
 from pathlib import Path
 
