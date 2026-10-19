@@ -37,7 +37,7 @@ import base64, json, os, re, sys
 scen = json.load(open(os.environ["STUB_SCENARIO"]))
 state_path = os.environ["STUB_STATE"]
 state = json.load(open(state_path)) if os.path.exists(state_path) else {"current": None, "mark": None, "b64": None}
-args = [a for a in sys.argv[1:] if a not in ("--window", "background")]
+args = [a for a in sys.argv[1:] if a not in ("--window", "background", "foreground")]
 with open(os.environ["STUB_STATE"] + ".calls", "a") as log:
     log.write(json.dumps(sys.argv[1:]) + "\n")
 def save():
@@ -49,6 +49,8 @@ def out(value):
 cmd = args[2]
 if cmd == "open":
     url = args[3]
+    for path, data in scen.get("drops", {}).get(url, {}).items():  # the watcher files a download meanwhile
+        open(path, "wb").write(base64.b64decode(data))
     dl = scen.get("downloads", {}).get(url)
     if dl:  # Chrome downloads it; the tab keeps its document (and the mark)
         open(os.path.join(dl["dir"], dl["name"]), "wb").write(base64.b64decode(dl["bytes"]))
@@ -83,6 +85,10 @@ if "p2z:html" in js:
     data = base64.b64encode(page.get("html", "").encode()).decode()
     state["b64"] = data
     out({"size": len(data), "b64len": len(data), "href": page.get("href", state["current"])})
+if "p2z:wait" in js:
+    until = json.loads(re.search(r"const u=(null|\"[^\"]*\");", js).group(1))
+    out({"href": page.get("href", state["current"]), "title": page.get("title", ""),
+         "found": bool(until) and until in page.get("text", "")})
 if "p2z:viewer-ready" in js:
     out({"app": bool(page.get("viewer")), "ready": bool(page.get("viewer"))})
 if "p2z:viewer-data" in js:
@@ -242,6 +248,58 @@ class FetchTest(unittest.TestCase):
         self.assertTrue((self.work / "records" / "other.pdf").is_file())
         r = self.run_script("--via", "page", "--pass", "2", str(paths[0]))
         self.assertEqual(self.lines(r.stdout)[-1]["code"], "stopped", "a new pass tries it again")
+
+    def test_a_file_that_arrives_meanwhile_ends_that_record(self):
+        rec = self.work / "records"
+        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://sso.example.edu/login", "title": "Sign in"},
+                              "https://doi.org/10.1000/y.2": {"href": "https://pub.example/b", "title": OTHER}},
+                    "drops": {"https://doi.org/10.1000/x.1": {str(rec / "paper.pdf"): b64(pdf(f"{TITLE}\nWei Liu")),
+                                                              str(rec / "other.pdf"): b64(pdf(f"{OTHER}\nWei Liu"))}}})
+        paths = [self.record("paper"), self.record("other", OTHER, "10.1000/y.2")]
+        r = self.run_script("--via", "page", "--window", "foreground", *map(str, paths))
+        self.assertEqual(r.returncode, 0, "no stop on a login page whose paper the user downloaded meanwhile")
+        self.assertEqual([(ln["slug"], ln["reason"]) for ln in self.lines(r.stdout)], [("paper", "has_file"), ("other", "has_file")])
+        calls = [json.loads(ln) for ln in Path(str(self.state) + ".calls").read_text().splitlines()]
+        self.assertIn(["browser", "p2z", "open", "https://doi.org/10.1000/x.1", "--window", "foreground"], calls)
+        self.assertNotIn("https://doi.org/10.1000/y.2", json.dumps(calls), "the second paper's page is never opened")
+
+    def wait(self, *argv, change=None, delay=0.6):
+        env = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", STUB_SCENARIO=str(self.scenario),
+                   STUB_STATE=str(self.state), PAPER_TO_ZOTERO_CONFIG=str(self.config), PAPER_TO_ZOTERO_WAIT_STEP="0.2")
+        proc = subprocess.Popen([sys.executable, str(SCRIPT), "--via", "page", "--pass", "1", "--wait", *argv],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        if change:
+            time.sleep(delay)
+            change()
+        out, err = proc.communicate(timeout=60)
+        return proc.returncode, self.lines(out)[-1]
+
+    def test_wait_ends_when_the_file_arrives_or_the_page_changes(self):
+        self.scene({"pages": {"https://sso.example.edu/login": {"title": "Sign in"},
+                              "https://pub.example/a": {"title": TITLE, "text": "Access provided by Example University"}}})
+        p = self.record("paper")
+        self.state.write_text(json.dumps({"current": "https://sso.example.edu/login", "mark": None, "b64": None}))
+        filed = lambda: (self.work / "records" / "paper.pdf").write_bytes(pdf(TITLE))
+        code, out = self.wait(str(p), change=filed)
+        self.assertEqual((code, out["code"], out["file"]), (0, "arrived", "paper.pdf"))
+        (self.work / "records" / "paper.pdf").unlink()
+        moved = lambda: self.state.write_text(json.dumps({"current": "https://pub.example/a", "mark": None, "b64": None}))
+        code, out = self.wait(str(p), change=moved)
+        self.assertEqual((code, out["code"], out["url"]), (0, "passed", "https://pub.example/a"))
+        code, out = self.wait("--until", "Access provided by", str(p))
+        self.assertEqual((code, out["code"]), (0, "passed"), "the marker is already there")
+        calls = Path(str(self.state) + ".calls").read_text()
+        self.assertNotIn('"open"', calls, "waiting never navigates")
+
+    def test_wait_times_out_once_per_pass(self):
+        self.scene({"pages": {"https://sso.example.edu/login": {"title": "Sign in"}}})
+        self.state.write_text(json.dumps({"current": "https://sso.example.edu/login", "mark": None, "b64": None}))
+        p = self.record("paper")
+        code, out = self.wait("--until", "Access provided by", "--timeout", "1", str(p))
+        self.assertEqual((code, out["code"], out["url"]), (1, "gate_timeout", "https://sso.example.edu/login"))
+        self.assertEqual((self.tries()[-1]["result"], self.tries()[-1]["via"]), ("gate_timeout", "page"))
+        r = self.run_script("--via", "page", "--pass", "1", str(p))
+        self.assertEqual(self.lines(r.stdout)[0]["reason"], "tried", "the paper takes its next route this pass")
 
     def test_refused_and_no_viewer_stops(self):
         self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://pub.example/a", "title": TITLE,

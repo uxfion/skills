@@ -124,7 +124,7 @@ def append_log(work, line):
 def emit_event(work, **fields):
     line = {"event": "claim", **{k: v for k, v in fields.items() if v is not None}, "at": now_iso()}
     append_log(work, line)
-    print(json.dumps(line, ensure_ascii=False))
+    print(json.dumps(line, ensure_ascii=False), flush=True)
     return line
 
 

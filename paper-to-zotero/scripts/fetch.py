@@ -23,6 +23,17 @@
   --via snapshot  for each record, the article page's HTML (filed as <slug>.html, checked like a PDF): open --start
                   or https://doi.org/<DOI> (not the proxied page: unsubscribed, the proxy shows a login); --current
                   takes the current tab of the session for one record instead.
+  --wait          one record, at a gate: read the session's current tab and the record's file every 10 s, nothing
+                  else (no navigation), until the file has arrived ({"code": "arrived"}, exit 0: claim.py --watch,
+                  or --downloads, filed it, whoever downloaded it), the page shows --until TEXT (text or CSS
+                  selector), or without --until its URL or title changes ({"code": "passed"}, exit 0), or --timeout
+                  seconds (default 300) pass: {"code": "gate_timeout"}, exit 1, logged as this pass's try by --via.
+                  A user who logs in from another window changes nothing in this tab: their word, or the file, ends
+                  the wait.
+
+Windows open in the background (--window foreground for pages the user should see: the last pass). Before each
+record, and before a page route stops, the record's file is looked for again (and Downloads scanned when
+--downloads is given): a file the watcher filed meanwhile — the user's download included — skips the record.
 
 Records are skipped when they already have a file (records/<slug>.pdf, .accepted.pdf, .preprint.pdf, .html) or
 when this pass already tried them by this route: <work>/fetch.jsonl holds a try line for (slug, --pass, --via,
@@ -64,6 +75,7 @@ OPEN_TIMEOUT = 60
 EVAL_TIMEOUT = 120
 DOWNLOAD_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_DOWNLOAD_WAIT", "25"))   # seconds for a download to be filed
 VIEWER_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_VIEWER_WAIT", "20"))
+WAIT_STEP = float(os.environ.get("PAPER_TO_ZOTERO_WAIT_STEP", "10"))            # --wait: seconds between looks
 MAX_BYTES = 200 * 1024 * 1024
 
 INFO_JS = r"""/*p2z:info*/(()=>{const m=(n)=>{const e=document.querySelector('meta[name="'+n+'"]');return e&&e.content?e.content:null};
@@ -85,6 +97,9 @@ VIEWER_DATA_JS = ("/*p2z:viewer-data*/(async()=>{try{" + VIEWER_FIND +
                   r"""if(!A||!A.pdfDocument)return {pdf:false,error:'no document'};const d=await A.pdfDocument.getData();
 const b=d instanceof Uint8Array?d:new Uint8Array(d);let s='';for(let i=0;i<b.length;i+=32768)s+=String.fromCharCode.apply(null,b.subarray(i,i+32768));
 window.__p2z_b64=btoa(s);return {pdf:true,size:b.length,b64len:window.__p2z_b64.length}}catch(e){return {pdf:false,error:String(e)}}})()""")
+WAIT_JS = r"""/*p2z:wait*/(()=>{const u=__UNTIL__;let found=false;if(u){try{found=!!document.querySelector(u)}catch(e){}
+found=found||((document.body&&document.body.innerText)||'').indexOf(u)>=0}
+return {href:location.href,title:document.title||'',found:found}})()"""
 CHUNK_JS = "/*p2z:chunk*/(()=>{const s=window.__p2z_b64;return typeof s==='string'?s.slice(__A__,__B__):null})()"
 CLEAR_JS = "/*p2z:clear*/(()=>{delete window.__p2z_b64;return true})()"
 
@@ -132,8 +147,19 @@ class Run:
             proxy = None
         return proxy.strip().lower().lstrip(".") if isinstance(proxy, str) and proxy.strip() else None
 
+    def file_of(self, slug):
+        return next((slug + s for s in STEM_FILES if (self.work / "records" / (slug + s)).is_file()), None)
+
     def has_file(self, slug):
-        return any((self.work / "records" / (slug + s)).is_file() for s in STEM_FILES)
+        return self.file_of(slug) is not None
+
+    def arrived(self, slug):
+        """Has the record's file arrived since the run began (the watcher, the user, Downloads)? Says so."""
+        self.scan_downloads()
+        name = self.file_of(slug)
+        if name:
+            print(json.dumps({"slug": slug, "code": "skipped", "reason": "has_file", "file": name}), flush=True)
+        return name is not None
 
     def tried(self):
         """Slugs with a try line for this pass and route (http: and version) whose result is not 'stopped'."""
@@ -224,12 +250,16 @@ def start_url(rec, override):
 
 def http_route(run, todo):
     for path, rec, slug in todo:
+        if run.arrived(slug):
+            continue
         links = [l for l in rec.get("links") or [] if isinstance(l, dict) and l.get("version") == run.args.version
                  and l.get("needs_browser") is not True and isinstance(l.get("url"), str)]
         if not links:
             run.log_try(slug, None, "no_link", note=f"no {run.args.version} link that plain HTTP can fetch")
             continue
         for link in links:
+            if run.has_file(slug):
+                break
             url = link["url"]
             run.pace(host_of(url))
             try:
@@ -255,11 +285,11 @@ def http_route(run, todo):
 # ------------------------------------------------------------------ browser
 
 class Browser:
-    def __init__(self, session):
-        self.session = session
+    def __init__(self, args):
+        self.session, self.window = args.session, args.window
 
     def run(self, *args, timeout=EVAL_TIMEOUT, window=False):
-        argv = ["opencli", "browser", self.session, *args] + (["--window", "background"] if window else [])
+        argv = ["opencli", "browser", self.session, *args] + (["--window", self.window] if window else [])
         try:
             p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
         except FileNotFoundError:
@@ -343,8 +373,10 @@ def stop(run, slug, why, url, title, note=None):
 
 
 def page_route(run, todo):
-    b = Browser(run.args.session)
+    b = Browser(run.args)
     for path, rec, slug in todo:
+        if run.arrived(slug):
+            continue
         url = start_url(rec, run.args.start)
         if not url:
             return stop(run, slug, "no_start", None, None, "the record has neither item.DOI nor item.url")
@@ -358,6 +390,8 @@ def page_route(run, todo):
             return stop(run, slug, "error", url, None, f"eval: {err or info}")
         href, title = info.get("href") or url, info.get("title") or ""
         if not info.get("pdf"):
+            if run.arrived(slug):
+                continue
             return stop(run, slug, "no_pdf_link", href, title)
         link = urllib.parse.urljoin(href, info["pdf"])
         req = request_url(info["pdf"], href, run.proxy)
@@ -386,13 +420,17 @@ def page_route(run, todo):
                 result, code = run.claim(slug, data, link, None)
                 run.log_try(slug, link, result, check=code, note="read from the pdf.js viewer")
                 continue
+        if run.arrived(slug):
+            continue
         return stop(run, slug, "refused", after.get("href") or req, after.get("title") or title, f"in-page: {refused}")
     return 0
 
 
 def viewer_route(run, todo):
     (path, rec, slug), = todo
-    b = Browser(run.args.session)
+    if run.arrived(slug):
+        return 0
+    b = Browser(run.args)
     data = read_viewer(b, VIEWER_WAIT)
     info, _ = b.eval(INFO_JS)
     href = info.get("href") if isinstance(info, dict) else None
@@ -405,8 +443,10 @@ def viewer_route(run, todo):
 
 
 def snapshot_route(run, todo):
-    b = Browser(run.args.session)
+    b = Browser(run.args)
     for path, rec, slug in todo:
+        if run.arrived(slug):
+            continue
         url = None
         if not run.args.current:
             url = start_url(rec, run.args.start)
@@ -429,6 +469,38 @@ def snapshot_route(run, todo):
         result, code = run.claim(slug, data, href, "snapshot", html=True)
         run.log_try(slug, href, result, check=code)
     return 0
+
+
+def wait_at_gate(run, slug):
+    """--wait: look at the current tab and the record's file every WAIT_STEP seconds, and nothing else."""
+    b = Browser(run.args)
+    js = WAIT_JS.replace("__UNTIL__", json.dumps(run.args.until))
+    deadline = time.monotonic() + run.args.timeout
+    first = seen = None
+    while True:
+        run.scan_downloads()
+        name = run.file_of(slug)
+        if name:
+            print(json.dumps({"code": "arrived", "slug": slug, "file": name}))
+            return 0
+        info, err = b.eval(js)
+        if err is None and isinstance(info, dict):
+            seen = (info.get("href"), info.get("title"))
+            if info.get("found") or (not run.args.until and first is not None and seen != first):
+                print(json.dumps({"code": "passed", "slug": slug, "url": seen[0], "title": seen[1]}, ensure_ascii=False))
+                return 0
+            first = first or seen
+        left = deadline - time.monotonic()
+        if left <= 0:
+            break
+        time.sleep(min(WAIT_STEP, left))
+    url, title = (seen or (None, None))
+    run.log_try(slug, url, "gate_timeout", note=f"waited {run.args.timeout:g} s at the gate")
+    print(json.dumps({"code": "gate_timeout", "slug": slug, "url": url, "title": title,
+                      "hint": "leave this tab to the user, open a new tab for what follows, take the paper's next "
+                              "route; other papers behind this gate skip it for the rest of the pass"},
+                     ensure_ascii=False))
+    return 1
 
 
 ROUTES = {"http": http_route, "page": page_route, "viewer": viewer_route, "snapshot": snapshot_route}
@@ -455,6 +527,8 @@ def main():
                                         "  uv run fetch.py --via http --pass 1 records/*.json\n"
                                         "  uv run fetch.py --via page --pass 1 --downloads DIR records/*.json\n"
                                         "  uv run fetch.py --via page --pass 1 --verdict no_access records/x.json\n"
+                                        "  uv run fetch.py --via page --pass 1 --wait --downloads DIR records/x.json\n"
+                                        "  uv run fetch.py --via page --pass 3 --window foreground --downloads DIR records/*.json\n"
                                         "  uv run fetch.py --via snapshot --pass 3 records/x.json",
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("records", nargs="+", metavar="RECORD")
@@ -468,21 +542,32 @@ def main():
     ap.add_argument("--downloads", metavar="DIR",
                     help="the browser's Downloads folder: scanned when a link is opened (else claim.py --watch must run)")
     ap.add_argument("--verdict", metavar="RESULT", help="one record: log the agent's conclusion for this pass and route")
+    ap.add_argument("--wait", action="store_true",
+                    help="one record: wait at the gate in the current tab until its file arrives or the page changes")
+    ap.add_argument("--until", metavar="TEXT", help="with --wait: text or CSS selector only the passed gate shows")
+    ap.add_argument("--timeout", type=float, default=300.0, help="with --wait: seconds (default 300)")
+    ap.add_argument("--window", choices=("background", "foreground"), default="background",
+                    help="where pages open (default background; foreground for the last pass, with the user)")
     args = ap.parse_args()
-    if (args.start or args.current or args.verdict or args.via == "viewer") and len(args.records) != 1:
-        ap.error("--start, --current, --verdict and --via viewer take exactly one record")
+    if (args.start or args.current or args.verdict or args.wait or args.via == "viewer") and len(args.records) != 1:
+        ap.error("--start, --current, --verdict, --wait and --via viewer take exactly one record")
+    if args.wait and args.verdict:
+        ap.error("--wait and --verdict are two different calls")
     try:
         run = Run(args, load(args.records))
         if args.verdict:
             path, rec = run.entries[0]
             run.log_try(slug_of(path, rec), None, args.verdict, by="agent")
             sys.exit(0)
+        if args.wait:
+            path, rec = run.entries[0]
+            sys.exit(wait_at_gate(run, slug_of(path, rec)))
         tried = run.tried()
         todo = []
         for path, rec in run.entries:
             slug = slug_of(path, rec)
-            if run.has_file(slug):
-                print(json.dumps({"slug": slug, "code": "skipped", "reason": "has_file"}))
+            if run.file_of(slug):
+                print(json.dumps({"slug": slug, "code": "skipped", "reason": "has_file", "file": run.file_of(slug)}))
             elif slug in tried and not (args.via == "viewer" or args.current or args.start):
                 print(json.dumps({"slug": slug, "code": "skipped", "reason": "tried", "pass": args.pass_, "via": args.via}))
             else:
