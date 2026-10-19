@@ -455,7 +455,7 @@ def figure_warnings(blocks: list[dict], sizes: dict, layers: dict | None = None,
         tables = [b for b in pblocks if b["label"] == "table"]
         near = lambda a, b: min(a[2], b[2]) > max(a[0], b[0]) and (0 <= b[1] - a[3] <= P.UNCROPPED_REACH * h
                                                                    or 0 <= a[1] - b[3] <= P.UNCROPPED_REACH * h)
-        swallowed = {cr["id"] for t in pblocks if is_table_caption(t) and not any(near(t["bbox"], x["bbox"]) for x in tables)
+        swallowed = {cr["id"]: t for t in pblocks if is_table_caption(t) and not any(near(t["bbox"], x["bbox"]) for x in tables)
                      for cr in pblocks if is_crop(cr) and near(t["bbox"], cr["bbox"])}
         cropped = {P.figure_id(c) for c in captions if c["id"] in mine}
         top_caption = min((c for c in captions if c["id"] not in mine and c["bbox"][1] < h / 3), key=lambda c: c["bbox"][1], default=None)
@@ -480,8 +480,8 @@ def figure_warnings(blocks: list[dict], sizes: dict, layers: dict | None = None,
                 warn["reasons"].append(f"split: {len(crops)} crops")
             if why := two_figures(c, listed, pblocks, h, text_in and (lambda box: text_in(page, box))):
                 warn["reasons"].append("two_figures: " + "; ".join(why))
-            if any(cr["id"] in swallowed for cr in crops):
-                warn["reasons"].append("table: a table with its caption next to the crop has no table of its own: it is in the crop")
+            if t := next((swallowed[cr["id"]] for cr in crops if cr["id"] in swallowed), None):
+                warn["reasons"].append(f"table: \"{t['text'].strip()[:40]}\" has no table of its own next to it; the table is likely in the crop")
             if img is not None:
                 cuts = [f"the {side} edge cuts through {n} marks"
                         for side, n in zip(("top", "bottom", "left", "right"), edge_marks(img, crops, h)) if n >= CUT_MARKS]
