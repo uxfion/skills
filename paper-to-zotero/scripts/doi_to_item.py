@@ -114,8 +114,9 @@ HOST_DOI, HOST_CROSSREF, HOST_ARXIV_API = "doi.org", "api.crossref.org", "export
 
 # published_candidates: a Crossref title counts from this similarity on.
 CANDIDATE_SIMILARITY = 0.9
-# DOIs whose landing page is a paywall or a sales page while the venue has a free official page (SKILL.md step 2).
-FREE_PAGE_DOIS = (re.compile(r"^10\.52202/", re.I), re.compile(r"^10\.1109/(?:CVPR|ICCV|WACV)", re.I))
+# NeurIPS 2022-2025 DOIs, registered for the printed proceedings: they lead to its sales page, not to the paper, so
+# the item's url is the paper's page at the venue (SKILL.md step 2).
+SALES_PAGE_DOI = re.compile(r"^10\.52202/", re.I)
 # A citation_journal_title that names proceedings, not a journal (NeurIPS pages give theirs as a journal title).
 # A living list: add a form when a real page shows one.
 PROCEEDINGS_TITLE = re.compile(r"\b(?:proceedings|conference|symposium|workshop)\b"
@@ -702,16 +703,16 @@ def build_item(record, schema, doi, arxiv_id, arxiv_version, agency, warnings, p
         warnings.append(f"possible erratum, correction or retraction notice ({'; '.join(signals)}): "
                         "open the landing page and make sure this DOI is the paper itself")
 
-    record_url = first_str(record.get("URL"))
     doi_url = f"https://doi.org/{doi}"
     if is_arxiv:
         item["url"] = f"https://arxiv.org/abs/{arxiv_id}{arxiv_version}"
         item["repository"] = "arXiv"
         item["archiveID"] = f"arXiv:{arxiv_id}"
-    elif not record_url or re.match(r"^https?://(dx\.)?doi\.org/", record_url, re.I):
+    else:  # the version of record: its DOI link, which always leads to the publisher's current page
         item["url"] = doi_url
-    else:
-        item["url"] = record_url
+        if SALES_PAGE_DOI.match(doi):
+            warnings.append("this DOI leads to the printed proceedings' sales page: set item.url to the paper's page "
+                            "on proceedings.neurips.cc")
 
     if tf.resolve(["DOI"]):
         item["DOI"] = doi
@@ -1391,9 +1392,6 @@ def run_redraft(args):
         if not item.get("abstractNote") and old.get("abstractNote") and "record has no abstract" in warnings:
             item["abstractNote"] = old["abstractNote"]
             warnings[warnings.index("record has no abstract")] = "the DOI record has no abstract: the preprint's is kept"
-        if any(p.match(doi) for p in FREE_PAGE_DOIS):
-            warnings.append("this DOI leads to a paywall or sales page while the venue has a free official page "
-                            "(proceedings.neurips.cc, openaccess.thecvf.com): set item.url to that page")
     if aid:
         add_arxiv_line(item, aid)
     else:

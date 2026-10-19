@@ -754,7 +754,7 @@ class DoiToItemTest(unittest.TestCase):
                          ("10.52202/075280-0377", "Advances in Neural Information Processing Systems 36"))
         self.assertEqual(item["extra"], "arXiv: 2303.11366")
         self.assertNotIn("alt_titles", rec, "same title up to case: nothing to add")
-        self.assertTrue(any("free official page" in w for w in rec["warnings"]), "a NeurIPS DOI's page is a sales page")
+        self.assertTrue(any("sales page" in w for w in rec["warnings"]), "a NeurIPS DOI's page is a sales page")
         no_abstract = self.preprint_record()[0]
         CSL["10.52202/075280-0377"].pop("abstract")
         try:

@@ -21,6 +21,9 @@ Problem codes (each problem is {"code", ...}):
                           from a Crossref title search (similarity >= 0.9 and the first author's surname)
   missing_abstract        a research item with no abstract
   no_identifier           no DOI, no arXiv id and no url: nothing locates the paper
+  url_not_record          a published item whose url is not its version of record: empty, or a copy (CVF, MICCAI,
+                          arXiv, ProQuest, PMC, a proxy host) beside a DOI ("patch" sets https://doi.org/<DOI>); for a
+                          NeurIPS DOI (10.52202, the printed proceedings), a url that is not the paper's NeurIPS page
   name_not_tagged         the abstract names a model or system ("we propose EchoWDiff") that no tag carries
                           ({"name"}: a bare tag, or dataset/ for a benchmark - the agent decides)
 
@@ -55,6 +58,11 @@ ARXIV_ID = r"(?:\d{4}\.\d{4,5}|[a-z\-]+(?:\.[A-Z]{2})?/\d{7})"
 NAME = r"([A-Z][\w^+\-]*[A-Z0-9][\w^+\-]*)(?![\w^+\-])(?!\s+[A-Z][a-z])"
 NAME_PATTERNS = (re.compile(r"\b[Ww]e\s+(?:propose|present|introduce|develop|name|call)\s+(?:it\s+)?" + NAME),
                  re.compile(r"\b(?:approach|framework|model|method|system|network|pipeline|agent),\s+" + NAME + r","))
+# Hosts of copies, not of a version of record (SKILL.md step 2: url is the version of record). A living list.
+COPY_HOSTS = {"openaccess.thecvf.com", "papers.miccai.org", "arxiv.org", "www.arxiv.org", "www.proquest.com",
+              "openreview.net", "europepmc.org", "pmc.ncbi.nlm.nih.gov", "www.ncbi.nlm.nih.gov", "www.ecva.net",
+              "www.biorxiv.org", "www.medrxiv.org", "www.researchgate.net", "www.semanticscholar.org"}
+PROXY_HOST = re.compile(r"\.idm\.oclc\.org$|ezproxy|webvpn", re.I)
 CROSSREF = "https://api.crossref.org/works"
 USER_AGENT = "paper-to-zotero lint_items (mailto:none)"
 
@@ -204,6 +212,16 @@ def problems_of(item, children, index, crossref):
         out.append({"code": "missing_abstract"})
     if not doi and not aid and not (data.get("url") or "").strip() and data.get("itemType") in RESEARCH_TYPES:
         out.append({"code": "no_identifier"})
+    url = (data.get("url") or "").strip()
+    host = (urllib.parse.urlsplit(url).hostname or "").lower() if url else ""
+    if doi and data.get("itemType") != "preprint":
+        if doi.startswith("10.52202/"):
+            if host not in ("proceedings.neurips.cc", "proceedings.nips.cc"):
+                out.append({"code": "url_not_record", "url": url or None,
+                            "hint": "a NeurIPS DOI leads to the printed proceedings: url is the paper's NeurIPS page"})
+        elif not url or host in COPY_HOSTS or PROXY_HOST.search(host):
+            out.append({"code": "url_not_record", "url": url or None,
+                        "patch": {"url": f"https://doi.org/{(data.get('DOI') or doi).strip()}"}})
     tags = {t.get("tag", "") for t in data.get("tags") or []}
     for name in names_in(data.get("abstractNote")):
         if not any(t == name or t.endswith("/" + name) for t in tags):

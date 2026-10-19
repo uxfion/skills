@@ -64,7 +64,7 @@ It lists the fields the kept item will take from the other (empty ones only), th
 
 ## Notes
 
-`note.py --cite <key> --file note.md --marker <name>` attaches a child note (a small Markdown subset becomes Zotero's HTML) and, run again with the same marker, updates that note instead of adding another. Use it for evidence the user asked you to keep with the paper — page numbers, quoted passages, what you verified — and keep the user's own notes untouched. What a note claims about a paper's content rests on the attachment you read, so name it.
+`note.py --cite <key> --file note.md --marker <name>` attaches a child note (a small Markdown subset becomes Zotero's HTML) and, run again with the same marker, updates that note instead of adding another. Use it for evidence the user asked you to keep with the paper — page numbers, quoted passages, what you verified — and keep the user's own notes untouched. A note carries no tags: its marker identifies it, and a tag on a note would sit in the tag selector beside the papers' tags. What a note claims about a paper's content rests on the attachment you read, so name it.
 
 ## Exporting BibTeX
 

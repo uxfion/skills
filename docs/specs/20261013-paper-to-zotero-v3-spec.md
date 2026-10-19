@@ -4,7 +4,7 @@
 
 ## 1. 为什么重新设计
 
-两份 issue 合计 54 条：`docs/issues/20260923-paper-to-zotero-v2-first-use.md`（17 条，下文记作 F#）和 `docs/issues/archive/20261009-paper-to-zotero-batch-import-fixed.md`（37 条，下文记作 B#）。
+两份 issue 合计 54 条：`docs/issues/archive/20260923-paper-to-zotero-v2-first-use-fixed.md`（17 条，下文记作 F#）和 `docs/issues/archive/20261009-paper-to-zotero-batch-import-fixed.md`（37 条，下文记作 B#）。
 
 v2 处理单篇论文顺手，批量时的问题主要有：
 - PDF 核对误报约 90 次，同时又有错文件进了库；
@@ -404,12 +404,12 @@ Zotero 本身就是记录：
   - 脚本先用通用办法，拿不到交给 agent，卡住了问用户；
   - 整理工具写进本 spec，等导入部分用真实批量测通之后再做。
 
-**暂行**：标识怎么放仍按 v2 的规则（F#15）：有 DOI 填 DOI；没有 DOI 的会议，`url` 填官方页；有预印本就在 `extra` 里写 `arXiv: <id>`。
+**暂行**（已由 F#17 的决定取代，2026-10-18）：标识怎么放仍按 v2 的规则（F#15）：有 DOI 填 DOI；没有 DOI 的会议，`url` 填官方页；有预印本就在 `extra` 里写 `arXiv: <id>`。
 
-**等用户**：
-- F#8：笔记上要不要打标签；
-- F#9：稿件引用文献的分类结构；
-- F#17：标识放在哪个字段的原则。
+**等用户**（2026-10-18 已答）：
+- F#8：笔记不打标签；
+- F#9：稿件引用文献的分类结构，先不动，单独成 issue；
+- F#17：条目记正式版（有 DOI 的 url 是 doi.org 链接，NeurIPS 2022–2025 例外；其他版本只在 Extra 留 `arXiv:`；OpenReview 编号不记）。
 
 ## 8. 实现顺序与验收
 
@@ -498,5 +498,6 @@ Zotero 本身就是记录：
 ## 10. 修订
 
 - 2026-10-13：建立。
+- 2026-10-18（F#8、F#9、F#17）：用户答复，见 §7；SKILL.md 第 2 步改为"条目记正式版"，`lint_items` 加 `url_not_record`。
 - 2026-10-18（第二步）：`lint_items` 一次读全库（只读），加 `name_not_tagged`；`merge_items` 按 `/api/schema` 的字段和基础字段对应；F#14 的原因是 Zotero 的 Extra 迁移。
 - 2026-10-18：用户补充（"我实际上已经帮你下载了，但是你还没找到pdf……就一直卡在那"；"最后确认那一遍的话，你汇报，然后依次帮我在浏览器打开"）：门禁等待改由 `fetch --wait` 做，文件到了也结束；`fetch` 每篇前重查文件；Monitor 盯日志；最后一遍逐篇在前台打开（`--window foreground`）。

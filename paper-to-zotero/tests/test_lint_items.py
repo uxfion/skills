@@ -37,6 +37,10 @@ ITEMS = [
     item("WWWWWWWW", itemType="webpage", title="Project page", url="https://proxy.example/x"),
     item("DDDDDDDD", {"parsedDate": None}, itemType="conferencePaper", title="An old conference paper", date="十一月 23, 2021",
          collections=["COLL0001"]),
+    item("CCCCCCCC", itemType="conferencePaper", title="A CVPR paper", DOI="10.1109/CVPR.2019.00453", abstractNote="x",
+         date="2019", url="https://openaccess.thecvf.com/content_CVPR_2019/html/x.html"),
+    item("NNNNNNNN", itemType="conferencePaper", title="A NeurIPS paper", DOI="10.52202/075280-3121", abstractNote="x",
+         date="2023", url="https://doi.org/10.52202/075280-3121"),
     item("JJJJJJJJ", itemType="journalArticle", title="A journal paper", DOI="10.1000/j", abstractNote="x",
          publicationTitle="Comput Biol Med", journalAbbreviation="Computers in Biology and Medicine", date="2021"),
     item("PPPPPPPP", itemType="preprint", title="Same Title Different Version", DOI="10.48550/arXiv.2101.00001",
@@ -103,7 +107,11 @@ class LintTest(unittest.TestCase):
         self.assertEqual((found["PPPPPPPP"]["duplicate_of"]["by"], found["PPPPPPPP"]["duplicate_of"]["keys"]),
                          ("arxiv", ["QQQQQQQQ"]))
         self.assertNotIn("TTTTTTTT", found)
-        self.assertEqual(summary["summary"]["items"], 7)
+        self.assertEqual(found["CCCCCCCC"]["url_not_record"]["patch"], {"url": "https://doi.org/10.1109/CVPR.2019.00453"})
+        self.assertNotIn("patch", found["NNNNNNNN"]["url_not_record"], "the NeurIPS page is the agent's to find")
+        self.assertNotIn("url_not_record", found["AAAAAAAA"], "a publisher url is the version of record")
+        self.assertNotIn("url_not_record", found.get("PPPPPPPP", {}), "a preprint's url is its own")
+        self.assertEqual(summary["summary"]["items"], 9)
 
     def test_scope_chooses_what_is_reported_not_what_is_compared(self):
         code, found, summary = self.run_lint("--collection", "COLL0001")
