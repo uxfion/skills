@@ -15,7 +15,7 @@
 - 痛点：去重只发生在 `find_in_library`；`item` 在查重之后才出现（或被改），`create_item` 不再查，重复就进了库。无 DOI、需要手写 `item` 的分支恰恰最容易漏掉这一步。
 - 为什么：流水线把"查重"当成 agent 记得跑的一步，而不是写库前的不变量。
 - 方向：`create_item` POST 前自己按 DOI / arXiv / 标题查一次，命中则跳过并写 `found`（幂等，agent 绕不过）；或 `find_in_library` 在记录上留下对当前 `item` 的查重戳，`create_item` 见不到戳就拒绝。倾向前者。
-- 状态：open（库里的重复待用户裁定）
+- 状态：部分处理（v3）→ skill 部分已处理：create_item 建条目前先查重，`exists` 不建、近似给 `possible_duplicate`；库里已有的重复留给第二步的 `lint_items` / `merge_items`，由用户裁定
 
 ### 2. tagging.md 仍指向已不用的 `zotero` skill
 
@@ -32,7 +32,7 @@
 - 同类（同日整理时又碰到）：`file_and_tag.py --batch` 的 dry-run 输出把条目放在 `changes`，真写时放在 `results`；`read_library.py items` 没有 `--tag` 过滤（API 支持 `tag=`），按标签找条目只能全库拉下来再 jq。
 - 痛点：写管道前得先 `head` 一行猜形状。
 - 方向：`--help` 写一句每个子命令的行形状；或各脚本统一条目的形状。
-- 状态：open
+- 状态：已处理（v3）→ `read_library.py --help` 写明每个子命令每一行的形状
 
 ### 4. `file_and_tag` 不能把条目移出其中一个分类
 
@@ -41,7 +41,7 @@
 - 痛点：清空一个分类再删掉是整理的常规动作，现在做不到。这次绕过：Zotero 删分类不删条目，所以只给其它条目加上正式归属，CC作业 原样留给用户删。
 - 方向：single / batch 加 `remove_collection`；或 `collection` 接受列表。
 - 再次碰到（同日）：用户在 Zotero 里合并 GAN 的重复条目后，原条目被带进了 `tmp`；要只去掉 `tmp`、保留 CC作业 和 自然图像，又只能在 scratch 写一次性脚本 PATCH `collections`。一天两次，优先级应提高。
-- 状态：open
+- 状态：已处理（v3）→ `file_and_tag.py` 单条和批量都支持 `remove_collection`
 
 ### 5. batch 文件只认 item key，不认 citation key
 
@@ -49,7 +49,7 @@
 - 现场：`file_and_tag.py --batch` 的每个条目必须有 8 位 `"key"`。
 - 痛点：v2 的身份是 citation key（每个 `--key` 脚本都有 `--cite`），批量文件却退回到 item key，写 changes.json 时要来回查。
 - 方向：条目可给 `"cite"`，解析方式同 `--cite`（查不到 / 不唯一照样报错）。
-- 状态：open
+- 状态：已处理（v3）→ `file_and_tag.py` 的批量文件可以用 `cite` 指定条目
 
 ### 6. 查一个分类里的重复和垃圾条目没有工具
 
@@ -57,7 +57,7 @@
 - 现场：为查 CC作业 的 12 篇有没有重复，只能对每个标题循环 `find_in_library.py --title`（12 次调用）。查出：GAN 重复（见 1）；两个未归类的 `webpage` 条目——CycleGAN 项目页快照（`7IA737QZ`），以及 SRCNN 的出版社页面（`LV5AVFU7`，URL 是机构代理主机加一次性 token，无附件）；CycleGAN 条目挂了两份 PDF（IEEE 版和 CVF 版，MD5 不同）。
 - 痛点：整理时最该先看的"重复、孤立网页条目、一条多份 PDF"全靠手工拼。
 - 方向：`find_in_library` 流模式也能吃库里的条目（`read_library.py items --collection K | find_in_library.py --dupes`），报告同 DOI / 同标题的其它条目；organize.md 的整理清单加上这三类。
-- 状态：open
+- 状态：open → 第二步 `lint_items`（`duplicate_of`、`unfiled_webpage` 等）
 
 ### 7. 字段异味只能肉眼看
 
@@ -65,7 +65,7 @@
 - 现场：CC作业 里 `7BTJMW24` 的 date 是 "十一月 23, 2021"（中文界面的 connector 存进来的），publicationTitle 放的是缩写 "ACM Comput. Surv."；`8PJ24U2W` date 是 "2023/1"（页面元数据，Crossref 为 2023-10-21）；`UV98FY94` 的 journalAbbreviation 放的是全称；StyleGAN、SRGAN 两条是 CVF 版，没有 DOI 和摘要，而同分类其它 CVPR 条目是 IEEE 版带 DOI。都是逐条看 JSON 看出来的。
 - 痛点：12 条还能看，医疗图像 58 条就会漏。
 - 方向：只读的 lint（对现有条目：日期能否解析、缩写与全称错位、缺 DOI / 摘要、同分类版本不一致），输出能直接喂给 `update_item.py --patch` 的 JSONL。
-- 状态：open
+- 状态：open → 第二步 `lint_items`（`date_unparseable`、`abbreviation_misplaced`、`missing_doi` 等）
 
 ### 8. 流程状态被做成了标签
 
@@ -92,7 +92,7 @@
 - 痛点：v2 本想消灭一次性脚本，这里又逼出一个；而且用户明确同意了，动作仍落不了地，只能退回让用户在 Zotero 里手点。
 - 为什么：设计时把"删除"整体划给用户，没区分"用户亲手删"和"用户授权 agent 移到回收站"。
 - 方向：二选一，待定。(a) 保持用户亲手做，但报告里固定给出"待移入回收站"清单（条目键、标题、理由），交接清楚；(b) 加 `trash_item.py`（只设 `deleted`，带 `--restore`，dry-run 先列），命名写明可逆，权限规则可以对它单独放行。
-- 状态：open（这 3 条目前待用户处理）
+- 状态：部分处理（v3）→ `trash_item.py`（预演、移进回收站、恢复，读回核实；2026-10-18 第一次真实使用）；库里那 3 条仍待用户确认
 
 ### 11. 出版物标签没有前缀，在标签栏里找不齐
 
@@ -110,7 +110,7 @@
 - 痛点：用户看不出两条谁更全，只能凭印象操作，事后还得回头问；合并又悄悄带来了分类和字段的副作用。
 - 为什么：提议里只有"删哪条"，没有两条的字段对照，也没有先把被删那条独有的信息并进保留的那条。本地 API 不能合并条目（合并只在客户端），skill 里也没有"处理重复"的步骤。
 - 方向：organize.md 加"重复条目"一节：先列字段对照，定保留哪条，用 `update_item` 把对方独有的字段并过来，分类和标签取并集（`tmp` 除外），最后才请用户删除另一条（或在 Zotero 里合并时选保留那条）。可做成脚本：`dedupe.py --keep K --drop K2 --dry-run`，只合并信息，不删除。
-- 状态：open
+- 状态：open → 第二步 `merge_items`（列出字段对照，只合并信息不删除）；organize.md
 
 ### 13. `check_pdf` 对 CVF 版 StyleGAN 报 title_not_found（误报）
 
@@ -119,7 +119,7 @@
 - 痛点：误报要人工再查一遍；提示里让去用 pdf skill，而机器上现成的 `pdftotext` 一步就能判。
 - 方向：`check_pdf` 自带解析失败或乱码时，若 PATH 上有 `pdftotext` 就用它再判一次，并在结果里注明用了哪个提取器。
 - 同次顺带：把库里条目当记录喂给 `check_item` / `check_pdf` 很好用（审计已有条目），但要自己拼记录（`item` 去掉 key/version/collections/tags、`file` 指向 storage 路径）；stdin 喂多个缩进的 JSON 对象时每一行都报一次 `invalid_json`（几百行），不如直接报"stdin 不是 JSONL / 数组"。可考虑 `read_library.py items --as-records`。
-- 状态：open
+- 状态：已处理（v3）→ check_pdf 改用 pdftotext 抽前 3 页
 
 ### 14. `update_item` 改 `extra` 第一次报 readback_mismatch，重跑就成
 
@@ -128,7 +128,7 @@
 - 推断（未证实）：库里装着会写 `extra` 的插件（`TLDR:` 行就是插件写的），它在条目被修改时重写 `extra`，把我们刚写的内容盖掉，于是读回不一致；第二次它不再动（已有 TLDR）。
 - 痛点：agent 看到 mismatch 不知道该信哪边；重跑能好，但原因不明。
 - 方向：先验证推断（改一条带 TLDR 的条目的 `extra`，隔 1–2 秒连读两次看版本号是否被第三方 +1）；若属实，`update_item` 的读回在 mismatch 时等一下再读一次，并报告"写入后被别的程序改了（version 跳了 N）"。
-- 状态：open
+- 状态：open → 第二步：先验证推断，再改 `update_item`
 
 ### 15. 没有 DOI 的论文怎么定位、给别人什么链接
 
@@ -146,7 +146,7 @@
 - 现场：按 15 的规则补全无 DOI 条目。ECCV 2018、ECCV 2018 Workshops、MICCAI 2024 三个 Springer 章节，`doi_to_item.py` 生成 `bookSection`，`bookTitle` 是 "Lecture Notes in Computer Science"，并警告 "container-title is probably the series name"。Crossref 的 `container-title` 其实是两项：`["Lecture Notes in Computer Science", "Computer Vision – ECCV 2018"]`，第二项才是论文集。我在 scratch 里手工改成 `conferencePaper` + `proceedingsTitle` + `series`。另：日期取 Crossref 的 `issued`，ECCV 2018 Workshops 论文集是 2019 年出版，但 ESRGAN 通常按 2018 引用——我保留了 2018。
 - 痛点：每个 LNCS 会议论文都要手工改类型和字段；SKILL.md 虽然提示了 "LNCS/MICCAI/ECCV chapters arrive as bookSection"，但脚本明明拿得到正确答案。
 - 方向：`container-title` 有两项且第一项是已知丛书（LNCS、LNAI、CCIS…）时，直接出 `conferencePaper`：`proceedingsTitle` = 第二项，`series` = 第一项；年份取会议年（`event` 或标题里的年份）而非出版年时要注明。
-- 状态：open
+- 状态：已处理（v3）→ doi_to_item：带 ISSN 的书章节查 Crossref，丛书 → `series`，论文集 → `proceedingsTitle`，改成会议论文
 
 ### 17. 标识和链接放哪儿的原则，用户还没想清楚，待讨论
 

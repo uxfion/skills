@@ -4,7 +4,7 @@
 
 ## 1. 为什么重新设计
 
-两份 issue 合计 54 条：`docs/issues/20260923-paper-to-zotero-v2-first-use.md`（17 条，下文记作 F#）和 `docs/issues/20261009-paper-to-zotero-batch-import.md`（37 条，下文记作 B#）。
+两份 issue 合计 54 条：`docs/issues/20260923-paper-to-zotero-v2-first-use.md`（17 条，下文记作 F#）和 `docs/issues/archive/20261009-paper-to-zotero-batch-import-fixed.md`（37 条，下文记作 B#）。
 
 v2 处理单篇论文顺手，批量时的问题主要有：
 - PDF 核对误报约 90 次，同时又有错文件进了库；
