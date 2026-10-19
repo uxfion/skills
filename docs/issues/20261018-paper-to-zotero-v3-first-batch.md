@@ -58,8 +58,8 @@ v3 导入部分（`b6a3ce9`）的验收批量，共 7 篇：用户点名 2 篇�
 - 方向：
   - tagging.md 改成"论文自己给模型、系统或框架起的名字（摘要里的 'we propose X'）就打成裸标签；论文没用过的名字不造"。
   - 第二步的体检（`lint_items`）加一项：摘要里有 "we propose/present/introduce X" 而没有对应裸标签的条目。
-- 已处理：给 `NNJT5DHQ` 补了 `EchoWDiff`（以及 `task/Dehazing`）；tagging.md 改为"论文自己给模型起的名字，每篇都读摘要找"（2026-10-18）。体检那一项留给第二步的 `lint_items`。
-- 状态：部分处理（体检项待第二步）
+- 已处理：给 `NNJT5DHQ` 补了 `EchoWDiff`（以及 `task/Dehazing`）；tagging.md 改为"论文自己给模型起的名字，每篇都读摘要找"（2026-10-18）；`lint_items.py` 的 `name_not_tagged` 列出摘要里有名字、却没有对应标签的条目（真实库里 71 处，收紧规则后待复查）。
+- 状态：已处理
 
 ## 5. 其他观察
 

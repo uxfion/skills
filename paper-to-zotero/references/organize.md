@@ -1,6 +1,16 @@
 # Organize existing items
 
-The second entry: the user asks for tags or collections to be tidied, a field fixed, a structure built, a note attached, or a collection exported as BibTeX. Nothing here touches the import steps; the scripts are the same family, and every one of them takes `--cite <citation key>` wherever it takes `--key`.
+The second entry: the user asks for tags or collections to be tidied, a field fixed, duplicates merged, a structure built, a note attached, or a collection exported as BibTeX. Nothing here touches the import steps; the scripts are the same family, and every one of them takes `--cite <citation key>` wherever it takes `--key`.
+
+## A tidy: check, list, confirm, write, read back
+
+A request to tidy a collection (整理) runs these five steps; a single fix the user names starts at step 2.
+
+1. **Check.** `uv run scripts/lint_items.py --collection <key> [--recursive]` reads the whole library once and lists each item of the collection that has a problem: duplicates anywhere in the library, an unfiled webpage, several PDFs, a date Zotero cannot parse, a swapped journal abbreviation, a missing DOI, abstract or identifier, a model name the abstract gives that no tag carries (`--help` lists the codes). `--crossref` adds a DOI candidate to each `missing_doi`, one request a second. Done when the summary line is in hand.
+2. **List.** Turn the findings into one change list for the user: per item what you propose and why — the merge of a duplicate pair (below), the field fixes, the tags to add (references/tagging.md), what goes to the trash. A `patch` in a finding is mechanical and can go in as it is; every other code is yours to judge first — a venue that issues no DOI (ICML, ICLR) is expected under `missing_doi`, and a `duplicate_of` by title alone may be two papers. Done when every finding is in the list as a change or as left alone, with the reason.
+3. **Confirm.** Show the list (the `--dry-run` outputs of the scripts that will write it) and wait for the user's word on it; scope they grant holds for the rest of the task.
+4. **Write.** Each change with its script: fields `update_item.py` (a `patch` goes in a file: `--patch FILE`, one item per call), tags and collections `file_and_tag.py`, duplicates `merge_items.py`, the trash `trash_item.py`.
+5. **Read back.** Run step 1 again on the same scope. Done when every problem the user approved fixing is gone from it, and the report names what was left alone and why.
 
 ## Reading the library
 
@@ -32,7 +42,7 @@ An entry names its item by `key` or `cite`. Its `tags` is the item's *complete* 
 uv run scripts/update_item.py --cite <key> --set itemType=conferencePaper --set "publicationTitle=…" --set date=2023 --dry-run
 ```
 
-A paper without a DOI gets the identifier SKILL.md step 2 asks for — often the DOI exists (a CVF copy of a CVPR paper, a Springer chapter), and Crossref finds it by title and first author. Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag.py`; the trash has its own section below.
+A paper without a DOI gets the identifier SKILL.md step 2 asks for — often the DOI exists (a CVF copy of a CVPR paper, a Springer chapter), and Crossref finds it by title and first author. Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Zotero moves an Extra line it has a field for (`PMID: 38262200`) into that field when the field is empty: the result shows it under `normalized.extra.moved_to_fields`, which is a success — set such a field directly next time. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag.py`; the trash has its own section below.
 
 ## The trash
 
@@ -40,7 +50,13 @@ Superseded attachments (a snapshot or a preprint PDF once the published PDF is a
 
 ## Duplicate items
 
-Two items for one paper: show the user both side by side — every field that differs, their collections, tags, attachments and notes — and say which one you would keep and why (the fuller one, usually the one with the DOI and the published PDF). Once the user agrees, carry over to the kept item what only the other holds: fields with `update_item.py`, collections and tags with `file_and_tag.py` (`add_collection` / `add_tags`, `tmp` left out). Then move the other one to the trash as above. Zotero's own "Merge Items" keeps the master's fields only and brings the other item's collections along (`tmp` included, 2026-09), so this order loses nothing and adds nothing.
+Two items for one paper (`duplicate_of` by DOI or arXiv id; by title alone, read both first): choose the one to keep — the fuller one, usually with the published version's DOI and PDF — and show the user the plan:
+
+```bash
+uv run scripts/merge_items.py --keep <key> --drop <key> --dry-run
+```
+
+It lists the fields the kept item will take from the other (empty ones only), the `conflicts` it leaves as they are (say which value you would choose and why; `update_item.py` sets it on the user's word), the collections and tags it adds, the PDFs and notes it moves under the kept item, and what stays with the dropped one. A preprint/published pair is the user's call before any of this. On the user's word, run it without `--dry-run`, then trash the dropped item with the `trash_item.py` line it prints, after showing that `--dry-run` too. Zotero's own "Merge Items" keeps the master's fields only and brings the other item's collections along (`tmp` included, 2026-09); `merge_items.py` loses nothing and adds nothing.
 
 ## Building structure
 

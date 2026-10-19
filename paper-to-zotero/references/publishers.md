@@ -79,7 +79,7 @@ When the publisher says no access, the institution may still have the paper thro
 
 - **Primo NDE** (Ex Libris): each result is an anchor to `fulldisplay?…&docid=…`, and the docid names the source — `cdi_crossref_primary_<doi>` (the published article), `cdi_proquest_journals_<docview id>`, `cdi_arxiv_primary_<id>` (the preprint). The full record lists "Get PDF" and "Read online" links per provider. The same title can come back three times (publisher, ProQuest, arXiv); a ProQuest record may hold the arXiv version. Its links are not always right: one PDF link for a JAMIA paper downloaded a JMIR paper, twice. The search page's own request (`primaws/rest/pub/pnxs`) carries the same links, but `browser network` captured nothing on 2026-10-18; the page is the reliable source.
 - **ProQuest**: "Get PDF" leads to `docview/<id>/fulltextPDF`, which the proxy association opens through the institution: a same-origin pdf.js iframe with no outer download link, whose bytes `PDFViewerApplication.pdfDocument.getData()` gives (`fetch.py --via viewer` on that tab). Open these links in the session's own tab: "Get PDF" clicked on the page opens a tab that does not belong to the session. A paper the discovery system does not index can be searched in ProQuest directly by title. Other aggregators appear in the facets (Journals@Ovid, EBSCOhost).
-- **Pacing**: licences forbid systematic downloading, and a proxy that sees too many full-text requests suspends the institution's account, not just this browser. `fetch.py` spaces every full-text request made through the institution (15 s); before a batch of dozens of papers, tell the user how long the institutional routes will take.
+- **Pacing**: licences forbid systematic downloading, and a proxy that sees too many full-text requests suspends the institution's account, not just this browser. `fetch.py` spaces every full-text request made through the institution 15 s apart; work done by hand on these sites keeps the same pace.
 
 ## Verified publishers
 
@@ -119,7 +119,7 @@ When the publisher says no access, the institution may still have the paper thro
 | --- | --- | --- |
 | click, then no file and no `.crdownload` in Downloads | the click opened a viewer page, or the Save As dialog is up | navigate to the embedded PDF's URL (or `fetch.py --via viewer`); if that fails too, check the PDF setting and the Save As option |
 | `.crdownload` lingers | large file or slow link | keep waiting |
-| the user says the file downloaded, but nothing was filed | `claim.py` is not running, or the file matched no record or several | `claim.py --scan`; a `left` line names the file — check it and file it by hand (rename it to `<slug>.pdf` in records/) |
+| the user says the file downloaded, but nothing was filed | `claim.py` is not running, or the file matched no record or several | `claim.py --scan`; a `left` line names the file — read it, then `claim.py --file <copy> --slug <slug>` files it through the check |
 | `opencli browser … wait text` / `wait selector` answers `detached_mid_command` | the tab navigated while waiting (a login redirect does this) | wait with `fetch.py --wait`, which reads the tab every 10 s and goes on through navigations |
 | `attach_failed … chrome-extension://` | built-in PDF viewer is on | PDF setting above |
 | downloaded "PDF" is HTML, or its text is a login / access-denied page | the gate was not really passed | wait at the gate again |

@@ -20,7 +20,9 @@ diagnostics go to stderr. Exit 0 = done, 1 = not done (the agent decides),
 rejected, key belongs to another Zotero instance).
 
 Codes (exit):
-  ok                  0  written and read back (see `normalized` for values Zotero changed), or nothing to change
+  ok                  0  written and read back (see `normalized` for values Zotero changed: an Extra line such as
+                         "PMID: 1" that Zotero moved into its own field shows as normalized.extra.moved_to_fields;
+                         set that field itself next time), or nothing to change
   item_not_found      1  no item with that key
   cite_not_found      1  no item carries the --cite citationKey
   cite_ambiguous      1  several items carry it; `keys` lists them, pass --key
@@ -385,8 +387,11 @@ def run(api, args, api_key, server_id):
     applied, normalized, mismatch = [], {}, {}
     for f, sent in patch.items():
         now = after_data.get(f, [] if f == "creators" else "")
+        moved = moved_to_fields(sent, now, after_data) if f == "extra" else {}
         if now == sent:
             applied.append(f)
+        elif moved and [ln for ln in sent.splitlines() if ln not in moved] == now.splitlines():
+            normalized[f] = {"sent": sent, "now": now, "moved_to_fields": moved}
         elif now == changes[f]["from"]:
             mismatch[f] = {"sent": sent, "now": now}
         else:
@@ -400,6 +405,20 @@ def run(api, args, api_key, server_id):
         raise Stop("readback_mismatch", 1, "The PATCH returned 204 but these fields still show their old value; inspect the item in Zotero.",
                    mismatch=mismatch, **result)
     emit("ok", 0, **result)
+
+
+def moved_to_fields(sent, now, after_data):
+    """Lines of the Extra we sent that Zotero moved into the field of that name ("PMID: 1" -> PMID): {line: field}.
+    Zotero does this on save when the item type has the field and it is empty, so the Extra read back lacks them."""
+    if not isinstance(sent, str) or not isinstance(now, str):
+        return {}
+    kept, fields, out = set(now.splitlines()), {k.casefold(): k for k in after_data}, {}
+    for line in sent.splitlines():
+        name, sep, value = line.partition(":")
+        field = fields.get(name.strip().casefold())
+        if line not in kept and sep and field and field != "extra" and str(after_data.get(field)).strip() == value.strip():
+            out[line] = field
+    return out
 
 
 def parse_args():

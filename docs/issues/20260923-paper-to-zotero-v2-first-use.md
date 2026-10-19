@@ -57,7 +57,7 @@
 - 现场：为查 CC作业 的 12 篇有没有重复，只能对每个标题循环 `find_in_library.py --title`（12 次调用）。查出：GAN 重复（见 1）；两个未归类的 `webpage` 条目——CycleGAN 项目页快照（`7IA737QZ`），以及 SRCNN 的出版社页面（`LV5AVFU7`，URL 是机构代理主机加一次性 token，无附件）；CycleGAN 条目挂了两份 PDF（IEEE 版和 CVF 版，MD5 不同）。
 - 痛点：整理时最该先看的"重复、孤立网页条目、一条多份 PDF"全靠手工拼。
 - 方向：`find_in_library` 流模式也能吃库里的条目（`read_library.py items --collection K | find_in_library.py --dupes`），报告同 DOI / 同标题的其它条目；organize.md 的整理清单加上这三类。
-- 状态：open → 第二步 `lint_items`（`duplicate_of`、`unfiled_webpage` 等）
+- 状态：已处理（v3 第二步）→ `lint_items.py`：一次读全库，报 `duplicate_of`、`unfiled_webpage`、`multiple_pdfs` 等；2026-10-18 在真实库上找出这里记的两个未归类网页条目和 18 处重复
 
 ### 7. 字段异味只能肉眼看
 
@@ -65,7 +65,7 @@
 - 现场：CC作业 里 `7BTJMW24` 的 date 是 "十一月 23, 2021"（中文界面的 connector 存进来的），publicationTitle 放的是缩写 "ACM Comput. Surv."；`8PJ24U2W` date 是 "2023/1"（页面元数据，Crossref 为 2023-10-21）；`UV98FY94` 的 journalAbbreviation 放的是全称；StyleGAN、SRGAN 两条是 CVF 版，没有 DOI 和摘要，而同分类其它 CVPR 条目是 IEEE 版带 DOI。都是逐条看 JSON 看出来的。
 - 痛点：12 条还能看，医疗图像 58 条就会漏。
 - 方向：只读的 lint（对现有条目：日期能否解析、缩写与全称错位、缺 DOI / 摘要、同分类版本不一致），输出能直接喂给 `update_item.py --patch` 的 JSONL。
-- 状态：open → 第二步 `lint_items`（`date_unparseable`、`abbreviation_misplaced`、`missing_doi` 等）
+- 状态：已处理（v3 第二步）→ `lint_items.py`：`date_unparseable`（用 Zotero 自己的 `meta.parsedDate`）、`abbreviation_misplaced`（带对调的 `patch`）、`missing_doi`（`--crossref` 给候选）、`missing_abstract`、`no_identifier`；这里记的两条（`7BTJMW24`、`UV98FY94`）在 2026-09-23 的整理里已修好
 
 ### 8. 流程状态被做成了标签
 
@@ -110,7 +110,7 @@
 - 痛点：用户看不出两条谁更全，只能凭印象操作，事后还得回头问；合并又悄悄带来了分类和字段的副作用。
 - 为什么：提议里只有"删哪条"，没有两条的字段对照，也没有先把被删那条独有的信息并进保留的那条。本地 API 不能合并条目（合并只在客户端），skill 里也没有"处理重复"的步骤。
 - 方向：organize.md 加"重复条目"一节：先列字段对照，定保留哪条，用 `update_item` 把对方独有的字段并过来，分类和标签取并集（`tmp` 除外），最后才请用户删除另一条（或在 Zotero 里合并时选保留那条）。可做成脚本：`dedupe.py --keep K --drop K2 --dry-run`，只合并信息，不删除。
-- 状态：open → 第二步 `merge_items`（列出字段对照，只合并信息不删除）；organize.md
+- 状态：已处理（v3 第二步）→ `merge_items.py`：预演列出字段对照、冲突、要搬的 PDF 和笔记；只合并信息、不删除，最后给出 `trash_item` 那一行；organize.md 的"重复条目"一节和整理五步
 
 ### 13. `check_pdf` 对 CVF 版 StyleGAN 报 title_not_found（误报）
 
@@ -128,7 +128,7 @@
 - 推断（未证实）：库里装着会写 `extra` 的插件（`TLDR:` 行就是插件写的），它在条目被修改时重写 `extra`，把我们刚写的内容盖掉，于是读回不一致；第二次它不再动（已有 TLDR）。
 - 痛点：agent 看到 mismatch 不知道该信哪边；重跑能好，但原因不明。
 - 方向：先验证推断（改一条带 TLDR 的条目的 `extra`，隔 1–2 秒连读两次看版本号是否被第三方 +1）；若属实，`update_item` 的读回在 mismatch 时等一下再读一次，并报告"写入后被别的程序改了（version 跳了 N）"。
-- 状态：open → 第二步：先验证推断，再改 `update_item`
+- 状态：已处理（v3 第二步）→ 推断不对：不是插件改写，而是 Zotero 自己把 `PMID: n` 这类 Extra 行迁进同名字段，读回的 Extra 正好等于旧值。2026-10-18 在自建测试条目上复现（一次写入版本号跳 4）。`update_item.py` 现在把这种情况报为 `normalized.extra.moved_to_fields`，算成功
 
 ### 15. 没有 DOI 的论文怎么定位、给别人什么链接
 

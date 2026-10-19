@@ -364,6 +364,7 @@ Zotero 本身就是记录：
   - `missing_doi`：缺 DOI（Crossref 能查到时附上候选）；
   - `missing_abstract`：缺摘要；
   - `no_identifier`：没有任何能定位这篇论文的标识。
+  - `name_not_tagged`：摘要里给出的模型或系统名（"we propose X"），没有对应标签（2026-10-18 补）。
 - `merge_items --keep K --drop K2 [--dry-run]`：
   - 列出两条的字段对照；
   - 保留条目里空着的字段，用被并条目的值补上；冲突只列出来，不覆盖；
@@ -371,7 +372,7 @@ Zotero 本身就是记录：
   - 被并条目独有的 PDF（按 md5 判断）和笔记，改挂到保留条目下；
   - 不删除任何东西。
 - `update_item`：
-  - 先验证 F#14 的推断（是不是插件在写入后又改了 `extra`）；属实就在读回不一致时等一下再读一次，并报告"被其他程序改过"。
+  - 先验证 F#14 的推断（是不是插件在写入后又改了 `extra`）。2026-10-18 验证：不是插件，是 Zotero 自己把 Extra 里 `PMID: n` 这类行迁进同名字段；读回时把这种情况报为 `moved_to_fields`，算成功。
   - `deleted` 的拒绝提示改为指向 `trash_item`。
 
 ## 7. 决定
@@ -497,4 +498,5 @@ Zotero 本身就是记录：
 ## 10. 修订
 
 - 2026-10-13：建立。
+- 2026-10-18（第二步）：`lint_items` 一次读全库（只读），加 `name_not_tagged`；`merge_items` 按 `/api/schema` 的字段和基础字段对应；F#14 的原因是 Zotero 的 Extra 迁移。
 - 2026-10-18：用户补充（"我实际上已经帮你下载了，但是你还没找到pdf……就一直卡在那"；"最后确认那一遍的话，你汇报，然后依次帮我在浏览器打开"）：门禁等待改由 `fetch --wait` 做，文件到了也结束；`fetch` 每篇前重查文件；Monitor 盯日志；最后一遍逐篇在前台打开（`--window foreground`）。
