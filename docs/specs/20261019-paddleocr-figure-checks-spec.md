@@ -61,7 +61,7 @@
 6. **一个块只归一个图注**：已归某个图注的块，对别的图注是挡板。
 7. **正文行**：有文字层时，从范围离图注最远的那条边往回看，正文字体、排满一栏宽 85% 以上、30 个字符以上的行，以及这种段落的最后一行，都是正文，范围的边移到它们里侧。第一行要在边内页高 12% 以内，之后每行和上一行相距 3 行以内。
    - 为什么：VL 画的图块有时包进了几行正文（最差 07）。只看块，第二意见会和合图错得一样。
-8. **小节标题**：标题标签的块，只有下面 3 行内、同一栏里紧跟正文，才是小节标题、才挡住。下面跟着图的，是图里的标题，照常扩过去。
+8. **小节标题**：`paragraph_title` 块只有下面 3 行内、同一栏里紧跟正文，才是小节标题、才挡住。下面跟着图的，是图里的标题，照常扩过去。`doc_title` 按第 1 条已是正文。
    - 为什么：VL 常把图里的面板标题标成小节标题（wangKnowledgeGraph Fig. 4）。
 
 常量：`ROW`（页高 0.75%）、`COVER` 0.7、`SWALLOW` 0.2、`LONG_TEXT` 300 沿用 `parse.py`；其余数字写成 `figcheck.py` 的常量，取值同上。膨胀和连通域用 cv2，不新增依赖。
@@ -72,7 +72,7 @@
 
 | 原因 | 什么时候报 | 实测例子 |
 | --- | --- | --- |
-| `split` | 一个图注归了 2 个以上裁剪；或者图注在页面上 1/3、本页没有裁剪归它，而前一页有 2 个以上不归任何图注的裁剪（跨页） | gadd Fig. 6；跨页：liLargeLanguageModel 扩展图 8、9 |
+| `split` | 一个图注归了 2 个以上裁剪；或者跨页：图注在页面上 1/3、本页没有裁剪归它，前一页以不归图注的裁剪结尾（和 `uncropped_figure` 的跨页例外同一判断），而这样的裁剪有 2 个以上 | gadd Fig. 6；跨页：liLargeLanguageModel 扩展图 8、9 |
 | `two_figures` | 另一个图注或表注有一半以上落在它的裁剪里；或裁剪内的文字层有一行以 “Figure 3:”“Fig. 2.”“Table 1 \|” 这类图注开头；或裁剪正下方（没有就看正上方）有两个并排的图注。它自己的图注不算 | tam 那篇的 4 页：VL 把相邻两张图画成一个块 |
 | `table` | 页上有表注，40% 页高内却没有表格块，而这个图注的裁剪就在它旁边：表格被画进了图块 | VILA-M3 Fig. 2 |
 | `edge_cut` | 裁剪某一边有 3 个以上墨迹连通块，一部分在框内，一部分越出边 2 px 以上（只看边外 max(4 px, 0.6 行) 的一圈） | MINIM 扩展图 5 |
@@ -81,6 +81,7 @@
 - 阈值都是报告阶段四事先定好的。`two_figures` 是看了新一批结果才补的，跨页的 `split` 是新加的，第 7、8 条规则是事后加回的，三处都要在新一批论文上验证（第 5 节）。
 - 没有文字层时，`two_figures` 只看图注块和并排，第二意见只用几何。
 - 原型的 `two_figures` 没排除图注自己，实现时排除：图注在裁剪里，评分时不算错。
+- 跨页的 `split` 也会报前一页本来就是几张没编号的小图的情况，按“宁可多看”接受。
 
 ### 3.4 输出
 
@@ -91,7 +92,7 @@
  "reasons": ["second_opinion: its top edge is 11.5 rows below the crop's"],
  "crops": [{"n": 1, "block": 188, "bbox": [111, 129, 1109, 1182], "image": "imgs/p16_….jpg"}],
  "second_opinion": [111, 266, 1109, 1182],
- "overlay": "checks/p16_189.jpg", "region": [53, 61, 484, 482]}
+ "overlay": "checks/p16_189.jpg", "region": […]}
 ```
 
 - `reasons` 每条是“原因: 哪一边、差多少”。`second_opinion` 写清第二意见的边比裁剪多出或少了几行。
@@ -107,10 +108,11 @@
 
 框都画在真实边界外约 6 px，不压住内容。跨页的 `split` 画前一页。编号和分色是因为两个相邻、中间隔着图注的框，看起来像一个框。
 
-**Markdown 注释**：图的核对第一次跑在这份解析上时写入，以后不再改 Markdown。
+**Markdown 注释**：每张报出的图写一次。告警里已有 `overlay` 的图，说明注释写过，不再写。
 - `figure_check`：写在这张图第一个裁剪的图片行之前，例如 `<!-- figure_check: second_opinion: its top edge is 11.5 rows below the crop's; overlay checks/p16_189.jpg -->`。
 - `uncropped_figure`：写在图注那一行之前，例如 `<!-- uncropped_figure: no crop beside this caption; overlay checks/p08_77.jpg -->`。
-- 找不到那一行时（比如已被手动改过），不写，告警仍在 JSON 里。
+- 找图注那一行：在这一页（两个 `<!-- page N -->` 之间）找开头和图注前 30 个字符相同的行，比较时去掉 `**`、空白，不分大小写。
+- 找不到那一行时（比如已被手动改过），写在这一页的 `<!-- page N -->` 之后，注释里带上图注开头。读 Markdown 的 agent 总能看到它。
 
 **记录**：`parser` 里加 `"figure_check": {"version": 1}`。plus-L 没加载上、第二意见没用整图框时，加 `layout_error`。
 
@@ -130,8 +132,8 @@
 - **处理**：在 regroup、recrop、recheck 之后跑图的核对，写入告警、叠加图和 Markdown 注释。Markdown 其他行和此前的修订都保留。
 - **结果**：摘要标 `"figures_checked": true`；没做时 `"figures_check"` 写原因。
 - `FORMAT`、`FIGURES`、`CHECK` 都不变。
-- 文字核对以后重跑时（`CHECK` 升级），`figure_check` 告警原样保留，`uncropped_figure` 重新算出后接回它的叠加图和第二意见框。
-- 以后 `figure_check` 的版本升级时，已有解析怎么迁移由那次改动另定。Markdown 注释只写一次，这里不预先设计。
+- 文字核对以后重跑时（`CHECK` 升级），`figure_check` 告警原样保留，`uncropped_figure` 重新算出后接回它的叠加图和第二意见框。重新算出的告警里有新的（没有 `overlay`），图的核对就给它补做叠加图和注释。
+- 以后 `figure_check` 的版本升级时，已有解析怎么迁移由那次改动另定，这里不预先设计。
 
 ### 3.7 agent 怎么处理（SKILL.md）
 
@@ -142,7 +144,9 @@
   2. 再参考第二意见的框和原因。
   3. 没问题就沿用，把注释改成 `<!-- figure_check: crop checked, kept -->`。
   4. 有问题就换一个裁剪，照现有的裁图步骤：从第二意见的框开始，不合适就从 JSON 里的框开始。裁出来看过，调好边界，换掉图片行，注释改成 `<!-- from page image: figure cropped by hand -->`。第二意见的框不经看过不能直接用。
-- **报告**：哪些图看过、换过，哪些留着没看。
+  5. `uncropped_figure` 的图是文字、Markdown 里已有时，注释改成 `<!-- uncropped_figure: checked, the text is in the Markdown -->`。
+- 注释有三种状态：原样的 `figure_check: …` / `uncropped_figure: …` 是还没看；`checked …` 是看过、沿用；`from page image: …` 是换过。
+- **报告**：分开列出换过的、看过沿用的、还没看的。
 
 SKILL.md 的措辞实现时按 writing-for-agents 写。
 
@@ -174,7 +178,10 @@ SKILL.md 的措辞实现时按 writing-for-agents 写。
 ## 5. 验证
 
 1. 单元测试全部通过。
-2. **和实测对齐**：115 篇已有解析走升级路径（不重新解析）。逐图注比对 `figure_check` 和阶段五的结果（`prototype/slim/edge_flags.tsv`，以及 `bigtest` 的表注、裁剪边、两图结果）。渲染器和连通域实现不同，可能有少量出入，逐条看过、说清原因。报出率应和阶段五一致：严重错误 138/138，好图放行约 86%。
+2. **和实测对齐**：115 篇已有解析走升级路径（不重新解析）。
+   - 实现和原型有几处不同：排除图注自己、cv2 代替 scipy、PaddleX 的渲染代替 pypdfium2、`is_table_caption` 代替原型的表注正则。所以不要求逐条相同。
+   - 逐图注比对 `figure_check` 和阶段五的结果（`prototype/slim/edge_flags.tsv`，以及 `bigtest` 的表注、裁剪边、两图结果），列出每一处不同，说清原因。
+   - 报出率直接按 `bigtest/graded_layer.tsv` 的逐图对错重算。标准：严重错误一张不少（138/138）；送给 agent 的好图和阶段五的 125 张相差在 10 张以内。
 3. **旧解析升级**：带手动修订的旧解析，修订原样保留，注释只加一次，第二次运行不再改动；`--photo` 的旧解析写明原因。截图目录照常核对。
 4. **agent 从判断到裁图**：从 115 篇的告警里抽 30 张（10 严重、8 小问题、12 好图），交给一个没有上下文的 agent，只照 SKILL.md 处理。它裁出的图再盲评。看三件事：严重错误改对了几张，好图沿用了几张，第二意见的框有多少能直接用。
 5. **新一批论文盲评**：另挑没用过的论文 20 篇以上，多放扫描件和 Nature 扩展图（跨页）。
