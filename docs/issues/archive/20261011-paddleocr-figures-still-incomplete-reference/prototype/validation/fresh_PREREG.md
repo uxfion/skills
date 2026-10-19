@@ -1,6 +1,6 @@
 # Fresh batch for the implemented figure check: fixed before parsing and grading (2026-10-19)
 
-- Code: paddleocr at commit 1d15f2d (figcheck.py and parse.py checksums in prereg.sha256). No change to
+- Code: paddleocr as committed in 1d15f2d. No change to
   the checks, thresholds or second opinion until this batch is graded and counted.
 - Papers: 24 unused papers from the research corpus (chosen.tsv, seed 20261019, stratified by venue guess), parsed fresh;
   4 of them also as page images rendered at 150 dpi (no text layer: the scan path).

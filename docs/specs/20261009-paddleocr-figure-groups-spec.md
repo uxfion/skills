@@ -1,5 +1,7 @@
 # paddleocr：把拆碎的图合回整张（设计）
 
+> 3.6 的 `uncropped_figure` 由 [20261019-paddleocr-figure-checks-spec.md](20261019-paddleocr-figure-checks-spec.md) 的 `figure_check`（原因 `no_crop`）接替。
+
 来源：[issue 20261007-paddleocr-figure-split-fixed](../issues/archive/20261007-paddleocr-figure-split-fixed.md)。用户选了 issue 里推荐的方向，要求「从全局考虑设计一个比较合理优雅的，然后有兜底的」。
 
 ## 1. 目标
