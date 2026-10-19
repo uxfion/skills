@@ -42,7 +42,7 @@ The scripts that call outside services in bulk (`doi_to_item.py`, `fulltext_link
 
 ## The user in the loop
 
-The user may click a PDF button, download a paper or log in while you work, in any pass, on a page you have not reached yet — that only speeds things up. The watcher runs from step 0 on, so a file they download is filed whenever it lands, and `fetch.py` looks for it before each paper and while it waits. `claim.py` files any new PDF in Downloads that matches exactly one paper and passes the check; a second copy goes to `<work>/stray/`, and a file that matches nothing or several papers stays in Downloads untouched, since it may be the user's own. You still fetch every paper yourself: their help is never the plan.
+The user may click a PDF button, download a paper or log in while you work, in any pass, on a page you have not reached yet — that only speeds things up. The watcher runs from step 0 on, so a file they download is filed whenever it lands, and `fetch.py` looks for it before each paper and while it waits. `claim.py` files any new PDF in Downloads that matches exactly one paper and passes the check; a second copy goes to `<work>/stray/`, and a file that matches nothing or several papers stays in Downloads untouched, since it may be the user's own. You still fetch every paper yourself: their help is never the plan. A paper the user downloads that is not in the run, and then asks you to add: draft its record (steps 1–2); the watcher checks the file again against the new record and files it.
 
 ## Report
 

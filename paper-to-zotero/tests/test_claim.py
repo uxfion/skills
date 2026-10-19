@@ -151,6 +151,16 @@ class ClaimTest(unittest.TestCase):
         r = self.run_script("--scan", "--downloads", str(self.dl))
         self.assertEqual(self.lines(r.stdout), [], "a file logged as left is not checked again")
 
+    def test_a_file_left_before_its_record_existed_is_claimed_once_the_record_is_drafted(self):
+        third = "Harnessing Foundation Models for Universal Image Restoration"
+        f = self.download("2610.10133v2.pdf", pdf(f"{third}\nWei Liu"))
+        first = self.lines(self.run_script("--scan", "--downloads", str(self.dl)).stdout)[0]
+        self.assertEqual((first["result"], sorted(first["against"])), ("left", ["other", "paper"]))
+        self.record("kong", third)
+        line = self.lines(self.run_script("--scan", "--downloads", str(self.dl)).stdout)[0]
+        self.assertEqual((line["result"], line["slug"]), ("claimed", "kong"))
+        self.assertFalse(f.exists())
+
     def test_scan_duplicate_goes_to_stray_and_stamp_makes_a_preprint(self):
         (self.work / "records" / "paper.pdf").write_bytes(pdf(TITLE))
         self.download("again.pdf", pdf(f"{TITLE}\nWei Liu"))
@@ -171,8 +181,9 @@ class ClaimTest(unittest.TestCase):
         self.assertTrue(f.exists())
         self.record("twin", OTHER)
         g = self.download("y.pdf", pdf(f"{OTHER}\nWei Liu"))
-        line = self.lines(self.run_script("--scan", "--downloads", str(self.dl)).stdout)[0]
-        self.assertEqual((line["why"], sorted(line["matched"])), ("ambiguous", ["other", "twin"]))
+        lines = {ln["file"]: ln for ln in self.lines(self.run_script("--scan", "--downloads", str(self.dl)).stdout)}
+        self.assertEqual((lines["y.pdf"]["why"], sorted(lines["y.pdf"]["matched"])), ("ambiguous", ["other", "twin"]))
+        self.assertEqual(lines["x.pdf"]["against"], ["twin"], "a left file is checked only against the new record")
         self.assertTrue(g.exists())
 
     def test_sweep_lists_what_is_left(self):

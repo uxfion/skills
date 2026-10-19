@@ -19,15 +19,25 @@
                   {"code": "stopped", "slug", "why": no_pdf_link | refused | no_start | error, "url", "title"}.
                   The script never decides what such a page is (a login, a missing subscription, an error page):
                   the agent looks, acts, then reruns the same command, which goes on from there.
+  --via discovery for each record, the library's discovery system (the config's institution.discovery: a Primo search
+                  URL): search the title, take the results that carry this title (or one of alt_titles; arXiv
+                  records last), open each one's full record and its "Get PDF" links, which lead to an aggregator
+                  (ProQuest and the like) through the institution's proxy: a pdf.js viewer's bytes, or a download.
+                  Only the discovery system's own full-text links are followed. No result with this title ->
+                  logged as not_in_discovery and the run goes on; results but no file -> stopped on that page for
+                  the agent. No institution.discovery in the config -> each record is logged as no_discovery and
+                  stdout says to ask the user for their library's search page.
   --via viewer    one record: the pdf.js viewer in the session's current tab (ProQuest and the like); its bytes.
   --via snapshot  for each record, the article page's HTML (filed as <slug>.html, checked like a PDF): open --start
-                  or https://doi.org/<DOI> (not the proxied page: unsubscribed, the proxy shows a login); --current
-                  takes the current tab of the session for one record instead.
+                  or https://doi.org/<DOI>; the page that arrives is checked like any file (a login page is not
+                  the article); --current takes the current tab of the session for one record instead.
   --wait          one record, at a gate: read the session's current tab and the record's file every 10 s, nothing
                   else (no navigation), until the file has arrived ({"code": "arrived"}, exit 0: claim.py --watch,
                   or --downloads, filed it, whoever downloaded it), the page shows --until TEXT (text or CSS
                   selector), or without --until its URL or title changes ({"code": "passed"}, exit 0), or --timeout
                   seconds (default 300) pass: {"code": "gate_timeout"}, exit 1, logged as this pass's try by --via.
+                  --for file waits for the file alone (the last pass, with the user at the page): the page is not
+                  read, and a timeout is {"code": "timeout"}, exit 1, not logged.
                   A user who logs in from another window changes nothing in this tab: their word, or the file, ends
                   the wait.
 
@@ -47,12 +57,14 @@ Every try is one line appended to <work>/fetch.jsonl: {"event": "try", "slug", "
 "at", "note"?}; result: ok | wrong_file (the check failed: claim.py moved it to unverified/) | not_pdf | no_link |
 http_<n> | network_error | stopped | the agent's verdict. Fetched bytes go to <work>/inbox/ and through claim.py
 --file (subprocess). The work directory is the parent of the records' directory. Requests to one host are spaced
-(1 s; medRxiv / bioRxiv 10 s) inside this process. Exit 0 = the run went through (records may still lack a file:
+(1 s; medRxiv / bioRxiv 10 s; full text through the institution's proxy or discovery system 15 s,
+PAPER_TO_ZOTERO_INSTITUTION_GAP) inside this process. Exit 0 = the run went through (records may still lack a file:
 see the lines), 1 = stopped at a record, 2 = cannot run (no opencli, records in different work directories).
 """
 
 import argparse
 import base64
+import difflib
 import json
 import os
 import re
@@ -69,13 +81,18 @@ HERE = Path(__file__).resolve().parent
 CLAIM_SCRIPT = HERE / "claim.py"
 STEM_FILES = (".pdf", ".accepted.pdf", ".preprint.pdf", ".supplement.pdf", ".html")
 BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-PACE = {"www.medrxiv.org": 10.0, "www.biorxiv.org": 10.0}
+# Seconds between requests to one host in this process. "institution" is every full-text request made through the
+# institution's subscriptions (a proxied page's PDF, a discovery system's Get PDF): licences forbid systematic
+# downloading, and a proxy that sees too many suspends the institution's account, not just this browser.
+PACE = {"www.medrxiv.org": 10.0, "www.biorxiv.org": 10.0,
+        "institution": float(os.environ.get("PAPER_TO_ZOTERO_INSTITUTION_GAP", "15"))}
 CHUNK = 1_000_000            # base64 characters per eval read
 OPEN_TIMEOUT = 60
 EVAL_TIMEOUT = 120
 DOWNLOAD_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_DOWNLOAD_WAIT", "25"))   # seconds for a download to be filed
 VIEWER_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_VIEWER_WAIT", "20"))
 WAIT_STEP = float(os.environ.get("PAPER_TO_ZOTERO_WAIT_STEP", "10"))            # --wait: seconds between looks
+DISCOVERY_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_DISCOVERY_WAIT", "30"))  # seconds for results / links to render
 MAX_BYTES = 200 * 1024 * 1024
 
 INFO_JS = r"""/*p2z:info*/(()=>{const m=(n)=>{const e=document.querySelector('meta[name="'+n+'"]');return e&&e.content?e.content:null};
@@ -100,6 +117,13 @@ window.__p2z_b64=btoa(s);return {pdf:true,size:b.length,b64len:window.__p2z_b64.
 WAIT_JS = r"""/*p2z:wait*/(()=>{const u=__UNTIL__;let found=false;if(u){try{found=!!document.querySelector(u)}catch(e){}
 found=found||((document.body&&document.body.innerText)||'').indexOf(u)>=0}
 return {href:location.href,title:document.title||'',found:found}})()"""
+RESULTS_JS = r"""/*p2z:results*/(()=>{const t=document.body?document.body.innerText:'';
+const a=[...document.querySelectorAll('a[href*="fulldisplay"]')].map(x=>({title:(x.innerText||'').trim(),href:x.href}));
+return {done:a.length>0||/No records found/i.test(t),results:a}})()"""
+LINKS_JS = r"""/*p2z:links*/(()=>{const a=[...document.querySelectorAll('a[href]')].map(x=>({text:(x.innerText||
+x.getAttribute('aria-label')||'').trim().replace(/\s+/g,' '),href:x.href}));
+return {pdf:a.filter(x=>/^Get PDF/i.test(x.text)).map(x=>x.href),
+online:a.filter(x=>/uresolver/i.test(x.href)||/^Read online/i.test(x.text)).length}})()"""
 CHUNK_JS = "/*p2z:chunk*/(()=>{const s=window.__p2z_b64;return typeof s==='string'?s.slice(__A__,__B__):null})()"
 CLEAR_JS = "/*p2z:clear*/(()=>{delete window.__p2z_b64;return true})()"
 
@@ -136,16 +160,18 @@ class Run:
         self.work = works.pop()
         self.inbox = self.work / "inbox"
         self.last = {}
-        self.proxy = self.config_proxy()
+        inst = self.config_institution()
+        proxy, discovery = inst.get("proxy"), inst.get("discovery")
+        self.proxy = proxy.strip().lower().lstrip(".") if isinstance(proxy, str) and proxy.strip() else None
+        self.discovery = discovery.strip() if isinstance(discovery, str) and discovery.strip() else None
 
-    def config_proxy(self):
+    def config_institution(self):
         path = Path(os.environ.get("PAPER_TO_ZOTERO_CONFIG") or Path.home() / ".config" / "paper-to-zotero" / "config.json")
         try:
             inst = json.loads(path.read_text(encoding="utf-8")).get("institution") or {}
-            proxy = inst.get("proxy") if isinstance(inst, dict) else None
         except (OSError, ValueError, AttributeError):
-            proxy = None
-        return proxy.strip().lower().lstrip(".") if isinstance(proxy, str) and proxy.strip() else None
+            inst = {}
+        return inst if isinstance(inst, dict) else {}
 
     def file_of(self, slug):
         return next((slug + s for s in STEM_FILES if (self.work / "records" / (slug + s)).is_file()), None)
@@ -395,6 +421,8 @@ def page_route(run, todo):
             return stop(run, slug, "no_pdf_link", href, title)
         link = urllib.parse.urljoin(href, info["pdf"])
         req = request_url(info["pdf"], href, run.proxy)
+        if run.proxy and host_of(href).endswith("." + run.proxy):
+            run.pace("institution")
         meta, err = b.eval(FETCH_JS.replace("__URL__", json.dumps(req)))
         if err is None and isinstance(meta, dict) and meta.get("pdf"):
             data = b.read_b64(int(meta.get("b64len") or 0))
@@ -423,6 +451,84 @@ def page_route(run, todo):
         if run.arrived(slug):
             continue
         return stop(run, slug, "refused", after.get("href") or req, after.get("title") or title, f"in-page: {refused}")
+    return 0
+
+
+def same_title(a, titles):
+    norm = lambda t: " ".join(re.sub(r"[^0-9a-z]+", " ", str(t or "").casefold()).split())
+    a = norm(a)
+    return bool(a) and any(a == norm(t) or difflib.SequenceMatcher(None, a, norm(t)).ratio() >= 0.9 for t in titles if t)
+
+
+def with_query(base, title):
+    parts = urllib.parse.urlsplit(base)
+    query = [(k, v) for k, v in urllib.parse.parse_qsl(parts.query, keep_blank_values=True) if k != "query"]
+    return urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode([("query", title)] + query)))
+
+
+def poll(b, js, ready, seconds):
+    deadline, last = time.monotonic() + seconds, None
+    while True:
+        value, err = b.eval(js)
+        if err is None and isinstance(value, dict):
+            last = value
+            if ready(value):
+                return value
+        if time.monotonic() >= deadline:
+            return last or {}
+        time.sleep(1.5)
+
+
+def discovery_route(run, todo):
+    if not run.discovery:
+        for path, rec, slug in todo:
+            if not run.arrived(slug):
+                run.log_try(slug, None, "no_discovery", note="institution.discovery is not set")
+        print(json.dumps({"code": "no_discovery", "hint": "ask the user once for their library's discovery search page "
+                          "(a Primo search URL) and add it to the config as institution.discovery"}))
+        return 0
+    b = Browser(run.args)
+    for path, rec, slug in todo:
+        if run.arrived(slug):
+            continue
+        item = rec.get("item") or {}
+        titles = [item.get("title")] + [t for t in rec.get("alt_titles") or [] if isinstance(t, str)]
+        if not item.get("title"):
+            run.log_try(slug, None, "no_title")
+            continue
+        url = with_query(run.discovery, item["title"])
+        err = b.open(url)
+        if err is not None:
+            return stop(run, slug, "error", url, None, f"open: {err}")
+        results = poll(b, RESULTS_JS, lambda v: v.get("done"), DISCOVERY_WAIT).get("results") or []
+        matches = list({r["href"]: r for r in results if same_title(r.get("title"), titles)}.values())
+        matches.sort(key=lambda r: "arxiv" in r["href"].lower())
+        if not matches:
+            run.log_try(slug, url, "not_in_discovery", note=f"{len(results)} results, none with this title")
+            continue
+        tried_links = 0
+        for m in matches:
+            b.open(m["href"])
+            for link in poll(b, LINKS_JS, lambda v: v.get("pdf") or v.get("online"), DISCOVERY_WAIT).get("pdf") or []:
+                if run.has_file(slug):
+                    break
+                tried_links += 1
+                run.pace("institution")
+                b.open(link)
+                data = read_viewer(b, VIEWER_WAIT)
+                if data:
+                    result, code = run.claim(slug, data, link, None)
+                    run.log_try(slug, link, result, check=code, note="pdf.js viewer through the discovery system")
+                elif run.wait_for_file(slug, 5):
+                    run.log_try(slug, link, "ok", note="downloaded by Chrome, filed from Downloads")
+            if run.has_file(slug):
+                break
+        if run.has_file(slug):
+            continue
+        info, _ = b.eval(INFO_JS)
+        info = info if isinstance(info, dict) else {}
+        return stop(run, slug, "refused" if tried_links else "no_pdf_link", info.get("href") or m["href"],
+                    info.get("title"), f"{len(matches)} records with this title, {tried_links} PDF links tried")
     return 0
 
 
@@ -483,7 +589,7 @@ def wait_at_gate(run, slug):
         if name:
             print(json.dumps({"code": "arrived", "slug": slug, "file": name}))
             return 0
-        info, err = b.eval(js)
+        info, err = b.eval(js) if run.args.for_ == "gate" else (None, "file only")
         if err is None and isinstance(info, dict):
             seen = (info.get("href"), info.get("title"))
             if info.get("found") or (not run.args.until and first is not None and seen != first):
@@ -494,6 +600,9 @@ def wait_at_gate(run, slug):
         if left <= 0:
             break
         time.sleep(min(WAIT_STEP, left))
+    if run.args.for_ == "file":
+        print(json.dumps({"code": "timeout", "slug": slug, "waited": run.args.timeout}))
+        return 1
     url, title = (seen or (None, None))
     run.log_try(slug, url, "gate_timeout", note=f"waited {run.args.timeout:g} s at the gate")
     print(json.dumps({"code": "gate_timeout", "slug": slug, "url": url, "title": title,
@@ -503,7 +612,8 @@ def wait_at_gate(run, slug):
     return 1
 
 
-ROUTES = {"http": http_route, "page": page_route, "viewer": viewer_route, "snapshot": snapshot_route}
+ROUTES = {"http": http_route, "page": page_route, "discovery": discovery_route, "viewer": viewer_route,
+          "snapshot": snapshot_route}
 
 
 def load(paths):
@@ -527,7 +637,9 @@ def main():
                                         "  uv run fetch.py --via http --pass 1 records/*.json\n"
                                         "  uv run fetch.py --via page --pass 1 --downloads DIR records/*.json\n"
                                         "  uv run fetch.py --via page --pass 1 --verdict no_access records/x.json\n"
+                                        "  uv run fetch.py --via discovery --pass 1 --downloads DIR records/*.json\n"
                                         "  uv run fetch.py --via page --pass 1 --wait --downloads DIR records/x.json\n"
+                                        "  uv run fetch.py --via page --pass 3 --wait --for file --downloads DIR records/x.json\n"
                                         "  uv run fetch.py --via page --pass 3 --window foreground --downloads DIR records/*.json\n"
                                         "  uv run fetch.py --via snapshot --pass 3 records/x.json",
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -545,6 +657,8 @@ def main():
     ap.add_argument("--wait", action="store_true",
                     help="one record: wait at the gate in the current tab until its file arrives or the page changes")
     ap.add_argument("--until", metavar="TEXT", help="with --wait: text or CSS selector only the passed gate shows")
+    ap.add_argument("--for", dest="for_", choices=("gate", "file"), default="gate",
+                    help="with --wait: gate (default: the file, or the page passing) or file (the file alone)")
     ap.add_argument("--timeout", type=float, default=300.0, help="with --wait: seconds (default 300)")
     ap.add_argument("--window", choices=("background", "foreground"), default="background",
                     help="where pages open (default background; foreground for the last pass, with the user)")

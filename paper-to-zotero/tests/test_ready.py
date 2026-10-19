@@ -200,9 +200,11 @@ class ReadyTest(unittest.TestCase):
         self.write_key(openalex_key="OA-SECRET-123", institution={"proxy": "proxy.example.edu"})
         rc, out, _ = self.run_ready()
         self.assertEqual((rc, out["code"]), (0, "ok"))
+        ask = out["config"].pop("ask_user")
         self.assertEqual(out["config"], {"file": str(self.config), "exists": True, "zotero_key": True,
                                          "openalex_key": True,
                                          "institution": {"proxy": True, "discovery": False}})
+        self.assertIn("institution.discovery", ask, "a missing discovery address is a question for the user")
         dumped = json.dumps(out)
         self.assertNotIn("OA-SECRET-123", dumped)
         self.assertNotIn("proxy.example.edu", dumped)

@@ -60,6 +60,7 @@ from pathlib import Path
 DEFAULT_BASE_URL = "http://127.0.0.1:23119"
 ITEMS_PATH = "/api/users/0/items"
 COLLECTION_KEY_RE = re.compile(r"^[A-Z0-9]{8}$")
+TEX_SPECIAL = re.compile(r"[\\^_&%$#{}~]")
 NOT_PARENT_TYPES = {"attachment", "note", "annotation"}
 POST_TIMEOUT = 60
 CHUNK = 50
@@ -447,9 +448,10 @@ def normalize_readback_tags(tags) -> list[dict]:
 
 
 def readback(api: Api, created: dict, collections: list[str], tags: list[dict], citation_key):
-    """Compare the created object with what was sent -> (filed, read_tags, tags_ok, citation_key_ok)."""
+    """Compare the created object with what was sent -> (filed, read_tags, tags_ok, citation_key_ok, missing, the
+    item's citation key as Zotero has it)."""
     data = created.get("data") or {}
-    needed = ["collections", "tags"] + (["citationKey"] if citation_key is not None else [])
+    needed = ["collections", "tags", "citationKey"]
     if any(field not in data for field in needed):  # the POST answer was thin: read the item itself
         try:
             status, _, body = api.request("GET", f"{ITEMS_PATH}/{created['key']}")
@@ -462,7 +464,16 @@ def readback(api: Api, created: dict, collections: list[str], tags: list[dict], 
     read_tags = normalize_readback_tags(data.get("tags"))
     tags_ok = {(t["tag"], t["type"]) for t in read_tags} == {(t["tag"], t["type"]) for t in tags}
     cite_ok = None if citation_key is None else data.get("citationKey") == citation_key
-    return filed, read_tags, tags_ok, cite_ok, missing
+    return filed, read_tags, tags_ok, cite_ok, missing, data.get("citationKey") or None
+
+
+def key_hint(key):
+    """A citation key with a character TeX treats specially breaks \\cite{}: suggest it without them."""
+    if not key or not TEX_SPECIAL.search(key):
+        return {}
+    return {"citation_key_hint": {"suggested": TEX_SPECIAL.sub("", key),
+                                  "why": "TeX treats ^ _ & % $ # { } ~ \\ specially; ask the user, then "
+                                         "update_item.py --key KEY --set citationKey=<suggested>"}}
 
 
 # ---- single mode (v1) ----------------------------------------------------
@@ -524,7 +535,7 @@ def run_single(api: Api, args: argparse.Namespace) -> None:
                    message="200 without successful[\"0\"]", response=result)
 
     item_key, version = created["key"], created.get("version")
-    filed, read_tags, tags_ok, _, _ = readback(api, created, collections, tags, None)
+    filed, read_tags, tags_ok, _, _, _ = readback(api, created, collections, tags, None)
     log(f"created {item_key} v{version}; filed={filed} tags_ok={tags_ok}")
 
     saved = {"item_key": item_key, "version": version, "collection": one_or_list(collections), "tags": read_tags,
@@ -711,8 +722,10 @@ def post_pending(api: Api, pending: list, api_key: str, server_id: str) -> Stop 
                 continue
             key, version = created["key"], created.get("version")
             o.record["saved"] = {"key": key, "version": version, "created_at": created_at}
-            filed, _, tags_ok, cite_ok, missing = readback(api, created, p["collections"], p["tags"], p["citation_key"])
-            fields = dict(key=key, version=version, collection=one_or_list(p["collections"]))
+            filed, _, tags_ok, cite_ok, missing, cite = readback(api, created, p["collections"], p["tags"],
+                                                                 p["citation_key"])
+            fields = dict(key=key, version=version, collection=one_or_list(p["collections"]),
+                          **({"citationKey": cite} if cite else {}), **key_hint(cite))
             if filed is False or not tags_ok or cite_ok is False:
                 o.set("failed", "readback_mismatch", changed=True, **fields, filed=filed, collections_missing=missing,
                       tags_ok=tags_ok, citation_key_ok=cite_ok,

@@ -184,6 +184,9 @@ def config_summary(config):
     out = {"file": str(path), "exists": path.is_file(), "zotero_key": bool(zot.get("key")),
            "openalex_key": bool(config.get("openalex_key")),
            "institution": {"proxy": bool(inst.get("proxy")), "discovery": bool(inst.get("discovery"))}}
+    if not inst.get("discovery"):
+        out["ask_user"] = ("institution.discovery: the chain's discovery route needs the library's search page (a Primo "
+                           "search URL); ask the user for it in your first message and add it to the config")
     try:
         if path.is_file() and path.stat().st_mode & 0o077:
             out["warning"] = "loose_permissions: run chmod 600 on the config file"

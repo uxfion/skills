@@ -358,6 +358,16 @@ class StreamMode(Base):
         self.run_script("-i", str(p3))
         self.assertNotIn("citationKey", self.state.posts[-1][0])  # none given: Zotero / BBT generates one
 
+    def test_a_citation_key_tex_cannot_cite_gets_a_suggestion(self):
+        p = self.record("a", citationKey="xuHarness^2RecursiveAgent2026")
+        r = self.run_script("-i", str(p))
+        line = [json.loads(ln) for ln in r.stdout.splitlines() if ln.startswith('{"slug"')][0]
+        self.assertEqual((line["code"], line["citationKey"]), ("ok", "xuHarness^2RecursiveAgent2026"))
+        self.assertEqual(line["citation_key_hint"]["suggested"], "xuHarness2RecursiveAgent2026")
+        p2 = self.record("b", citationKey="liu2022plain")
+        line = [json.loads(ln) for ln in self.run_script("-i", str(p2)).stdout.splitlines() if ln.startswith('{"slug"')][0]
+        self.assertNotIn("citation_key_hint", line)
+
     def test_thin_post_response_reads_item_back(self):
         self.state.thin_response = True
         p = self.record("a", citationKey="liu2022x")

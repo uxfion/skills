@@ -14,7 +14,8 @@ Two kinds of file come in, and both go through check_pdf.py (subprocess) before 
                       Each is checked against every record whose library item has no PDF yet: exactly one match
                       -> filed and removed from Downloads (a record that already has its file -> the copy goes
                       to <work>/stray/); no match or several -> left where it is (it may be the user's own),
-                      logged once.
+                      logged with the slugs it was checked against. A left file is checked again only against
+                      records drafted after that (the user downloaded a paper, then asked for it).
   --watch             --scan every --interval seconds until the work directory disappears or the process is
                       stopped: run it in the background while the browser is in use.
   --sweep             end of run: the files newer than .started still in Downloads, each marked with whether the
@@ -232,8 +233,8 @@ def new_downloads(dl, started):
 
 
 def left_before(work):
-    """(name, md5) pairs already logged as left in Downloads: not checked again."""
-    seen = set()
+    """{(name, md5): slugs it was checked against} for files already logged as left in Downloads."""
+    seen = {}
     try:
         with open(work / "fetch.jsonl", encoding="utf-8") as fh:
             for line in fh:
@@ -242,7 +243,7 @@ def left_before(work):
                 except ValueError:
                     continue
                 if isinstance(obj, dict) and obj.get("event") == "claim" and obj.get("result") == "left":
-                    seen.add((obj.get("file"), obj.get("md5")))
+                    seen.setdefault((obj.get("file"), obj.get("md5")), set()).update(obj.get("against") or [])
     except OSError:
         pass
     return seen
@@ -259,7 +260,7 @@ def scan(work, dl):
             size, digest = f.stat().st_size, md5_of(f)
         except OSError:
             continue
-        if (f.name, digest) in seen or not head.lstrip().startswith(b"%PDF-"):
+        if not head.lstrip().startswith(b"%PDF-"):
             continue
         time.sleep(0.2)
         try:
@@ -268,6 +269,8 @@ def scan(work, dl):
         except OSError:
             continue
         candidates = [(p, r) for p, r in records_of(work) if not library_has_pdf(r)]
+        if (f.name, digest) in seen:  # left before: check it only against records drafted since
+            candidates = [(p, r) for p, r in candidates if (r.get("slug") or p.stem) not in seen[(f.name, digest)]]
         if not candidates:
             continue
         matched, codes, version = match(f, [p for p, _ in candidates])
@@ -278,7 +281,8 @@ def scan(work, dl):
                        source=str(f), md5=digest)
         else:
             emit_event(work, file=f.name, result="left", md5=digest, source=str(f),
-                       why="ambiguous" if matched else "unmatched", matched=matched or None)
+                       why="ambiguous" if matched else "unmatched", matched=matched or None,
+                       against=sorted(r.get("slug") or p.stem for p, r in candidates))
         events += 1
     return events
 
