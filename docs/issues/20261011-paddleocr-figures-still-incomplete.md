@@ -76,3 +76,4 @@
 - 等用户审定后写 spec。
 - 用户选定第二意见用 8 条版：「用核心 + 两条的方案」。
 - 采纳旁观 agent 的提醒：B 的框没单独验证过，只当候选坐标，agent 裁出来看过才用。
+- spec：[20261019-paddleocr-figure-checks-spec.md](../specs/20261019-paddleocr-figure-checks-spec.md)，等用户审定后实现。

@@ -140,7 +140,7 @@
 - 本页每个裁剪，各用一种颜色，左上角标编号；
 - 第二意见的框，绿色虚线。
 
-框都画在真实边界外约 6 px，不压住内容。跨页的 `split` 画前一页。编号和分色，是因为两个相邻、中间隔着图注的框看起来像一个框。
+框都画在真实边界外约 6 px，不压住内容。跨页的 `split` 画前一页，文件名仍用图注所在的页。编号和分色，是因为两个相邻、中间隔着图注的框看起来像一个框。
 
 **Markdown 注释**：
 - 内容：告警名、原因、叠加图路径，例如 `<!-- figure_check: second_opinion: its top edge is 11.5 rows below the crop's; overlay checks/p16_189.jpg -->`、`<!-- uncropped_figure: no crop beside this caption; overlay checks/p08_77.jpg -->`。
@@ -148,7 +148,7 @@
   1. 第一个裁剪的图片行（跨页的 `split` 在前一页）；
   2. 图注那一行：在这一页（两个 `<!-- page N -->` 之间）找开头和图注前 30 个字符相同的行，比较时去掉 `**`、空白，不分大小写；
   3. 都找不到（比如已被手动改过），写在这一页的 `<!-- page N -->` 之后，注释里带上图注开头。读 Markdown 的 agent 总能看到它。
-- 写过没有，看 Markdown 而不看 JSON：这一页已有带同一叠加图路径的注释（不管什么状态），就不再写。所以重跑不会重复，写了一半失败后重试也不会。
+- 写过没有，看 Markdown 而不看 JSON：整篇 Markdown 里已有带同一叠加图路径的注释（不管什么状态），就不再写。所以重跑不会重复，写了一半失败后重试也不会；跨页的 `split` 注释在前一页，也认得出。
 - 不再报的图：它还没看的注释（开头仍是 `figure_check:` 或 `uncropped_figure:`）删掉，看过的不动。
 - 注释的三种状态，agent 只改开头、后面原样留着（3.7）：
   - `figure_check: …` / `uncropped_figure: …`：还没看；
@@ -160,7 +160,10 @@
 ### 3.5 运行
 
 - **什么时候跑**：新解析在文字核对之后；跳过时见 3.6。都要求 `parser.figures` 已记。
-- **每次都整篇重跑**：所有图注都核对，`figure_check` 告警和 `uncropped_figure` 的叠加图字段整体换新；Markdown 注释按上面的规则补写、删除。开始前先去掉 `parser.figure_check`，跑完才写上：中途出错时它不在，下次运行再补。
+- **每次都整篇重跑**：所有图注都核对，`figure_check` 告警和 `uncropped_figure` 的叠加图字段整体换新；Markdown 注释按上面的规则补写、删除。
+- **一条不变的约定**：`parser.figure_check` 在，当且仅当 JSON 里的告警带着一次完整的图的核对。
+  - 图的核对跑完才写上它；中途出错时它不在，下次运行再补。
+  - regroup、recheck 会整体重写告警，它们写 JSON 时同时去掉 `parser.figure_check`。
 - **plus-L**：和图分组共用，整次运行只加载一次。图分组只在有 2 个以上图块的页上跑它，核对还要在有图注的页上跑。结果按文档和页缓存，两步共用。
 - **文字层**：字体字号用 pypdfium2 读。图片输入和 `--photo` 只用几何。
 - **出错**：出图和文字核对的结果不受影响；stderr 和摘要的 `figures_check` 写明原因（新解析和跳过时都写）。
@@ -169,11 +172,10 @@
 ### 3.6 已有解析的升级
 
 和 regroup、recrop 一样，跳过时就地做：
-- **触发**：`parser.figures` 已记，并且满足其一：没有 `parser.figure_check`；它的版本比现在的旧；这次运行做了 regroup 或 recheck。
-  - 后一条是因为 regroup、recheck 会整体重写告警，图的核对要跟着重跑，把图的告警补回来。
+- **触发**：`parser.figures` 已记，而 `parser.figure_check` 没有或版本比现在的旧。regroup、recheck 之后，按 3.5 的约定它已不在，所以图的核对会跟着重跑，把图的告警补回来。
 - **顺序**：regroup、recrop、recheck 之后。
 - **页面图**：按 JSON 里的页面尺寸重新渲染，图片输入读原图。
-- **`--photo` 的旧解析**：页面图无法复现，图的核对跑不了，摘要写明原因，要补就 `--force` 重新解析。它已有的图的告警，在 recheck 之后原样接回。
+- **`--photo` 的解析**：页面图无法复现，跳过时图的核对跑不了。没核对过的，摘要写明原因，要补就 `--force` 重新解析；核对过的（新解析时做的），recheck 保留它的图的告警和 `parser.figure_check`。
 - **结果**：摘要标 `"figures_checked": true`；没做成时 `"figures_check"` 写原因。
 - Markdown 其他行和此前的修订都保留。
 - `FORMAT`、`FIGURES`、`CHECK` 都不变。
@@ -208,13 +210,13 @@ SKILL.md 的措辞实现时按 writing-for-agents 写。
 - `paddleocr/scripts/parse.py`：
   - `process()` 和跳过时的升级接入图的核对，触发条件和顺序按 3.5、3.6；
   - plus-L 结果按文档和页缓存，图分组和核对共用；
-  - `--photo` 的旧解析在 recheck 之后接回图的告警；
+  - regroup、recheck 写 JSON 时去掉 `parser.figure_check`；`--photo` 的解析例外，recheck 保留它的图的告警和 `parser.figure_check`；
   - 文档字符串加 `figure_check` 告警、`checks/` 目录、`figures_checked`。
 - `paddleocr/tests/test_figcheck.py`（新）：
   - 第二意见的 8 条规则，各用构造的块和文字层测一个正例和一个反例，包括第 7、8 条的两个实测场景，以及先上后下的顺序；
   - 五条核对各一个正例、一个反例，包括跨页的 `split`、`two_figures` 不算自己的图注；
   - Markdown 注释：三级落点各测一次；重跑不重复；写了一半失败后重试不重复；不再报的图，还没看的注释删掉、看过的留着；
-  - 触发：没有 `parser.figure_check`、recheck 之后、regroup 之后都重跑；`parser.figures` 没记时不跑；中途出错不记 `parser.figure_check`；`--photo` 的旧解析写原因并接回告警。
+  - 触发：没有 `parser.figure_check`、recheck 之后、regroup 之后都重跑；`parser.figures` 没记时不跑；中途出错不记 `parser.figure_check`，下次运行补做；`--photo` 的解析：没核对过的写原因，核对过的 recheck 后告警还在。
 - `paddleocr/SKILL.md`：第 1–3 步按 3.7 改。
 - issue 和报告：验证完成后，issue 改名 `-fixed`，开头注明去向，连同报告目录移到 `docs/issues/archive/`。
 
