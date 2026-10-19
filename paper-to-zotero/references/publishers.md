@@ -119,7 +119,7 @@ When the publisher says no access, the institution may still have the paper thro
 | click, then no file and no `.crdownload` in Downloads | the click opened a viewer page, or the Save As dialog is up | navigate to the embedded PDF's URL (or `fetch.py --via viewer`); if that fails too, check the PDF setting and the Save As option |
 | `.crdownload` lingers | large file or slow link | keep waiting |
 | the user says the file downloaded, but nothing was filed | `claim.py` is not running, or the file matched no record or several | `claim.py --scan`; a `left` line names the file — check it and file it by hand (rename it to `<slug>.pdf` in records/) |
-| `wait text` / `wait selector` answers `detached_mid_command` | the tab navigated while waiting (a login redirect does this) | poll `state` every 15 s instead; the gate is still the same gate |
+| `opencli browser … wait text` / `wait selector` answers `detached_mid_command` | the tab navigated while waiting (a login redirect does this) | wait with `fetch.py --wait`, which reads the tab every 10 s and goes on through navigations |
 | `attach_failed … chrome-extension://` | built-in PDF viewer is on | PDF setting above |
 | downloaded "PDF" is HTML, or its text is a login / access-denied page | the gate was not really passed | wait at the gate again |
 | in-page request of the PDF link returns HTML on a proxied host | cross-origin request without the proxy's cookies | request the link's path on the current origin |
