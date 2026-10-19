@@ -4,7 +4,7 @@
 >
 > 原是 [20261006-paddleocr-setup-fixed.md](20261006-paddleocr-setup-fixed.md) 第 9 节的一条，同日拆出来单独成 issue。
 >
-> 遗留：合图之后仍有图不完整，多是图里的文字被 VL 标成了正文，另记在 [20261011-paddleocr-figures-still-incomplete.md](../20261011-paddleocr-figures-still-incomplete.md)，待解决。
+> 遗留：合图之后仍有图不完整，多是图里的文字被 VL 标成了正文，另记在 [20261011-paddleocr-figures-still-incomplete-fixed.md](20261011-paddleocr-figures-still-incomplete-fixed.md)，待解决。
 
 用户：「在实际用的时候，发现它会把一个主图分散得很小」。
 

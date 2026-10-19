@@ -1,0 +1,10 @@
+id	set	key	page	caption	tier	reason	side
+y8d4q	in	hagerEvaluationMitigationLimitations2024	6	83	2	edge_cut	proto only
+b6ws9	new	ferberAutonomousMedicalArtificial2026	20	246	0	second_opinion	proto only
+ry62b	new	ferberAutonomousMedicalArtificial2026	25	325	0	second_opinion	proto only
+9hqu6	new	ferberAutonomousMedicalArtificial2026	27	332	0	second_opinion	proto only
+9mh76	new	liLargeLanguageModelbased2025	34	752	0	split	impl only
+8xkbk	new	liLargeLanguageModelbased2025	36	928	0	split	impl only
+bdvbn	new	mizrahiStateWhatArt2024	2	17	0	edge_cut	proto only
+9nvvh	new	suSupervisedFinetuningSynthetic2026	2	14	0	second_opinion	proto only
+5h7uk	new	tamFrameworkHumanEvaluation2024	4	57	0	edge_cut	proto only

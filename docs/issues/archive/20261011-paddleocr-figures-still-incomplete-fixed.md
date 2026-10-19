@@ -1,6 +1,8 @@
 # paddleocr：合图之后仍不完整的图
 
-> 接续 [20261007-paddleocr-figure-split-fixed.md](archive/20261007-paddleocr-figure-split-fixed.md)。那条的问题是图被拆成小图，已经用合图解决；这里记合图之后仍然不完整的图，多数是图里的文字被 VL 标成了正文。
+> 已解决（2026-10-19）：合图之后加了图的核对，没把握的图报 `figure_check`、交给 agent，见 [spec 20261019-paddleocr-figure-checks](../../specs/20261019-paddleocr-figure-checks-spec.md)；可行性报告和验证在 [20261011-paddleocr-figures-still-incomplete-reference/README.md](20261011-paddleocr-figures-still-incomplete-reference/README.md)。
+
+> 接续 [20261007-paddleocr-figure-split-fixed.md](20261007-paddleocr-figure-split-fixed.md)。那条的问题是图被拆成小图，已经用合图解决；这里记合图之后仍然不完整的图，多数是图里的文字被 VL 标成了正文。
 
 2026-10-11。用户要看典型的框架图和效果展示图，评估合图效果：「主要是模型的框架图（也就是主图），还有效果展示图（可能是分子图的那种情况），我评估一下，看你合并的效果好不好」。
 
@@ -17,7 +19,7 @@
   - a 的 9 张 OCT 图合进来了；b 只合进了左边一列小图；
   - b 右边的 “Generated / Ophthalmologists annotated” 文字框留在外面，裁剪边从 b 中间切过。
 - MINIM 扩展图 1：30 张小图合成一张，但最上面两段 prompt 文字在裁剪外面。中间几段 prompt 夹在图块之间，所以在里面。
-- 两处的原因相同：图里的文字被 VL 认成了正文，合图不会把正文并进来。这和 gadd Fig. 6 是同一类（见 [20261010 issue](archive/20261010-paddleocr-uncropped-title-and-legend-fixed.md)），属于 spec 3.7 的局限。
+- 两处的原因相同：图里的文字被 VL 认成了正文，合图不会把正文并进来。这和 gadd Fig. 6 是同一类（见 [20261010 issue](20261010-paddleocr-uncropped-title-and-legend-fixed.md)），属于 spec 3.7 的局限。
 
 其余 8 张合并的图都完整，同页多张图（TISA 第 7 页 Fig. 4–6）各自合并，没有串在一起。小毛病：
 - Delphi Fig. 1 顶上带进一条页眉残边；
@@ -76,4 +78,6 @@
 - 等用户审定后写 spec。
 - 用户选定第二意见用 8 条版：「用核心 + 两条的方案」。
 - 采纳旁观 agent 的提醒：B 的框没单独验证过，只当候选坐标，agent 裁出来看过才用。
-- spec：[20261019-paddleocr-figure-checks-spec.md](../specs/20261019-paddleocr-figure-checks-spec.md)，等用户审定后实现。
+- spec：[20261019-paddleocr-figure-checks-spec.md](../../specs/20261019-paddleocr-figure-checks-spec.md)，等用户审定后实现。
+
+2026-10-19：按 spec 实现并验证，见 spec 第 6 节。115 篇已有解析上严重错误 138/138 报出；24 篇新论文加 4 套扫描版盲评，严重错误 8/8 报出，好图 84% 直接放行；没有上下文的 agent 只照 SKILL.md 处理 30 张报出的图，最终的图盲评全部完整。

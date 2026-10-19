@@ -1,0 +1,180 @@
+id	key	page	caption	verdict	size	grader_tier	defined_tier	flags	note
+dfhys	bani-harouniLanguageAgentsHypothesisdriven2026	2	13	ok	-	0	0		-
+zckp6	bani-harouniLanguageAgentsHypothesisdriven2026	5	46	ok	-	0	0		-
+qwq73	bani-harouniLanguageAgentsHypothesisdriven2026	8	83	ok	-	0	0		-
+jvjkw	bani-harouniLanguageAgentsHypothesisdriven2026	16	203	ok	-	0	0		-
+xrvqd	bani-harouniLanguageAgentsHypothesisdriven2026	17	209	ok	-	0	0	table	bottom panels run to edge; figure appears clipped in source
+cc6cg	bani-harouniLanguageAgentsHypothesisdriven2026	18	217	ok	-	0	0		-
+zhyjb	bediHolisticEvaluationLarge2026	5	33	ok	-	0	0		-
+askqv	bediHolisticEvaluationLarge2026	6	41	ok	-	0	0	edge_cut	-
+dkw4s	bediHolisticEvaluationLarge2026	7	49	ok	-	0	0		-
+yz79p	bediHolisticEvaluationLarge2026	8	55	ok	-	0	0		title and last rotated label touch red edges
+sfscg	bediHolisticEvaluationLarge2026	9	64	ok	-	0	0	edge_cut	title and x-axis label touch top and bottom red edges
+9urhk	bediHolisticEvaluationLarge2026	23	286	ok	-	0	0		-
+n4zdq	brownLargeLanguageModels2025	5	80	ok	-	0	0		-
+p42rr	brownLargeLanguageModels2025	6	104	ok	-	0	0		-
+s3txe	brownLargeLanguageModels2025	7	118	ok	-	0	0		-
+dzmgx	brownLargeLanguageModels2025	8	139	ok	-	0	0	second_opinion	-
+8gdp8	brownLargeLanguageModels2025	9	152	ok	-	0	0		-
+j3scc	brownLargeLanguageModels2025	10	163	ok	-	0	0		-
+x5s5j	brownLargeLanguageModels2025_scan	5	80	ok	-	0	0		-
+68b9k	brownLargeLanguageModels2025_scan	6	104	ok	-	0	0		-
+8xrzs	brownLargeLanguageModels2025_scan	7	118	ok	-	0	0		-
+x7e66	brownLargeLanguageModels2025_scan	8	139	ok	-	0	0	second_opinion	-
+qesds	brownLargeLanguageModels2025_scan	9	152	ok	-	0	0		-
+c84qw	brownLargeLanguageModels2025_scan	10	163	ok	-	0	0		-
+krbgn	chiuSimulatingVivaVoce2025	2	14	ok	-	0	0	second_opinion	-
+6xybw	chiuSimulatingVivaVoce2025	6	66	missing	small	2	2	second_opinion	title 'Information Seeking Efficiency' cut by top edge
+87r6v	chiuSimulatingVivaVoce2025	7	73	extra	large	1	1	two_figures;second_opinion	box also holds Figure 4 radar chart
+ry9ps	chiuSimulatingVivaVoce2025	7	75	extra	large	1	1	no_crop	box also holds Figure 3 (top-K accuracy line plot) on the left
+mjzk7	chiuSimulatingVivaVoce2025	8	84	ok	-	0	0		-
+x5v3z	chiuSimulatingVivaVoce2025	15	169	ok	-	0	0		-
+gqyne	chiuSimulatingVivaVoce2025	18	200	ok	-	0	0		-
+p2s6z	jiangUKBMDRMFMultidiseaseRisk2025	2	25	ok	-	0	0		-
+nwu53	jiangUKBMDRMFMultidiseaseRisk2025	4	56	missing	small	2	2	second_opinion	bottom edge cuts rotated tick label 'Bone and soft tissues' in panel f
+ae2nt	jiangUKBMDRMFMultidiseaseRisk2025	5	63	none	-	1	1	no_crop	no red box on page; forest plot uncropped
+8unk3	jiangUKBMDRMFMultidiseaseRisk2025	7	101	ok	-	0	0		-
+tk6v8	jiangUKBMDRMFMultidiseaseRisk2025	8	111	ok	-	0	0		-
+zc39q	jiangUKBMDRMFMultidiseaseRisk2025	11	153	ok	-	0	0		-
+4subd	jiangUKBMDRMFMultidiseaseRisk2025	11	156	ok	-	0	0		-
+tmvyt	jiangUKBMDRMFMultidiseaseRisk2025	12	165	ok	-	0	0		-
+bsr7e	jiangUKBMDRMFMultidiseaseRisk2025	13	182	ok	-	0	0		-
+kbetv	khandekarMedCalcBenchEvaluatingLarge2024	2	11	ok	-	0	0		-
+cnkp2	khattabDSPyCompilingDeclarative2024	18	222	ok	-	0	0		-
+dxt66	khattabDSPyCompilingDeclarative2024	20	228	none	-	1	1	no_crop	no red box on the page; code-listing figure not cropped
+wctkt	khattabDSPyCompilingDeclarative2024	21	232	ok	-	0	0		-
+x2hxx	khattabDSPyCompilingDeclarative2024	22	236	ok	-	0	0		-
+zb6tk	khattabDSPyCompilingDeclarative2024	24	243	ok	-	0	0		-
+vphsn	khattabDSPyCompilingDeclarative2024	24	245	ok	-	0	0		-
+95zdh	khattabDSPyCompilingDeclarative2024	25	249	ok	-	0	0		-
+tcpge	khattabDSPyCompilingDeclarative2024	25	251	ok	-	0	0		-
+ezreq	khattabDSPyCompilingDeclarative2024	29	287	ok	-	0	0		-
+zq7d8	khattabDSPyCompilingDeclarative2024	29	289	ok	-	0	0		-
+dy2a3	khattabDSPyCompilingDeclarative2024	30	293	ok	-	0	0		-
+v85dk	liEvaluatingTestTimeScaling2026	1	11	ok	-	0	0		subpanel captions (a)-(c) inside box
+ntcfb	liEvaluatingTestTimeScaling2026	3	38	ok	-	0	0		-
+gxbpa	liEvaluatingTestTimeScaling2026	5	58	ok	-	0	0		-
+dgk6v	liEvaluatingTestTimeScaling2026	6	63	ok	-	0	0		-
+dte9q	liEvaluatingTestTimeScaling2026	7	75	ok	-	0	0		subfigure captions (a)(b) inside box
+nwxjk	liEvaluatingTestTimeScaling2026	7	83	ok	-	0	0		-
+sbkjp	liEvaluatingTestTimeScaling2026	8	89	missing	small	2	2	edge_cut	x-axis label "k (pass@k)" cut by bottom edge
+j9szs	liEvaluatingTestTimeScaling2026	19	242	ok	-	0	0		-
+b2qre	liEvaluatingTestTimeScaling2026	20	248	ok	-	0	0		-
+y24me	liEvaluatingTestTimeScaling2026	23	273	ok	-	0	0		-
+src4x	liEvaluatingTestTimeScaling2026	24	282	missing	small	2	2	second_opinion	legend's first entry "Pass@K" marker cut off at left edge
+hy66c	liEvaluatingTestTimeScaling2026	31	344	ok	-	0	0		-
+kdqpq	liEvaluatingTestTimeScaling2026	31	346	ok	-	0	0		-
+vwjzp	liSearcho1AgenticSearchEnhanced2025	2	16	ok	-	0	0		-
+72t27	liSearcho1AgenticSearchEnhanced2025	4	44	ok	-	0	0		-
+stdwz	liSearcho1AgenticSearchEnhanced2025	7	83	ok	-	0	0	two_figures	-
+qbcxc	mcduffAccurateDifferentialDiagnosis2025	14	176	ok	-	0	0		-
+myk8b	mcduffAccurateDifferentialDiagnosis2025	15	179	ok	-	0	0		-
+tjke3	mcduffAccurateDifferentialDiagnosis2025	15	181	ok	-	0	0		-
+2mxkd	mcduffAccurateDifferentialDiagnosis2025	16	184	ok	-	0	0		-
+yjzwq	mcduffAccurateDifferentialDiagnosis2025	16	187	ok	-	0	0		-
+2cquf	mcduffAccurateDifferentialDiagnosis2025	17	191	ok	-	0	0		-
+d57t8	mcduffAccurateDifferentialDiagnosis2025	17	193	ok	-	0	0		-
+6b7r7	noriCanGeneralistFoundation2023	2	17	ok	-	0	0		-
+b2ecv	noriCanGeneralistFoundation2023	8	65	extra	small	2	2	edge_cut;second_opinion	section heading '4.2 Self-Generated Chain of Thought' partly inside top
+4c929	noriCanGeneralistFoundation2023	8	68	ok	-	0	0		-
+6d73a	noriCanGeneralistFoundation2023	10	77	ok	-	0	0		-
+3kgk2	noriCanGeneralistFoundation2023	13	98	ok	-	0	0		-
+k48d7	noriCanGeneralistFoundation2023	14	103	ok	-	0	0		-
+yjcyr	noriCanGeneralistFoundation2023	16	114	ok	-	0	0		-
+vxy77	pangCEHRGPTGeneratingElectronic2024	3	29	ok	-	0	0		right edge just touches 'Synthetic OMOP/EHR' title
+r2dq6	pangCEHRGPTGeneratingElectronic2024	5	51	ok	-	0	0		-
+tey49	pangCEHRGPTGeneratingElectronic2024	6	67	ok	-	0	0		-
+t6enz	pangCEHRGPTGeneratingElectronic2024	6	71	ok	-	0	0	second_opinion	-
+p6r9x	pangCEHRGPTGeneratingElectronic2024	7	79	ok	-	0	0	second_opinion	-
+3rb87	pangCEHRGPTGeneratingElectronic2024	7	81	ok	-	0	0		-
+d7y77	pangCEHRGPTGeneratingElectronic2024	7	84	missing	small	2	2		top "Dataset" header line cut by top edge
+zmeu2	pangCEHRGPTGeneratingElectronic2024	8	97	ok	-	0	0	second_opinion	copd_readmission panel title truncated at right edge, likely in source
+46frb	pangCEHRGPTGeneratingElectronic2024	15	195	ok	-	0	0		-
+sk7m8	pangCEHRGPTGeneratingElectronic2024	17	217	ok	-	0	0		-
+vgku9	pangCEHRGPTGeneratingElectronic2024	18	227	missing	small	2	2	second_opinion	Race: start of lower-left panel title outside left edge
+hrn4y	pangCEHRGPTGeneratingElectronic2024	18	230	ok	-	0	0		-
+g2h5x	pangCEHRGPTGeneratingElectronic2024_scan	3	29	ok	-	0	0		-
+b2697	pangCEHRGPTGeneratingElectronic2024_scan	5	51	ok	-	0	0		-
+pvf9a	pangCEHRGPTGeneratingElectronic2024_scan	6	67	ok	-	0	0		-
+m9fsd	pangCEHRGPTGeneratingElectronic2024_scan	6	71	ok	-	0	0	second_opinion	-
+t7uft	pangCEHRGPTGeneratingElectronic2024_scan	7	79	ok	-	0	0	second_opinion	-
+afc4m	pangCEHRGPTGeneratingElectronic2024_scan	7	81	ok	-	0	0		-
+shc4w	pangCEHRGPTGeneratingElectronic2024_scan	7	84	ok	-	0	0		top header Dataset touches top red edge
+5bhc2	pangCEHRGPTGeneratingElectronic2024_scan	8	97	ok	-	0	0	second_opinion	copd_readmissi title truncated in source image, not by crop
+t2ehd	pangCEHRGPTGeneratingElectronic2024_scan	15	195	ok	-	0	0		-
+59ket	pangCEHRGPTGeneratingElectronic2024_scan	17	219	ok	-	0	0		-
+g93nx	pangCEHRGPTGeneratingElectronic2024_scan	18	229	missing	small	2	2	second_opinion	left edge cuts 'Race:' off lower-left panel title
+zf8k3	pangCEHRGPTGeneratingElectronic2024_scan	18	232	ok	-	0	0		-
+nrvtt	qiuQuantifyingReasoningAbilities2025	4	91	split	large	1	1	second_opinion	three boxes: panel a, panel b, panels c+d; panel headings outside
+6s495	qiuQuantifyingReasoningAbilities2025	9	189	split	large	1	1	split;edge_cut	panels a-b and c in separate boxes; a/b titles cut; c heading outside
+bp6y7	qiuQuantifyingReasoningAbilities2025	10	205	ok	-	0	0		-
+vfae8	shashikumarDevelopmentProspectiveImplementation2025	2	17	split	large	1	1	no_crop	panels a, b, c in three boxes; b and c titles outside
+qjenn	shashikumarDevelopmentProspectiveImplementation2025	4	57	missing	small	2	2		top strip of Epic alert screenshot cut; bottom connector line clipped
+n5d28	spitzerEffectMedicalExplanations2026	3	33	missing	small	2	2	second_opinion	panel a title 'Patient cases' above box; bottom edge clips Secondary outcome row
+sd25x	spitzerEffectMedicalExplanations2026	4	42	ok	-	0	0		-
+9wvec	spitzerEffectMedicalExplanations2026	5	58	missing	small	2	2	edge_cut;second_opinion	bottom edge cuts through Adherence/Overriding legend
+72b45	spitzerEffectMedicalExplanations2026	6	76	ok	-	0	0		-
+xb9a9	spitzerEffectMedicalExplanations2026	7	90	ok	-	0	0		-
+vbe26	spitzerEffectMedicalExplanations2026_scan	3	33	missing	small	2	2	second_opinion	panel letter and title 'a Patient cases' above top edge
+ym5gd	spitzerEffectMedicalExplanations2026_scan	4	42	ok	-	0	0		-
+zrkyp	spitzerEffectMedicalExplanations2026_scan	5	58	missing	small	2	2	edge_cut;second_opinion	bottom edge cuts through legend row (Adherence / Overriding)
+rv5xd	spitzerEffectMedicalExplanations2026_scan	6	74	ok	-	0	0		-
+4at9s	spitzerEffectMedicalExplanations2026_scan	7	88	ok	-	0	0		-
+wdngf	wangRethinkingBoundsLLM2024	1	8	ok	-	0	0		-
+69uah	wangRethinkingBoundsLLM2024	2	17	ok	-	0	0		-
+5py5v	wangRethinkingBoundsLLM2024	3	29	ok	-	0	0		-
+2kavc	wangRethinkingBoundsLLM2024	6	82	ok	-	0	0		-
+5gcct	wangRethinkingBoundsLLM2024	7	98	ok	-	0	0		subfigure labels (a)(b) inside box
+tkw8z	wangSelfConsistencyImprovesChain2023	2	14	ok	-	0	0		-
+3nxhb	wangSelfConsistencyImprovesChain2023	6	73	ok	-	0	0		-
+7zqp3	wangSelfConsistencyImprovesChain2023	7	89	ok	-	0	0		-
+cmap2	wangSelfConsistencyImprovesChain2023	8	106	ok	-	0	0	two_figures	-
+6kknt	wangSelfConsistencyImprovesChain2023	8	112	ok	-	0	0		-
+pwvja	wangSelfConsistencyImprovesChain2023	16	215	ok	-	0	0	second_opinion	-
+rfmxp	wangSelfConsistencyImprovesChain2023	16	225	ok	-	0	0		-
+9z4yv	wangSelfConsistencyImprovesChain2023	17	245	ok	-	0	0		-
+qhmy6	wangSelfConsistencyImprovesChain2023_scan	2	14	ok	-	0	0		-
+5nyw6	wangSelfConsistencyImprovesChain2023_scan	6	73	ok	-	0	0		-
+se8u2	wangSelfConsistencyImprovesChain2023_scan	7	89	ok	-	0	0		-
+ydy6t	wangSelfConsistencyImprovesChain2023_scan	8	105	ok	-	0	0	two_figures	-
+2dxv9	wangSelfConsistencyImprovesChain2023_scan	8	111	ok	-	0	0		-
+3yugp	wangSelfConsistencyImprovesChain2023_scan	16	215	ok	-	0	0	edge_cut	x-axis title touches bottom edge
+dszq9	wangSelfConsistencyImprovesChain2023_scan	16	229	ok	-	0	0		-
+pd828	wangSelfConsistencyImprovesChain2023_scan	17	251	ok	-	0	0		-
+3ktyk	wangSurveyLLMbasedAgents2025	3	40	ok	-	0	0		-
+25zfm	wuCollabLLMPassiveResponders2025	1	3	missing	small	2	2	second_opinion	'Online generation' arrow label below bottom edge, cut
+x79mh	wuCollabLLMPassiveResponders2025	2	17	missing	small	2	2	edge_cut;second_opinion	bottom edge cuts subpanel labels (a) Non-collaborative LLM, (b) Ours
+b63ag	wuCollabLLMPassiveResponders2025	5	78	ok	-	0	0	edge_cut	-
+zrszg	wuCollabLLMPassiveResponders2025	6	97	ok	-	0	0		-
+8hwy3	wuCollabLLMPassiveResponders2025	7	111	ok	-	0	0	two_figures	-
+j5nah	wuCollabLLMPassiveResponders2025	7	113	ok	-	0	0		-
+seqrx	wuCollabLLMPassiveResponders2025	8	131	ok	-	0	0	table	-
+44h65	wuCollabLLMPassiveResponders2025	14	245	missing	small	2	2	second_opinion	bottom arrowhead and "..." below box; "DPO data" clipped right
+xtcm3	wuCollabLLMPassiveResponders2025	16	267	ok	-	0	0		-
+n6uv4	wuCollabLLMPassiveResponders2025	23	329	missing	small	2	2	second_opinion	subpanel labels "(a) Overall interface" and "(b) Step 1" below the box
+rawxj	wuCollabLLMPassiveResponders2025	23	333	missing	small	2	2	second_opinion	subpanel labels "(a) Step 2" and "(b) Step 3" below the box
+m7qh4	wuCollabLLMPassiveResponders2025	24	339	missing	small	2	2	second_opinion	subfigure labels (a)/(b) below bottom edge
+n2tjp	yaoTreeThoughtsDeliberate2023	2	15	ok	-	0	0		-
+gjpnk	yaoTreeThoughtsDeliberate2023	5	53	ok	-	0	0	second_opinion	-
+u9jur	yaoTreeThoughtsDeliberate2023	6	63	ok	-	0	0		-
+zdeuz	yaoTreeThoughtsDeliberate2023	7	74	ok	-	0	0	two_figures	-
+3yx7s	yaoTreeThoughtsDeliberate2023	7	77	ok	-	0	0		bottom x-labels just inside; caption overlaps figure bottom
+xcrv2	yaoTreeThoughtsDeliberate2023	8	88	ok	-	0	0		-
+yytsu	yildizExtendingBEHRTUK2026	8	143	ok	-	0	0	second_opinion	-
+zx92e	zhangSCOUTActiveInformation2026	1	7	ok	-	0	0		-
+dquty	zhangSCOUTActiveInformation2026	3	38	ok	-	0	0		-
+htn4k	zhangSCOUTActiveInformation2026	7	105	ok	-	0	0		-
+64msk	zhangSCOUTActiveInformation2026	19	287	ok	-	0	0		-
+sqtfu	zhouUncertaintyawareLargeLanguage2025	3	44	ok	-	0	0		-
+xng8v	zhouUncertaintyawareLargeLanguage2025	4	67	ok	-	0	0		-
+kgtm3	zhouUncertaintyawareLargeLanguage2025	5	92	ok	-	0	0		-
+mjz25	zhouUncertaintyawareLargeLanguage2025	6	105	ok	-	0	0		-
+kup5q	zhouUncertaintyawareLargeLanguage2025	7	129	ok	-	0	0		panels a, b, c all inside one box
+fyvqm	zhouUncertaintyawareLargeLanguage2025	8	140	none	-	1	1	no_crop	Fig 6 text panels a/b uncropped; only red box holds Fig 7
+6bj68	zhouUncertaintyawareLargeLanguage2025	8	159	ok	-	0	0	second_opinion	-
+wdvxx	zhuEstablishingBestPractices2025	3	26	ok	-	0	0		-
+vtn47	zhuEstablishingBestPractices2025	5	48	ok	-	0	0		-
+28jqq	zhuEstablishingBestPractices2025	6	61	ok	-	0	0		-
+a4tem	zhuEstablishingBestPractices2025	7	73	ok	-	0	0		-
+dq3jq	zhuEstablishingBestPractices2025	8	92	ok	-	0	0		-
+ydq3d	zhuEstablishingBestPractices2025	10	125	ok	-	0	0		subfigure captions (a)(b) inside box
