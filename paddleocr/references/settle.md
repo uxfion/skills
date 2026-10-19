@@ -39,7 +39,7 @@ The warnings, by remedy:
   - `repetition`: one phrase looped dozens of times, or a block cycling through the same words (2026-10: a 23-name author line run on to 8,857 characters). Keep one pass, checked against the source.
 - **Misplaced.**
   - `table_empty_column`: a headed column is empty in every row and the values have slid one column over; often a figure grid read as a table. Realign the values from the source.
-  - `formula_number_gap`: equation numbers are missing from a run. Find those equations in the source and add each number as `\tag*{(n)}` to its formula.
+  - `formula_number_gap`: equation numbers are missing from a run. Find those equations on the page image, where the numbers show even when the text layer drops them. Add each number as `\tag*{(n)}` to its formula.
 - **Unchecked.** There is nothing to check against.
   - `unchecked_table`: a table embedded as an image. Compare its values with the page image, cell by cell.
   - `no_text_layer`: scans and images. Look first at the last block of every page, where the model invents the rest of a sentence cut at the page end. Then look at small print (author lines, affiliations, superscripts), then at every table, cell by cell.
@@ -63,18 +63,20 @@ Settle every figure that has a note in the Markdown, and every figure your promp
 For each figure:
 
 1. Open its overlay (`checks/…jpg`). It shows the page with the caption in blue, every crop numbered in its own colour, and the second opinion as a green dashed box. Judge the numbered crops first, on their own: does one crop hold the whole figure, and nothing but it — no other figure, table or body text? Then weigh the reasons and the second opinion.
-2. Whole and clean: keep it. Open the note with `figure kept:` in place of `figure_check:`.
+   - A figure spread over several crops still needs one crop of its own, even when each piece is a whole panel.
+   - For `edge_cut`, view that edge in the crop itself, enlarged. The overlay is too small to show a line of text sliced in half.
+2. Whole and clean: keep it. Open the note with `figure kept:`.
 3. Otherwise cut a crop (below). Start from the warning's `second_opinion` box (in pixels, like the JSON boxes) when it looks right, else from the JSON boxes. Then open the note with `from page image: figure cropped by hand;`. The second opinion is a candidate: view its crop before you use it.
 4. A `no_crop` figure whose text the Markdown already holds, where colours and layout add nothing: open the note with `figure kept: the text is in the Markdown;`.
 
-Change only the note's opening: the bracket is how a later check finds the note. When a named figure has no note, put `<!-- from page image: figure cropped by hand -->` above its new crop.
+Each new opening takes the place of `figure_check:`. Change nothing else in the note: its bracket is how a later check finds it. When a named figure has no note, put `<!-- from page image: figure cropped by hand -->` above its new crop.
 
 To cut a crop:
 
 1. Crop the PDF page at the parse's `crop_dpi` (in the JSON's `parser`; 144 when absent). JSON boxes are in 144 dpi pixels, so multiply each by k = crop_dpi/144: `pdftoppm -f <N> -l <N> -r <crop_dpi> -x <x1·k> -y <y1·k> -W <width·k> -H <height·k> -singlefile -png <pdf> <folder>/imgs/p<NN>_fig<number>_cut`. For image input, crop the input image at the JSON box itself.
 2. For the starting box, use what the model made of the figure: the incomplete crop, or the table or text blocks right above its caption.
 3. View the crop and move its edges until it holds the whole figure and no caption or body text. The figure can be wider than its caption or sit beside it.
-4. Put its `![](imgs/…png)` line in place of the incomplete crop's line, or right before the caption when there was none, with the figure's note above it. Keep the blocks the model read from the figure: their text is the figure's words.
+4. Put its `![](imgs/…png)` line in place of the lines of every crop it now covers, or right before the caption when there was none. Put the figure's note above it. Keep the blocks the model read from the figure: their text is the figure's words.
 
 Done when every note is settled, or left open with its reason in your report, and every named figure has been seen whole.
 
