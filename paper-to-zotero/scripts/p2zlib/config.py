@@ -1,0 +1,64 @@
+"""The one config file: every setting and secret of the skill, outside any repository.
+
+~/.config/paper-to-zotero/config.json ($PAPER_TO_ZOTERO_CONFIG points elsewhere, for tests), mode 600:
+{"zotero": {"key", "serverID"}, "openalex_key", "institution": {"proxy", "discovery"}}. Every field is optional; a
+missing one turns its feature off. No value read here is ever printed.
+"""
+import json
+import os
+from pathlib import Path
+
+from .cli import CANNOT, Stop
+
+ENV = "PAPER_TO_ZOTERO_CONFIG"
+
+
+def path():
+    return Path(os.environ.get(ENV) or Path.home() / ".config" / "paper-to-zotero" / "config.json")
+
+
+def read(strict=True):
+    """The config as a dict ({} when there is none). Unreadable: Stop config_unreadable when strict, else {}."""
+    p = path()
+    try:
+        config = json.loads(p.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as e:
+        if strict:
+            raise Stop("config_unreadable", exit=CANNOT, hint="The config file is unreadable; fix it, then rerun.",
+                       config=str(p), detail=str(e)) from None
+        return {}
+    return config if isinstance(config, dict) else {}
+
+
+def section(name, strict=False):
+    value = read(strict).get(name)
+    return value if isinstance(value, dict) else {}
+
+
+def text(value):
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def zotero_key(server_id):
+    """The local API key ready.py --authorize stored, checked against the running instance's server id."""
+    zot = section("zotero", strict=True)
+    if not text(zot.get("key")):
+        raise Stop("no_key", exit=CANNOT, hint="No local API key yet; run ready.py --authorize first.", config=str(path()))
+    if zot.get("serverID") and zot["serverID"] != server_id:
+        raise Stop("server_mismatch", exit=CANNOT,
+                   hint="The stored key was issued by another Zotero instance; run ready.py --authorize again.",
+                   config=str(path()))
+    return zot["key"]
+
+
+def institution():
+    """{"proxy": the proxy's domain, lowercased, "discovery": the discovery search page}, None where unset."""
+    inst = section("institution")
+    proxy = text(inst.get("proxy"))
+    return {"proxy": proxy.lower().lstrip(".") if proxy else None, "discovery": text(inst.get("discovery"))}
+
+
+def openalex_key():
+    return text(read(strict=False).get("openalex_key"))

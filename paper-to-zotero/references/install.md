@@ -35,7 +35,7 @@ One file holds every setting and secret: `~/.config/paper-to-zotero/config.json`
 
 - `zotero` — written by `ready.py --authorize`; the write scripts read nothing else.
 - `openalex_key` — the user's OpenAlex API key (openalex.org, free): `fulltext_links.py` sends it with each lookup, which makes single-DOI lookups free of the daily budget. Without it the lookups run unkeyed.
-- `institution.proxy` — the domain of the institution's EZproxy-style proxy, so that pages behind it are recognised (`fetch.py`) and links under it are marked as needing the browser.
+- `institution.proxy` — the domain of the institution's EZproxy-style proxy, so that pages behind it are recognised (`fetch.py`, `lint_items.py`) and links under it are marked as needing the browser.
 - `institution.discovery` — the library's discovery search page (a Primo search URL with its `vid`): `fetch.py --via discovery` searches titles there. `ready.py` asks for it (`ask_user`) when it is missing.
 
 Write the file with `chmod 600`; `ready.py` warns when others can read it.

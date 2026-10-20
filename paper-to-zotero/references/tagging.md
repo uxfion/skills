@@ -35,7 +35,7 @@ Rules per dimension:
 
 ## Choosing tags for one paper
 
-1. List the library's existing tags (`uv run scripts/read_library.py tags`) — the spelling reference: one spelling per concept.
+1. List the library's existing tags (`uv run scripts/p2z.py read_library tags`) — the spelling reference: one spelling per concept.
 2. From the item's title, abstract, venue and, when needed, the PDF's first page, pick the tags above — the existing spelling where the concept already has a tag, a new tag where it does not.
 3. Write source keywords as automatic tags and curated tags as manual tags, so the two stay distinguishable in Zotero.
 4. Report: the curated tags chosen, which of them are new to the library, and the source keywords kept. After a batch, list every new tag once, grouped by prefix, so the user can look them over in one go.

@@ -186,7 +186,7 @@ Elsevier 那篇，agent 判断是同一篇就在记录里写 `same_as`，不是�
 | 机制 | 现在 | 统一后 |
 |---|---|---|
 | 403 | 有的脚本见 403 就算"本地 API 没开"，有的要看正文；写入被拒报成 `write_denied`、`files_not_editable`、`library_not_editable` 三种 | 正文含 "not enabled" → `local_api_disabled`（退出 2）；其他 403 → `write_denied`（退出 1，`detail` 写原文） |
-| 412 | create 见 412 一律算服务器 id 不符；其他脚本看正文 | 正文含 "server-id" → `server_mismatch`（退出 2）；其他 412 → 版本冲突，重读后重试一次 |
+| 412 | create 见 412 一律算服务器 id 不符；其他脚本看正文 | 正文含 "server-id" → `server_mismatch`（退出 2）；其他 412 → 版本冲突，重读后重试一次，再冲突是 `version_conflict`。PATCH 和批量 POST 的更新都这样：批量里冲突的那几条重读、重新计划、再发一次 |
 | 超时 | 5–120 秒不等 | 默认 120 秒；个别调用另给（ready 的授权等待、report 读分类名） |
 | 分页 | 11 处各写一遍；其中两处遇到异常页面会悄悄返回半截 | 只写一处，遇到异常页面就报错 |
 | citation key → key | 6 种写法；merge 那份没有"检索没命中就扫一遍全库"的退路 | 一个函数：先检索，没命中的一起扫一次全库 |
@@ -245,7 +245,7 @@ if __name__ == "__main__":
   - 处理多个对象的脚本，最后加一行 `{"summary": {...}}`；
   - 例外照旧：`report` 输出 Markdown，`export_bib` 输出 BibTeX，它们的 JSON 行走 stderr；
   - stderr 只放给人看的诊断。
-- **每行的形状**：`{slug 或 key[, cite], code, ...}`。
+- **每行的形状**：`{slug 或 key[, cite], code, ...}`。读出来的数据不算：read_library 每行是库里的一个对象，lint_items 每行是一个有问题的条目和它的 `problems`，都没有 `code`；read_library 也没有汇总行。
   - `code` 不是 `ok` 或 `skipped` 时才有 `hint`；
   - 跳过一律是 `code: skipped`，加一个 `reason` 词。
 - **返回码**：
@@ -261,8 +261,9 @@ if __name__ == "__main__":
   |---|---|
   | 环境（退出 2） | `zotero_unreachable`、`local_api_disabled`、`no_key`、`key_rejected`、`server_mismatch`、`config_unreadable`、`no_pdftotext` |
   | 输入 | `record_invalid`、`no_records`、`no_identifier` |
-  | 查找 | `not_found`、`cite_not_found`、`cite_ambiguous` |
+  | 查找 | `not_found`、`cite_not_found`、`cite_ambiguous`、`collection_not_found` |
   | 写入 | `write_denied`、`version_conflict`、`write_failed`、`readback_mismatch`、`unexpected_response` |
+  | 没跑 | `not_run`：前面一个对象遇到退出 2 的情况，后面的都没处理；停在哪一个，那一行写原因，汇总的 `stopped` 也写 |
 
   去掉的同义词：
   - `item_not_found`；
@@ -273,7 +274,10 @@ if __name__ == "__main__":
   - `files_not_editable`、`library_not_editable`；
   - `invalid_collection`、`invalid_tags_file`。
 
-  各脚本自己的码（核对结果、`near_match`、`possible_duplicate`……）照旧写在各自的 `--help` 里。
+  各脚本自己的码（核对结果、`near_match`、`possible_duplicate`……）照旧写在各自的 `--help` 里。实现时定下的几个：
+  - file_and_tag：给的改动本身有毛病（批量文件不是 JSON 列表、条目没指明条目、分类 key 写错、标签不合规、同一分类又加又删、标签文件不存在）一律是 `invalid_changes`，`detail` 逐条列出，什么都不写；它替掉了 `invalid_collection`、`invalid_tags_file`、`invalid_batch_file`；
+  - 原来表示"已经是这样"的码都成了 `skipped` 加 `reason`：make_collection 的 `exists`、merge_items 的 `nothing_to_merge`、trash_item 的 `already_trashed` / `not_in_trash`、update_item 和 file_and_tag 的 `unchanged`；
+  - export_bib 的 stderr 只有一行汇总：`count` 之外，`missing`、`duplicates`、`tex`、`not_found`、`unresolved`、`no_item_key` 这几张表不为空时才出现，有一张就退出 1。
 - `fetch.jsonl` 的 `event`、`result` 字段不改名，因为 SKILL.md 第 0 步的监听命令按这两个字段过滤。
 
 ### 4.4 记录：谁写哪一块，什么时候算完
@@ -490,7 +494,7 @@ IEEE 就自然通了：文章页上写着"PDF"的链接是 `stamp.jsp`，它打�
 - medRxiv、bioRxiv 的 10 秒间隔挂在跳转之前的主机上，实际几乎用不上。
 
 **改成**：`web.py` 里一张主机表、一个限速器。
-- 有工作目录时，每个主机的上次请求时间和停用期限记在 `<work>/pace.json`（加文件锁），每次调用都读它。所以重跑也遵守间隔，429 在整次运行里有效。
+- 有工作目录时，每个主机的上次请求时间和停用期限记在 `<work>/pace.json`（加文件锁），每次调用都读它。所以重跑也遵守间隔，429 也跨进程有效：停到 `Retry-After` 给的时间，没给就停一小时。不停整次运行，是因为没答上的来源（`incomplete`）要在同一次运行里过后再试（§4.4）；一小时是我定的，实测后再调。
 - 没有工作目录时（整理工具），只在进程内有效。
 - 间隔按实际请求的主机算；各主机的间隔数值不变。
 
@@ -587,7 +591,7 @@ issue 里写"对外的命令、参数和输出形状尽量不变"。审查后我
   - 共享的情形只在库模块的测试里测一次：citation key 的检索和扫描退路、412 重试、分页和每块 50 条、连不上、key 不外泄、写回再重跑、算完规则；
   - 各脚本的测试只测它自己那件事，在进程内调用 `main(argv)`；
   - 每个脚本另留一个子进程冒烟测试，检查 shebang、返回码和 stdout 的形状。
-- **跑法**：一条命令跑全部测试，各文件并行。现在逐个文件跑约 199 秒，估计能降到一分钟以内。
+- **跑法**：`uv run tests/run_all.py`，各文件各一个进程，并行跑。原来逐个文件跑约 199 秒。
 - **回归的标准**：现有测试的场景。除了本稿明确改掉的行为，原来测过的都要照样通过。
 
 ## 11. 文档
@@ -623,7 +627,7 @@ issue 里写"对外的命令、参数和输出形状尽量不变"。审查后我
 
 开工前打一个本地标签 `paper-to-zotero-stable-20261020` 作为回退点（和 paddleocr 一样，不推送）。
 
-代码在主会话里写，不派子 agent 改代码。v3 第一次尝试时，五个子 agent 各写各的，结果是 15.4k 行补丁。子 agent 只用来做审查。
+共享库、假 Zotero 和每类脚本的样板在主会话里写，接口由它们定下；之后各脚本互不相干，由子 agent 并行搬到库上（你 2026-10-20 要求能并行的就并行）。每个子 agent 只改自己的脚本和测试，不碰共享库；库里缺什么报回来，由主会话统一加。v3 第一次尝试时，五个子 agent 各自设计、各打补丁，结果是 15.4k 行；这次接口先定死，就不会那样。
 
 每一期改了哪些行为，对应的文档就在那一期一起改，所以每一期都可以单独推送、安装、使用。
 
@@ -634,7 +638,7 @@ issue 里写"对外的命令、参数和输出形状尽量不变"。审查后我
 4. 文档：organize.md，以及 SKILL.md 里讲整理和读取的部分（结果码、分类路径分隔符、`read_library` 的用法）；
 5. 安装一次，确认子目录装上了；对真库做只读冒烟测试。
 
-结构化包要用的四样东西，这一期就都有了：通用的 `zotero.attach`、`resolve_cite`、移进回收站、带路径和 md5 的附件列表。
+结构化包要用的四样东西，这一期就都有了：通用的 `zotero.attach`、`resolve_cite`、移进回收站、带路径和 md5 的附件列表。`zotero.attach` 这一期还没有脚本用，第二期 attach_file 搬上去时一起验收。
 
 **第二期：导入流程**
 1. `run.py`、`verify.py`；`web.py` 补上对外请求和页面元数据；
@@ -702,3 +706,10 @@ issue 里写"对外的命令、参数和输出形状尽量不变"。审查后我
   - 认领函数放进 `run.py`，路径转换放进 `zotero.py`。
 
   advisor 收尾检查后又补了三处："没有依据就当不存在"只管 `prepare` 的四块，`pending` 状态下当作还没有条目；`--verdict` 保留指明路线的写法，门禁超时后可以一次结束同一门禁后的其他论文；文件还没到时 attach_file 报 `skipped`，不算失败。
+
+- 2026-10-20：实现第一期时的修正（共享库和假服务先写定，各脚本由子 agent 并行搬，审查后统一修）：
+  - 批量 POST 的更新也按 412 规则重读、重新计划、重试一次（§3.3）；
+  - 各脚本的码：file_and_tag 的 `invalid_changes`，"已经是这样"一律 `skipped` 加 `reason`，export_bib 的 stderr 只有一行汇总（§4.3）；公共码表补上 `collection_not_found` 和 `not_run`，数据行的例外写明；
+  - dry-run 什么都不写，所以不需要 key；
+  - 429 的停用期限（§6.6）；
+  - 第二期再做的：`paper.same_paper` 和查库函数随 find_in_library 一起搬；export_bib 的记录到条目改用 `run.item_key`（要等导入脚本写出带 `from` 的 `found`）。

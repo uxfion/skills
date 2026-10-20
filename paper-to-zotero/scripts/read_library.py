@@ -3,370 +3,169 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Read the Zotero library through the local API and print it as JSONL: items, one item, its children, a paper's PDF on disk, collections, tags, the schema.
+"""Read the Zotero library through the local API, as JSON lines: items, their children, a paper's PDFs on disk, collections, tags, the schema.
 
-Read-only and unauthenticated (the local API answers GETs without a key).
-Every stdout line is one JSON object:
+Read-only; the local API answers GETs without a key. One JSON object per stdout line:
+  items        the item's data, flat ({key, version, itemType, title, creators, ..., collections, tags}; no `data`
+               wrapper: jq '.title'). Top-level items unless --all; within a --collection; by --key / --cite; by
+               --q search text; changed --since a library version; with a --tag ('a || b' for either)
+  children     the attachments and notes of the items named by --key / --cite
+  pdf          one line per PDF attachment of each named item, the paper's PDF first (published, then accepted
+               manuscript, then preprint): {key, citationKey, title, attachment, attachment_title, kind, md5, link_mode,
+               path, exists}; `path` is the file as this machine opens it (a Windows path from Zotero on Windows goes
+               through wslpath in WSL). How another skill gets a library paper's PDF to read or parse.
+               {key, citationKey, title, code: no_pdf, attachments: [content types]} for an item without one
+  collections  the collection's data; --tree adds `path` (names from the root joined by "/") and leaves out the
+               collections in the trash and those under one
+  tags         {tag, type, count}
+  schema       the schema object, once
+Listings are read 100 at a time; --limit caps the total. --cite finds the item whose citationKey it is (a search,
+then a scan of every top-level item). A key or citation key that does not resolve prints its {key | cite, code,
+hint} line in place of its rows.
 
-- items / item / children: the API object's `data` with `key` and `version`
-  in front; `items` lists top-level items (add --all for attachments and
-  notes), optionally within one collection, by key or citation key, by
-  search text or changed since a library version.
-- pdf: one line per PDF attachment of an item, the published version before
-  an accepted manuscript before a preprint: the item's key, citation key and
-  title, the attachment's key and title, and `path`, the file as this machine
-  opens it (the local API's file:// address; a Windows path from Zotero on
-  Windows goes through wslpath in WSL), with `exists`. This is how another
-  skill gets a library paper's PDF to read or parse.
-- collections: the collection's data; --tree adds `path` (names joined by
-  "/", parents first) and leaves collections in the trash out.
-- tags: {tag, type, count}.
-- schema: the schema object, once.
+Exit 0; 1 = some --key / --cite did not resolve (cite_not_found, cite_ambiguous, not in the library), or pdf found
+no PDF, or none on disk; 2 = cannot read (zotero_unreachable, local_api_disabled), then stdout holds one {code} line.
 
-Multi-object endpoints are paged (limit 100, `start`), honouring
-Total-Results / Link; --limit caps the total. --cite resolves a citation
-key the way every script of this skill does: a q=everything search first,
-then a scan of the top-level items as fallback. Exit 0; 1 = a key or
-citation key did not resolve; 2 = cannot read (Zotero unreachable, local
-API disabled, unexpected reply) - then stdout holds one {"code", ...} object.
+Examples:
+  uv run scripts/read_library.py items --collection 9EYXTC2I --limit 20
+  uv run scripts/read_library.py items --cite liuProgressiveResidualLearning2022
+  uv run scripts/read_library.py items --q 'residual learning' --qmode everything
+  uv run scripts/read_library.py children --cite liuProgressiveResidualLearning2022
+  uv run scripts/read_library.py pdf --cite liuProgressiveResidualLearning2022
+  uv run scripts/read_library.py collections --tree
+  uv run scripts/read_library.py tags --min-count 3
 """
-
-from __future__ import annotations
-
-import argparse
-import json
 import os
-import re
-import shutil
-import subprocess
-import sys
-import urllib.error
-import urllib.parse
-import urllib.request
 
-DEFAULT_BASE_URL = "http://127.0.0.1:23119"
-LIB = "/api/users/0"
-PAGE_SIZE = 100
-KEY_CHUNK = 50
-TIMEOUT = 30
-CHILD_TYPES = {"attachment", "note", "annotation"}
-
-VERBOSE = False
+from p2zlib import cli, zotero
+from p2zlib.zotero import LIB
 
 
-def log(msg: str) -> None:
-    if VERBOSE:
-        print(msg, file=sys.stderr)
-
-
-class Stop(Exception):
-    """Carry a result code out of any depth; main() turns it into one JSON line + exit."""
-
-    def __init__(self, code: str, exit_code: int = 1, hint: str | None = None, **extra):
-        super().__init__(code)
-        self.code, self.exit_code, self.hint, self.extra = code, exit_code, hint, extra
-
-
-class Api:
-    """Minimal GET client for the local API; bypasses any proxy from the environment."""
-
-    def __init__(self, base_url: str):
-        self.base = base_url.rstrip("/")
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-
-    def get(self, path: str, params: dict | None = None, allow_404: bool = False):
-        """Return (object, headers); (None, headers) on 404 when allowed."""
-        url = self.base + path
-        if params:
-            url += "?" + urllib.parse.urlencode(params)
-        req = urllib.request.Request(url, headers={"Accept": "application/json"})
-        try:
-            with self.opener.open(req, timeout=TIMEOUT) as resp:
-                status, headers, body = resp.status, dict(resp.headers), resp.read()
-        except urllib.error.HTTPError as e:
-            status, headers, body = e.code, dict(e.headers), e.read()
-        except (urllib.error.URLError, OSError) as e:
-            raise Stop("zotero_unreachable", 2, "Zotero does not answer; ask the user to start it (never restart it from here), then rerun.",
-                       base_url=self.base, error=str(getattr(e, "reason", e))) from None
-        log(f"GET {url} -> {status}")
-        text = body.decode("utf-8", errors="replace")
-        if status == 403:
-            raise Stop("local_api_disabled", 2, "Ask the user to enable the local API in Zotero Settings > Advanced, then rerun.",
-                       status=status, body=text.strip()[:200])
-        if status == 404 and allow_404:
-            return None, headers
-        if status != 200:
-            raise Stop("api_error", 2, "Unexpected reply from the local API; check Zotero and rerun.",
-                       path=path, status=status, body=text.strip()[:200])
-        try:
-            return json.loads(text), headers
-        except json.JSONDecodeError:
-            raise Stop("api_error", 2, "The local API did not answer with JSON.", path=path, body=text.strip()[:200]) from None
-
-    def location(self, path: str) -> str | None:
-        """Where the local API redirects a request (an attachment's file:// address); None when it does not."""
-        class Stay(urllib.request.HTTPRedirectHandler):
-            def redirect_request(self, *args, **kwargs):
-                return None
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), Stay)
-        try:
-            with opener.open(self.base + path, timeout=TIMEOUT) as resp:
-                log(f"GET {self.base + path} -> {resp.status}")
-                return None
-        except urllib.error.HTTPError as e:
-            log(f"GET {self.base + path} -> {e.code}")
-            return e.headers.get("Location") if 300 <= e.code < 400 else None
-        except (urllib.error.URLError, OSError) as e:
-            raise Stop("zotero_unreachable", 2, "Zotero does not answer; ask the user to start it (never restart it from here), then rerun.",
-                       base_url=self.base, error=str(getattr(e, "reason", e))) from None
-
-    def get_all(self, path: str, params: dict | None = None, limit: int | None = None) -> list:
-        """Page through a multi-object endpoint; stop on Total-Results, a missing rel=next or a short page."""
-        out: list = []
-        start = 0
-        while limit is None or len(out) < limit:
-            page_size = PAGE_SIZE if limit is None else min(PAGE_SIZE, limit - len(out))
-            page, headers = self.get(path, {**(params or {}), "limit": page_size, "start": start})
-            if not isinstance(page, list):
-                raise Stop("api_error", 2, "Expected a JSON array from the local API.", path=path)
-            out.extend(page)
-            start += len(page)
-            total = headers.get("Total-Results")
-            if not page or len(page) < page_size:
-                break
-            if total is not None and total.isdigit():
-                if start >= int(total):
-                    break
-            elif 'rel="next"' not in (headers.get("Link") or ""):
-                break
-        return out if limit is None else out[:limit]
-
-
-def is_top_level(item: dict) -> bool:
-    data = item.get("data") or {}
-    return data.get("itemType") not in CHILD_TYPES and not data.get("parentItem")
-
-
-def resolve_cite(api: Api, cite: str) -> str:
-    """Citation key -> item key: a q=everything search, then (fallback) a scan of every top-level item."""
-    hits, _ = api.get(f"{LIB}/items", {"q": cite, "qmode": "everything", "limit": 50})
-    keys = [it["key"] for it in hits if is_top_level(it) and (it.get("data") or {}).get("citationKey") == cite]
-    if not keys:
-        log(f"citation key {cite!r}: search found nothing, scanning {LIB}/items/top")
-        keys = [it["key"] for it in api.get_all(f"{LIB}/items/top") if (it.get("data") or {}).get("citationKey") == cite]
-    if not keys:
-        raise Stop("cite_not_found", 1, "No item carries this citationKey (case matters); look the paper up by DOI or title instead.", cite=cite)
-    if len(keys) > 1:
-        raise Stop("cite_ambiguous", 1, "Several items carry this citationKey; pass --key with the right one.", cite=cite, keys=keys)
-    return keys[0]
-
-
-def line(obj) -> None:
-    print(json.dumps(obj, ensure_ascii=False))
-
-
-def flat(item: dict) -> dict:
+def flat(row):
     """The API object's data with key and version in front."""
-    return {"key": item.get("key"), "version": item.get("version"), **(item.get("data") or {})}
+    return {"key": row.get("key"), "version": row.get("version"), **zotero.data(row)}
 
 
-# --- subcommands -------------------------------------------------------------
+def resolve(zot, args):
+    """The keys named by --key / --cite; a cite that does not resolve prints its line. -> (keys with their cites, failed)."""
+    out, failed = [], False
+    for key, cite, failure in zot.targets(args.key, args.cite):
+        if failure is not None:
+            cli.emit(failure.line())
+            failed = True
+        else:
+            out.append((key, cite))
+    return out, failed
 
 
-def cmd_items(api: Api, args) -> int:
-    keys = list(args.key or [])
-    for cite in args.cite or []:
-        keys.append(resolve_cite(api, cite))
-    params: dict = {}
-    if args.q:
-        params["q"] = args.q
-        if args.qmode:
-            params["qmode"] = args.qmode
-    if args.since is not None:
-        params["since"] = args.since
-    if args.tag:
-        params["tag"] = args.tag
+def cmd_items(zot, args):
+    params = {k: v for k, v in (("q", args.q), ("qmode", args.qmode if args.q else None), ("since", args.since),
+                                ("tag", args.tag)) if v is not None}
     base = f"{LIB}/collections/{args.collection}/items" if args.collection else f"{LIB}/items"
-    if keys:
-        # Explicit keys are wanted whatever their level, so no /top here; the local API also returns the
-        # children of a requested key, hence the filter.
-        items: list = []
-        for i in range(0, len(keys), KEY_CHUNK):
-            chunk = keys[i:i + KEY_CHUNK]
-            items.extend(it for it in api.get_all(base, {**params, "itemKey": ",".join(chunk)}) if it.get("key") in chunk)
-        missing = [k for k in keys if k not in {it.get("key") for it in items}]
-        if missing:
-            print(f"not in the library: {', '.join(missing)}", file=sys.stderr)
+    failed = False
+    if args.key or args.cite:
+        named, failed = resolve(zot, args)
+        found = zot.items([k for k, _ in named], base, params)
+        for key, cite in named:
+            if key not in found:
+                cli.emit(cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND + (" Or it is not in that collection."
+                                                                             if args.collection else "")).line(**cli.head(key, cite)))
+                failed = True
+        rows = [found[k] for k, _ in named if k in found][:args.limit]
     else:
-        items = api.get_all(base if args.all else base + "/top", params, limit=args.limit)
-    if args.limit is not None:
-        items = items[:args.limit]
-    for it in items:
-        line(flat(it))
-    return 0
+        rows = zot.pages(base if args.all else base + "/top", params, limit=args.limit)
+    for row in rows:
+        cli.emit(flat(row))
+    return cli.ACT if failed else cli.OK
 
 
-def cmd_item(api: Api, args) -> int:
-    item, _ = api.get(f"{LIB}/items/{args.key}", allow_404=True)
-    if not isinstance(item, dict):
-        raise Stop("not_found", 1, "No item with that key; find it with `items --q` or --cite.", key=args.key)
-    line(flat(item))
-    return 0
+def cmd_children(zot, args):
+    named, failed = resolve(zot, args)
+    found = zot.items([k for k, _ in named])
+    for key, cite in named:
+        if key not in found:
+            cli.emit(cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND).line(**cli.head(key, cite)))
+            failed = True
+            continue
+        for child in zot.children(key):
+            cli.emit(flat(child))
+    return cli.ACT if failed else cli.OK
 
 
-def cmd_children(api: Api, args) -> int:
-    # The local API answers /items/<missing>/children with the whole library; keep only real children.
-    children = api.get_all(f"{LIB}/items/{args.key}/children")
-    for child in children:
-        if (child.get("data") or {}).get("parentItem") == args.key:
-            line(flat(child))
-    return 0
-
-
-def local_path(url: str) -> str:
-    """A file:// address as a path this machine opens: a Windows path (Zotero on Windows) through wslpath when there is one."""
-    path = urllib.parse.unquote(urllib.parse.urlsplit(url).path)
-    if not re.match(r"/[A-Za-z]:/", path):
-        return path
-    win = path[1:]
-    if shutil.which("wslpath"):
-        done = subprocess.run(["wslpath", "-u", win], capture_output=True, text=True)
-        if done.returncode == 0 and done.stdout.strip():
-            return done.stdout.strip()
-    return win
-
-
-def version_rank(title: str) -> int:
-    """The published version first, then an accepted manuscript, then a preprint, by the attachment titles this skill writes."""
-    t = (title or "").casefold()
-    return 2 if t.startswith("preprint") else 1 if t.startswith("accepted manuscript") else 0
-
-
-def cmd_pdf(api: Api, args) -> int:
-    keys = list(args.key or []) + [resolve_cite(api, cite) for cite in args.cite or []]
-    status = 0
-    for key in keys:
-        item, _ = api.get(f"{LIB}/items/{key}", allow_404=True)
-        if not isinstance(item, dict):
-            raise Stop("not_found", 1, "No item with that key; find it with `items --q` or --cite.", key=key)
-        data = item.get("data") or {}
-        children = [c for c in api.get_all(f"{LIB}/items/{key}/children") if (c.get("data") or {}).get("parentItem") == key]
-        pdfs = sorted((c for c in children if (c.get("data") or {}).get("contentType") == "application/pdf"),
-                      key=lambda c: (version_rank(c["data"].get("title")), c["data"].get("dateAdded") or ""))
-        head = {"key": key, "cite": data.get("citationKey"), "title": data.get("title")}
+def cmd_pdf(zot, args):
+    named, failed = resolve(zot, args)
+    for key, cite in named:
+        item = zot.item(key)
+        if item is None:
+            cli.emit(cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND).line(**cli.head(key, cite)))
+            failed = True
+            continue
+        d = zotero.data(item)
+        head = {"key": key, "citationKey": d.get("citationKey"), "title": d.get("title")}
+        attachments = zot.attachments(key)
+        pdfs = [a for a in attachments if a["contentType"] == "application/pdf"]
         if not pdfs:
-            status = 1
-            line({**head, "code": "no_pdf", "attachments": [c["data"].get("contentType") for c in children if c["data"].get("itemType") == "attachment"],
-                  "hint": "The item has no PDF attachment; paper-to-zotero's import steps can fetch one."})
+            cli.emit({**head, "code": "no_pdf", "attachments": [a["contentType"] for a in attachments],
+                      "hint": "The item has no PDF attachment; paper-to-zotero's import steps can fetch one."})
+            failed = True
             continue
-        found = False
-        for c in pdfs:
-            url = api.location(f"{LIB}/items/{c['key']}/file")
-            path = local_path(url) if url and url.startswith("file:") else None
+        on_disk = False
+        for a in pdfs:
+            path = zot.file_path(a["key"])
             exists = bool(path and os.path.isfile(path))
-            found |= exists
-            line({**head, "attachment": c["key"], "attachment_title": c["data"].get("title"), "link_mode": c["data"].get("linkMode"),
-                  "path": path, "exists": exists})
-        if not found:
-            status = 1
-            print(f"{key}: no PDF of this item is on disk (not synced, or a linked file that moved)", file=sys.stderr)
-    return status
+            on_disk |= exists
+            cli.emit({**head, "attachment": a["key"], "attachment_title": a["title"], "kind": a["kind"], "md5": a["md5"],
+                      "link_mode": a["linkMode"], "path": path, "exists": exists})
+        if not on_disk:
+            cli.log(f"{key}: no PDF of this item is on disk (not synced, or a linked file that moved)")
+            failed = True
+    return cli.ACT if failed else cli.OK
 
 
-def cmd_collections(api: Api, args) -> int:
-    cols = api.get_all(f"{LIB}/collections")
-    if not args.tree:
-        for c in cols:
-            line(flat(c))
-        return 0
-    live = {c["key"]: c for c in cols if not (c.get("data") or {}).get("deleted")}
-    children: dict = {}
-    for key, c in live.items():
-        parent = (c.get("data") or {}).get("parentCollection") or None
-        if parent and parent not in live:
-            log(f"collection {key} skipped: its parent {parent} is in the trash or missing")
-            continue
-        children.setdefault(parent, []).append(key)
-
-    def walk(parent, prefix: str) -> None:
-        for key in sorted(children.get(parent, []), key=lambda k: (live[k]["data"].get("name") or "").casefold()):
-            path = f"{prefix}/{live[key]['data'].get('name', key)}" if prefix else live[key]["data"].get("name", key)
-            line({**flat(live[key]), "path": path})
-            walk(key, path)
-
-    walk(None, "")
-    return 0
+def cmd_collections(zot, args):
+    if args.tree:
+        for c in zot.collections().values():
+            cli.emit({"key": c["key"], "version": c["version"], **c["data"], "path": c["path"]})
+    else:
+        for row in zot.pages(f"{LIB}/collections"):
+            cli.emit(flat(row))
+    return cli.OK
 
 
-def cmd_tags(api: Api, args) -> int:
-    for t in api.get_all(f"{LIB}/tags"):
+def cmd_tags(zot, args):
+    for t in zot.pages(f"{LIB}/tags"):
         meta = t.get("meta") or {}
-        count = meta.get("numItems", 0)
-        if count >= args.min_count:
-            line({"tag": t.get("tag"), "type": meta.get("type", 0), "count": count})
-    return 0
+        if meta.get("numItems", 0) >= args.min_count:
+            cli.emit({"tag": t.get("tag"), "type": meta.get("type", 0), "count": meta.get("numItems", 0)})
+    return cli.OK
 
 
-def cmd_schema(api: Api, args) -> int:
-    schema, _ = api.get("/api/schema")
-    line(schema)
-    return 0
+def cmd_schema(zot, args):
+    cli.emit(zot.schema())
+    return cli.OK
 
 
-# --- main --------------------------------------------------------------------
-
-
-def parse_args(argv=None):
-    p = argparse.ArgumentParser(
-        description="Read the Zotero library through the local API (GET only, no key) and print JSONL.",
-        epilog="Line shapes (one JSON object per line):\n"
-               "  items / item / children   the item's data, flat: {key, version, itemType, title, creators, ..., collections,\n"
-               "                            tags} - no `data` wrapper (jq '.title', not '.data.title')\n"
-               "  pdf                       {key, cite, title, attachment, attachment_title, link_mode, path, exists}, one per PDF,\n"
-               "                            the published version first; {key, cite, title, code: no_pdf, attachments} without one\n"
-               "  collections               {key, version, name, parentCollection, ...}; --tree adds path\n"
-               "  tags                      {tag, type, count}\n"
-               "  schema                    the schema object\n"
-               "Examples:\n"
-               "  uv run read_library.py items --collection 9EYXTC2I --limit 20\n"
-               "  uv run read_library.py items --tag venue/CVPR\n"
-               "  uv run read_library.py items --cite liuProgressiveResidualLearning2022\n"
-               "  uv run read_library.py items --q 'residual learning' --qmode everything\n"
-               "  uv run read_library.py pdf --cite liuProgressiveResidualLearning2022\n"
-               "  uv run read_library.py collections --tree\n"
-               "  uv run read_library.py tags --min-count 3\n"
-               "Exit 0; 1 = not_found / cite_not_found / cite_ambiguous / no_pdf, or pdf found no file on disk;\n"
-               "2 = zotero_unreachable / local_api_disabled / api_error.",
-        formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="local API base URL (default: %(default)s; proxies are bypassed)")
-    p.add_argument("-v", "--verbose", action="store_true", help="log each request to stderr")
+def parse_args(argv):
+    p = cli.parser(__doc__)
+    cli.add_base_url(p)
     sub = p.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
-    s = sub.add_parser("items", help="list items (top-level by default)")
-    s.add_argument("--top", action="store_true", help="top-level items only (the default)")
+    s = sub.add_parser("items", help="items: top-level unless --all")
     s.add_argument("--all", action="store_true", help="also attachments and notes")
     s.add_argument("--collection", metavar="KEY", help="only items in this collection")
-    s.add_argument("--key", action="append", metavar="KEY", help="one item key (repeatable)")
-    s.add_argument("--cite", action="append", metavar="CITE", help="one citation key (repeatable)")
-    s.add_argument("--q", metavar="TEXT", help="search text (Zotero quick search)")
-    s.add_argument("--qmode", choices=("titleCreatorYear", "everything", "fields"), help="quick-search mode for --q (default: Zotero's)")
+    cli.add_targets(s)
+    s.add_argument("--q", metavar="TEXT", help="search text (Zotero's quick search)")
+    s.add_argument("--qmode", choices=("titleCreatorYear", "everything", "fields"), help="quick-search mode for --q")
     s.add_argument("--since", type=int, metavar="VERSION", help="only items changed after this library version")
-    s.add_argument("--tag", metavar="TAG", help="only items with this tag (Zotero's tag filter: 'a || b' for either)")
+    s.add_argument("--tag", metavar="TAG", help="only items with this tag ('a || b' for either)")
     s.add_argument("--limit", type=int, metavar="N", help="at most N items in total")
-    s.set_defaults(func=cmd_items)
+    s.set_defaults(func=cmd_items, need_targets=False)
 
-    s = sub.add_parser("item", help="one item by key")
-    s.add_argument("key", metavar="KEY")
-    s.set_defaults(func=cmd_item)
-
-    s = sub.add_parser("children", help="the attachments and notes of one item")
-    s.add_argument("key", metavar="KEY")
-    s.set_defaults(func=cmd_children)
-
-    s = sub.add_parser("pdf", help="where an item's PDF attachments are on disk, the published version first")
-    s.add_argument("--key", action="append", metavar="KEY", help="one item key (repeatable)")
-    s.add_argument("--cite", action="append", metavar="CITE", help="one citation key (repeatable)")
-    s.set_defaults(func=cmd_pdf)
+    for name, func, text in (("children", cmd_children, "the attachments and notes of items"),
+                             ("pdf", cmd_pdf, "where items' PDFs are on disk, the paper's PDF first")):
+        s = sub.add_parser(name, help=text)
+        cli.add_targets(s)
+        s.set_defaults(func=func, need_targets=True)
 
     s = sub.add_parser("collections", help="all collections")
     s.add_argument("--tree", action="store_true", help="parents first, with `path`; collections in the trash left out")
@@ -380,30 +179,17 @@ def parse_args(argv=None):
     s.set_defaults(func=cmd_schema)
 
     args = p.parse_args(argv)
-    if args.command == "pdf" and not (args.key or args.cite):
-        p.error("pdf needs --key or --cite (by title: `items --q` first)")
-    if args.command == "items":
-        if args.top and args.all:
-            p.error("--top and --all exclude each other")
-        if args.limit is not None and args.limit < 1:
-            p.error("--limit must be at least 1")
+    if hasattr(args, "need_targets"):
+        cli.targets_of(p, args, required=args.need_targets)
+    if getattr(args, "limit", None) is not None and args.limit < 1:
+        p.error("--limit must be at least 1")
     return args
 
 
-def main(argv=None) -> int:
-    global VERBOSE
+def main(argv=None):
     args = parse_args(argv)
-    VERBOSE = args.verbose
-    try:
-        return args.func(Api(args.base_url), args)
-    except Stop as stop:
-        out = {"code": stop.code, **stop.extra}
-        if stop.hint:
-            out["hint"] = stop.hint
-        print(f"{stop.code}: {json.dumps(stop.extra, ensure_ascii=False)}", file=sys.stderr)
-        line(out)
-        return stop.exit_code
+    return cli.run(lambda: args.func(zotero.Zotero(args.base_url), args))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

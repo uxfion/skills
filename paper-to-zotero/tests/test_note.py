@@ -2,145 +2,37 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/note.py: the Markdown conversion and the create / update / unchanged flows against a fake local API."""
-import copy
-import importlib.util
+"""Tests for scripts/note.py: the Markdown conversion, and creating, updating or leaving a note against the fake Zotero."""
 import json
-import os
-import subprocess
-import sys
 import tempfile
-import threading
 import unittest
-import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-CONFIG_DIR = tempfile.TemporaryDirectory(prefix="p2z_conf_")  # removed at exit
-CONFIG = Path(CONFIG_DIR.name) / "config.json"
-CONFIG.write_text(json.dumps({"zotero": {"key": "test-key"}}), encoding="utf-8")
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "note.py"
-SERVER_ID = "test-server-id"
-LIB = "/api/users/0"
+from helpers import call, closed_port, config_file, load, smoke
+from fake_zotero import FakeZotero
+
+note = load("note")
+OLD_HTML = "<p>p2z: old</p>\n<p>stale</p>"
 
 
-def load_module():
-    spec = importlib.util.spec_from_file_location("note_mod", SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-class FakeZotero:
-    """Items with children; search by q; paged /items/top; POST creates, PATCH checks the version."""
-
-    def __init__(self, items):
-        self.items = copy.deepcopy(items)  # key -> {"version", "data"}
-        self.calls = []
-        self.next_key = 1
-        self.fail_patch_once = False
-
-    def row(self, key):
-        it = self.items[key]
-        return {"key": key, "version": it["version"], "data": {"key": key, "version": it["version"], **it["data"]}}
-
-    def page(self, keys, query):
-        limit, start = int(query.get("limit", ["25"])[0]), int(query.get("start", ["0"])[0])
-        return [self.row(k) for k in keys[start:start + limit]]
-
-    def handle(self, method, path, query, body, headers):
-        if path == "/api/":
-            return 200, {"Zotero-Server-ID": SERVER_ID}, {"ok": True}
-        if method == "GET" and path == f"{LIB}/items":
-            q = query.get("q", [""])[0]
-            keys = [k for k, it in self.items.items() if q and q.lower() in json.dumps(it["data"]).lower()]
-            return 200, {}, self.page(keys, query)
-        if method == "GET" and path == f"{LIB}/items/top":
-            keys = [k for k, it in self.items.items() if not it["data"].get("parentItem")]
-            return 200, {}, self.page(keys, query)
-        if method == "GET" and path.endswith("/children"):
-            parent = path.rsplit("/", 2)[1]
-            keys = [k for k, it in self.items.items() if it["data"].get("parentItem") == parent]
-            return 200, {}, self.page(keys, query)
-        if method == "GET" and path.startswith(f"{LIB}/items/"):
-            key = path.rsplit("/", 1)[1]
-            return (200, {}, self.row(key)) if key in self.items else (404, {}, b"Not found")
-        if headers.get("Zotero-API-Key") != "test-key" or headers.get("Zotero-Server-ID") != SERVER_ID:
-            return 401, {}, b"Invalid API key"
-        if method == "POST" and path == f"{LIB}/items":
-            obj = json.loads(body)[0]
-            key = f"NOTE{self.next_key:04d}"
-            self.next_key += 1
-            self.items[key] = {"version": 100 + self.next_key, "data": obj}
-            return 200, {}, {"successful": {"0": self.row(key)}, "success": {"0": key}, "unchanged": {}, "failed": {}}
-        if method == "PATCH" and path.startswith(f"{LIB}/items/"):
-            key = path.rsplit("/", 1)[1]
-            it = self.items[key]
-            if self.fail_patch_once:
-                self.fail_patch_once = False
-                it["version"] += 1
-                return 412, {}, b"item has been modified since specified version"
-            if headers.get("If-Unmodified-Since-Version") != str(it["version"]):
-                return 412, {}, b"item has been modified since specified version"
-            it["data"].update(json.loads(body))
-            it["version"] += 1
-            return 204, {}, b""
-        return 404, {}, b"no route"
-
-
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
-
-    def _serve(self, method):
-        n = int(self.headers.get("Content-Length") or 0)
-        body = self.rfile.read(n) if n else b""
-        parts = urllib.parse.urlsplit(self.path)
-        query = urllib.parse.parse_qs(parts.query)
-        fake = self.server.fake
-        fake.calls.append({"method": method, "path": parts.path, "query": query, "body": json.loads(body) if body else None,
-                           "headers": {k.lower(): v for k, v in self.headers.items()}})
-        status, extra, out = fake.handle(method, parts.path, query, body, self.headers)
-        if not isinstance(out, bytes):
-            out = json.dumps(out, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        for k, v in extra.items():
-            self.send_header(k, v)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(out)))
-        self.end_headers()
-        self.wfile.write(out)
-
-    def do_GET(self):
-        self._serve("GET")
-
-    def do_POST(self):
-        self._serve("POST")
-
-    def do_PATCH(self):
-        self._serve("PATCH")
-
-
-class TestMarkdown(unittest.TestCase):
-    mod = load_module()
-
+class Markdown(unittest.TestCase):
     def test_blocks_and_inline(self):
         md = "# Title\n\nFirst **bold** and *em* with [a link](https://x.y/?a=1&b=2).\nsecond line\n\n- one\n- two <b>\n  continued\n\n## Sub\npara"
-        self.assertEqual(self.mod.to_html(md),
+        self.assertEqual(note.to_html(md),
                          "<h1>Title</h1>\n"
                          "<p>First <strong>bold</strong> and <em>em</em> with <a href=\"https://x.y/?a=1&amp;b=2\">a link</a>.\nsecond line</p>\n"
                          "<ul>\n<li>one</li>\n<li>two &lt;b&gt; continued</li>\n</ul>\n"
                          "<h2>Sub</h2>\n<p>para</p>")
 
     def test_everything_else_is_escaped(self):
-        self.assertEqual(self.mod.to_html("a & b < c > d \"q\""), "<p>a &amp; b &lt; c &gt; d \"q\"</p>")
-        self.assertEqual(self.mod.to_html("  \n\n"), "")
+        self.assertEqual(note.to_html("a & b < c > d \"q\""), "<p>a &amp; b &lt; c &gt; d \"q\"</p>")
+        self.assertEqual(note.to_html("  \n\n"), "")
 
     def test_list_after_paragraph_and_star_bullets(self):
-        self.assertEqual(self.mod.to_html("p\n* x\n* y"), "<p>p</p>\n<ul>\n<li>x</li>\n<li>y</li>\n</ul>")
+        self.assertEqual(note.to_html("p\n* x\n* y"), "<p>p</p>\n<ul>\n<li>x</li>\n<li>y</li>\n</ul>")
 
     def test_marker_detection(self):
-        f = self.mod.marker_of
+        f = note.marker_of
         self.assertEqual(f("<p>p2z: v</p>\n<p>x</p>"), "p2z: v")
         self.assertEqual(f('<div data-schema-version="9">\n<p><em>p2z: v</em></p><p>x</p></div>'), "p2z: v")
         self.assertEqual(f("<h1>p2z: v</h1>"), "p2z: v")
@@ -149,150 +41,165 @@ class TestMarkdown(unittest.TestCase):
         self.assertIsNone(f("<ul><li>x</li></ul>"))
 
 
-ITEMS = {
-    "ITEM0001": {"version": 10, "data": {"itemType": "journalArticle", "title": "Paper one", "citationKey": "one2020paper"}},
-    "ITEM0002": {"version": 11, "data": {"itemType": "journalArticle", "title": "Paper two", "citationKey": "dup2021key"}},
-    "ITEM0003": {"version": 12, "data": {"itemType": "journalArticle", "title": "Paper three", "citationKey": "dup2021key"}},
-    "ATTA0001": {"version": 13, "data": {"itemType": "attachment", "parentItem": "ITEM0001", "title": "PDF"}},
-    "NOTE0001": {"version": 14, "data": {"itemType": "note", "parentItem": "ITEM0001", "note": "<p>p2z: old</p>\n<p>stale</p>"}},
-    "NOTE0002": {"version": 15, "data": {"itemType": "note", "parentItem": "ITEM0001", "note": "<p>other</p>"}},
-}
+class Note(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.zot = FakeZotero()
+        cls.config = config_file()
 
+    @classmethod
+    def tearDownClass(cls):
+        cls.zot.close()
 
-class TestFlows(unittest.TestCase):
     def setUp(self):
-        self.fake = FakeZotero(ITEMS)
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.server.fake = self.fake
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        z = self.zot
+        z.reset()
+        z.add_item("ITEM0001", version=10, itemType="journalArticle", title="Paper one", citationKey="one2020paper")
+        z.add_item("ITEM0002", version=11, itemType="journalArticle", title="Paper two", citationKey="dup2021key")
+        z.add_item("ITEM0003", version=12, itemType="journalArticle", title="Paper three", citationKey="dup2021key")
+        z.add_item("ATTA0001", version=13, itemType="attachment", parentItem="ITEM0001", title="PDF")
+        z.add_item("NOTE0001", version=14, itemType="note", parentItem="ITEM0001", note=OLD_HTML)
+        z.add_item("NOTE0002", version=15, itemType="note", parentItem="ITEM0001", note="<p>other</p>")
 
-    def tearDown(self):
-        self.server.shutdown()
-        self.server.server_close()
+    def run_(self, *argv, base_url=None, config=None):
+        return call(note, *argv, "--base-url", base_url or self.zot.base_url, config=config or self.config)
 
-    def run_script(self, *args):
-        env = dict(os.environ, PAPER_TO_ZOTERO_CONFIG=str(CONFIG))
-        p = subprocess.run([sys.executable, str(SCRIPT), "--base-url", self.base, *args], capture_output=True, text=True, env=env)
-        return p.returncode, json.loads(p.stdout), p.stderr
+    def posts(self):
+        return [json.loads(body) for _, _, _, body in self.zot.requested("POST")]
 
-    def writes(self):
-        return [c for c in self.fake.calls if c["method"] in ("POST", "PATCH")]
+    def patches(self):
+        return [(p.rsplit("/", 1)[1], json.loads(body)) for _, p, _, body in self.zot.requested("PATCH")]
 
     def test_created_with_marker(self):
-        rc, out, _ = self.run_script("--key", "ITEM0001", "--text", "# Read\\n- a\\n- b", "--marker", "p2z: reading")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(out["action"], "created")
-        self.assertEqual(out["item_key"], "ITEM0001")
-        self.assertTrue(out["note_key"].startswith("NOTE"))
-        post = self.writes()[0]
-        self.assertEqual(post["method"], "POST")
-        self.assertEqual(post["body"], [{"itemType": "note", "parentItem": "ITEM0001",
-                                         "note": "<p>p2z: reading</p>\n<h1>Read</h1>\n<ul>\n<li>a</li>\n<li>b</li>\n</ul>"}])
-        self.assertEqual(self.fake.items[out["note_key"]]["data"]["note"], post["body"][0]["note"])
+        r = self.run_("--key", "ITEM0001", "--text", "# Read\\n- a\\n- b", "--marker", "p2z: reading")
+        self.assertEqual(r.code, 0, r)
+        line = r.lines[0]
+        self.assertEqual({k: line[k] for k in ("key", "code", "action", "marker", "retried")},
+                         {"key": "ITEM0001", "code": "ok", "action": "created", "marker": "p2z: reading", "retried": False})
+        html = "<p>p2z: reading</p>\n<h1>Read</h1>\n<ul>\n<li>a</li>\n<li>b</li>\n</ul>"
+        self.assertEqual(self.posts(), [[{"itemType": "note", "parentItem": "ITEM0001", "note": html}]])
+        self.assertEqual(self.zot.data(line["note_key"])["note"], html)
+        self.assertEqual(r.lines[-1], {"summary": {"total": 1, "ok": 1, "skipped": 0, "failed": 0}})
 
-    def test_updated_by_marker_with_version_header(self):
-        rc, out, _ = self.run_script("--key", "ITEM0001", "--text", "fresh", "--marker", "p2z: old")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(out["action"], "updated")
-        self.assertEqual(out["note_key"], "NOTE0001")
-        patch = self.writes()[0]
-        self.assertEqual(patch["method"], "PATCH")
-        self.assertEqual(patch["path"], f"{LIB}/items/NOTE0001")
-        self.assertEqual(patch["headers"]["if-unmodified-since-version"], "14")
-        self.assertEqual(patch["body"], {"note": "<p>p2z: old</p>\n<p>fresh</p>"})
-        self.assertEqual(self.fake.items["NOTE0001"]["data"]["note"], "<p>p2z: old</p>\n<p>fresh</p>")
-        self.assertFalse(out["retried"])
+    def test_updated_by_marker_with_its_version(self):
+        r = self.run_("--key", "ITEM0001", "--text", "fresh", "--marker", "p2z: old")
+        self.assertEqual(r.code, 0, r)
+        self.assertEqual((r.lines[0]["action"], r.lines[0]["note_key"], r.lines[0]["retried"]), ("updated", "NOTE0001", False))
+        # one PATCH and no retry: the fake answers 412 to any other version than the note's 14
+        self.assertEqual(self.patches(), [("NOTE0001", {"note": "<p>p2z: old</p>\n<p>fresh</p>"})])
+        self.assertEqual(self.zot.data("NOTE0001")["note"], "<p>p2z: old</p>\n<p>fresh</p>")
 
-    def test_unchanged(self):
-        rc, out, _ = self.run_script("--key", "ITEM0001", "--text", "stale", "--marker", "p2z: old")
-        self.assertEqual(rc, 0)
-        self.assertEqual(out["action"], "unchanged")
-        self.assertEqual(out["note_key"], "NOTE0001")
-        self.assertEqual(self.writes(), [])
+    def test_unchanged_writes_nothing(self):
+        for dry in ((), ("--dry-run",)):
+            r = self.run_("--key", "ITEM0001", "--text", "stale", "--marker", "p2z: old", *dry)
+            self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["reason"], r.lines[0]["note_key"]),
+                             (0, "skipped", "unchanged", "NOTE0001"))
+        self.assertEqual(self.zot.writes(), [])
 
-    def test_412_retry_then_unchanged_or_updated(self):
-        self.fake.fail_patch_once = True
-        rc, out, err = self.run_script("--key", "ITEM0001", "--text", "fresh", "--marker", "p2z: old")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(out["action"], "updated")
-        self.assertTrue(out["retried"])
-        patches = [c for c in self.writes() if c["method"] == "PATCH"]
-        self.assertEqual([p["headers"]["if-unmodified-since-version"] for p in patches], ["14", "15"])
+    def test_412_retries_once(self):
+        self.zot.bump_before_write = 1
+        r = self.run_("--key", "ITEM0001", "--text", "fresh", "--marker", "p2z: old")
+        self.assertEqual((r.code, r.lines[0]["action"], r.lines[0]["retried"]), (0, "updated", True), r)
+        self.assertEqual(len(self.patches()), 2)
+
+        self.setUp()   # the concurrent edit wrote the very same note
+        self.zot.bump_before_write = 1
+        self.zot.concurrent_edit = lambda it: it["data"].update(note="<p>p2z: old</p>\n<p>fresh</p>")
+        r = self.run_("--key", "ITEM0001", "--text", "fresh", "--marker", "p2z: old")
+        self.assertEqual((r.code, r.lines[0]["reason"], r.lines[0]["retried"]), (0, "unchanged", True), r)
+        self.assertEqual(len(self.patches()), 1)
+
+        self.setUp()
+        self.zot.bump_before_write = 2
+        r = self.run_("--key", "ITEM0001", "--text", "fresh", "--marker", "p2z: old")
+        self.assertEqual((r.code, r.lines[0]["code"]), (1, "version_conflict"))
+        self.assertEqual(len(self.patches()), 2)
 
     def test_without_marker_always_creates(self):
         for _ in (1, 2):
-            rc, out, _ = self.run_script("--key", "ITEM0001", "--text", "x")
-            self.assertEqual(out["action"], "created")
-        self.assertEqual(len(self.writes()), 2)
-        self.assertEqual(self.writes()[0]["body"][0]["note"], "<p>x</p>")
+            self.assertEqual(self.run_("--key", "ITEM0001", "--text", "x").lines[0]["action"], "created")
+        self.assertEqual([body[0]["note"] for body in self.posts()], ["<p>x</p>", "<p>x</p>"])
 
     def test_marker_ambiguous(self):
-        self.fake.items["NOTE0003"] = {"version": 16, "data": {"itemType": "note", "parentItem": "ITEM0001", "note": "<p>p2z: old</p>"}}
-        rc, out, _ = self.run_script("--key", "ITEM0001", "--text", "x", "--marker", "p2z: old")
-        self.assertEqual(rc, 1)
-        self.assertEqual(out["code"], "marker_ambiguous")
-        self.assertEqual(out["note_keys"], ["NOTE0001", "NOTE0003"])
+        self.zot.add_item("NOTE0003", version=16, itemType="note", parentItem="ITEM0001", note="<p>p2z: old</p>")
+        r = self.run_("--key", "ITEM0001", "--text", "x", "--marker", "p2z: old")
+        self.assertEqual(r.code, 1)
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["note_keys"]), ("marker_ambiguous", ["NOTE0001", "NOTE0003"]))
+        self.assertEqual(self.zot.writes(), [])
 
     def test_dry_run(self):
-        rc, out, _ = self.run_script("--key", "ITEM0001", "--text", "fresh", "--marker", "p2z: old", "--dry-run")
-        self.assertEqual(rc, 0)
-        self.assertEqual(out["action"], "updated")
-        self.assertTrue(out["dry_run"])
-        self.assertEqual(out["html"], "<p>p2z: old</p>\n<p>fresh</p>")
-        self.assertEqual(self.writes(), [])
+        r = self.run_("--key", "ITEM0001", "ITEM0002", "--text", "fresh", "--marker", "p2z: old", "--dry-run")
+        self.assertEqual(r.code, 0, r)
+        first, second = r.lines[:2]
+        self.assertEqual((first["action"], first["note_key"], first["dry_run"], first["html"]),
+                         ("updated", "NOTE0001", True, "<p>p2z: old</p>\n<p>fresh</p>"))
+        self.assertEqual((second["action"], second["note_key"]), ("created", None))
+        self.assertEqual(r.lines[-1]["summary"], {"total": 2, "ok": 2, "skipped": 0, "failed": 0, "dry_run": True})
+        self.assertEqual(self.zot.writes(), [])
 
-    def test_file_input_and_not_a_parent(self):
-        import tempfile
+    def test_every_item_named_gets_the_note(self):
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8") as f:
             f.write("**bold**\n")
-        rc, out, _ = self.run_script("--key", "ATTA0001", "--file", f.name)
-        self.assertEqual(out["code"], "not_a_parent")
-        rc, out, _ = self.run_script("--key", "ZZZZZZZZ", "--file", f.name)
-        self.assertEqual(out["code"], "item_not_found")
-        rc, out, _ = self.run_script("--key", "ITEM0002", "--file", f.name)
-        self.assertEqual(out["action"], "created")
-        self.assertEqual(self.writes()[0]["body"][0]["note"], "<p><strong>bold</strong></p>")
-        os.unlink(f.name)
+        r = self.run_("--key", "ITEM0002,ATTA0001", "ZZZZZZZZ", "--cite", "one2020paper", "--file", f.name)
+        Path(f.name).unlink()
+        self.assertEqual(r.code, 1)
+        out = r.lines
+        self.assertEqual([(o.get("key"), o["code"], o.get("action")) for o in out[:4]],
+                         [("ITEM0002", "ok", "created"), ("ATTA0001", "not_a_parent", None), ("ZZZZZZZZ", "not_found", None),
+                          ("ITEM0001", "ok", "created")])
+        self.assertEqual((out[1]["itemType"], out[1]["parent"]), ("attachment", "ITEM0001"))
+        self.assertEqual(out[3]["cite"], "one2020paper")
+        self.assertEqual(out[-1]["summary"], {"total": 4, "ok": 2, "skipped": 0, "failed": 2})
+        self.assertEqual([(body[0]["parentItem"], body[0]["note"]) for body in self.posts()],
+                         [("ITEM0002", "<p><strong>bold</strong></p>"), ("ITEM0001", "<p><strong>bold</strong></p>")])
 
-    def test_empty_note(self):
-        rc, out, _ = self.run_script("--key", "ITEM0001", "--text", "   ")
-        self.assertEqual(out["code"], "empty_note")
+    def test_bad_input_is_one_line_and_asks_nothing(self):
+        r = self.run_("--key", "ITEM0001", "ITEM0002", "--text", "   ")
+        self.assertEqual((r.code, [o["code"] for o in r.lines]), (1, ["empty_note"]))
+        self.assertIn("hint", r.lines[0])
+        r = self.run_("--key", "ITEM0001", "--file", "/no/such/note.md")
+        self.assertEqual((r.code, [o["code"] for o in r.lines]), (1, ["file_not_found"]))
+        self.assertEqual(self.zot.requests, [])
+        self.assertEqual(self.run_("--key", "ITEM0001", "--text", "x", "--marker", "  ").code, 2)
+        self.assertEqual(self.run_("--key", "ITEM0001").code, 2, "--text or --file is required")
+        self.assertEqual(self.run_("--text", "x").code, 2, "--key or --cite is required")
 
-    def test_cite_resolves_via_search(self):
-        rc, out, _ = self.run_script("--cite", "one2020paper", "--text", "x", "--dry-run")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(out["item_key"], "ITEM0001")
-        self.assertEqual([c["query"].get("qmode") for c in self.fake.calls if c["path"] == f"{LIB}/items"], [["everything"]])
-        self.assertNotIn(f"{LIB}/items/top", [c["path"] for c in self.fake.calls])
+    def test_cite_resolution(self):
+        r = self.run_("--cite", "one2020paper", "--text", "x", "--dry-run")
+        self.assertEqual((r.code, r.lines[0]["key"], r.lines[0]["cite"]), (0, "ITEM0001", "one2020paper"))
+        self.zot.search_sees_citekey = False
+        r = self.run_("--cite", "one2020paper", "nobody2099", "dup2021key", "--text", "x")
+        self.assertEqual(r.code, 1)
+        out = r.lines
+        self.assertEqual((out[0]["key"], out[0]["action"]), ("ITEM0001", "created"), "found by the fallback scan")
+        self.assertEqual(out[1]["code"], "cite_not_found")
+        self.assertEqual((out[2]["code"], out[2]["keys"]), ("cite_ambiguous", ["ITEM0002", "ITEM0003"]))
+        self.assertEqual(len(self.posts()), 1)
 
-    def test_cite_falls_back_to_scan(self):
-        # the search misses (the fake searches the JSON text; hide the key from it by a q that does not match)
-        self.fake.items["ITEM0004"] = {"version": 20, "data": {"itemType": "journalArticle", "title": "Four", "citationKey": "four2024"}}
-        orig = self.fake.handle
+    def test_write_denied_and_readback_mismatch(self):
+        self.zot.write_status = (403, "Write access denied")
+        for marker in ("p2z: new", "p2z: old"):   # creating, then updating
+            r = self.run_("--key", "ITEM0001", "--text", "fresh", "--marker", marker)
+            self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["detail"]), (1, "write_denied", "Write access denied"))
 
-        def blind_search(method, path, query, body, headers):
-            if path == f"{LIB}/items":
-                return 200, {}, []
-            return orig(method, path, query, body, headers)
-        self.fake.handle = blind_search
-        rc, out, err = self.run_script("--cite", "four2024", "--text", "x", "--dry-run")
-        self.assertEqual(out["item_key"], "ITEM0004")
-        self.assertIn("fallback", err)
+        self.setUp()   # Zotero stores the note in another form than the one sent
+        self.zot.on_write = lambda it: it["data"].update(note=f'<div data-schema-version="9">{it["data"]["note"]}</div>')
+        r = self.run_("--key", "ITEM0001", "--text", "x")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["action"]), (1, "readback_mismatch", "created"))
+        self.assertTrue(r.lines[0]["note_key"])
 
-    def test_cite_not_found_and_ambiguous(self):
-        rc, out, _ = self.run_script("--cite", "nobody2099", "--text", "x")
-        self.assertEqual(rc, 1)
-        self.assertEqual(out["code"], "cite_not_found")
-        rc, out, _ = self.run_script("--cite", "dup2021key", "--text", "x")
-        self.assertEqual(rc, 1)
-        self.assertEqual(out["code"], "cite_ambiguous")
-        self.assertEqual(sorted(out["keys"]), ["ITEM0002", "ITEM0003"])
-        self.assertEqual(self.writes(), [])
+    def test_cannot_check(self):
+        r = self.run_("--key", "ITEM0001", "--text", "x", base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, r.lines[0]["code"]), (2, "zotero_unreachable"))
+        r = self.run_("--key", "ITEM0001", "--text", "x", config=config_file(key=None))
+        self.assertEqual((r.code, r.lines[0]["code"]), (2, "no_key"))
+        self.assertEqual(self.zot.writes(), [])
 
-    def test_key_never_printed(self):
-        rc, out, err = self.run_script("--key", "ITEM0001", "--text", "x")
-        self.assertNotIn("test-key", json.dumps(out) + err)
+    def test_smoke(self):
+        r = smoke("note", "--key", "ITEM0001", "--text", "fresh", "--marker", "p2z: old", "--dry-run",
+                  "--base-url", self.zot.base_url, config=self.config)
+        self.assertEqual(r.code, 0, r)
+        self.assertEqual((r.lines[0]["action"], r.lines[-1]["summary"]["total"]), ("updated", 1))
 
 
 if __name__ == "__main__":

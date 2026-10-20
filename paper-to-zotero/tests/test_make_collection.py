@@ -2,215 +2,145 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/make_collection.py against a minimal fake of the Zotero local API."""
+"""Tests for scripts/make_collection.py against the fake Zotero."""
 import json
-import tempfile
-import os
-import subprocess
-import sys
 import unittest
-import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
 
-CONFIG_DIR = tempfile.TemporaryDirectory(prefix="p2z_conf_")  # removed at exit
-CONFIG = Path(CONFIG_DIR.name) / "config.json"
-CONFIG.write_text(json.dumps({"zotero": {"key": "test-key"}}), encoding="utf-8")
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "make_collection.py"
-SERVER_ID = "test-server-id"
-LIB = "/api/users/0"
+from helpers import call, closed_port, config_file, load, smoke
+from fake_zotero import FakeZotero, LIB
+
+make = load("make_collection")
+TREE = [("AAAAAAAA", "自然图像", None), ("BBBBBBBB", "Diffusion", "AAAAAAAA"), ("CCCCCCCC", "tmp", None),
+        ("DDDDDDDD", "Diffusion", None), ("EEEEEEEE", "twice", "AAAAAAAA"), ("FFFFFFFF", "twice", "AAAAAAAA")]
 
 
-class FakeZotero:
-    """Collections only: a paged listing, one collection by key, and the POST that creates one."""
+class MakeCollection(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.zot = FakeZotero()
+        cls.config = config_file()
 
-    def __init__(self, collections):
-        self.collections = list(collections)  # {key, name, parent, deleted?, version}
-        self.calls = []
-        self.next_key = 1
-
-    def row(self, c):
-        data = {"key": c["key"], "version": c.get("version", 1), "name": c["name"], "parentCollection": c["parent"] or False}
-        if c.get("deleted"):
-            data["deleted"] = True
-        return {"key": c["key"], "version": c.get("version", 1), "data": data}
-
-    def handle(self, method, path, query, body, headers):
-        if path == "/api/":
-            return 200, {"Zotero-Server-ID": SERVER_ID}, {"ok": True}
-        if method == "GET" and path == f"{LIB}/collections":
-            limit, start = int(query.get("limit", ["25"])[0]), int(query.get("start", ["0"])[0])
-            return 200, {}, [self.row(c) for c in self.collections[start:start + limit]]
-        if method == "GET" and path.startswith(f"{LIB}/collections/"):
-            key = path.rsplit("/", 1)[1]
-            for c in self.collections:
-                if c["key"] == key:
-                    return 200, {}, self.row(c)
-            return 404, {}, b"Not found"
-        if method == "POST" and path == f"{LIB}/collections":
-            if headers.get("Zotero-API-Key") != "test-key" or headers.get("Zotero-Server-ID") != SERVER_ID:
-                return 401, {}, b"Invalid API key"
-            obj = json.loads(body)[0]
-            key = f"NEW{self.next_key:05d}"
-            self.next_key += 1
-            self.collections.append({"key": key, "name": obj["name"], "parent": obj["parentCollection"] or None, "version": 7})
-            return 200, {}, {"successful": {"0": {"key": key, "version": 7, "data": self.row(self.collections[-1])["data"]}},
-                             "success": {"0": key}, "unchanged": {}, "failed": {}}
-        return 404, {}, b"no route"
-
-
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):
-        pass
-
-    def _serve(self, method):
-        n = int(self.headers.get("Content-Length") or 0)
-        body = self.rfile.read(n) if n else b""
-        parts = urllib.parse.urlsplit(self.path)
-        query = urllib.parse.parse_qs(parts.query)
-        fake = self.server.fake
-        fake.calls.append({"method": method, "path": parts.path, "query": query, "body": json.loads(body) if body else None,
-                           "headers": {k.lower(): v for k, v in self.headers.items()}})
-        status, extra, out = fake.handle(method, parts.path, query, body, self.headers)
-        if not isinstance(out, bytes):
-            out = json.dumps(out, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        for k, v in extra.items():
-            self.send_header(k, v)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(out)))
-        self.end_headers()
-        self.wfile.write(out)
-
-    def do_GET(self):
-        self._serve("GET")
-
-    def do_POST(self):
-        self._serve("POST")
-
-
-class Base(unittest.TestCase):
-    collections = []
+    @classmethod
+    def tearDownClass(cls):
+        cls.zot.close()
 
     def setUp(self):
-        self.fake = FakeZotero(self.collections)
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.server.fake = self.fake
-        import threading
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
-        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        z = self.zot
+        z.reset()
+        for key, name, parent in TREE:
+            z.add_collection(key, name, parent)
+        z.add_collection("GGGGGGGG", "gone", deleted=True)
+        z.add_collection("HHHHHHHH", "under gone", "GGGGGGGG")
 
-    def tearDown(self):
-        self.server.shutdown()
-        self.server.server_close()
-
-    def run_script(self, *args):
-        env = dict(os.environ, PAPER_TO_ZOTERO_CONFIG=str(CONFIG))
-        p = subprocess.run([sys.executable, str(SCRIPT), "--base-url", self.base, *args], capture_output=True, text=True, env=env)
-        return p.returncode, json.loads(p.stdout), p.stderr
+    def run_(self, *argv, base_url=None, config=None):
+        return call(make, *argv, "--base-url", base_url or self.zot.base_url, config=config or self.config)
 
     def posts(self):
-        return [c for c in self.fake.calls if c["method"] == "POST"]
+        return [json.loads(body) for _, _, _, body in self.zot.requested("POST")]
 
-
-TREE = [
-    {"key": "AAAAAAAA", "name": "自然图像", "parent": None},
-    {"key": "BBBBBBBB", "name": "Diffusion", "parent": "AAAAAAAA"},
-    {"key": "CCCCCCCC", "name": "tmp", "parent": None},
-    {"key": "DDDDDDDD", "name": "Diffusion", "parent": None},
-    {"key": "EEEEEEEE", "name": "twice", "parent": "AAAAAAAA"},
-    {"key": "FFFFFFFF", "name": "twice", "parent": "AAAAAAAA"},
-    {"key": "GGGGGGGG", "name": "gone", "parent": None, "deleted": True},
-]
-
-
-class TestMakeCollection(Base):
-    collections = TREE
-
-    def test_exists_top_level(self):
-        rc, out, _ = self.run_script("--name", "tmp")
-        self.assertEqual(rc, 0)
-        self.assertEqual(out["code"], "exists")
-        self.assertEqual(out["key"], "CCCCCCCC")
-        self.assertEqual(out["path"], "tmp")
-        self.assertIsNone(out["parent"])
+    def test_exists_is_skipped(self):
+        r = self.run_("--name", "tmp")
+        self.assertEqual(r.code, 0, r)
+        self.assertEqual(r.lines, [{"key": "CCCCCCCC", "code": "skipped", "reason": "exists", "name": "tmp", "parent": None,
+                                    "path": "tmp"}])
         self.assertEqual(self.posts(), [])
 
-    def test_exists_under_parent_only_matches_that_parent(self):
-        rc, out, _ = self.run_script("--name", "Diffusion", "--parent", "AAAAAAAA")
-        self.assertEqual(rc, 0)
-        self.assertEqual(out["code"], "exists")
-        self.assertEqual(out["key"], "BBBBBBBB")
-        self.assertEqual(out["path"], "自然图像/Diffusion")
-        rc, out, _ = self.run_script("--name", "Diffusion")
-        self.assertEqual(out["key"], "DDDDDDDD")
+    def test_exists_only_under_the_same_parent(self):
+        r = self.run_("--name", "Diffusion", "--parent", "AAAAAAAA")
+        self.assertEqual((r.code, r.lines[0]["key"], r.lines[0]["path"]), (0, "BBBBBBBB", "自然图像/Diffusion"))
+        self.assertEqual(self.run_("--name", "Diffusion").lines[0]["key"], "DDDDDDDD")
 
     def test_ambiguous(self):
-        rc, out, _ = self.run_script("--name", "twice", "--parent", "AAAAAAAA")
-        self.assertEqual(rc, 1)
-        self.assertEqual(out["code"], "ambiguous")
-        self.assertEqual(out["keys"], ["EEEEEEEE", "FFFFFFFF"])
+        r = self.run_("--name", "twice", "--parent", "AAAAAAAA")
+        self.assertEqual(r.code, 1)
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["keys"]), ("ambiguous", ["EEEEEEEE", "FFFFFFFF"]))
+        self.assertIn("hint", r.lines[0])
         self.assertEqual(self.posts(), [])
 
-    def test_parent_not_found_missing_and_trashed(self):
-        for parent in ("ZZZZZZZZ", "GGGGGGGG"):
-            rc, out, _ = self.run_script("--name", "x", "--parent", parent)
-            self.assertEqual(rc, 1, parent)
-            self.assertEqual(out["code"], "parent_not_found")
+    def test_parent_not_found_missing_trashed_or_under_trashed(self):
+        for parent in ("ZZZZZZZZ", "GGGGGGGG", "HHHHHHHH"):
+            r = self.run_("--name", "x", "--parent", parent)
+            self.assertEqual((r.code, r.lines[0]["code"]), (1, "parent_not_found"), parent)
         self.assertEqual(self.posts(), [])
 
     def test_trashed_collection_does_not_count_as_existing(self):
-        rc, out, _ = self.run_script("--name", "gone", "--dry-run")
-        self.assertEqual(out["code"], "ok")
-        self.assertTrue(out["dry_run"])
+        r = self.run_("--name", "gone", "--dry-run")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["dry_run"]), (0, "ok", True))
 
-    def test_ok_creates_under_parent(self):
-        rc, out, _ = self.run_script("--name", "Mean Flow", "--parent", "AAAAAAAA")
-        self.assertEqual(rc, 0, out)
-        self.assertEqual(out["code"], "ok")
-        self.assertEqual(out["key"], "NEW00001")
-        self.assertEqual(out["path"], "自然图像/Mean Flow")
-        self.assertEqual(out["parent"], "AAAAAAAA")
-        post = self.posts()[0]
-        self.assertEqual(post["body"], [{"name": "Mean Flow", "parentCollection": "AAAAAAAA"}])
-        self.assertEqual(post["headers"]["zotero-api-key"], "test-key")
-        self.assertEqual(post["headers"]["zotero-server-id"], SERVER_ID)
-        # idempotent: the second run finds it
-        rc, out, _ = self.run_script("--name", "Mean Flow", "--parent", "AAAAAAAA")
-        self.assertEqual(out["code"], "exists")
-        self.assertEqual(out["key"], "NEW00001")
+    def test_creates_under_parent_then_rerun_finds_it(self):
+        r = self.run_("--name", "Mean Flow", "--parent", "AAAAAAAA")
+        self.assertEqual(r.code, 0, r)
+        line = r.lines[0]
+        self.assertEqual({k: line[k] for k in ("key", "code", "name", "parent", "path")},
+                         {"key": "NEW00001", "code": "ok", "name": "Mean Flow", "parent": "AAAAAAAA", "path": "自然图像/Mean Flow"})
+        self.assertIsInstance(line["version"], int)
+        self.assertEqual(self.posts(), [[{"name": "Mean Flow", "parentCollection": "AAAAAAAA"}]])
+        r = self.run_("--name", "Mean Flow", "--parent", "AAAAAAAA")
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"], r.lines[0]["key"]), ("skipped", "exists", "NEW00001"))
         self.assertEqual(len(self.posts()), 1)
 
-    def test_ok_top_level_sends_false_parent(self):
-        rc, out, _ = self.run_script("--name", "新分类")
-        self.assertEqual(out["code"], "ok")
-        self.assertEqual(self.posts()[0]["body"], [{"name": "新分类", "parentCollection": False}])
-        self.assertEqual(out["path"], "新分类")
+    def test_top_level_sends_false_parent(self):
+        r = self.run_("--name", "新分类")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["path"]), (0, "ok", "新分类"))
+        self.assertEqual(self.posts(), [[{"name": "新分类", "parentCollection": False}]])
 
     def test_dry_run_posts_nothing(self):
-        rc, out, _ = self.run_script("--name", "新分类", "--dry-run")
-        self.assertEqual(rc, 0)
-        self.assertEqual(out["code"], "ok")
-        self.assertTrue(out["dry_run"])
-        self.assertIsNone(out["key"])
-        self.assertEqual(self.posts(), [])
+        r = self.run_("--name", "新分类", "--parent", "AAAAAAAA", "--dry-run")
+        self.assertEqual(r.code, 0, r)
+        self.assertEqual(r.lines, [{"key": None, "code": "ok", "name": "新分类", "parent": "AAAAAAAA", "path": "自然图像/新分类",
+                                    "dry_run": True}])
+        self.assertEqual(self.zot.writes(), [])
 
-    def test_key_never_printed(self):
-        rc, out, err = self.run_script("--name", "新分类")
-        self.assertNotIn("test-key", json.dumps(out) + err)
+    def test_write_denied_write_failed_readback_mismatch(self):
+        self.zot.write_status = (403, "Write access denied")
+        r = self.run_("--name", "x")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["detail"]), (1, "write_denied", "Write access denied"))
 
+        self.setUp()
+        self.zot.reject = lambda obj: (400, "Collection name too long")
+        r = self.run_("--name", "x")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["detail"]), (1, "write_failed", "Collection name too long"))
 
-class TestPagination(Base):
-    collections = [{"key": f"C{i:07d}", "name": f"c{i}", "parent": None} for i in range(150)] + \
-                  [{"key": "TARGET01", "name": "late", "parent": "C0000149"}]
+        self.setUp()
+        create = self.zot.create
+
+        def renamed(obj, collection=False):   # Zotero stores another name than the one sent
+            row = create(obj, collection)
+            row["data"]["name"] += " (1)"
+            return row
+        self.zot.create = renamed
+        r = self.run_("--name", "x")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["key"]), (1, "readback_mismatch", "NEW00001"))
+        self.assertEqual(r.lines[0]["read_back"], {"name": "x (1)", "parentCollection": False})
 
     def test_second_page_is_read(self):
-        rc, out, _ = self.run_script("--name", "late", "--parent", "C0000149")
-        self.assertEqual(out["code"], "exists")
-        self.assertEqual(out["key"], "TARGET01")
-        self.assertEqual(out["path"], "c149/late")
-        starts = [c["query"].get("start") for c in self.fake.calls if c["path"] == f"{LIB}/collections"]
-        self.assertEqual(starts, [["0"], ["100"]])
+        z = self.zot
+        z.reset()
+        for i in range(150):
+            z.add_collection(f"C{i:07d}", f"c{i}")
+        z.add_collection("TARGET01", "late", "C0000149")
+        r = self.run_("--name", "late", "--parent", "C0000149")
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["key"], r.lines[0]["path"]), ("skipped", "TARGET01", "c149/late"))
+        self.assertEqual([q["start"] for _, _, q, _ in z.requested("GET", f"{LIB}/collections")], ["0", "100"])
+
+    def test_cannot_check_and_arguments(self):
+        r = self.run_("--name", "x", base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, r.lines[0]["code"]), (2, "zotero_unreachable"))
+        r = self.run_("--name", "x", "--dry-run", config=config_file(key=None))
+        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), "a dry run writes nothing, so it needs no key")
+        r = self.run_("--name", "x", config=config_file(key=None))
+        self.assertEqual((r.code, r.lines[0]["code"]), (2, "no_key"))
+        self.zot.requests.clear()
+        r = self.run_("--name", "  ")
+        self.assertEqual((r.code, r.lines[0]["code"]), (1, "invalid_name"))
+        self.assertEqual(self.zot.requests, [], "a blank name asks Zotero nothing")
+        self.assertEqual(self.run_().code, 2)
+        self.assertEqual(self.run_("--name", "x", "--parent", "short").code, 2)
+
+    def test_smoke(self):
+        r = smoke("make_collection", "--name", "tmp", "--base-url", self.zot.base_url, config=self.config)
+        self.assertEqual(r.code, 0, r)
+        self.assertEqual([(o["code"], o["key"]) for o in r.lines], [("skipped", "CCCCCCCC")])
 
 
 if __name__ == "__main__":
