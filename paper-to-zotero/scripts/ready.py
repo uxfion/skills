@@ -7,7 +7,8 @@
 
 One call answers: is Zotero's local API up; is a usable write key stored (with --authorize and none usable, obtain
 one: Zotero shows a dialog and the user must click Always Allow); are pdftotext and pdfinfo (poppler-utils) on PATH;
-what the config file holds (presence only, never a value); where the browser puts downloads; is opencli on PATH. It
+what the config file holds (presence only, never a value); where the browser puts downloads; is opencli there and
+its Chrome extension connected (opencli's own `doctor`: its version, the issues it names). It
 makes <work>/records/, scratch/ and the .started marker (an existing marker is left alone: a resumed run), writes
 <work>/run.json (downloads, session: what the later scripts read), lists what already lies in <work> (deleting
 nothing), names the records an older version left (old_format: their computed blocks are redone by p2z.py
@@ -134,6 +135,19 @@ def command_output(argv, timeout, cwd=None):
     return lines[0] if done.returncode == 0 and lines else None
 
 
+def opencli_status():
+    """opencli's own check, `opencli doctor` -> {path, version, connected, issues}; {path: None} when it is missing."""
+    path = shutil.which("opencli")
+    if not path:
+        return {"path": None}
+    try:
+        data = json.loads(command_output(["opencli", "doctor"], 60) or "")["data"]
+    except (ValueError, KeyError, TypeError):
+        return {"path": path, "issues": ["opencli doctor gave no answer"]}
+    return {"path": path, "version": data.get("cliVersion"), "connected": data.get("extensionConnected"),
+            "issues": data.get("issues") or []}
+
+
 def windows_downloads():
     """The Windows Downloads folder as a WSL path: the shell's known folder, else %USERPROFILE%\\Downloads."""
     cwd = "/mnt/c" if os.path.isdir("/mnt/c") else None  # a Linux cwd makes cmd.exe complain about UNC paths
@@ -228,7 +242,7 @@ def main(argv=None):
             hint = "pdftotext and pdfinfo (poppler-utils) are needed to check PDFs: tell the user, install it only on their OK."
         downloads = resolve_downloads(args.downloads)
         facts = {"zotero": {"reachable": True, "base_url": zot.base}, "key": key, "config": config_summary(conf),
-                 "poppler": poppler, "downloads_dir": downloads, "opencli": {"path": shutil.which("opencli")},
+                 "poppler": poppler, "downloads_dir": downloads, "opencli": opencli_status(),
                  "session": SESSION, **prepare_work(run.Work(args.work), downloads),
                  "collections": sorted(({k: c[k] for k in ("key", "name", "parent", "path")} for c in zot.collections().values()),
                                        key=lambda c: c["path"])}

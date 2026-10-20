@@ -50,12 +50,11 @@ def main(argv=None):
                 cli.emit({"slug": rec.slug, "code": "arrived", "file": got.name})
                 return cli.OK
             if not args.file_only:
-                page = b.watch(args.until)
-                seen = (page.get("href"), page.get("title"))
-                if page and (page.get("found") or (not args.until and first is not None and seen != first)):
+                seen = (b.get("url"), b.get("title"))
+                if seen[0] and (b.shows(args.until) if args.until else first is not None and seen != first):
                     cli.emit({"slug": rec.slug, "code": "passed", "url": seen[0], "title": seen[1]})
                     return cli.OK
-                first = first or (seen if page else None)
+                first = first or (seen if seen[0] else None)
             left = deadline - time.monotonic()
             if left <= 0:
                 cli.emit({"slug": rec.slug, "code": "timeout", "waited": args.timeout,

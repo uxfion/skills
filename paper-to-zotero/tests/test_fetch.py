@@ -39,32 +39,52 @@ OPENCLI_STUB = r'''#!PYTHON
 import base64, json, os, re, sys
 scen = json.load(open(os.environ["STUB_SCENARIO"]))
 state_path = os.environ["STUB_STATE"]
-state = json.load(open(state_path)) if os.path.exists(state_path) else {"current": None, "mark": None, "b64": None}
-args = [a for a in sys.argv[1:] if a not in ("--window", "background", "foreground")]
+state = json.load(open(state_path)) if os.path.exists(state_path) else {"current": None, "b64": None}
+argv = sys.argv[1:]  # browser <command> [args...] --session p2z [--window W]
+at = argv.index("--session")
+del argv[at:at + 2]
+args = [a for a in argv if a not in ("--window", "background", "foreground")]
 def out(value):
-    print(value if isinstance(value, str) else json.dumps(value))
+    print(json.dumps({"ok": True, "data": value}))
     json.dump(state, open(state_path, "w"))
     sys.exit(0)
-cmd = args[2]
+def fail(code, message):
+    print(json.dumps({"ok": False, "error": {"code": code, "message": message}}))
+    sys.exit(1)
+cmd = args[1]
 if cmd == "open":
-    url = args[3]
+    url = args[2]
     dl = scen.get("downloads", {}).get(url)
-    if dl:  # Chrome downloads it; the tab keeps its document (and the mark)
+    if dl:  # Chrome downloads it; the tab keeps its document
         open(os.path.join(dl["dir"], dl["name"]), "wb").write(base64.b64decode(dl["bytes"]))
         out({"url": url})
     if url not in scen.get("pages", {}):
-        print("Error: navigation failed", file=sys.stderr)
-        sys.exit(1)
-    state["current"], state["mark"] = url, None
+        fail("navigation_failed", "navigation failed")
+    state["current"], state["doc"] = url, state.get("doc", 0) + 1  # a new document, as performance.timeOrigin shows
     out({"url": url})
-js = args[3]
 page = scen.get("pages", {}).get(state["current"]) or {}
+href = page.get("href", state["current"]) or ""
+if cmd == "get":
+    out({"url": href, "title": page.get("title", ""), "html": page.get("html", "")}[args[2]])
+if cmd == "extract":
+    out({"url": href, "title": page.get("title", ""), "content": page.get("text", "")})
+if cmd == "find":
+    css = args[args.index("--css") + 1]
+    entries = ([{"tag": "a", "text": a["text"], "attrs": {"href": a["href"]}} for a in page.get("anchors", [])] if css == "a[href]" else
+               [{"tag": "button", "text": c, "attrs": {}} for c in page.get("controls", [])] if css == "a,button,[role=button]" else [])
+    if not entries:
+        fail("selector_not_found", f"CSS selector {css} matched 0 elements")
+    out({"entries": entries, "matches_n": len(entries)})
+if cmd == "wait" and args[2] == "text":
+    if args[3] in page.get("text", ""):
+        out(f"Text {args[3]!r} appeared")
+    fail("UNKNOWN", f"Text not found: {args[3]}")
+js = args[2]
+if js == "performance.timeOrigin":
+    out(state.get("doc", 0))
 if "p2z:find" in js:
-    out({"href": page.get("href", state["current"]), "title": page.get("title", ""), "mark": state["mark"],
-         "viewer": bool(page.get("viewer")), "candidates": [{"url": u, "why": "stub"} for u in page.get("pdf", [])]})
-if "p2z:mark" in js:
-    state["mark"] = re.search(r"__p2z_mark='([^']*)'", js).group(1)
-    out(state["current"] or "")
+    out({"href": href, "title": page.get("title", ""), "doc": state.get("doc", 0), "viewer": bool(page.get("viewer")),
+         "candidates": [{"url": u, "why": "stub"} for u in page.get("pdf", [])]})
 if "p2z:fetch" in js:
     url = json.loads(re.search(r"fetch\((\"[^\"]*\")", js).group(1))
     ans = scen.get("fetch", {}).get(url)
@@ -74,24 +94,14 @@ if "p2z:fetch" in js:
     out({"status": 403, "ct": "text/html", "pdf": False, "b64len": 0})
 if "p2z:chunk" in js:
     a, b = map(int, re.search(r"slice\((\d+),(\d+)\)", js).groups())
-    out(state["b64"][a:b] if state["b64"] else "null")
+    out(state["b64"][a:b] if state["b64"] else None)
 if "p2z:clear" in js:
     state["b64"] = None
-    out("true")
-if "p2z:html" in js:
-    state["b64"] = base64.b64encode(page.get("html", "").encode()).decode()
-    out({"size": len(state["b64"]), "b64len": len(state["b64"]), "href": page.get("href", state["current"])})
+    out(True)
 if "p2z:viewer-data" in js:
     state["b64"] = page.get("viewer")
     out({"pdf": True, "b64len": len(page["viewer"])} if page.get("viewer") else {"pdf": False})
-if "p2z:anchors" in js:
-    out({"href": state["current"], "anchors": page.get("anchors", [])})
-if "p2z:watch" in js:
-    until = json.loads(re.search(r"const u=(null|\"[^\"]*\");", js).group(1))
-    out({"href": page.get("href", state["current"]), "title": page.get("title", ""),
-         "found": bool(until) and until in page.get("text", "")})
-print("stub: unknown call " + json.dumps(args), file=sys.stderr)
-sys.exit(1)
+fail("stub", "unknown call " + json.dumps(args))
 '''
 
 
@@ -140,7 +150,7 @@ class Fetch(unittest.TestCase):
         self.env = {**{k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")},
                     "PATH": f"{bin_}{os.pathsep}{os.environ['PATH']}", "STUB_SCENARIO": str(self.scenario),
                     "STUB_STATE": str(self.tmp / "state.json"), "PAPER_TO_ZOTERO_CONFIG": str(self.config),
-                    "PAPER_TO_ZOTERO_INSTITUTION_GAP": "0", "PAPER_TO_ZOTERO_CLICK_WAIT": "3",
+                    "PAPER_TO_ZOTERO_INSTITUTION_GAP": "0", "PAPER_TO_ZOTERO_CLICK_WAIT": "3", "PAPER_TO_ZOTERO_DOWNLOAD_WAIT": "3",
                     "PAPER_TO_ZOTERO_DISCOVERY_WAIT": "0"}
         self.scene({})
 
@@ -195,7 +205,10 @@ class Fetch(unittest.TestCase):
         stop = next(x for x in lines if x.get("code") == "stopped")
         self.assertEqual((code, stop["why"], stop["url"]), (1, "no_pdf_link", "https://pub.example/x"))
         self.assertEqual((self.events("try"), self.events("stop")), ([], [("x", "publisher", "no_pdf_link")]), "a stop is no try")
+        self.env["PAPER_TO_ZOTERO_DOWNLOAD_WAIT"] = "30"
+        began = time.monotonic()
         self.assertEqual(self.fetch("--pass", "1", rec)[0], 1, "the page is asked again on a rerun")
+        self.assertLess(time.monotonic() - began, 15, "the tab's own page opened again is a new document, not a download")
         self.assertEqual(self.fetch("--pass", "1", "--verdict", "no_access", rec)[0], 0)
         self.assertEqual(self.fetch("--pass", "1", rec)[0], 0)
         self.assertEqual(self.events("try"), [("x", "publisher", "no_access"), ("x", "preprint", "wrong_file")])
@@ -207,6 +220,7 @@ class Fetch(unittest.TestCase):
 
     def test_the_page_ladder(self):
         c, f, g = "Cardiac Segmentation With Diffusion Models", "Lung Nodule Detection in Low Dose CT", "Retinal Vessel Segmentation Using Transformers"
+        d = "Brain Tumor Grading From Whole Slide Images"
         proxied = "https://ieeexplore-ieee-org.proxy.example.edu"
         self.scene({"pages": {
             # refused inside the page, then the opened link downloads: this command files it (no watcher runs)
@@ -217,12 +231,15 @@ class Fetch(unittest.TestCase):
             # refused, then the opened link is an HTML reading page whose own candidate is the PDF (IEEE's stamp.jsp)
             "https://doi.org/10.1109/g.5": {"href": f"{proxied}/document/5", "pdf": ["https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=5"]},
             f"{proxied}/stamp/stamp.jsp?arnumber=5": {"pdf": [f"{proxied}/stampPDF/getPDF.jsp?arnumber=5"]}},
-            "downloads": {"https://pub.example/c.pdf": {"dir": str(self.dl), "name": "c.pdf", "bytes": b64(pdf(f"{c}\nWei Liu"))}},
+            # the DOI's own link downloads: the tab stays where it was, and the file is waited for
+            "downloads": {"https://pub.example/c.pdf": {"dir": str(self.dl), "name": "c.pdf", "bytes": b64(pdf(f"{c}\nWei Liu"))},
+                          "https://doi.org/10.1000/d.6": {"dir": str(self.dl), "name": "d.pdf", "bytes": b64(pdf(f"{d}\nWei Liu"))}},
             "fetch": {f"{proxied}/stampPDF/getPDF.jsp?arnumber=5": b64(pdf(f"{g}\nWei Liu"))}})
-        recs = [self.record("c", c, "10.1000/c.3"), self.record("f", f, "10.1000/f.4"), self.record("g", g, "10.1109/g.5")]
+        recs = [self.record("c", c, "10.1000/c.3"), self.record("f", f, "10.1000/f.4"), self.record("g", g, "10.1109/g.5"),
+                self.record("d", d, "10.1000/d.6")]
         code, lines, err = self.fetch("--pass", "1", "--route", "publisher", *recs)
         self.assertEqual(code, 0, err + json.dumps(lines))
-        self.assertEqual(self.files(), ["c.pdf", "f.pdf", "g.pdf"])
+        self.assertEqual(self.files(), ["c.pdf", "d.pdf", "f.pdf", "g.pdf"])
         request_url = load("fetch").request_url
         self.assertEqual(request_url("https://ieeexplore.ieee.org/x.pdf", f"{proxied}/d/1", "proxy.example.edu"), f"{proxied}/x.pdf")
         self.assertEqual(request_url("http://pub.example/x.pdf", "https://pub.example/a", None), "https://pub.example/x.pdf")
@@ -239,6 +256,9 @@ class Fetch(unittest.TestCase):
         code, lines, err = self.fetch("--pass", "1", "--route", "discovery", self.record("p", doi=None), self.record("q", OTHER, doi=None))
         self.assertEqual(code, 0, err + json.dumps(lines))
         self.assertEqual(self.events("try"), [("p", "discovery", "ok"), ("q", "discovery", "not_in_discovery")], "arXiv's record last")
+        self.scene({"pages": {search(OTHER): {"anchors": [], "text": "Sign in to get complete results and to request items"}}})
+        code, lines, _ = self.fetch("--pass", "2", "--route", "discovery", self.record("q", OTHER, doi=None))
+        self.assertEqual((code, self.events("stop")[-1][2]), (1, "sign_in"), "a guest's partial results prove nothing")
 
     def test_a_snapshot_and_a_start_page(self):
         self.scene({"pages": {"https://doi.org/10.1000/x.1": {"html": f"<html><title>{TITLE}</title><h1>{TITLE}</h1>Wei Liu</html>"},
@@ -252,7 +272,7 @@ class Fetch(unittest.TestCase):
 
     def test_wait(self):
         self.scene({"pages": {"https://gate.example/login": {"title": "Sign in", "text": "Sign in"}}})
-        subprocess.run(["opencli", "browser", "p2z", "open", "https://gate.example/login"], env=self.env, capture_output=True)
+        subprocess.run(["opencli", "browser", "open", "https://gate.example/login", "--session", "p2z"], env=self.env, capture_output=True)
         rec = self.record("w")
         code, lines, _ = self.run_("wait", rec, "--timeout", "1")
         self.assertEqual((code, lines[0]["code"]), (1, "timeout"))

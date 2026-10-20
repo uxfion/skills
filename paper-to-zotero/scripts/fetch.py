@@ -24,9 +24,12 @@ Each candidate's version goes along to the check and the file's name (an unknown
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, wrong_file (the
 check refused it: unverified/), stray, not_in_discovery, error — or the agent's verdict. A page the browser cannot get
-past stops the whole command (exit 1), the tab left on it: a `stop` event {slug, pass, route, url, why: no_pdf_link |
-refused, page, title}, no try, so a rerun asks that page again. The agent looks, acts, and either reruns the same
-command or records a verdict.
+past stops the whole command (exit 1), the tab left on it: a `stop` event {slug, pass, route, url, gate?, why:
+no_pdf_link | refused | sign_in (a discovery system showing a guest part of its results), page, title}, no try, so a
+rerun asks that page again. A page that looks like a gate (GATE_TITLE, GATE_TEXT: a login, a challenge) is `gate: true`
+and opened again in a foreground window, in front of the user; any other stays in the background for the agent, who
+works it (sign_in: the system's own sign-in, clicked through to its login page, the gate). The agent looks, acts, and
+either reruns the same command or records a verdict.
   --verdict V            the agent's conclusion on the paper's last stop (one record); with --route R: on the whole
                          route for the records given (the papers behind a gate that timed out, a page nobody passes)
   --start URL [--version V]  one record: a candidate the agent found (a PMC page, a repository); never the route's try
@@ -46,6 +49,7 @@ Examples:
   uv run scripts/fetch.py --pass 3 --route snapshot <work>/records/<slug>.json
 """
 import os
+import re
 import time
 import urllib.parse
 from pathlib import Path
@@ -63,8 +67,17 @@ VERDICTS = {
     "not_public": "not public (withdrawn, embargoed, not out yet)",
     "skipped_by_user": "the user said to skip it",
 }
+# A discovery system shows a guest part of its results. Signed out: a control that offers to sign in (Primo shows one
+# beside its account menu until then), or a notice saying so. Living lists: add a system's wording.
+SIGN_IN_CONTROL = re.compile(r"^(?:sign ?in|log ?in|登录|登入)\b", re.I)
+SIGNED_OUT = re.compile(r"sign in to (?:get|see|view) (?:the )?(?:complete|full|all) results|"
+                        r"log ?in to (?:get|see|view) (?:the )?(?:complete|full|all) results|登录.{0,8}完整", re.I)
+# What a page only the user can pass looks like (a login, a challenge): its title, or its text. A living list.
+GATE_TITLE = re.compile(r"sign.?on|sign ?in|log ?in|登录|请稍候|請稍候|just a moment|robot|captcha|verif", re.I)
+GATE_TEXT = re.compile(r"verify you are (?:a )?human|checking if the site connection is secure|正在进行安全验证", re.I)
 PAGE_CANDIDATES = 3   # tried on one page at most
-CLICK_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_CLICK_WAIT", "25"))         # an opened link: to download or show a viewer
+CLICK_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_CLICK_WAIT", "20"))        # an opened page: to show a viewer or its PDF link
+DOWNLOAD_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_DOWNLOAD_WAIT", "60"))  # the tab stayed, Chrome downloads: PMC took 45-60 s
 DISCOVERY_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_DISCOVERY_WAIT", "30"))  # the results to render
 MAX_BYTES = 200 * 1024 * 1024
 
@@ -135,10 +148,26 @@ class Pass:
                 note = "http: 429"
             except OSError as e:
                 note = f"http: {e}"[:120]
+        before = self.browser.document()
         err = self.browser.open(url)
         if err:
             return "error", {"note": f"open: {err}"}
+        if self.downloaded(rec, before):
+            return "ok", {"note": "downloaded by Chrome, filed from Downloads"}
         return self.on_page(rec, version, note)
+
+    def downloaded(self, rec, before):
+        """After an open: while the tab keeps the document it had (before), Chrome is downloading -> whether the
+        paper's file got filed, within DOWNLOAD_WAIT; False at once when another document opened."""
+        deadline = time.monotonic() + DOWNLOAD_WAIT
+        while before is not None and time.monotonic() < deadline:
+            if self.has_file(rec.slug):
+                return True
+            doc = self.browser.document()
+            if doc is not None and doc != before:  # None: the page did not answer this time
+                break
+            time.sleep(1.0)
+        return self.has_file(rec.slug)
 
     def on_page(self, rec, version, note=None, depth=0):
         """The PDF the current page offers -> (result, extra); Stopped when it offers none that works."""
@@ -172,28 +201,29 @@ class Pass:
         data, why = b.fetch(req)
         if data:
             return self.claim(rec, data, link, version)
-        token = f"{rec.slug}-{time.time():.0f}"
-        b.mark(token)
+        before = b.document()
         b.open(req)
+        if self.downloaded(rec, before):
+            return "ok", {"note": "downloaded by Chrome, filed from Downloads"}
         deadline = time.monotonic() + CLICK_WAIT
-        while True:
-            if self.has_file(rec.slug):
+        while time.monotonic() < deadline:  # another document: a viewer, or a page to look through
+            now = b.find()  # {}: the page did not answer this time (a redirect under way)
+            if now and now.get("doc") == before:  # still the old document: nothing opened
+                break
+            if now.get("viewer"):
+                data = b.viewer()
+                if data:
+                    result, extra = self.claim(rec, data, link, version)
+                    return result, {**extra, "note": "read from the pdf.js viewer"}
+            elif depth == 0 and now.get("candidates"):
+                try:
+                    return self.on_page(rec, version, f"in-page: {why}", depth=1)
+                except Stopped:
+                    return None
+            if self.has_file(rec.slug):  # a page that downloads in the end
                 return "ok", {"note": "downloaded by Chrome, filed from Downloads"}
-            now = b.find()
-            if now and now.get("mark") != token:  # another document: a viewer, or a page to look through once
-                if now.get("viewer"):
-                    data = b.viewer()
-                    if data:
-                        result, extra = self.claim(rec, data, link, version)
-                        return result, {**extra, "note": "read from the pdf.js viewer"}
-                elif depth == 0 and now.get("candidates"):
-                    try:
-                        return self.on_page(rec, version, f"in-page: {why}", depth=1)
-                    except Stopped:
-                        return None
-            if time.monotonic() >= deadline:
-                return None
             time.sleep(1.0)
+        return None
 
     # ---- routes -----------------------------------------------------------------------------------------------
 
@@ -220,17 +250,23 @@ class Pass:
         titles = [t for t in [rec.item.get("title"), *(rec.get("alt_titles") or [])] if isinstance(t, str) and t]
         deadline, matches = time.monotonic() + DISCOVERY_WAIT, []
         while True:
-            anchors = b.anchors().get("anchors") or []
+            anchors = b.anchors()
             matches = list({a["href"]: a for a in anchors if max(paper.title_similarity(a["text"], t) for t in titles) >= 0.9}.values())
             if matches or time.monotonic() >= deadline:
                 break
             time.sleep(1.5)
+        page = b.text()
+        if SIGNED_OUT.search(page.get("text") or "") or any(map(SIGN_IN_CONTROL.match, b.controls())):  # a guest's results prove nothing
+            raise Stopped("sign_in", page.get("href"), page.get("title"), "the discovery system shows a guest part of its results")
         if not matches:
             return "not_in_discovery", {"note": f"{len(anchors)} links, none with this title"}
         stopped = None
         for m in sorted(matches, key=lambda a: "arxiv" in a["href"].lower()):
             if b.open(m["href"]):
                 continue
+            deadline = time.monotonic() + DISCOVERY_WAIT
+            while not (b.find().get("candidates") or time.monotonic() >= deadline):
+                time.sleep(1.5)  # a discovery system renders its full-text links after the page
             try:
                 return self.on_page(rec, None)
             except Stopped as s:
@@ -247,11 +283,21 @@ class Pass:
         return self.claim(rec, data, href, "snapshot", html=True)
 
     def stop(self, rec, url, s):
+        """Stop the pass here. A page that looks like a gate is opened again in a foreground window, in front of the
+        user, who passes it; any other stays in the background for the agent."""
         self.stopped = s.why
-        self.log("stop", slug=rec.slug, route=self.route, url=url, why=s.why, page=s.url, title=s.title, note=s.note)
-        cli.emit({"slug": rec.slug, "code": "stopped", "route": self.route, "why": s.why, "url": s.url, "title": s.title,
-                  "hint": "The tab stays on this page: look at it, act, then rerun the same command; or record your "
-                          "conclusion with --verdict."})
+        page = self.browser.text()
+        gate = bool(GATE_TITLE.search(s.title or page.get("title") or "") or GATE_TEXT.search((page.get("text") or "")[:3000]))
+        if gate:
+            self.browser.open(url, front=True)
+        self.log("stop", slug=rec.slug, route=self.route, url=url, why=s.why, page=s.url, title=s.title, note=s.note,
+                 gate=gate or None)
+        hint = ("A gate, now in front of the user: say what to do there (sign in, tick the box), wait with p2z.py wait "
+                "<record>, then rerun the same command." if gate else
+                "The tab stays on this page: hand it to a browser agent (SKILL.md, step 3), then rerun the same "
+                "command; or record its conclusion with --verdict.")
+        cli.emit({"slug": rec.slug, "code": "stopped", "route": self.route, "why": s.why, "gate": gate, "url": s.url,
+                  "title": s.title, "hint": hint})
         return cli.ACT
 
     def walk(self, routes):
