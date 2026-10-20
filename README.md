@@ -34,6 +34,8 @@ npx skills add uxfion/skills --skill uv-python -g   # -g 全局安装，省略�
 npx skills add uxfion/skills --list                 # 只查看可用 skills
 ```
 
+各 skill 的脚本也能直接执行，如 `paddleocr/scripts/doc.py --help`：首行 shebang 交给 uv，按脚本内声明的依赖运行。skill 文档里统一写 `uv run scripts/…`，脚本没有可执行位时也能运行。
+
 ## 更新 Auto memory
 
 上游提示词变化，或要修改任一 harness 的 Auto memory 指令时，按 [Auto memory 更新指南](agent-instructions/auto-memory-update.md) 进行，并同步到其他 harness；日常配置无需读取来源存档。
