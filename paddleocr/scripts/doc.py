@@ -1052,10 +1052,14 @@ def commit(record: dict, text: str) -> list[str]:
         gi = [i for i, line in enumerate(g) if line.strip()]
         ci = [j for j, line in enumerate(c) if line.strip()]
         ops = difflib.SequenceMatcher(None, [g[i] for i in gi], [c[j] for j in ci], autojunk=False).get_opcodes()
-        gmap = {}
+        # Lines that stayed anchor the edits between them; so do replaced lines when as many came back as went, one
+        # for one, so that edits to neighbouring paragraphs stay each with its own block.
+        gmap, paired = {}, set()
         for tag, i1, i2, j1, j2 in ops:
-            if tag == "equal":
+            if tag == "equal" or (tag == "replace" and i2 - i1 == j2 - j1):
                 gmap.update({gi[i1 + d]: ci[j1 + d] for d in range(i2 - i1)})
+                if tag == "replace":
+                    paired.add((i1, i2))
         parent = {}
 
         def find(x):
@@ -1064,6 +1068,10 @@ def commit(record: dict, text: str) -> list[str]:
             return x
         for tag, i1, i2, j1, j2 in ops:
             if tag == "equal":
+                continue
+            if (i1, i2) in paired:
+                for i in range(i1, i2):
+                    find(go[gi[i]])
                 continue
             touched = sorted({go[gi[i]] for i in range(i1, i2) if go[gi[i]] is not None})
             if not touched:
@@ -1095,7 +1103,8 @@ def commit(record: dict, text: str) -> list[str]:
                 a += 1
             while b > a and not c[b - 1].strip():
                 b -= 1
-            edits[tuple(ks)] = ("\n".join(c[a:b]), why_at.get(c0 + 1 + a, []))
+            whys = [w for j in range(c0 + 1 + a, c0 + 1 + max(a + 1, b)) for w in why_at.get(j, [])]
+            edits[tuple(ks)] = ("\n".join(c[a:b]), whys)
 
     for ks, (new, whys) in edits.items():
         group = [ps[k] for k in ks]

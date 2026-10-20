@@ -234,6 +234,20 @@ class Commit(unittest.TestCase):
         self.edit(r, "reference [1].\n", "reference [1].\nAnd its second line.\n")
         self.assertIn("And its second line.", D.fold(next(b for b in r["blocks"] if b["id"] == "p3-2"))["text"])
 
+    def test_edits_in_neighbouring_paragraphs_stay_apart(self):
+        r = record()
+        text = D.render_text(r)[0].replace("cites Fig. 1", "cites Figure 1").replace("* Corresponding author.", "* Corresponding author: Ann.")
+        D.commit(r, text.replace("Second paragraph after", "<!-- fixed: from the text layer -->\nSecond paragraph after"))
+        self.assertEqual([(c["was"], c["now"], c["why"]) for c in changes(r, "p1-11")], [("Fig.", "Figure", "from the text layer")])
+        self.assertEqual([(c["was"], c["now"]) for c in changes(r, "p1-10")], [("author.", "author: Ann.")])
+
+    def test_reasons_inside_a_block_are_kept(self):
+        r = record()
+        text = D.render_text(r)[0]
+        text = text.replace("Algorithm 1 Search\n1: for each node do", "Algorithm 1 Search\n<!-- fixed: from the image -->\n1: for every node do")
+        D.commit(r, text)
+        self.assertEqual(changes(r, "p3-5")[0]["why"], "from the image")
+
     def test_deleted_block(self):
         r = record()
         self.edit(r, "Accuracy over time\n\n", "")

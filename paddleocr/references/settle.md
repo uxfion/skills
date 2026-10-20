@@ -102,13 +102,16 @@ The checks see only what a text layer can prove; these slip past them (2026-10, 
 - **Inline math garbled** in pseudo-code and tables.
 - **A long line cut by your reading tool** is not a truncated paragraph: check its length or its tail before calling it cut.
 
-Read the last block of each page and the first line of each column against the source, and fix what you find the same way, with a `fixed` note.
+On every page, compare the last block and the first line of each column with the text layer (or, without one, the image), and fix what you find the same way, with a `fixed` note. Where a page has a finding, read that page whole.
+
+Done when every page's last block and column starts have been compared; the report says how many pages that was.
 
 ## 4. Report
 
-Commit a last time, then reply with these four parts, one line per item, so that the agent that sent you can carry them into its own report:
+Commit a last time, then reply with these five parts, one line per item, so that the agent that sent you can carry them into its own report:
 
 - **fixed**: page, block or finding id, what changed.
 - **verdicts**: finding id, `ok` or `unresolved`, the reason.
 - **figures**: cut anew (figure id, what was wrong), kept (figure id), made (figure id).
+- **read**: the pages compared in §3, and what you found there.
 - **open**: anything you could not settle, and why; the last commit's output when it is not empty.
