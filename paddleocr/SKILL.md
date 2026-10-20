@@ -27,7 +27,6 @@ Run anything beyond a few pages in the background and wait for it to exit; each 
 
 - Only part of a long document is needed: `--pages 3-12`; the output keeps the original page numbers.
 - Photographed or skewed pages: `--photo`.
-- A document in Zotero, named by title, author or citation key: [references/zotero.md](references/zotero.md) finds its PDF.
 - `<outdir>`, an absolute path: where the user wants it, else your scratch or work directory — never this skill's directory or the folder another program keeps the source in.
 
 Done when every input has its summary line without `error`. Running again on a parsed document is safe:

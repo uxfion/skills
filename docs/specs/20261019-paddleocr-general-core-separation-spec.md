@@ -295,7 +295,7 @@
 | `SKILL.md` | 通用描述和步骤：解析 → 核对 → 读；指向下面几份文档 | 每次 |
 | `references/settle.md` | 通用核对 brief | 派核对子代理时 |
 | `references/papers.md` | 论文的读法和核对要点 | 文档是论文时 |
-| `references/zotero.md` | 从 Zotero 找到 PDF | 文档在 Zotero 里时；以后的 Zotero 压缩包那一步不放在本 skill |
+| ~~`references/zotero.md`~~ | 已删（2026-10-20 与用户确认）：从 Zotero 找到 PDF 是文献库的事，归 paper-to-zotero；本 skill 只接收 PDF 或图片，不提 Zotero | — |
 | `references/install.md` | 安装和排障 | 出错时 |
 | `scripts/parse.py` | 跑模型 → 写原始层，然后交给 `doc.py` 加工、生成 | 解析时 |
 | `scripts/doc.py` | 记录 JSON 和对它的一切操作：加工、生成、`render` / `show` / `commit` / `figure` | 解析之后 |
