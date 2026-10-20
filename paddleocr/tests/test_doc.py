@@ -301,6 +301,19 @@ class Migrate(unittest.TestCase):
         self.assertEqual([f["id"] for f in new["findings"]], ["missing_text@p1"])
 
 
+    def test_a_recut_figure_finds_its_panels_under_new_ids(self):
+        old = record()
+        D.set_figure(old, "p2-2", None, [40, 40, 570, 270], "the panel letters were outside")
+        D.refine_figures(old)
+        new = json.loads((FIXTURES / "synthetic.raw.json").read_text(encoding="utf-8"))
+        for b in new["blocks"]:                        # the new parse numbers page 2's panels differently
+            b["id"] = {"p2-2": "p2-12", "p2-4": "p2-14"}.get(b["id"], b["id"])
+        D.migrate(old, new)
+        D.refine_figures(new)
+        page2 = [f for f in D.figures_view(new) if f["page"] == 2]
+        self.assertEqual([(f["id"], f["members"]) for f in page2], [("p2-2", ["p2-12", "p2-14"])])
+
+
 class Figures(unittest.TestCase):
     def test_new_figure_on_a_page(self):
         r = record()

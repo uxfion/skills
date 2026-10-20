@@ -617,6 +617,10 @@
    "image": "imgs/p2-2.png",
    "caption": "p2-6",
    "number": "Fig. 1",
+   "members": [
+    "p2-2",
+    "p2-4"
+   ],
    "inside": [
     "p2-1",
     "p2-3",
@@ -642,6 +646,9 @@
   {
    "id": "p5-5",
    "image": "imgs/p5-5.png",
+   "members": [
+    "p5-5"
+   ],
    "inside": [],
    "changes": [
     {

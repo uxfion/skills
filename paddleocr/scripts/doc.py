@@ -214,6 +214,8 @@ def fold(block: dict) -> dict:
 
 
 def fold_figure(fig: dict) -> dict:
+    """A figure as it is now: its box and whether it is hidden from its changes; its members as processing last
+    found them inside that box (the ids a change recorded are its history: a new parse can number blocks anew)."""
     state = {"box": None, "members": [], "hidden": False}
     for c in fig.get("changes", []):
         if "box" in c:
@@ -222,6 +224,8 @@ def fold_figure(fig: dict) -> dict:
             state["members"] = c["members"]
         if "hidden" in c:
             state["hidden"] = c["hidden"]
+    if "members" in fig:
+        state["members"] = fig["members"]
     return state
 
 
@@ -336,16 +340,27 @@ def refine_figures(record: dict) -> None:
             by_id[fid]["changes"] += changes
         else:
             made.append(by_id.setdefault(fid, {"id": fid, "changes": changes}))
-    # A block an agent's box took leaves the figure processing put it in.
-    claimed = {m: f["id"] for f in made if f["id"] in kept for m in fold_figure(f)["members"]}
+    # A box an agent or the user drew takes the image blocks inside it, whatever ids they have now; they leave the
+    # figure processing put them in.
+    claimed = {}
     for f in made:
-        if f["id"] in kept:
+        f.pop("members", None)
+        last = next((c for c in reversed(f["changes"]) if "box" in c), None)
+        if f["id"] in kept and last is not None and not last["by"].startswith("auto"):
+            f["members"] = covered_images(view, page_of(f["id"]), last["box"], kinds)
+            claimed.update({m: f["id"] for m in f["members"]})
+    for f in made:
+        if "members" in f:
             continue
-        auto = f["changes"][0]
+        auto = next((c for c in f["changes"] if c["by"].startswith("auto")), None)
+        if auto is None:                                   # changed by hand, its blocks gone: nothing to show
+            f["members"] = []
+            continue
         left = [m for m in auto["members"] if claimed.get(m, f["id"]) == f["id"]]
         if left != auto["members"]:
             boxes = {b["id"]: b["box"] for b in view}
             auto.update(members=left, box=[int(v) for v in figures.box_union([boxes[m] for m in left])] if left else None)
+        f["members"] = auto["members"]
     made = [f for f in made if fold_figure(f)["box"]]
     rank = {b["id"]: i for i, b in enumerate(view)}
     made.sort(key=lambda f: (page_of(f["id"]), min([rank.get(m, 1e9) for m in fold_figure(f)["members"]] or [1e9]),
@@ -369,9 +384,16 @@ def refine_figures(record: dict) -> None:
                   and b["label"] not in IGNORED and "merged_into" not in b
                   and figures.box_overlap(b["box"], s["box"]) >= figures.COVER * max(1, figures.box_area(b["box"]))]
         taken.update(inside)
+        f["members"] = f.pop("members")
         f["inside"] = inside
-        f["changes"] = f.pop("changes")              # keep the key order: id, image, caption, number, inside, changes
+        f["changes"] = f.pop("changes")              # key order: id, image, caption, number, members, inside, changes
     record["figures"] = made
+
+
+def covered_images(view: list[dict], page: int, box: list, kinds: set) -> list[str]:
+    """The image blocks of a page that lie inside a box, in reading order."""
+    return [b["id"] for b in view if b["page"] == page and b["label"] in kinds and b["box"] and "merged_into" not in b
+            and figures.box_overlap(b["box"], box) >= figures.COVER * max(1, figures.box_area(b["box"]))]
 
 
 def strip_auto(record: dict) -> None:
@@ -1199,13 +1221,18 @@ def moves_log(moves: dict) -> list[str]:
 
 
 def summary(record: dict) -> list[str]:
+    """The open findings, one a line, then the unresolved ones; "no open findings" when none is open."""
     out = []
-    for f in record.get("findings", []):
-        if f["status"] != "ok":
-            where = f"p{f['page']}" if f.get("page") else "document"
-            text = note_text(f) if f["status"] == "open" else f.get("why", "")
-            out.append(f"{f['status']:10} {f['id']:28} {where:6} {text[:110]}")
-    return out or ["no open findings"]
+    found = record.get("findings", [])
+    for status in ("open", "unresolved"):
+        for f in found:
+            if f["status"] == status:
+                where = f"p{f['page']}" if f.get("page") else "document"
+                text = note_text(f) if status == "open" else f.get("why", "")
+                out.append(f"{status:10} {f['id']:28} {where:6} {text[:110]}")
+    if not any(f["status"] == "open" for f in found):
+        out.insert(0, "no open findings")
+    return out
 
 
 def show(folder: Path, record: dict, src: dict | None, what: str | None, box=None, dpi: int = 300) -> list[str]:
@@ -1363,10 +1390,8 @@ def set_figure(record: dict, ident: str | None, page: int | None, box: list, why
     ebox = [max(0, x1), max(0, y1), min(w, x2), min(h, y2)]
     if ebox[2] - ebox[0] < 4 or ebox[3] - ebox[1] < 4:
         raise Refused(f"the box {box} lies outside page {page} or is too small; boxes are in source units")
-    view = [b for b in blocks_view({**record, "figures": []}) if b["page"] == page]
     kinds = FIGURE_KINDS - ({"chart"} if record["run"]["options"].get("charts") else set())
-    members = [b["id"] for b in view if b["label"] in kinds and b["box"]
-               and figures.box_overlap(b["box"], ebox) >= figures.COVER * max(1, figures.box_area(b["box"]))]
+    members = covered_images(blocks_view({**record, "figures": []}), page, ebox, kinds)
     if not ident:
         n = 1 + max([int(m.group(1)) for f in record.get("figures", []) if (m := re.fullmatch(rf"p{page}-n(\d+)", f["id"]))] + [0])
         ident = f"p{page}-n{n}"
@@ -1405,7 +1430,14 @@ def main(argv=None) -> int:
                 raise
             src = None
         with locked(folder):
-            log = settle_edits(folder, record, src)
+            try:
+                log = settle_edits(folder, record, src)
+            except Refused as e:
+                if args.command != "show":
+                    raise
+                # show answers from the record even while the Markdown holds an edit commit cannot take yet
+                print(f"not committed: {e}", file=sys.stderr)
+                record, log = load(folder), []
             if args.command == "render":
                 log += moves_log(build(record, src, folder))
                 log.append(f"rendered {paths(folder)[1]}")
