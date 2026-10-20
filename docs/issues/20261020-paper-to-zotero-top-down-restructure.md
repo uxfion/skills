@@ -20,5 +20,5 @@
   - SKILL.md（200 行）和 references 一并梳理；
   - 新的结构化包流程要能直接复用这些模块。
   - paper-to-zotero 其余未关闭的 issue（IEEE PDF 链接、投稿稿件分类）在同一份 spec 里一起分拣。
-- 前置于：Zotero 结构化包流程，这张关闭后才开始做。
+- 前置于：[20261020-paper-to-zotero-structured-package.md](20261020-paper-to-zotero-structured-package.md)（Zotero 结构化包流程），这张关闭后才开始做。
 - 状态：open
