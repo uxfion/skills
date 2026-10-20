@@ -5,9 +5,12 @@
 """Tests for scripts/read_library.py against a minimal local-API mock (http.server)."""
 
 import http.server
+import importlib.util
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import unittest
 import urllib.parse
@@ -15,6 +18,13 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "read_library.py"
 LIB = "/api/users/0"
+STORAGE = Path(tempfile.mkdtemp(prefix="zotero-storage-"))
+PUBLISHED = STORAGE / "ATT00002" / "Smith et al. - 2024 - Paper.pdf"     # on disk; ATT00003's file is not
+PUBLISHED.parent.mkdir()
+PUBLISHED.write_bytes(b"%PDF-1.7")
+spec = importlib.util.spec_from_file_location("read_library", SCRIPT)
+R = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(R)
 
 
 def make_library():
@@ -31,6 +41,14 @@ def make_library():
         "title": "PDF", "contentType": "application/pdf", "md5": "abc"}}
     items["NOTE0001"] = {"key": "NOTE0001", "version": 301, "data": {
         "key": "NOTE0001", "version": 301, "itemType": "note", "parentItem": "K0000000", "note": "<p>hi</p>"}}
+    # K0000004: a preprint attached first, the published version later; K0000005: only a snapshot.
+    for key, title, added in (("ATT00003", "Preprint (arXiv)", "2026-01-01T00:00:00Z"), ("ATT00002", "Full Text PDF", "2026-02-01T00:00:00Z")):
+        items[key] = {"key": key, "version": 302, "data": {
+            "key": key, "version": 302, "itemType": "attachment", "parentItem": "K0000004", "title": title,
+            "contentType": "application/pdf", "linkMode": "imported_file", "dateAdded": added}}
+    items["ATT00004"] = {"key": "ATT00004", "version": 303, "data": {
+        "key": "ATT00004", "version": 303, "itemType": "attachment", "parentItem": "K0000005", "title": "Snapshot",
+        "contentType": "text/html", "linkMode": "imported_url"}}
     collections = [
         {"key": "C1AAAAAA", "version": 1, "data": {"key": "C1AAAAAA", "version": 1, "name": "医疗图像", "parentCollection": False}},
         {"key": "C2AAAAAA", "version": 2, "data": {"key": "C2AAAAAA", "version": 2, "name": "超声挑战赛", "parentCollection": "C1AAAAAA"}},
@@ -88,6 +106,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == f"{LIB}/tags":
             return self.paginate(self.tags, query)
         m_item = path.startswith(f"{LIB}/items/") and path.split("/")
+        if m_item and len(m_item) == 7 and m_item[6] == "file":
+            # The local API redirects an attachment's file to its file:// address; no file, no redirect.
+            if m_item[5] == "ATT00002":
+                self.send_response(302)
+                self.send_header("Location", "file://" + urllib.parse.quote(str(PUBLISHED)))
+                self.end_headers()
+                return
+            return self.send_json("Not found", 404)
         if m_item and len(m_item) == 7 and m_item[6] == "children":
             key = m_item[5]
             # The real local API answers a missing key with the whole library.
@@ -163,7 +189,7 @@ class ReadLibraryTest(unittest.TestCase):
 
     def test_all_includes_children(self):
         rows = self.lines(self.run_script("items", "--all"))
-        self.assertEqual(len(rows), 252)
+        self.assertEqual(len(rows), 255)
         self.assertIn("ATT00001", {r["key"] for r in rows})
 
     def test_tag_filter_is_passed_to_zotero(self):
@@ -236,6 +262,26 @@ class ReadLibraryTest(unittest.TestCase):
         rows = self.lines(proc)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["version"], 44)
+
+    def test_pdf_published_first_with_its_path(self):
+        proc = self.run_script("pdf", "--cite", "auth4")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        rows = self.lines(proc)
+        self.assertEqual([(r["attachment"], r["exists"]) for r in rows], [("ATT00002", True), ("ATT00003", False)])
+        self.assertEqual((rows[0]["path"], rows[0]["cite"], rows[0]["title"]), (str(PUBLISHED), "auth4", "Paper number 4"))
+        self.assertIsNone(rows[1]["path"])
+
+    def test_pdf_without_one(self):
+        proc = self.run_script("pdf", "--key", "K0000005")
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual((self.lines(proc)[0]["code"], self.lines(proc)[0]["attachments"]), ("no_pdf", ["text/html"]))
+        self.assertEqual(self.run_script("pdf").returncode, 2, "pdf needs --key or --cite")
+
+    def test_local_path(self):
+        self.assertEqual(R.local_path("file:///home/me/Zotero/storage/AB12CD34/a%20b.pdf"), "/home/me/Zotero/storage/AB12CD34/a b.pdf")
+        win = R.local_path("file:///C:/Users/me/Zotero/storage/AB12CD34/a%20b.pdf")
+        self.assertEqual(win, "/mnt/c/Users/me/Zotero/storage/AB12CD34/a b.pdf" if shutil.which("wslpath")
+                         else "C:/Users/me/Zotero/storage/AB12CD34/a b.pdf")
 
     def test_unreachable_and_disabled(self):
         proc = self.run_script("items", base="http://127.0.0.1:9")

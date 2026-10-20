@@ -22,6 +22,7 @@ uv run scripts/read_library.py tags --min-count 2            # the existing voca
 uv run scripts/read_library.py items --collection <key>      # every top-level item in a collection
 uv run scripts/read_library.py items --cite <citation key>   # one item, as the API returns it
 uv run scripts/read_library.py children <item key>           # attachments and notes
+uv run scripts/read_library.py pdf --cite <citation key>     # where its PDFs are on disk, the published version first
 ```
 
 `find_in_library.py --cite <key>` gives the same item with its attachments (content type, MD5), collection paths and tags — the shape the import steps use.

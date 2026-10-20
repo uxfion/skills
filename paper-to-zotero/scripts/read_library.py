@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Read the Zotero library through the local API and print it as JSONL: items, one item, its children, collections, tags, the schema.
+"""Read the Zotero library through the local API and print it as JSONL: items, one item, its children, a paper's PDF on disk, collections, tags, the schema.
 
 Read-only and unauthenticated (the local API answers GETs without a key).
 Every stdout line is one JSON object:
@@ -11,6 +11,12 @@ Every stdout line is one JSON object:
   in front; `items` lists top-level items (add --all for attachments and
   notes), optionally within one collection, by key or citation key, by
   search text or changed since a library version.
+- pdf: one line per PDF attachment of an item, the published version before
+  an accepted manuscript before a preprint: the item's key, citation key and
+  title, the attachment's key and title, and `path`, the file as this machine
+  opens it (the local API's file:// address; a Windows path from Zotero on
+  Windows goes through wslpath in WSL), with `exists`. This is how another
+  skill gets a library paper's PDF to read or parse.
 - collections: the collection's data; --tree adds `path` (names joined by
   "/", parents first) and leaves collections in the trash out.
 - tags: {tag, type, count}.
@@ -28,6 +34,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
+import shutil
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -91,6 +101,23 @@ class Api:
             return json.loads(text), headers
         except json.JSONDecodeError:
             raise Stop("api_error", 2, "The local API did not answer with JSON.", path=path, body=text.strip()[:200]) from None
+
+    def location(self, path: str) -> str | None:
+        """Where the local API redirects a request (an attachment's file:// address); None when it does not."""
+        class Stay(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs):
+                return None
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), Stay)
+        try:
+            with opener.open(self.base + path, timeout=TIMEOUT) as resp:
+                log(f"GET {self.base + path} -> {resp.status}")
+                return None
+        except urllib.error.HTTPError as e:
+            log(f"GET {self.base + path} -> {e.code}")
+            return e.headers.get("Location") if 300 <= e.code < 400 else None
+        except (urllib.error.URLError, OSError) as e:
+            raise Stop("zotero_unreachable", 2, "Zotero does not answer; ask the user to start it (never restart it from here), then rerun.",
+                       base_url=self.base, error=str(getattr(e, "reason", e))) from None
 
     def get_all(self, path: str, params: dict | None = None, limit: int | None = None) -> list:
         """Page through a multi-object endpoint; stop on Total-Results, a missing rel=next or a short page."""
@@ -195,6 +222,56 @@ def cmd_children(api: Api, args) -> int:
     return 0
 
 
+def local_path(url: str) -> str:
+    """A file:// address as a path this machine opens: a Windows path (Zotero on Windows) through wslpath when there is one."""
+    path = urllib.parse.unquote(urllib.parse.urlsplit(url).path)
+    if not re.match(r"/[A-Za-z]:/", path):
+        return path
+    win = path[1:]
+    if shutil.which("wslpath"):
+        done = subprocess.run(["wslpath", "-u", win], capture_output=True, text=True)
+        if done.returncode == 0 and done.stdout.strip():
+            return done.stdout.strip()
+    return win
+
+
+def version_rank(title: str) -> int:
+    """The published version first, then an accepted manuscript, then a preprint, by the attachment titles this skill writes."""
+    t = (title or "").casefold()
+    return 2 if t.startswith("preprint") else 1 if t.startswith("accepted manuscript") else 0
+
+
+def cmd_pdf(api: Api, args) -> int:
+    keys = list(args.key or []) + [resolve_cite(api, cite) for cite in args.cite or []]
+    status = 0
+    for key in keys:
+        item, _ = api.get(f"{LIB}/items/{key}", allow_404=True)
+        if not isinstance(item, dict):
+            raise Stop("not_found", 1, "No item with that key; find it with `items --q` or --cite.", key=key)
+        data = item.get("data") or {}
+        children = [c for c in api.get_all(f"{LIB}/items/{key}/children") if (c.get("data") or {}).get("parentItem") == key]
+        pdfs = sorted((c for c in children if (c.get("data") or {}).get("contentType") == "application/pdf"),
+                      key=lambda c: (version_rank(c["data"].get("title")), c["data"].get("dateAdded") or ""))
+        head = {"key": key, "cite": data.get("citationKey"), "title": data.get("title")}
+        if not pdfs:
+            status = 1
+            line({**head, "code": "no_pdf", "attachments": [c["data"].get("contentType") for c in children if c["data"].get("itemType") == "attachment"],
+                  "hint": "The item has no PDF attachment; paper-to-zotero's import steps can fetch one."})
+            continue
+        found = False
+        for c in pdfs:
+            url = api.location(f"{LIB}/items/{c['key']}/file")
+            path = local_path(url) if url and url.startswith("file:") else None
+            exists = bool(path and os.path.isfile(path))
+            found |= exists
+            line({**head, "attachment": c["key"], "attachment_title": c["data"].get("title"), "link_mode": c["data"].get("linkMode"),
+                  "path": path, "exists": exists})
+        if not found:
+            status = 1
+            print(f"{key}: no PDF of this item is on disk (not synced, or a linked file that moved)", file=sys.stderr)
+    return status
+
+
 def cmd_collections(api: Api, args) -> int:
     cols = api.get_all(f"{LIB}/collections")
     if not args.tree:
@@ -244,6 +321,8 @@ def parse_args(argv=None):
         epilog="Line shapes (one JSON object per line):\n"
                "  items / item / children   the item's data, flat: {key, version, itemType, title, creators, ..., collections,\n"
                "                            tags} - no `data` wrapper (jq '.title', not '.data.title')\n"
+               "  pdf                       {key, cite, title, attachment, attachment_title, link_mode, path, exists}, one per PDF,\n"
+               "                            the published version first; {key, cite, title, code: no_pdf, attachments} without one\n"
                "  collections               {key, version, name, parentCollection, ...}; --tree adds path\n"
                "  tags                      {tag, type, count}\n"
                "  schema                    the schema object\n"
@@ -252,9 +331,11 @@ def parse_args(argv=None):
                "  uv run read_library.py items --tag venue/CVPR\n"
                "  uv run read_library.py items --cite liuProgressiveResidualLearning2022\n"
                "  uv run read_library.py items --q 'residual learning' --qmode everything\n"
+               "  uv run read_library.py pdf --cite liuProgressiveResidualLearning2022\n"
                "  uv run read_library.py collections --tree\n"
                "  uv run read_library.py tags --min-count 3\n"
-               "Exit 0; 1 = not_found / cite_not_found / cite_ambiguous; 2 = zotero_unreachable / local_api_disabled / api_error.",
+               "Exit 0; 1 = not_found / cite_not_found / cite_ambiguous / no_pdf, or pdf found no file on disk;\n"
+               "2 = zotero_unreachable / local_api_disabled / api_error.",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--base-url", default=DEFAULT_BASE_URL, help="local API base URL (default: %(default)s; proxies are bypassed)")
     p.add_argument("-v", "--verbose", action="store_true", help="log each request to stderr")
@@ -281,6 +362,11 @@ def parse_args(argv=None):
     s.add_argument("key", metavar="KEY")
     s.set_defaults(func=cmd_children)
 
+    s = sub.add_parser("pdf", help="where an item's PDF attachments are on disk, the published version first")
+    s.add_argument("--key", action="append", metavar="KEY", help="one item key (repeatable)")
+    s.add_argument("--cite", action="append", metavar="CITE", help="one citation key (repeatable)")
+    s.set_defaults(func=cmd_pdf)
+
     s = sub.add_parser("collections", help="all collections")
     s.add_argument("--tree", action="store_true", help="parents first, with `path`; collections in the trash left out")
     s.set_defaults(func=cmd_collections)
@@ -293,6 +379,8 @@ def parse_args(argv=None):
     s.set_defaults(func=cmd_schema)
 
     args = p.parse_args(argv)
+    if args.command == "pdf" and not (args.key or args.cite):
+        p.error("pdf needs --key or --cite (by title: `items --q` first)")
     if args.command == "items":
         if args.top and args.all:
             p.error("--top and --all exclude each other")
