@@ -268,25 +268,26 @@ def get(url, *, params=None, headers=None, host=None, timeout=30, pacer=None, ma
 
 
 class NoData(Exception):
-    """A service gave nothing to read; `code` says why: source_blocked (the host answered 429, now or earlier),
-    network_error, not_found (404, 410), http_<status>, bad_response (not what was asked for)."""
+    """A request that gave nothing to read; `code` says why: source_blocked (the host answered 429, now or earlier;
+    `extra` holds Blocked.fields()), network_error (`extra` the detail), not_found (404, 410), http_<status>,
+    bad_response (not what was asked for). `status` is the HTTP status when there was one."""
 
-    def __init__(self, code):
+    def __init__(self, code, status=None, **extra):
         super().__init__(code)
-        self.code = code
+        self.code, self.status, self.extra = code, status, extra
 
 
-def read(url, **kwargs):
-    """get() for a service: the body of a 200, else NoData."""
+def read(url, *, full=False, **kwargs):
+    """get() that only a 200 answers: its body (full: body, headers, final url), else NoData."""
     try:
-        status, _, body, _ = get(url, **kwargs)
-    except Blocked:
-        raise NoData("source_blocked") from None
-    except OSError:
-        raise NoData("network_error") from None
+        status, headers, body, final = get(url, **kwargs)
+    except Blocked as b:
+        raise NoData("source_blocked", **b.fields()) from None
+    except OSError as e:
+        raise NoData("network_error", detail=str(e)) from None
     if status != 200:
-        raise NoData("not_found" if status in (404, 410) else f"http_{status}")
-    return body
+        raise NoData("not_found" if status in (404, 410) else f"http_{status}", status)
+    return (body, headers, final) if full else body
 
 
 def read_json(url, **kwargs):

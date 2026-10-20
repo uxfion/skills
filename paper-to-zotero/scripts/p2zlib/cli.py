@@ -110,6 +110,33 @@ def finish(lines, *, stopped=None, extra=None, answers=()):
     return ACT if counts["failed"] else OK
 
 
+class Lines:
+    """The lines of a loop over things, one per thing: add(head, fn) runs fn() -> fields as that thing's line {head...,
+    code, fields...} (the head wins over a field of its name), or the line of the Stop it raised. After a Stop with
+    exit 2 every later thing is `not_run`. finish() prints them and the summary -> the exit code."""
+
+    def __init__(self, answers=()):
+        self.lines, self.stopped, self.answers = [], None, answers
+
+    def add(self, head, fn):
+        if self.stopped is not None:
+            line = {**head, "code": "not_run"}
+        else:
+            try:
+                fields = dict(fn())
+                line = tidy({**head, "code": fields.pop("code", "ok"), **{k: v for k, v in fields.items() if k not in head}},
+                            self.answers)
+            except Stop as stop:
+                if stop.exit == CANNOT:
+                    self.stopped = stop
+                line = stop.line(**head)
+        self.lines.append(line)
+        return line
+
+    def finish(self, extra=None):
+        return finish(self.lines, stopped=self.stopped, extra=extra, answers=self.answers)
+
+
 def run(fn, stream=None):
     """Call fn() -> exit code; a Stop that reaches here becomes one line on `stream` (stdout by default)."""
     try:
@@ -147,22 +174,13 @@ def main_items(doc, process, argv=None, *, configure=None, check=None):
         zot = zotero.Zotero(args.base_url)
         if not args.dry_run:
             zot.write_headers()
-        lines, stopped = [], None
+        out = Lines()
         for key, cite, failure in zot.targets(args.key, args.cite):
-            start = head(key, cite)
             if failure is not None:
-                lines.append(failure.line(**start))
-            elif stopped is not None:
-                lines.append({**start, "code": "not_run"})
+                out.lines.append(failure.line(**head(key, cite)))
             else:
-                try:
-                    fields = dict(process(zot, key, args))
-                    lines.append(tidy({**start, "code": fields.pop("code", "ok"),
-                                       **{k: v for k, v in fields.items() if k not in start}}))
-                except Stop as stop:
-                    stopped = stop if stop.exit == CANNOT else None
-                    lines.append(stop.line(**start))
-        return finish(lines, stopped=stopped, extra={"dry_run": True} if args.dry_run else None)
+                out.add(head(key, cite), lambda: process(zot, key, args))
+        return out.finish({"dry_run": True} if args.dry_run else None)
 
     return run(loop)
 
@@ -219,30 +237,19 @@ def each_record(args, process, *, setup=None, all_valid=False, answers=()):
                       extra={"not_run": len(recs), "why": "a file is not a record; nothing was done"})
     ctx = setup(args, recs) if setup else args
     dry_run = getattr(args, "dry_run", False)
-    lines, stopped = [], None
+    out = Lines(answers)
     for e in entries:
         if not isinstance(e, work.Record):
-            lines.append(e)
+            out.lines.append(e)
             continue
-        head = {"slug": e.slug}
-        if stopped is not None:
-            lines.append({**head, "code": "not_run"})
-            continue
-        try:
-            fields = dict(process(e, ctx))
-            line = tidy({**head, "code": fields.pop("code", "ok"), **fields}, answers)
-        except Stop as stop:
-            if stop.exit == CANNOT:
-                stopped = stop
-            line = stop.line(**head)
+        out.add({"slug": e.slug}, lambda: process(e, ctx))
         if e.changed() and not dry_run:
             try:
                 e.save()
             except OSError as err:
-                line = {**head, "code": "write_failed", "path": str(e.path), "detail": str(err),
-                        "hint": "The record file could not be rewritten; what was written to Zotero stands."}
-        lines.append(line)
-    return finish(lines, stopped=stopped, extra={"dry_run": True} if dry_run else None, answers=answers)
+                out.lines[-1] = {"slug": e.slug, "code": "write_failed", "path": str(e.path), "detail": str(err),
+                                 "hint": "The record file could not be rewritten; what was written to Zotero stands."}
+    return out.finish({"dry_run": True} if dry_run else None)
 
 
 def tidy(line, answers=()):

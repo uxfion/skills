@@ -32,23 +32,12 @@ Example:
 import json
 import re
 import sys
-import urllib.parse
 from collections import defaultdict
 from pathlib import Path
 
-from p2zlib import cli, run, zotero
+from p2zlib import cli, paper, run, web, zotero
 
 DASH = "—"
-PDF_KINDS = ("published", "accepted", "preprint")
-
-
-def host(url):
-    try:
-        return urllib.parse.urlsplit(url or "").hostname or ""
-    except ValueError:
-        return ""
-
-
 def cell(value):
     return (DASH if value in (None, "") else str(value)).replace("\r", " ").replace("\n", " ").replace("|", "\\|")
 
@@ -72,9 +61,9 @@ def row_of(rec, lib, atts, paths):
     year = re.search(r"(?<!\d)(\d{4})(?!\d)", str(lib.get("date") or item.get("date") or ""))
     return {"slug": rec.slug, "citationKey": cite or given, "cite_mismatch": bool(given and cite and given != cite),
             "record_citationKey": given, "title": lib.get("title") or item.get("title") or "",
-            "year": year.group(1) if year else None, "item_key": lib.get("key"),
+            "year": year.group(1) if year else None, "key": lib.get("key"),
             "collections": [paths.get(c, c) for c in lib.get("collections") or []], "tags": len(lib.get("tags") or []),
-            "file": "PDF" if kinds & set(PDF_KINDS) else "snapshot" if "snapshot" in kinds else None,
+            "file": "PDF" if kinds & set(paper.PDF_KINDS) else "snapshot" if "snapshot" in kinds else None,
             "blocker": rec.get("blocker") or None}
 
 
@@ -92,7 +81,7 @@ def sections_of(gathered, rows, work, zot):
             passes = defaultdict(list)
             for t in tries.get(rec.slug, []):
                 what = f"verdict {t.get('result')}" if t.get("by") == "agent" else t.get("result", "") + (f" ({t['why']})" if t.get("why") else "")
-                passes[t.get("pass", 1)].append(f"{t.get('route')} {host(t.get('url'))}".strip() + f": {what}")
+                passes[t.get("pass", 1)].append(f"{t.get('route')} {web.host_of(t.get('url'))}".strip() + f": {what}")
             out["not_obtained"].append({"slug": rec.slug, "passes": {str(k): v for k, v in sorted(passes.items())},
                                         "snapshot": row["file"] == "snapshot" or bool(own and own.suffix == ".html")})
         if attach.get("kind") not in (None, "published", "snapshot"):
@@ -100,7 +89,7 @@ def sections_of(gathered, rows, work, zot):
                                               "attachment": attach.get("attachment")})
         if rec.get("keep_preprint"):
             out["preprint_kept"].append({"slug": rec.slug, "reason": rec["keep_preprint"]})
-        if attach.get("kind") == "published" and row["item_key"]:
+        if attach.get("kind") == "published" and row["key"]:
             for a in atts:
                 if a["key"] == attach.get("attachment") or a.get("linkMode") == "linked_url":
                     continue
@@ -110,7 +99,7 @@ def sections_of(gathered, rows, work, zot):
                     why = f"the attached file a second time ('{a.get('title')}')"
                 else:
                     continue
-                out["attachments_to_clean"].append({"slug": rec.slug, "item_key": row["item_key"], "key": a["key"], "reason": why})
+                out["attachments_to_clean"].append({"slug": rec.slug, "key": row["key"], "attachment": a["key"], "reason": why})
     out["accepted"] = [{"slug": e.get("slug"), "file": e.get("file"), "reason": e.get("reason")} for e in events if e.get("event") == "accept"]
     created = {(rec.get("saved") or {}).get("key"): row for (rec, _, _), row in zip(gathered, rows) if (rec.get("saved") or {}).get("key")}
     added = defaultdict(list)
@@ -132,7 +121,7 @@ def sections_of(gathered, rows, work, zot):
                              for f in sorted(work.unverified.glob("*")) if f.is_file()]
     verdicts = {(e.get("slug"), e.get("pass"), e.get("route"), e.get("url")): e.get("result") for e in events
                 if e.get("event") == "try" and e.get("by") == "agent"}
-    out["stops"] = [{"slug": e.get("slug"), "pass": e.get("pass"), "why": e.get("why"), "host": host(e.get("page") or e.get("url")),
+    out["stops"] = [{"slug": e.get("slug"), "pass": e.get("pass"), "why": e.get("why"), "host": web.host_of(e.get("page") or e.get("url")),
                      "verdict": verdicts.get((e.get("slug"), e.get("pass"), e.get("route"), e.get("url")))}
                     for e in events if e.get("event") == "stop"]
     return {k: v for k, v in out.items() if v}
@@ -142,7 +131,7 @@ def markdown(rows, summary, sections):
     blockers = any(r["blocker"] for r in rows)
     head = ["citationKey", "title", "year", "item key", "collection(s)", "tags", "file"] + (["blocker"] if blockers else [])
     body = [[(r["citationKey"] or f"*{r['slug']}*") + (f" (record: {r['record_citationKey']})" if r["cite_mismatch"] else ""),
-             r["title"], r["year"], r["item_key"], "; ".join(r["collections"]), r["tags"], r["file"]]
+             r["title"], r["year"], r["key"], "; ".join(r["collections"]), r["tags"], r["file"]]
             + ([r["blocker"]] if blockers else []) for r in rows]
     out = table(head, body) + ["", "**Summary**: " + " · ".join(f"{k.replace('_', ' ')} {v}" for k, v in summary.items())]
     cite = {r["slug"]: r["citationKey"] or r["slug"] for r in rows}
@@ -156,7 +145,7 @@ def markdown(rows, summary, sections):
               "alternate_versions": (["citationKey", "kind", "attachment"], lambda r: [cite[r["slug"]], r["kind"], f"{r['title']} ({r['attachment']})"]),
               "preprint_kept": (["citationKey", "why"], lambda r: [cite[r["slug"]], r["reason"]]),
               "accepted": (["citationKey", "file", "why"], lambda r: [cite.get(r["slug"], r["slug"]), r["file"], r["reason"]]),
-              "attachments_to_clean": (["citationKey", "item key", "attachment", "reason"], lambda r: [cite[r["slug"]], r["item_key"], r["key"], r["reason"]]),
+              "attachments_to_clean": (["citationKey", "item key", "attachment", "reason"], lambda r: [cite[r["slug"]], r["key"], r["attachment"], r["reason"]]),
               "new_tags": (["tag", "items"], lambda r: [r["tag"], ", ".join(r["items"])]),
               "leftovers": (["file", "why", "in library"], lambda r: [r["file"], r["why"], {True: "yes", False: "no"}.get(r.get("in_library"))]),
               "stops": (["citationKey", "pass", "why", "page", "verdict"], lambda r: [cite.get(r["slug"], r["slug"]), r["pass"], r["why"], r["host"], r["verdict"]])}
@@ -165,7 +154,7 @@ def markdown(rows, summary, sections):
         out += ["", f"### {titles[name]}: {len(rows_)}", ""] + table(head, [shape(r) for r in rows_])
         if name == "attachments_to_clean":
             out += ["", "Only on the user's word: `uv run scripts/trash_item.py --dry-run --key "
-                    + " ".join(r["key"] for r in rows_) + "`, then without --dry-run."]
+                    + " ".join(r["attachment"] for r in rows_) + "`, then without --dry-run."]
     return "\n".join(out) + "\n"
 
 
@@ -191,10 +180,10 @@ def main(argv=None):
         zot = zotero.Zotero(args.base_url)
         gathered, paths = gather(zot, records)
         rows = [row_of(rec, lib, atts, paths) for rec, lib, atts in gathered]
-        summary = {"total": len(rows), "in_library": sum(1 for r in rows if r["item_key"]),
+        summary = {"total": len(rows), "in_library": sum(1 for r in rows if r["key"]),
                    "with_pdf": sum(1 for r in rows if r["file"] == "PDF"),
                    "with_snapshot": sum(1 for r in rows if r["file"] == "snapshot"),
-                   "missing": sum(1 for r in rows if not r["item_key"]), "blocked": sum(1 for r in rows if r["blocker"])}
+                   "missing": sum(1 for r in rows if not r["key"]), "blocked": sum(1 for r in rows if r["blocker"])}
         sections = sections_of(gathered, rows, work, zot)
         if args.json:
             print(json.dumps({"code": "ok", "rows": rows, "summary": summary, **({"sections": sections} if sections else {})},

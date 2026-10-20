@@ -32,10 +32,6 @@ Example:
 """
 from p2zlib import cli, run, zotero
 
-HINT_NEAR = ("Compare with the paper: the same paper -> write same_as: KEY in the record; another paper -> add KEY to "
-             "distinct_from; a preprint/published pair is the user's call. Then run this (or p2z.py prepare) again.")
-
-
 def setup(args, records):
     return zotero.Zotero(args.base_url)
 
@@ -46,20 +42,17 @@ def summary(found, near):
                 "matched_by": found["matched_by"], "title": found["title"][:80], "attachments": len(found["attachments"]),
                 **({"duplicates": found["duplicates"]} if found.get("duplicates") else {})}
     if near:
-        return {"code": "near_match", "near_matches": [{k: m[k] for k in ("key", "title", "reason")} for m in near],
-                "hint": HINT_NEAR}
+        return {"code": "near_match", "near_matches": run.near_lines(near), "hint": run.HINT_NEAR}
     return {"code": "not_found"}
 
 
 def process(rec, zot):
     if not rec.item:
-        return {"code": "no_item", "hint": "The record has no `item` to look up; draft it with doi_to_item.py."}
+        return {"code": "no_item", "hint": run.HINT_NO_ITEM}
     due = run.due(rec, "found")
     if due is None:
         return cli.skipped("done", found=rec["found"]["code"], **({"key": rec["found"]["key"]} if rec["found"].get("key") else {}))
-    found, near = zot.lookup(rec.item, distinct_from=rec.keys_of("distinct_from"), same_as=rec.get("same_as"))
-    run.stamp(rec, "found", found)
-    rec["near_matches"] = near
+    found, near = run.look_up(rec, zot)
     line = summary(found, near)
     return {"code": line.pop("code"), "reason": due, **line}
 

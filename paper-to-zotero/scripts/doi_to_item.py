@@ -135,7 +135,6 @@ EVENT_KEYS = ("event-title", "event")
 DATE_FALLBACKS = ("published", "published-online", "published-print", "created")
 PAGE_TYPES = {"conference": "conferencePaper", "journal": "journalArticle", "book": "bookSection"}
 
-HINT_NO_ITEM = "The record has no item; draft it: doi_to_item.py --doi ID --out-dir <work>/records."
 
 
 class Session:
@@ -144,14 +143,11 @@ class Session:
 
     def __init__(self, base_url, work=None):
         self.zot, self.pacer = zotero.Zotero(base_url), web.Pacer(work)
-        self.cache = work.scratch / "schema.json" if work else None
+        self.cache = work.schema_file if work else None
         self.arxiv = {}  # arXiv id -> (its entry, the source's code)
 
     def schema(self):
         return self.zot.schema(cache=self.cache)
-
-    def get(self, url, host=None, **kwargs):
-        return web.get(url, host=host, pacer=self.pacer, **kwargs)
 
     def arxiv_entry(self, aid):
         if aid not in self.arxiv:
@@ -200,21 +196,24 @@ def preprint_id(item):
 def fetch_csl(s, doi):
     """doi.org's CSL JSON for a DOI -> (record, the registration agency's name for libraryCatalog)."""
     url = f"{web.endpoint('DOI_BASE_URL', 'https://doi.org')}/{urllib.parse.quote(doi, safe='/')}"
+    no_csl = cli.Stop("no_csl_record", hint="doi.org has no CSL record for this DOI: write the item by hand from the "
+                                            "landing page.")
     try:
-        status, headers, body, final = s.get(url, HOST_DOI, headers={"Accept": CSL_ACCEPT})
-    except web.Blocked as b:
-        raise cli.Stop("source_blocked", exit=cli.CANNOT, hint="doi.org answered 429: rerun after `until`.", **b.fields()) from None
-    except OSError as e:
-        raise cli.Stop("doi_org_unreachable", exit=cli.CANNOT, hint="Check the network or proxy, then rerun.", detail=str(e)) from None
-    if status == 404:
-        raise cli.Stop("not_found", hint="doi.org does not know this DOI: check it for typos; a fresh one may not be "
-                                         "registered yet: search the title instead.")
-    if status >= 500:
-        raise cli.Stop("doi_org_error", status=status, hint="doi.org or the DOI's agency failed on this DOI; rerun "
-                                                            "later, or write the item by hand from the landing page.")
-    no_csl = cli.Stop("no_csl_record", status=status, hint="doi.org has no CSL record for this DOI: write the item by "
-                                                           "hand from the landing page.")
-    if status != 200 or "json" not in (headers.get("Content-Type") or "").lower():
+        body, headers, final = web.read(url, full=True, host=HOST_DOI, pacer=s.pacer, headers={"Accept": CSL_ACCEPT})
+    except web.NoData as e:
+        if e.code == "source_blocked":
+            raise cli.Stop("source_blocked", exit=cli.CANNOT, hint="doi.org answered 429: rerun after `until`.", **e.extra) from None
+        if e.code == "network_error":
+            raise cli.Stop("doi_org_unreachable", exit=cli.CANNOT, hint="Check the network or proxy, then rerun.", **e.extra) from None
+        if e.code == "not_found":
+            raise cli.Stop("not_found", hint="doi.org does not know this DOI: check it for typos; a fresh one may not be "
+                                             "registered yet: search the title instead.") from None
+        if e.status and e.status >= 500:
+            raise cli.Stop("doi_org_error", status=e.status, hint="doi.org or the DOI's agency failed on this DOI; rerun "
+                                                                  "later, or write the item by hand from the landing page.") from None
+        no_csl.extra["status"] = e.status
+        raise no_csl from None
+    if "json" not in (headers.get("Content-Type") or "").lower():
         raise no_csl
     try:
         record = json.loads(body.decode("utf-8"))
@@ -505,6 +504,7 @@ def draft(s, ident):
     record_doi = first_str(record.get("DOI"))
     if record_doi and record_doi.lower() != doi.lower():
         warnings.append(f"record DOI {record_doi!r} differs from requested {doi!r}; using the record's")
+    if record_doi and not aid:  # the registry's spelling (an arXiv DOI keeps its canonical form)
         doi = record_doi
     proceedings = (proceedings_from_crossref(s, doi)
                    if first_str(record.get("type")) == "book-chapter" and record.get("ISSN") else None)
@@ -594,9 +594,9 @@ def parse_bib(text):
 
 def bib_identifier(fields):
     """An entry's DOI, else its arXiv id (eprint, or an arXiv url / mention in url, journal, howpublished, note), else None."""
-    doi = (fields.get("doi") or "").strip()
+    doi = paper.normalize_doi(fields.get("doi"))
     if doi:
-        return re.sub(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", "", doi, flags=re.I)
+        return doi
     eprint = (fields.get("eprint") or "").strip()
     prefix = (fields.get("archiveprefix") or fields.get("eprinttype") or "").strip().lower()
     m = re.fullmatch(rf"(?:arxiv:)?({paper.ARXIV_ID})(v\d+)?", eprint, flags=re.I)
@@ -716,19 +716,10 @@ def draft_records(args):
         return {"slug": slug, "itemType": item["itemType"], "title": item.get("title", "")[:80],
                 **({"warnings": warnings} if warnings else {})}
 
-    lines, stopped = [], None
+    out = cli.Lines()
     for ident, cite, has_id in wanted:
-        head = {"id": ident, **({"cite": cite} if cite else {})}
-        if stopped is not None:
-            lines.append({**head, "code": "not_run"})
-            continue
-        try:
-            fields = one(ident, cite, has_id)
-            lines.append(cli.tidy({**head, "code": fields.pop("code", "ok"), **fields}))
-        except cli.Stop as stop:
-            stopped = stop if stop.exit == cli.CANNOT else None
-            lines.append(stop.line(**head))
-    return cli.finish(lines, stopped=stopped, extra={"dry_run": True} if args.dry_run else None)
+        out.add({"id": ident, **({"cite": cite} if cite else {})}, lambda: one(ident, cite, has_id))
+    return out.finish({"dry_run": True} if args.dry_run else None)
 
 
 # ---- published versions -------------------------------------------------------------------------------------
@@ -865,7 +856,7 @@ def candidates(rec, s):
     """The record's published_candidates, when its item is a preprint and the block is not done."""
     item = rec.item
     if not item:
-        return {"code": "no_item", "hint": HINT_NO_ITEM}
+        return {"code": "no_item", "hint": run.HINT_NO_ITEM}
     aid = preprint_id(item)
     if not aid:
         rec.pop("published_candidates", None)
@@ -903,15 +894,14 @@ def item_from_page(s, url, old, warnings):
     """The published version from its page's citation_* tags; the preprint's creators and abstract fill what the page
     lacks."""
     try:
-        status, headers, body, final = s.get(url, headers={"User-Agent": web.BROWSER_UA, "Accept": "text/html"})
-    except web.Blocked as b:
-        raise cli.Stop("source_blocked", hint="That host answered 429: read the page in the browser and fill the item "
-                                              "from it.", **b.fields()) from None
-    except OSError as e:
-        raise cli.Stop("page_unreachable", detail=str(e), hint="Check the url, the network or the proxy.") from None
-    if status != 200:
-        raise cli.Stop("page_unreachable", status=status, hint="The page refuses a plain HTTP request: read it in the "
-                                                               "browser and fill the item from what it shows.")
+        body, headers, final = web.read(url, full=True, pacer=s.pacer, headers={"User-Agent": web.BROWSER_UA, "Accept": "text/html"})
+    except web.NoData as e:
+        if e.code == "source_blocked":
+            raise cli.Stop("source_blocked", hint="That host answered 429: read the page in the browser and fill the "
+                                                  "item from it.", **e.extra) from None
+        raise cli.Stop("page_unreachable", **({"status": e.status} if e.status else e.extra),
+                       hint="The page refuses a plain HTTP request (or cannot be reached): read it in the browser and "
+                            "fill the item from what it shows.") from None
     m = web.page_meta(body, final, headers)
     if not web.first_meta(m["meta"], "citation_title", "dc.title"):
         raise cli.Stop("no_citation_meta", url=final, hint="The page has no citation_title tag (an OpenReview page behind "

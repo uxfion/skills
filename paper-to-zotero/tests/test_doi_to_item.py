@@ -279,7 +279,7 @@ class Drafting(Base):
         r = self.run_("--bib", bib, "--out-dir", self.work.records)
         self.assertEqual(r.code, 1, r)
         self.assertEqual([(o["id"], o["cite"], o["code"]) for o in r.lines[:-1]],
-                         [(JBHI, "liuJBHI2022", "ok"), ("arXiv:2006.11239", "ho2020ddpm", "ok"),
+                         [(JBHI.lower(), "liuJBHI2022", "ok"), ("arXiv:2006.11239", "ho2020ddpm", "ok"),
                           ("arXiv:1512.03385v1", "he2016resnet", "not_found"),
                           ("The TeXbook: A Nested Brace Title", "knuth1984", "no_identifier")])
         self.assertEqual(sorted(p.name for p in self.work.records.iterdir()), ["ho2020ddpm.json", "liuJBHI2022.json"])

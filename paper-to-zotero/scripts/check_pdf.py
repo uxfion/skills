@@ -17,7 +17,7 @@ Example:
 """
 from pathlib import Path
 
-from p2zlib import cli, run, verify
+from p2zlib import cli, verify
 
 
 def configure(p):
@@ -31,7 +31,7 @@ def check(p, args):
 
 
 def process(rec, args):
-    path = Path(args.file) if args.file else run.Work.of(rec.path).file_of(rec.slug)
+    path = Path(args.file) if args.file else rec.file()
     if path is None:
         return {"code": "no_file", "hint": "The record has no file yet: fetch it (p2z.py fetch), or claim one."}
     res = verify.check(path, rec)

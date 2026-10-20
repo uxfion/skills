@@ -14,10 +14,11 @@ Two commands run several scripts over the same record files, one after the other
                       skips a block that is done, so after any change to a record run prepare again.
   save RECORD...      create_item, then attach_file: the item, then its file. Each skips what it has done, so save can
                       run after every pass of fetch.
-Each line: {slug, code: ok | decide | failed, decide?: [what is the agent's to settle], steps: {script: its code}}.
-`decide` comes from the record itself: near matches (write same_as, or add the key to distinct_from), published
-versions of a preprint not settled (redraft, or write keep_preprint with the reason), checks that are not ok, sources
-that did not answer (prepare again later), and the steps that failed. Then {"summary"}. --dry-run and --base-url go
+Each line: {slug, code: decide | failed | ok, decide?: [what is the agent's to settle], failed?: [the scripts whose
+line for it is not done], steps: {script: its code}}. `decide` comes from the record itself: near matches (write
+same_as, or add the key to distinct_from), published versions of a preprint not settled (redraft, or write
+keep_preprint with the reason), checks that are not ok, sources that did not answer (prepare again later). Then
+{"summary"}. --dry-run and --base-url go
 to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a script could not go on (the next steps did not
 run).
 """
@@ -64,7 +65,7 @@ def decisions(rec):
         out.append({"published_candidates": len(block("published_candidates")["items"])})
     if block("checks") and block("checks").get("code") != "ok":
         out.append({"checks": block("checks").get("code")})
-    unanswered = sorted({s for name in ("published_candidates", "checks", "found", "links") for s in block(name).get("incomplete") or []})
+    unanswered = sorted({s for name in run.PREPARED for s in block(name).get("incomplete") or []})
     if unanswered:
         out.append({"unanswered": unanswered})
     return out
@@ -82,7 +83,6 @@ def compound(name, argv):
         del args[i:i + 2]
     paths = [a for a in args if a.endswith(".json")]
     steps, stopped = {Path(p).stem: {} for p in paths}, None
-    failed = {slug: [] for slug in steps}
     for script in STEPS[name]:
         done = subprocess.run([sys.executable, str(HERE / f"{script}.py"), *args], capture_output=True, text=True, env=env)
         sys.stderr.write(done.stderr)
@@ -95,8 +95,12 @@ def compound(name, argv):
             if slug in steps:
                 code = line.get("code")
                 steps[slug][script] = f"skipped: {line.get('reason')}" if code == "skipped" else code
-                if code not in ("ok", "skipped", "found", "not_found", "not_run"):
-                    failed[slug].append(script)
+                if "hint" in line:  # a script gives a hint only on a line that is not done (cli.tidy)
+                    steps[slug].setdefault("_failed", []).append(script)
+        for slug, got in steps.items():
+            if script not in got and done.returncode:  # the script ended without a line for it
+                got[script] = f"exit {done.returncode}"
+                got.setdefault("_failed", []).append(script)
         if done.returncode == 2:
             stopped = script
             break
@@ -104,12 +108,13 @@ def compound(name, argv):
     for path in paths:
         slug = Path(path).stem
         try:
-            settle = decisions(run.read(path)) + [{"failed": s} for s in failed[slug]]
+            settle = decisions(run.read(path))
         except cli.Stop as stop:
             lines.append(stop.line(slug=slug))
             continue
-        lines.append({"slug": slug, "code": "decide" if settle else "ok", **({"decide": settle} if settle else {}),
-                      "steps": steps[slug]})
+        failed = steps[slug].pop("_failed", [])
+        lines.append({"slug": slug, "code": "decide" if settle else "failed" if failed else "ok",
+                      **({"decide": settle} if settle else {}), **({"failed": failed} if failed else {}), "steps": steps[slug]})
     counts = {"total": len(lines), "ok": sum(1 for x in lines if x["code"] == "ok"),
               "decide": sum(1 for x in lines if x["code"] == "decide"),
               "failed": sum(1 for x in lines if x["code"] not in ("ok", "decide"))}

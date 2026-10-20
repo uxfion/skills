@@ -3,7 +3,8 @@
 Pages open in the background (--window foreground for pages the user should see). Bytes leave the page as base64 in
 window.__p2z_b64, read in chunks. find() lists what on any page may lead to the paper's PDF, best first:
   1. the PDF the page declares: citation_pdf_url, <link rel=alternate type=application/pdf>
-  2. the documents it embeds: iframe, embed and object sources (a pdf.js viewer in any frame is flagged: `viewer`)
+  2. the PDFs it embeds: iframe, embed and object sources that name a PDF (an ad, consent or CAPTCHA frame does not);
+     a pdf.js viewer in any frame is flagged: `viewer`
   3. links whose text or aria-label says PDF ("PDF", "Download PDF", "View PDF", "Get PDF", "Full text PDF"), or
      whose path ends in .pdf or has a /pdf/ segment; the page's own site first; purchase links left out
 Whatever a candidate yields is only the paper once claim has checked it: the finder finds, the check judges.
@@ -23,7 +24,7 @@ FIND_JS = ("/*p2z:find*/(()=>{" + VIEWER_FIND + r"""const out=[],seen=new Set(),
 const add=(u,why)=>{try{const a=new URL(u,document.baseURI).href;if(!/^https?:/.test(a)||seen.has(a))return;seen.add(a);out.push({url:a,why:why})}catch(e){}};
 const m=document.querySelector('meta[name="citation_pdf_url"]');if(m&&m.content)add(m.content,'citation_pdf_url');
 for(const l of document.querySelectorAll('link[rel~="alternate"][type^="application/pdf"]'))add(l.href,'alternate');
-for(const f of document.querySelectorAll('iframe[src],embed[src],object[data]'))add(f.src||f.data,'frame');
+for(const f of document.querySelectorAll('iframe[src],embed[src],object[data]')){const u=f.src||f.data||'';if(/pdf/i.test(u)||/pdf/i.test(f.type||''))add(u,'frame')}
 const buy=/\b(buy|purchase|rent|price|cart)\b/i,links=[];
 for(const a of document.querySelectorAll('a[href]')){const t=((a.innerText||'')+' '+(a.getAttribute('aria-label')||'')).trim(),p=a.pathname||'';
 if(buy.test(t)||buy.test(a.href))continue;if(/\bpdf\b/i.test(t)||/\.pdf$/i.test(p)||/\/pdf\//i.test(p))links.push({h:a.href,same:a.hostname===here})}

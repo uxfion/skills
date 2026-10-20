@@ -91,10 +91,6 @@ PMC_URL = re.compile(r"^https?://(?:www\.ncbi\.nlm\.nih\.gov/pmc|pmc\.ncbi\.nlm\
 
 # ---- links --------------------------------------------------------------------------------------------------
 
-def url_host(url):
-    return web.host_of(url)
-
-
 def lookup(host, table):
     """The table's value for the host or its closest listed parent domain; None when none is listed."""
     parts = host.split(".")
@@ -139,14 +135,14 @@ def link_version(host, claim, repository, pmc_version):
 
 def finalize(raws, pmc_version, in_pmc, proxy):
     """Raw links -> the record's links: version and needs_browser decided, one per url, ordered."""
-    if in_pmc and not any(under(url_host(canonical_url(r["url"])), ["ncbi.nlm.nih.gov"]) for r in raws):
+    if in_pmc and not any(under(web.host_of(canonical_url(r["url"])), ["ncbi.nlm.nih.gov"]) for r in raws):
         raws = raws + [raw_link(f"https://pmc.ncbi.nlm.nih.gov/articles/{in_pmc}/", "europepmc")]
     kept = {}
     for seq, r in enumerate(raws):
         if not isinstance(r.get("url"), str) or not re.match(r"https?://", r["url"].strip(), re.I):
             continue
         url = canonical_url(r["url"])
-        host = url_host(url)
+        host = web.host_of(url)
         if not host:
             continue
         version = r["version"] if r.get("version") in VERSION_RANK else link_version(host, r.get("claim"), r.get("repository"),
@@ -165,7 +161,7 @@ def finalize(raws, pmc_version, in_pmc, proxy):
 
 def venue_page(url):
     """The item's url when it is the venue's own page for the paper: not doi.org, not a preprint server's."""
-    host = url_host(url or "")
+    host = web.host_of(url or "")
     if not host or under(host, ["doi.org"]) or paper.preprint_server(url):
         return None
     return url
@@ -239,15 +235,9 @@ def src_page(ids, ctx):
     if not ids["page"]:
         raise web.NoData("no_identifier")
     try:
-        status, headers, body, final = web.get(ids["page"], pacer=ctx["pacer"], headers={"User-Agent": web.BROWSER_UA})
-    except web.Blocked:
-        raise web.NoData("source_blocked") from None
-    except OSError:
-        raise web.NoData("network_error") from None
-    if status in (401, 403):
-        raise web.NoData("refused")
-    if status != 200:
-        raise web.NoData("not_found" if status in (404, 410) else f"http_{status}")
+        body, headers, final = web.read(ids["page"], full=True, pacer=ctx["pacer"], headers={"User-Agent": web.BROWSER_UA})
+    except web.NoData as e:
+        raise web.NoData("refused") if e.status in (401, 403) else e from None
     pdf = web.page_meta(body, final, headers)["pdf_url"]
     return {"links": [raw_link(pdf, "page", "published")] if pdf else []}
 
@@ -289,7 +279,7 @@ def process(rec, ctx):
     run.stamp(rec, "links", {"items": links}, incomplete=unanswered)
     line = {"reason": due, "links": len(links), "sources": statuses}
     if links:
-        line["first"] = {"version": links[0]["version"], "needs_browser": links[0]["needs_browser"], "host": url_host(links[0]["url"])}
+        line["first"] = {"version": links[0]["version"], "needs_browser": links[0]["needs_browser"], "host": web.host_of(links[0]["url"])}
     if len(unanswered) == sum(1 for code in statuses.values() if code != "no_identifier"):
         return {"code": "no_answer", **line, "hint": "No source answered; run this (or p2z.py prepare) again later."}
     return {"code": "ok", **line}

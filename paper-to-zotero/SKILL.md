@@ -35,7 +35,7 @@ uv run scripts/p2z.py claim --work <work> --watch                    # in the ba
 - `no_key`: Zotero will show an authorization dialog — tell the user first, ask them to click **Always Allow**, then run again with `--authorize`.
 - `config.ask_user`: a setting only the user can give (the library's discovery search page) — ask for it in your first message and add it to the config.
 - `no_pdftotext` and other missing pieces: references/install.md.
-- `resumed: true`: an earlier run of this task left the work directory — carry on from its records. `leftovers` are reported, never deleted: a PDF that never reached Zotero belongs to the user. `old_format`: records an older version of this skill wrote; `prepare` (step 2) recomputes their blocks, so run it on them before step 4.
+- `resumed: true`: an earlier run of this task left the work directory — carry on from its records. `leftovers` are reported, never deleted: a PDF that never reached Zotero belongs to the user. `old_format`: records an older version of this skill wrote; `prepare` (step 2) recomputes their blocks, so run it on them before step 3.
 
 The browser session is `p2z`. Every temporary file of the run lives under the work directory; one-off code goes in `scratch/`.
 
@@ -85,7 +85,7 @@ uv run scripts/p2z.py prepare <work>/records/*.json
   - Only a preprint: item type `preprint`, `repository` the server, the server's DOI (`10.48550/arXiv.<id>` for arXiv) and its abstract page as `url`, `archiveID` `arXiv:<id>`. Only on OpenReview (rejected, a workshop): the arXiv version if there is one, else a preprint with `repository` OpenReview.
   - Other versions only as identifiers in `extra`: `arXiv: <id>` whenever an arXiv version exists. A conference paper later extended into a journal article is two papers, two items.
 - Tags (`[{"tag", "type"}]`): the source's own keywords as type 1 — arXiv categories (`doi_to_item` adds them), author keywords from the article page, PubMed or OpenAlex, not MeSH or IEEE index terms — and your curated tags per references/tagging.md as type 0, spelled like the existing tags from `p2z.py read_library tags`.
-- No DOI record at all (`no_csl_record`, old papers, pages that ignore content negotiation): *No DOI record* under Rules.
+- No DOI record at all (`no_csl_record`, old papers, pages that ignore content negotiation): references/no-doi-record.md.
 
 **Destination.** The user named a collection → its key from the tree `ready` printed (ambiguous or missing → list candidate paths and ask); several are fine. No collection named → suggest one from the paper's topic and ask, in the same message as any candidate question. No suggestion possible, or nobody to ask → the collection `tmp` (`p2z.py make_collection --name tmp` once if absent) and say so in the report. Put the key (or keys) in the record's `collection`.
 
@@ -162,7 +162,7 @@ Fall back instead of stopping: a blocked request, a verification page or an empt
 2. OpenCLI adapters, discovered at run time. An API-type adapter (`browser: false`) is still a direct request and fails the same way when blocked; when it does, `opencli web read --url …` reads the page inside the user's Chrome with their cookies, and `opencli browser` lets you work the page yourself.
 3. A browser-type adapter (`browser: true`) that fails was already in the real browser, so it was most likely blocked: open the same page in the `p2z` session and look — a verification or login page is a gate; a normal page means the adapter broke, so read it yourself. Keep the adapter's raw output in `scratch/` for the skill notes.
 
-Retry a transient error once; a 403 or a verification page goes straight to the next rung. Publisher hosts and Google Scholar start at rung 2; Google Scholar at most once a minute. A host that answers 429 is done for this run (the scripts stop it themselves). Files a tool writes on the way go into the work directory and leave with it.
+Retry a transient error once; a 403 or a verification page goes straight to the next rung. Publisher hosts and Google Scholar start at rung 2; Google Scholar at most once a minute. A host that answers 429 is left alone until its Retry-After, else an hour (the scripts keep that for the work directory). Files a tool writes on the way go into the work directory and leave with it.
 
 ### Gate
 
@@ -182,18 +182,6 @@ It looks at the tab and at the paper's file every 10 seconds and ends on whichev
 A login from another window leaves the gate tab as it was, so the user's word ("登好了") is what ends that wait: run it in the background where the harness tells you when a command ends, so their reply reaches you meanwhile, and stop it when the reply comes; in the foreground, give the command a timeout above 300 s. Record every gate you hit (page, time, what you were doing) for the report.
 
 Pages nobody can pass — the proxy's "Host Needed", a site's block page — are not gates: tell the user at once, record the verdict, and leave that host alone for the rest of the run (references/publishers.md, *Pages nobody can pass*). A missing subscription concerns one paper; the next paper on the same site is tried as usual.
-
-### No DOI record
-
-`doi_to_item` reports `no_csl_record`, or the paper has no identifier, but the PDF is in hand: let Zotero's recognizer identify it. Note the library version (`Last-Modified-Version` of `GET /api/users/0/items?limit=1`), send the PDF through the connector — one request, no key:
-
-```bash
-curl -s -X POST http://127.0.0.1:23119/connector/saveStandaloneAttachment \
-  -H "Content-Type: application/pdf" -H "X-Metadata: {\"sessionID\":\"$(uuidgen)\",\"title\":\"paper.pdf\",\"url\":\"<source url>\"}" \
-  --data-binary @<work>/records/<slug>.pdf
-```
-
-Within a minute a parent item appears (`GET /api/users/0/items?since=<version>`); put its key into the record's `saved`, revise it with `update_item` and finish with `file_and_tag` (it landed in whatever collection Zotero had selected). No parent after a minute: move the standalone attachment to the trash (`p2z.py trash_item --key`) and write the record's `item` by hand (`p2z.py check_item --help` prints a skeleton), then steps 4–6 as usual.
 
 ## Limits
 

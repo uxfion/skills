@@ -81,7 +81,7 @@ class Pass:
         if len(works) != 1:
             raise cli.Stop("mixed_work_dirs", exit=cli.CANNOT, hint="Pass the records of one work directory.",
                            work_dirs=sorted(map(str, works)))
-        self.args, self.records, self.work, self.route = args, records, run.Work(works.pop()), None
+        self.args, self.records, self.work, self.route, self.stopped = args, records, run.Work(works.pop()), None, None
         self.pacer = web.Pacer(self.work)
         inst, settings = config.institution(), self.work.settings()
         self.proxy, self.discovery = inst["proxy"], inst["discovery"]
@@ -109,8 +109,10 @@ class Pass:
         return {"claimed": "ok", "unverified": "wrong_file"}.get(event["result"], event["result"]), {"check": event.get("code")}
 
     def pace(self, url):
+        """The gap before a request for full text: the institution's for anything through its proxy or its discovery
+        system, else the host's own."""
         host = web.host_of(url)
-        key = web.INSTITUTION if self.proxy and web.is_proxy_host(host, self.proxy) else host
+        key = web.INSTITUTION if self.route == "discovery" or (self.proxy and web.is_proxy_host(host, self.proxy)) else host
         if key in web.GAPS:
             try:
                 self.pacer.wait(key)
@@ -147,10 +149,12 @@ class Pass:
             if data:
                 result, extra = self.claim(rec, data, info.get("href"), version)
                 return result, {**extra, "note": "the page's pdf.js viewer"}
-        tried = 0
+        tried, page = 0, info.get("href") or ""
         for cand in (info.get("candidates") or [])[:PAGE_CANDIDATES]:
             if self.has_file(rec.slug):
                 return "ok", {"note": "filed from Downloads"}
+            if tried and page and (b.find().get("href") or "") != page:
+                b.open(page)  # back on the page that offered the candidates: its origin, its cookies
             tried += 1
             got = self.click(rec, cand["url"], info.get("href") or "", version, depth)
             if got:
@@ -164,7 +168,7 @@ class Pass:
     def click(self, rec, link, page_href, version, depth):
         """One PDF link: requested inside the page, else opened as a click would -> (result, extra), or None."""
         b, req = self.browser, request_url(link, page_href, self.proxy)
-        self.pace(page_href)
+        self.pace(req)
         data, why = b.fetch(req)
         if data:
             return self.claim(rec, data, link, version)
@@ -195,8 +199,10 @@ class Pass:
 
     def candidates(self, rec, route):
         if route in ("open", "accepted", "preprint"):
+            if run.due(rec, "links") in ("absent", "stale"):  # an older run's links, or the item changed since
+                return []
             wanted = ("published", "unknown") if route == "open" else (route,)
-            links = (rec.get("links") or {}).get("items") or []
+            links = rec["links"].get("items") or []
             return sorted((dict(l) for l in links if isinstance(l, dict) and l.get("url") and l.get("version") in wanted),
                           key=lambda l: wanted.index(l["version"]))
         if route in ("publisher", "snapshot"):
@@ -241,6 +247,7 @@ class Pass:
         return self.claim(rec, data, href, "snapshot", html=True)
 
     def stop(self, rec, url, s):
+        self.stopped = s.why
         self.log("stop", slug=rec.slug, route=self.route, url=url, why=s.why, page=s.url, title=s.title, note=s.note)
         cli.emit({"slug": rec.slug, "code": "stopped", "route": self.route, "why": s.why, "url": s.url, "title": s.title,
                   "hint": "The tab stays on this page: look at it, act, then rerun the same command; or record your "
@@ -249,12 +256,15 @@ class Pass:
 
     def walk(self, routes):
         """The routes in turn over the records without a file -> the exit code."""
+        for rec in self.records:
+            if not self.work.file_of(rec.slug) and run.due(rec, "links") in ("absent", "stale"):
+                cli.emit({"slug": rec.slug, "code": "not_prepared", "hint": "Its links are missing or older than its item: "
+                          "run p2z.py prepare on it; until then only the page routes try it."})
         for route in routes:
             self.route = route
             if route == "discovery" and not self.discovery:
-                cli.emit({"code": "skipped", "route": route, "reason": "no_discovery",
-                          "hint": "Ask the user once for their library's discovery search page; add it to the config as "
-                                  "institution.discovery."})
+                cli.emit({"route": route, "code": "no_discovery", "hint": "Ask the user once for their library's discovery "
+                          "search page; add it to the config as institution.discovery."})
                 continue
             todo = [r for r in self.records if not self.work.file_of(r.slug)]
             if route == "publisher":  # one publisher's papers together
@@ -335,7 +345,15 @@ def main(argv=None):
         p.error("--version goes with --start")
 
     def go():
-        records = [run.read(path) for path in args.records]
+        records, invalid = [], 0
+        for path in args.records:
+            try:
+                records.append(run.read(path))
+            except cli.Stop as stop:  # a file that is no record is its own line; the others go on
+                cli.emit(stop.line(slug=Path(path).stem))
+                invalid += 1
+        if not records:
+            return cli.ACT
         walk = Pass(args, records)
         if args.verdict:
             for rec in records:
@@ -353,8 +371,9 @@ def main(argv=None):
         routes = [args.route] if args.route else list(ROUTES)
         code = walk.walk(routes)
         cli.emit({"summary": {"records": len(records), "with_file": sum(1 for r in records if walk.work.file_of(r.slug)),
-                              "routes": routes, **({"stopped": True} if code == cli.ACT else {})}})
-        return code
+                              "routes": routes, **({"stopped": walk.stopped} if walk.stopped else {}),
+                              **({"invalid": invalid} if invalid else {})}})
+        return code if code or not invalid else cli.ACT
 
     return cli.run(go)
 

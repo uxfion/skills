@@ -77,7 +77,7 @@ class Report(unittest.TestCase):
         rows = {row["slug"]: row for row in out["rows"]}
         self.assertEqual((rows["liu"]["citationKey"], rows["liu"]["cite_mismatch"], rows["liu"]["collections"], rows["liu"]["year"],
                           rows["liu"]["file"]), ("liu2022paper", True, ["自然图像/Diffusion"], "2022", "PDF"), "the library as it is now")
-        self.assertEqual((rows["kim"]["file"], rows["lost"]["item_key"], rows["lost"]["file"]), ("PDF", None, None))
+        self.assertEqual((rows["kim"]["file"], rows["lost"]["key"], rows["lost"]["file"]), ("PDF", None, None))
         self.assertEqual(out["summary"], {"total": 3, "in_library": 2, "with_pdf": 2, "with_snapshot": 0, "missing": 1, "blocked": 1})
         s = out["sections"]
         self.assertEqual(s["not_obtained"], [{"slug": "lost", "snapshot": True, "passes": {"1": [
@@ -85,7 +85,7 @@ class Report(unittest.TestCase):
         self.assertEqual([(a["slug"], a["kind"]) for a in s["alternate_versions"]], [("kim", "preprint")])
         self.assertEqual(s["preprint_kept"], [{"slug": "kim", "reason": "the user wants the preprint"}])
         self.assertEqual(s["accepted"], [{"slug": "kim", "file": "kim.preprint.pdf", "reason": "a scan"}])
-        self.assertEqual([(c["key"], c["reason"].split(" ")[0]) for c in s["attachments_to_clean"]], [("TWICE001", "the"), ("SNAP0001", "snapshot")])
+        self.assertEqual([(c["attachment"], c["reason"].split(" ")[0]) for c in s["attachments_to_clean"]], [("TWICE001", "the"), ("SNAP0001", "snapshot")])
         self.assertEqual(s["new_tags"], [{"tag": "method/BrandNew", "items": ["liu2022paper"]}])
         self.assertEqual([x["file"] for x in s["leftovers"]], ["Downloads/invoice.pdf", "unverified/lost.file.pdf"])
         self.assertEqual([(x["slug"], x["verdict"]) for x in s["stops"]], [("lost", "no_access")])

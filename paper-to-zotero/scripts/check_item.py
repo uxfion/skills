@@ -51,7 +51,7 @@ Example:
 import difflib
 import re
 
-from p2zlib import cli, run, zotero
+from p2zlib import cli, paper, run, zotero
 
 # Keys Item.fromJSON handles outside the field table; fine on any item.
 SPECIAL_KEYS = {"key", "version", "itemType", "dateAdded", "dateModified", "collections", "tags", "relations", "extra",
@@ -60,7 +60,6 @@ SPECIAL_KEYS = {"key", "version", "itemType", "dateAdded", "dateModified", "coll
 ATTACHMENT_ONLY_KEYS = {"linkMode", "contentType", "charset", "filename", "path"}
 # Silently ignored unless the item is a note, attachment or annotation.
 CHILD_ONLY_KEYS = {"note", "parentItem", "md5", "mtime"}
-CHILD_TYPES = {"attachment", "note", "annotation"}
 # Venue fields this skill accepts as the paper's outlet.
 VENUE_FIELDS = {"publicationTitle", "proceedingsTitle", "bookTitle", "repository", "university", "institution", "publisher"}
 HINT = ("Fix the item (see mapped, to_extra, dropped_or_rewritten, missing_minimum) or accept these effects knowingly "
@@ -136,7 +135,7 @@ def check_fields(item, ts, item_type, report, all_fields):
                     {"field": key, "reason": f"rejected: can only be set on attachment items, not {item_type}"})
             continue
         if key in CHILD_ONLY_KEYS:
-            if item_type in CHILD_TYPES:
+            if item_type in paper.CHILD_TYPES:
                 report["ok_fields"].append(key)
             else:
                 report["dropped_or_rewritten"].append(
@@ -217,12 +216,12 @@ def setup(args, records):
 
 def process(rec, ctx):
     if not rec.item:
-        return {"code": "no_item", "hint": "The record has no `item`; draft it with doi_to_item.py."}
+        return {"code": "no_item", "hint": run.HINT_NO_ITEM}
     due = run.due(rec, "checks")
     if due is None:
         return cli.skipped("done", checks=rec["checks"]["code"])
     if ctx["facts"] is None:
-        ctx["facts"] = type_facts(ctx["zot"].schema(cache=run.Work.of(rec.path).scratch / "schema.json"))
+        ctx["facts"] = type_facts(ctx["zot"].schema(cache=rec.work.schema_file))
     report = run.stamp(rec, "checks", check_one(rec.item, ctx["facts"]))
     line = {"code": report["code"], "reason": due, "itemType": report.get("itemType")}
     line.update({k: report[k] for k in ("suggestions", "mapped", "to_extra", "dropped_or_rewritten", "missing_minimum") if report.get(k)})

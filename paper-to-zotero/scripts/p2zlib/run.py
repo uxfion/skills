@@ -70,6 +70,7 @@ class Work:
         for name in ("records", "inbox", "stray", "unverified", "scratch"):
             setattr(self, name, self.root / name)
         self.started, self.log, self.settings_path = self.root / ".started", self.root / "fetch.jsonl", self.root / "run.json"
+        self.schema_file = self.scratch / "schema.json"  # Zotero's schema, read once a run
 
     @classmethod
     def of(cls, record_path):
@@ -155,6 +156,14 @@ class Record(dict):
     def item(self):
         return self.get("item") if isinstance(self.get("item"), dict) else {}
 
+    @property
+    def work(self):
+        return Work.of(self.path)
+
+    def file(self):
+        """The record's own file, of whichever kind, or None."""
+        return self.work.file_of(self.slug)
+
     def changed(self):
         return json.dumps(self, sort_keys=True) != self.saved_text
 
@@ -223,6 +232,24 @@ def stamp(rec, block, value, incomplete=()):
 def old_format(rec):
     """The prepared blocks an older run left without `from`: not trusted, computed again by prepare."""
     return [b for b in PREPARED if b in rec and not (isinstance(rec[b], dict) and "from" in rec[b])]
+
+
+HINT_NO_ITEM = "The record has no item: draft it with doi_to_item.py --doi ID --out-dir <work>/records."
+HINT_NEAR = ("The library has something like this paper (near_matches): the same paper -> write same_as: KEY in the "
+             "record; another paper -> add KEY to distinct_from; a preprint/published pair is the user's call. Then run "
+             "p2z.py prepare (or save) again.")
+
+
+def look_up(rec, zot):
+    """The record's found and near_matches from the library lookup (zotero.Zotero.lookup), written -> both."""
+    found, near = zot.lookup(rec.item, distinct_from=rec.keys_of("distinct_from"), same_as=rec.get("same_as"))
+    stamp(rec, "found", found)
+    rec["near_matches"] = near
+    return found, near
+
+
+def near_lines(near):
+    return [{k: m[k] for k in ("key", "title", "reason")} for m in near]
 
 
 def item_key(rec):
@@ -294,7 +321,7 @@ def accept(work, src, slug, reason, kind=None):
     read(work.records / f"{slug}.json")
     ex = verify.extract(src)
     kind = verify.kind_of(src, ex, kind)
-    md5 = ex.md5 if ex else hashlib.md5(src.read_bytes()).hexdigest()
+    md5 = ex.md5 if ex else md5_of(src)
     result, path = place(work, slug, src, kind)
     return work.append({"event": "accept", "file": path.name, "slug": slug, "result": result, "kind": kind, "md5": md5,
                         "reason": reason, "source": str(src)})
@@ -346,8 +373,7 @@ def records_of(work):
 def has_pdf(rec):
     """The library item the record found holds a PDF already."""
     found = rec.get("found") if item_key(rec) and isinstance(rec.get("found"), dict) else {}
-    return any(a.get("kind") in ("published", "accepted", "preprint") or a.get("contentType") == "application/pdf"
-               for a in found.get("attachments") or [] if isinstance(a, dict))
+    return any(a.get("kind") in paper.PDF_KINDS for a in found.get("attachments") or [] if isinstance(a, dict))
 
 
 class Scanner:
@@ -408,6 +434,8 @@ def watcher_alive(work):
     pid = work.settings().get("watcher")
     try:
         os.kill(int(pid), 0)
-    except (TypeError, ValueError, ProcessLookupError, PermissionError):
+    except PermissionError:  # alive, another user's
+        return True
+    except (TypeError, ValueError, ProcessLookupError):
         return False
     return True

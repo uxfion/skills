@@ -136,7 +136,7 @@ class PrepareAndSave(unittest.TestCase):
         self.assertEqual((by["new"]["steps"], by["pre"]["code"]),
                          ({"create_item": "ok", "attach_file": "skipped: no_file_yet"}, "decide"), lines)
         self.assertEqual(by["dup"]["steps"]["create_item"], "possible_duplicate")
-        self.assertIn({"failed": "create_item"}, by["dup"]["decide"])
+        self.assertEqual(by["dup"]["failed"], ["create_item"])
         self.assertNotIn({"published_candidates": 1}, by["pre"]["decide"], "keep_preprint settles it")
         self.assertEqual(lines[-1]["summary"]["decide"], 3)
 

@@ -233,7 +233,7 @@ def main(argv=None):
                  "collections": sorted(({k: c[k] for k in ("key", "name", "parent", "path")} for c in zot.collections().values()),
                                        key=lambda c: c["path"])}
         if facts.get("old_format"):
-            facts["old_format_hint"] = "Records from an older version: run p2z.py prepare on them before step 4."
+            facts["old_format_hint"] = "Records from an older version: run p2z.py prepare on them before step 3."
         cli.emit({"code": code, **({"hint": hint} if hint else {}), **facts, **extra})
         return exit_code
 

@@ -29,6 +29,8 @@ KINDS = {
     "supplement": {"version": None, "suffix": ".supplement.pdf", "title": "Supplementary material", "rank": None},
     "snapshot": {"version": None, "suffix": ".html", "title": "Snapshot", "rank": None},
 }
+# The kinds that are the paper itself, as against a supplement or a snapshot.
+PDF_KINDS = tuple(k for k, v in KINDS.items() if v["rank"])
 # Title prefixes (casefolded) that name a kind, the ones this skill writes and the ones Zotero and older runs wrote.
 TITLE_PREFIXES = (("preprint", "preprint"), ("submitted version", "preprint"), ("arxiv fulltext pdf", "preprint"),
                   ("accepted manuscript", "accepted"), ("accepted version", "accepted"),

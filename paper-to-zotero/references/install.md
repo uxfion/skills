@@ -2,6 +2,10 @@
 
 Read when `ready.py` reports something missing. Each piece below says what needs it and how it is put in place; system packages and settings in the user's own programs are the user's to approve.
 
+## The skill itself
+
+The scripts share one library, `scripts/p2zlib/`, a subdirectory the skill installs with it (`npx skills add` copies the whole folder). After installing or updating, `uv run scripts/p2z.py --help` lists every command; an error naming `p2zlib` means the folder came without it — install the skill again.
+
 ## Zotero
 
 Zotero 10 or newer, running, with the local API on: Settings → Advanced → "Allow other applications on this computer to communicate with Zotero" (`local_api_disabled` otherwise). The write key comes from `p2z.py ready --authorize`: Zotero shows a dialog and the user must click **Always Allow** ("Allow" gives a single-use key). Tell the user before running it. The key is stored in the config file below.

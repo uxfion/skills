@@ -32,11 +32,6 @@ Example:
 """
 from p2zlib import cli, paper, run, zotero
 
-HINT_NEAR = ("The library has something like this paper (near_matches): the same paper -> write same_as: KEY in the "
-             "record; another paper -> add KEY to distinct_from; a preprint/published pair is the user's call. Then run "
-             "this (or p2z.py save) again.")
-
-
 def setup(args, records):
     zot = zotero.Zotero(args.base_url)
     if not args.dry_run:
@@ -48,7 +43,7 @@ def payload_of(rec, ctx):
     """The object to POST, from the record -> (object, its collections); a Stop for the record's own fault."""
     item = rec.get("item")
     if not isinstance(item, dict) or not item:
-        raise cli.Stop("no_item", hint="The record has no item; draft it with doi_to_item.py.")
+        raise cli.Stop("no_item", hint=run.HINT_NO_ITEM)
     problems = [p for p, bad in (("itemType is missing", not isinstance(item.get("itemType"), str) or not item["itemType"]),
                                  ("an attachment or note is no parent item", item.get("itemType") in paper.CHILD_TYPES),
                                  ("title is missing", not str(item.get("title") or "").strip()),
@@ -88,9 +83,7 @@ def process(rec, ctx):
         return cli.skipped("saved", key=saved["key"])
     obj, collections = payload_of(rec, ctx)
     zot, args = ctx["zot"], ctx["args"]
-    found, near = zot.lookup(rec.item, distinct_from=rec.keys_of("distinct_from"), same_as=rec.get("same_as"))
-    run.stamp(rec, "found", found)
-    rec["near_matches"] = near
+    found, near = run.look_up(rec, zot)
     if found["code"] == "found":
         if saved.get("pending"):  # the POST of a run cut off did create it
             rec["saved"] = {"key": found["key"], "version": found["version"], "citationKey": found["citationKey"] or None,
@@ -99,8 +92,7 @@ def process(rec, ctx):
         return cli.skipped("exists", key=found["key"], matched_by=found["matched_by"],
                            **({"duplicates": found["duplicates"]} if found.get("duplicates") else {}))
     if near:
-        return {"code": "possible_duplicate", "near_matches": [{k: m[k] for k in ("key", "title", "reason")} for m in near],
-                "hint": HINT_NEAR}
+        return {"code": "possible_duplicate", "near_matches": run.near_lines(near), "hint": run.HINT_NEAR}
     if args.dry_run:
         return {"code": "ok", "title": obj["title"][:80], "collection": collections, "tags": len(obj["tags"])}
     rec["saved"] = {"pending": True, "at": run.now_iso()}

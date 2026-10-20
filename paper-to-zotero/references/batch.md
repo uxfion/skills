@@ -4,9 +4,9 @@ Read before step 0 when the request covers two or more papers — a list, a .bib
 
 ## The records are the state
 
-Every paper is one file, `<work>/records/<slug>.json`, and every script is a filter over records: paths in (glob them), the updated record out, `-i` to write it back in place. What a record holds says how far its paper got — `item` drafted, `published_candidates` listed, `found` in the library before this run, `links` listed, `pdf` checked, `saved` created, `attach` uploaded, `blocker` waiting on someone. Files are not record fields: a paper's file is `records/<slug>.pdf` (or `.accepted.pdf`, `.preprint.pdf`, `.html` for a snapshot) — its name carries its version — and every fetching attempt is a line in `<work>/fetch.jsonl`. So the scripts that fetch never write records, and subagents editing records never collide with them.
+Every paper is one file, `<work>/records/<slug>.json`, and every script takes record paths (glob them) and writes back what it computed. What a record holds says how far its paper got — `item` drafted, `published_candidates` listed, `found` in the library before this run, `links` listed, `checks` previewed, `saved` created, `attach` uploaded, `blocker` waiting on someone. Files are not record fields: a paper's file is `records/<slug>.pdf` (or `.accepted.pdf`, `.preprint.pdf`, `.html` for a snapshot) — its name carries its version — and every fetching attempt is a line in `<work>/fetch.jsonl`. So the scripts that fetch never write records, and subagents editing records never collide with them.
 
-Every script skips what is already done and says so (`skipped`), so the same command line is also the recovery: after an interruption, a crash or a "继续", run it again. With `-i` the scripts print one summary line per record — read those, not the files.
+Every script skips what is already done and says so (`skipped`), so the same command line is also the recovery: after an interruption, a crash or a "继续", run it again. The scripts print one line per record — read those, not the files.
 
 A .bib or .ris the user has is a list source, not something to import as is: `p2z.py doi_to_item --bib ref.bib --out-dir <work>/records` takes each entry's DOI (else arXiv id, else title) as the identifier and its citation key as the slug and `citationKey`, so the created items carry the keys the manuscript cites.
 

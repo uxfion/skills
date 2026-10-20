@@ -153,8 +153,9 @@ class Zotero:
     def get(self, path, params=None, *, allow_404=False):
         return self._get(path, params, allow_404)[0]
 
-    def pages(self, path, params=None, *, limit=None):
-        """Every row of a paged listing (100 a page), up to `limit`; a page that is not a list stops the read."""
+    def pages(self, path, params=None, *, limit=None, until=None):
+        """Every row of a paged listing (100 a page), up to `limit`, or until until(page) is true for a page read; a
+        page that is not a list stops the read."""
         out, start = [], 0
         while limit is None or len(out) < limit:
             size = PAGE if limit is None else min(PAGE, limit - len(out))
@@ -164,6 +165,8 @@ class Zotero:
                            path=path, start=start)
             out.extend(page)
             start += len(page)
+            if until and until(page):
+                break
             total = headers.get("Total-Results")
             if len(page) < size or (total and total.isdigit() and start >= int(total)):
                 break
@@ -379,20 +382,17 @@ class Zotero:
         """{md5: {attachment, parent, citationKey, title}} for those of the md5s an attachment in the library holds
         (no search matches an md5: the attachments are read newest first, until each has its hit; the parent's
         citationKey and title come along). A publisher that stamps every download never gives two the same md5."""
-        wanted, hits, start = {m.lower() for m in md5s if m}, {}, 0
-        while wanted - set(hits):
-            page, headers = self._get(f"{LIB}/items", {"itemType": "attachment", "sort": "dateAdded", "direction": "desc",
-                                                       "limit": PAGE, "start": start})
-            if not isinstance(page, list):
-                raise Stop("unexpected_response", hint="The local API sent a page that is not a list.", path=f"{LIB}/items")
+        wanted, hits = {m.lower() for m in md5s if m}, {}
+
+        def collect(page):
             for r in page:
                 md5 = (data(r).get("md5") or "").lower()
                 if md5 in wanted and md5 not in hits and not in_trash(r):
                     hits[md5] = r
-            start += len(page)
-            total = headers.get("Total-Results")
-            if len(page) < PAGE or (total and total.isdigit() and start >= int(total)):
-                break
+            return not wanted - set(hits)
+
+        if wanted:
+            self.pages(f"{LIB}/items", {"itemType": "attachment", "sort": "dateAdded", "direction": "desc"}, until=collect)
         out = {}
         for md5, r in hits.items():
             parent = data(r).get("parentItem")

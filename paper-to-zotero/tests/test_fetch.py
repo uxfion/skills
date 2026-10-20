@@ -150,9 +150,10 @@ class Fetch(unittest.TestCase):
     def record(self, slug, title=TITLE, doi="10.1000/x.1", links=()):
         item = {"itemType": "journalArticle", "title": title, **({"DOI": doi} if doi else {}),
                 "creators": [{"creatorType": "author", "lastName": "Liu", "firstName": "Wei"}]}
-        path = self.work.records / f"{slug}.json"
-        path.write_text(json.dumps({"item": item, "links": {"items": list(links)}}))
-        return str(path)
+        rec = run.Record(self.work.records / f"{slug}.json", {"item": item})
+        run.stamp(rec, "links", {"items": list(links)})  # as prepare writes them
+        rec.save()
+        return str(rec.path)
 
     def link(self, path, version="published"):
         return {"url": self.base + path, "source": "openalex", "version": version, "needs_browser": None}
@@ -182,7 +183,7 @@ class Fetch(unittest.TestCase):
         self.assertEqual(self.files(), ["a.pdf", "b.pdf", "e.preprint.pdf"], "each candidate's version goes along")
         self.assertEqual(self.events("try"), [("a", "open", "ok"), ("b", "publisher", "ok"), ("e", "preprint", "wrong_file"),
                                               ("e", "preprint", "ok")])
-        self.assertEqual((lines[-1]["summary"]["with_file"], [x.get("reason") for x in lines if x.get("code") == "skipped"]),
+        self.assertEqual((lines[-1]["summary"]["with_file"], [x["code"] for x in lines if x.get("route") == "discovery" and "event" not in x]),
                          (3, ["no_discovery"]))
         self.assertEqual(self.fetch("--pass", "1", *recs)[0], 0)
         self.assertEqual(len(self.work.events("try")), 4, "nothing is tried twice")
