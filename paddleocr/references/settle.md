@@ -1,90 +1,114 @@
 # Settling a parse
 
-This brief is for settling one document that the paddleocr skill has parsed. Check every warning and every figure note against the source, fix the Markdown, and report back. The agent that sent you reads the result and builds its answer on it. A wrong fix costs that answer; confirming a false alarm costs nothing.
+This brief is for settling one document that the paddleocr skill has parsed: check every open finding and every figure note against the source, fix the Markdown or give a verdict, record it, and report back. The agent that sent you reads the result and builds its answer on it. A wrong fix costs that answer; confirming a false alarm costs nothing.
 
-Your prompt names the document's folder and its source: a PDF, or the page images. The folder holds:
+Your prompt names the document's folder and its source: a PDF, or the page images. It may also name figures to settle, by page and caption, and, for a paper, the path of `papers.md`: read that too, it adds what papers get wrong.
 
-- `<stem>.md`: the text, page by page, with `<!-- page N -->` before each page.
-- `<stem>.json`: every block with its `page`, `label` and `bbox` (in page-image pixels; see `pages[].width` / `height`), and the parse's `warnings`.
-- `imgs/`: the figure crops.
-- `checks/`: the figure overlays.
+The folder holds:
 
-The prompt may also name figures to settle, by page and caption.
+- `<stem>.md`: the text, page by page, with `<!-- page N -->` before each page. This is what you edit.
+- `<stem>.json`: the record. `doc.py` writes it; leave it to `doc.py`.
+- `imgs/`: the figures, named by figure id.
 
-You are the only one writing to this Markdown. Leave the JSON as parsed.
+You are the only one writing to this folder.
 
-## Sources
+## Tools
 
-- **A PDF** has two sources for a page:
-  - its text layer: `pdftotext -layout -f <N> -l <N> <pdf> -`. A warning's `region` goes in as `-x -y -W -H`, in points.
-  - its image: `pdftoppm -f <N> -l <N> -r 100 -png <pdf> <prefix>`, which you view. Tables and small print need `-r 300`. A region crop at `-r 300` takes the points × 300/72, since pdftoppm counts in pixels.
-- **Image input** is its own source: view the input image, cropped and enlarged where the print is small.
+`doc.py` below is `uv run <skill>/scripts/doc.py`, where `<skill>` is the folder above the one holding this brief.
 
-## 1. Text warnings
+- `doc.py show <folder>`: the open findings, one per line: status, id, page, what it saw.
+- `doc.py show <folder> <finding id>`: the finding in full, the block it concerns with its text, the text layer under it (the `pdftotext` command for that region), and a page image with the block boxed. For a `figure_check`: the crops and the second opinion as boxes, and an overlay image.
+- `doc.py show <folder> p<N>`: every block of page N with its id, label, box and first words, and a page image with the block ids drawn on it.
+- `doc.py show <folder> p<N> --box X1 Y1 X2 Y2 --dpi 400`: that region of the page as an image, for small print and figure edges.
 
-Settle every warning in the JSON's `warnings` except `figure_check` (step 2). Settling one means one of three things: you fixed it, you found it a false alarm, or it is a gap you cannot close.
+Boxes are in source units: PDF points for a PDF, as `pdftotext -x -y -W -H` takes them; pixels for image input.
 
-Fix `<stem>.md` at its page, and put an HTML comment on the line before each fixed block: `<!-- from text layer: what changed -->` or `<!-- from page image: … -->`. A rebuilt table stays HTML. Use `rowspan`/`colspan` for multi-level headers, and an empty cell to head a column that has no heading.
+- **A PDF** has two sources for a page: its text layer (`pdftotext -layout -f N -l N <pdf> -`, or the region `show` gives), and its image (the page images `show` writes). Trust the text layer for characters and the image for layout.
+- **Image input** is its own only source: view the image, cropped and enlarged where the print is small.
 
-The warnings, by remedy:
+## Recording
 
-- **Lost or misread.** The text layer has it and the parse does not; restore it from the text layer.
-  - `table_mismatch`: the table lost cells, often a whole column, and the remaining values can sit under the wrong headers (2026-10: five of the twenty text tables in six test papers). Rebuild it from `pdftotext -layout` over the warning's `region`, check it against the page image, and replace the table.
+1. **Edit `<stem>.md`** with your editing tool, at the block's own place. Rewrite text freely inside a block: a word, a table cell, a whole table, a paragraph. Put `<!-- fixed: <what changed, from which source> -->` on the line above each block you edit.
+   - A paragraph of your own (blank lines around it) becomes a new block; a line added without a blank line joins the paragraph it touches.
+   - An edit across several blocks, such as two paragraphs put in the right order, keeps the text in the first block and deletes the others.
+   - A rebuilt table stays HTML. Use `rowspan`/`colspan` for multi-level headers, and an empty cell to head a column that has no heading.
+   - Leave the first line, the `<!-- page N -->` lines and the `<!-- figure … -->` / `<!-- end figure … -->` lines as they are: they tie the Markdown to the record, and commit refuses edits to them.
+2. **Give a verdict** where there is nothing to fix: change the note's `open` to `ok` (the parse is right, or the finding is a false alarm) or to `unresolved` (the parse is wrong and cannot be fixed), and put your reason after the colon in place of what was there: `<!-- ok missing_numbers@p11: tick labels of the Figure 3 axes -->`. A finding you fix needs no verdict: once fixed it goes away.
+3. **Commit:** `doc.py commit <folder>`. It records each edit as a change of its block, each verdict with its reason, runs the checks again and rewrites the Markdown. It prints what it recorded and which findings went, came or reopened. A finding still there after your fix means the fix missed: look again. Commit after each page you work through.
+
+When commit refuses, it says why; put back what it names and commit again.
+
+## 1. Text findings
+
+Settle every open finding except `figure_check` (§2). Each one ends fixed, `ok`, or `unresolved`.
+
+The codes, by remedy:
+
+- **Lost or misread.** The text layer has it and the parse does not: restore it from the text layer.
+  - `table_mismatch`: the table lost cells, often a whole column, and the remaining values can sit under the wrong headers (2026-10: five of the twenty text tables in six test papers). Rebuild it from `pdftotext -layout` over its region, check it against the page image, and replace the table.
   - `missing_numbers`: numbers the parse lacks or misread.
-  - `missing_text`: a run of words, sampled in `detail`: a dropped line, or author affiliations read as icons. False alarms: the labels and legends of a complex figure, a watermark, a download stamp.
+  - `missing_text`: runs of words the parse lacks, quoted in the note as the text layer has them: a dropped line or paragraph end, or a misread that breaks the words around it. False alarms: the labels and legends of a figure, a watermark, a download stamp, a formula the text layer garbles but the parse holds as LaTeX.
   - `low_coverage`: the page as a whole matched poorly. The cause is a garbled text layer (odd font encodings) or a page dense with formulas. Compare a paragraph of the page image with the Markdown.
-- **Invented.** The parse has text the source lacks. Delete it, or replace the block from the text layer or the image.
-  - `extra_text`: words the text layer lacks, typically the model finishing a sentence that is cut off at the page end.
-  - `foreign_script`: CJK, kana or Hangul characters mixed into the text that the text layer lacks (2026-10: 「年第」 and 「个」 inside an English sentence with inline math); `detail` quotes each spot. The words around them are often garbled too, so rebuild the passage from the text layer.
-  - `repetition`: one phrase looped dozens of times, or a block cycling through the same words (2026-10: a 23-name author line run on to 8,857 characters). Keep one pass, checked against the source.
+- **Invented.** The parse has text the source lacks: delete it, or replace the block from the text layer or the image.
+  - `extra_text`: words the text layer lacks, typically the model finishing a sentence cut off at the page or column end. False alarm: a sentence that continues at the top of the next column.
+  - `foreign_script`: CJK, kana or Hangul characters mixed into text that lacks them. The words around them are often garbled too, so rebuild the passage from the text layer.
+  - `repetition`: one phrase looped dozens of times, or a block cycling through the same words. Keep one pass, checked against the source.
 - **Misplaced.**
   - `table_empty_column`: a headed column is empty in every row and the values have slid one column over; often a figure grid read as a table. Realign the values from the source.
-  - `formula_number_gap`: equation numbers are missing from a run. Find those equations on the page image, where the numbers show even when the text layer drops them. Add each number as `\tag*{(n)}` to its formula.
+  - `formula_number_gap`: equation numbers are missing from a run. Find those equations on the page image, where the numbers show even when the text layer garbles them, and add each as `\tag*{(n)}` at the end of its formula, inside the `$$`.
 - **Unchecked.** There is nothing to check against.
   - `unchecked_table`: a table embedded as an image. Compare its values with the page image, cell by cell.
-  - `no_text_layer`: scans and images. Look first at the last block of every page, where the model invents the rest of a sentence cut at the page end. Then look at small print (author lines, affiliations, superscripts), then at every table, cell by cell.
+  - `no_text_layer`: scans and images. Look first at the last block of every page, where the model invents the rest of a sentence cut at the page end; then at small print (names, affiliations, superscripts); then at every table, cell by cell.
   - `empty_page`: confirm from the image that the page is blank or purely graphic.
+- `stale_edit`: an earlier edit no longer fits the block's text, after the document was processed again. Redo the edit if it is still needed; else give the verdict `ok`.
 
-A block in the JSON with a `merged_into` id lost nothing: its content moved into that earlier block. Examples: a paragraph continued across a column, a table continued on the next page, a panel or panel letter moved into its whole `figure`. Text inside figures is not transcribed and is not checked.
-
-Done when every warning is settled.
+Done when `doc.py show <folder>` lists no open finding but `figure_check` ones.
 
 ## 2. Figures
 
-Settle every figure that has a note in the Markdown, and every figure your prompt names. A note looks like `<!-- figure_check: <reasons> [p<page>#<caption id> checks/….jpg] -->`. The figure's warning in the JSON carries the same reasons, its crops with their boxes, and the second opinion's box. The reasons:
+Settle every `figure_check` finding and every figure your prompt names. The reasons a figure was flagged:
 
-- `no_crop`: the figure was read as text or a table, or missed. False alarms: a list of figure captions, a sentence opening with "Figure 2.".
-- `split`: the figure is in several crops.
-- `two_figures`: one crop holds two figures.
+- `no_crop`: the figure was read as text or a table, or missed. False alarms: a list of figure captions, a sentence opening with "Figure 2."
+- `split`: the figure is in several images.
+- `two_figures`: one image holds two figures.
 - `table`: a table was drawn into the figure.
 - `edge_cut`: an edge runs through text or lines.
-- `second_opinion`: the extent found from the caption outwards differs from the crop's.
+- `second_opinion`: the extent found from the caption outwards differs from the image's.
 
-For each figure:
+For each:
 
-1. Open its overlay (`checks/…jpg`). It shows the page with the caption in blue, every crop numbered in its own colour, and the second opinion as a green dashed box. Judge the numbered crops first, on their own: does one crop hold the whole figure, and nothing but it — no other figure, table or body text? Then weigh the reasons and the second opinion.
-   - A figure spread over several crops still needs one crop of its own, even when each piece is a whole panel.
-   - For `edge_cut`, view that edge in the crop itself, enlarged. The overlay is too small to show a line of text sliced in half.
-2. Whole and clean: keep it. Open the note with `figure kept:`.
-3. Otherwise cut a crop (below). Start from the warning's `second_opinion` box (in pixels, like the JSON boxes) when it looks right, else from the JSON boxes. Then open the note with `from page image: figure cropped by hand;`. The second opinion is a candidate: view its crop before you use it.
-4. A `no_crop` figure whose text the Markdown already holds, where colours and layout add nothing: open the note with `figure kept: the text is in the Markdown;`.
+1. `doc.py show <folder> <finding id>` and open its overlay: the caption in blue, each image on the page numbered in its own colour, the second opinion as a green dashed box. Judge the numbered images first, on their own: does one image hold the whole figure, and nothing but it (no other figure, table or body text)? Then weigh the reasons and the second opinion. For `edge_cut`, view that edge enlarged (`show p<N> --box … --dpi 400`): the overlay is too small to show a line of text sliced in half. The second opinion is a candidate and can be the wrong one, taking in a table or a note under the figure.
+2. Whole and clean: verdict `ok`, with what you checked.
+3. Otherwise cut it anew: `doc.py figure <folder> <figure id> --box X1 Y1 X2 Y2 --why "<what was wrong>"`, starting from the second opinion's box when it looks right. It prints the new image's path: view it, and cut again until it holds the whole figure and no caption or body text. A figure can be wider than its caption or sit beside it. The image blocks inside the box become part of this figure, so for a figure split into several images, cut any one of them to the whole box and the others go with it. The finding goes once the figure is cut.
+4. A figure the parse read as text or missed (`no_crop`): `doc.py figure <folder> --page N --box … --why …` makes it, and the text the model read from it stays. When that text already says everything and its colours and layout add nothing, verdict `ok` instead.
 
-Each new opening takes the place of `figure_check:`. Change nothing else in the note: its bracket is how a later check finds it. When a named figure has no note, put `<!-- from page image: figure cropped by hand -->` above its new crop.
+An image that is no content of the document, such as a logo or a stray icon: delete its image line in the Markdown to hide it.
 
-To cut a crop:
+Look at every figure on a page you open: a flagged figure often has an unflagged neighbour with the same fault.
 
-1. Crop the PDF page at the parse's `crop_dpi` (in the JSON's `parser`; 144 when absent). JSON boxes are in 144 dpi pixels, so multiply each by k = crop_dpi/144: `pdftoppm -f <N> -l <N> -r <crop_dpi> -x <x1·k> -y <y1·k> -W <width·k> -H <height·k> -singlefile -png <pdf> <folder>/imgs/p<NN>_fig<number>_cut`. For image input, crop the input image at the JSON box itself.
-2. For the starting box, use what the model made of the figure: the incomplete crop, or the table or text blocks right above its caption.
-3. View the crop and move its edges until it holds the whole figure and no caption or body text. The figure can be wider than its caption or sit beside it.
-4. Put its `![](imgs/…png)` line in place of the lines of every crop it now covers, or right before the caption when there was none. Put the figure's note above it. Keep the blocks the model read from the figure: their text is the figure's words.
+Done when every `figure_check` finding is gone or has a verdict, and every named figure has been seen whole.
 
-Done when every note is settled, or left open with its reason in your report, and every named figure has been seen whole.
+## 3. Beyond the findings
 
-## 3. Report
+The checks see only what a text layer can prove; these slip past them (2026-10, six papers):
 
-Reply with these four parts, one line per item, so that the agent that sent you can carry them into its own report:
+- **A paragraph that ends early with an invented closing.** The block's box is far taller than its text needs; `missing_text` and `missing_numbers` on the same page are the trace.
+- **Text joined in the wrong order across columns.** Every word is present, so no check fires; look for a sentence that breaks off and continues with an unrelated one.
+- **A garbled first line at the top of a page or column**, numbers included.
+- **Digit and letter confusions** (1↔I, l↔I, 0↔O) in names, acronyms and identifiers. Once found, search the whole document for the same token.
+- **A real word in place of another** ("faintest" for "fairest"), which no coverage check notices.
+- **Line-break hyphens kept or invented** in compound names ("Duck-DuckGo").
+- **Header cells merged** in a table whose values are right.
+- **Inline math garbled** in pseudo-code and tables.
+- **A long line cut by your reading tool** is not a truncated paragraph: check its length or its tail before calling it cut.
 
-- **fixed**: page, warning code, what changed.
-- **false alarms**: page, warning code, why.
-- **open**: what you could not settle, and why.
-- **figures**: recropped (`p<page>#<id>`, what was wrong), kept (`p<page>#<id>`), kept as text (`p<page>#<id>`).
+Read the last block of each page and the first line of each column against the source, and fix what you find the same way, with a `fixed` note.
+
+## 4. Report
+
+Commit a last time, then reply with these four parts, one line per item, so that the agent that sent you can carry them into its own report:
+
+- **fixed**: page, block or finding id, what changed.
+- **verdicts**: finding id, `ok` or `unresolved`, the reason.
+- **figures**: cut anew (figure id, what was wrong), kept (figure id), made (figure id).
+- **open**: anything you could not settle, and why; the last commit's output when it is not empty.
