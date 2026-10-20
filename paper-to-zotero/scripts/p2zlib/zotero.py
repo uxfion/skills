@@ -40,6 +40,7 @@ HINT_DISABLED = ("Ask the user to enable the local API in Zotero Settings > Adva
 HINT_NOT_FOUND = "No item with that key; find it with read_library.py items --q, or by --cite."
 HINT_CITE_NOT_FOUND = "No item carries this citationKey (case matters); find it with read_library.py items --q, or name it by its item key."
 HINT_CITE_AMBIGUOUS = "Several items carry this citationKey; name the one you mean by its item key."
+SUBTITLE_SEPARATORS = (": ", " - ", " – ", " — ")
 
 
 def detail(body, limit=400):
@@ -57,6 +58,28 @@ def is_top(row):
 def chunks(seq, size=CHUNK):
     for i in range(0, len(seq), size):
         yield seq[i:i + size]
+
+
+def types_of(schema):
+    """Each item type of a schema: {itemType: {order: [title, ... its fields in the schema's order], fields: the same
+    as a set, base_of: {field: its base field, or itself}, by_base: {base field: the type's field for it},
+    creator_types: [in the schema's order], primary: its primary creator type}}."""
+    types = {}
+    for t in schema.get("itemTypes") or []:
+        rows, creators = t.get("fields") or [], t.get("creatorTypes") or []
+        order = [f["field"] for f in rows]
+        types[t["itemType"]] = {"order": order, "fields": set(order),
+                                "base_of": {f["field"]: f.get("baseField") or f["field"] for f in rows},
+                                "by_base": {f["baseField"]: f["field"] for f in rows if f.get("baseField")},
+                                "creator_types": [c["creatorType"] for c in creators],
+                                "primary": next((c["creatorType"] for c in creators if c.get("primary")), "author")}
+    return types
+
+
+def own_field(t, field):
+    """A type's name for a field: the field itself, or the type's field for that base field (proceedingsTitle for
+    publicationTitle in a conferencePaper); None when it has neither."""
+    return field if field in t["fields"] else t["by_base"].get(field)
 
 
 class _Stay(urllib.request.HTTPRedirectHandler):
@@ -252,21 +275,131 @@ class Zotero:
                 keys.append(c["key"])
         return keys
 
-    def schema(self):
+    def schema(self, cache=None):
+        """Zotero's schema (item types, fields, creator types, CSL mappings); with `cache`, a file that keeps it for
+        the whole run (an import run's scratch/schema.json), read from Zotero only when the file is not there."""
+        if self._schema is None and cache is not None:
+            try:
+                self._schema = json.loads(Path(cache).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
         if self._schema is None:
             self._schema = self.get("/api/schema")
+            if cache is not None:
+                from .run import atomic_write
+                Path(cache).parent.mkdir(parents=True, exist_ok=True)
+                atomic_write(cache, json.dumps(self._schema, ensure_ascii=False))
         return self._schema
 
     def item_types(self):
-        """{itemType: {fields, base_of {field: its base field}, by_base {base field: the type's field}, creator_types}}."""
-        types = {}
-        for t in self.schema().get("itemTypes") or []:
-            fields = [f["field"] for f in t.get("fields") or []]
-            base_of = {f["field"]: f.get("baseField") or f["field"] for f in t.get("fields") or []}
-            types[t["itemType"]] = {"fields": set(fields), "base_of": base_of,
-                                    "by_base": {f.get("baseField"): f["field"] for f in t.get("fields") or [] if f.get("baseField")},
-                                    "creator_types": {c["creatorType"] for c in t.get("creatorTypes") or []}}
-        return types
+        return types_of(self.schema())
+
+    # ---- is this paper in the library -----------------------------------------------------------------------
+
+    def lookup(self, item, *, distinct_from=(), same_as=None):
+        """Is the paper an item describes in the library? -> (found, near_matches), a record's two blocks without
+        their `from`. Only an identifier confirms: the DOI, else the arXiv id — unless the item has a DOI of its own
+        that the library lacks, which makes an arXiv hit its preprint: a near match. A title never confirms: the same
+        title, or one inside the other, is a near match. Items in distinct_from are dropped at every step, and a step
+        left empty goes on to the next; same_as names the item outright."""
+        if same_as:
+            row = self.item(same_as)
+            if row is None:
+                raise Stop("not_found", hint="same_as names no item of the library; correct it or remove it.", same_as=same_as)
+            return {"code": "found", **self.describe(row), "matched_by": "same_as"}, []
+        doi, aid = paper.identifiers(item)
+        title, excluded, searched = (item.get("title") or "").strip(), set(distinct_from or ()), []
+        rows = lambda q, qmode=None: [r for r in self._search(q, qmode, searched) if r["key"] not in excluded]
+        matches, near, matched_by = [], [], None
+        if doi:
+            matches, matched_by = [r for r in rows(doi, "fields") if paper.same_paper(item, data(r)) == "doi"], "doi"
+        if not matches and aid:
+            hits = [r for r in rows(aid, "fields") if paper.same_paper(item, data(r)) == "arxiv"]
+            if hits and doi:
+                near = [(r, f"preprint/published pair: the library item matches by arXiv id only, and this item has "
+                            f"its own DOI {doi}", "arxiv") for r in hits]
+            else:
+                matches, matched_by = hits, "arxiv"
+        if not matches and not near and paper.norm_title(title):
+            near = self._title_near(item, doi, rows)
+        if matches:
+            more = {"duplicates": [r["key"] for r in matches[1:]]} if len(matches) > 1 else {}
+            return {"code": "found", **self.describe(matches[0]), "matched_by": matched_by, **more}, []
+        return {"code": "not_found", "searched": searched}, [
+            {"key": r["key"], "title": data(r).get("title"), "itemType": data(r).get("itemType"), "reason": why,
+             **({"matched_by": by} if by else {})} for r, why, by in near]
+
+    def _search(self, q, qmode, searched):
+        """The top-level items a quick search hits; a hit on an attachment or note counts for its parent."""
+        found, parents = {}, []
+        for r in self.pages(f"{LIB}/items", {"q": q, **({"qmode": qmode} if qmode else {})}):
+            if is_top(r):
+                found.setdefault(r["key"], r)
+            elif data(r).get("parentItem"):
+                parents.append(data(r)["parentItem"])
+        for key in parents:
+            if key not in found:
+                parent = self.item(key)
+                if parent is not None and is_top(parent):
+                    found[key] = parent
+        searched.append({"q": q, "qmode": qmode or "titleCreatorYear", "hits": len(found)})
+        return list(found.values())
+
+    def _title_near(self, item, doi, rows):
+        """[(row, reason, None)] for the library titles equal to the item's (first) or holding it or held by it."""
+        title = item["title"].strip()
+        found = {r["key"]: r for r in rows(title)}
+        if not found:
+            found = {r["key"]: r for r in rows(title, "everything")}
+        head = next((title.split(sep, 1)[0].strip() for sep in SUBTITLE_SEPARATORS if sep in title), "")
+        if head and len(head.split()) >= 2:
+            found.update({r["key"]: r for r in rows(head) if r["key"] not in found})
+        want, out = paper.norm_title(title), []
+        for r in found.values():
+            have, other = paper.norm_title(data(r).get("title")), paper.doi_of(data(r))
+            if paper.same_paper(item, data(r)) == "title":
+                out.append((0, r, f"same title, another DOI: the library item has {other}, this item {doi}"
+                            if doi and other and other != doi else "same title; no identifier confirms it"))
+            elif have and want in have:
+                out.append((1, r, "the library title contains this title"))
+            elif have and have in want:
+                out.append((1, r, "this title contains the library title"))
+        return [(r, why, None) for _, r, why in sorted(out, key=lambda e: e[0])]
+
+    def describe(self, row):
+        """What the library holds for an item: {key, version, citationKey, title, date, collections, tags, attachments}."""
+        d = data(row)
+        return {"key": row["key"], "version": row.get("version"), "citationKey": d.get("citationKey") or "",
+                "title": d.get("title") or "", "date": d.get("date") or "", "collections": list(d.get("collections") or []),
+                "tags": list(d.get("tags") or []),
+                "attachments": [{k: a.get(k) for k in ("key", "title", "kind", "contentType", "linkMode", "filename", "md5")}
+                                for a in self.attachments(row["key"])]}
+
+    def files_by_md5(self, md5s):
+        """{md5: {attachment, parent, citationKey, title}} for those of the md5s an attachment in the library holds
+        (no search matches an md5: the attachments are read newest first, until each has its hit; the parent's
+        citationKey and title come along). A publisher that stamps every download never gives two the same md5."""
+        wanted, hits, start = {m.lower() for m in md5s if m}, {}, 0
+        while wanted - set(hits):
+            page, headers = self._get(f"{LIB}/items", {"itemType": "attachment", "sort": "dateAdded", "direction": "desc",
+                                                       "limit": PAGE, "start": start})
+            if not isinstance(page, list):
+                raise Stop("unexpected_response", hint="The local API sent a page that is not a list.", path=f"{LIB}/items")
+            for r in page:
+                md5 = (data(r).get("md5") or "").lower()
+                if md5 in wanted and md5 not in hits and not in_trash(r):
+                    hits[md5] = r
+            start += len(page)
+            total = headers.get("Total-Results")
+            if len(page) < PAGE or (total and total.isdigit() and start >= int(total)):
+                break
+        out = {}
+        for md5, r in hits.items():
+            parent = data(r).get("parentItem")
+            pd = data(self.item(parent)) if parent else {}
+            out[md5] = {"attachment": r["key"], "parent": parent, "citationKey": pd.get("citationKey") or None,
+                        "title": pd.get("title") or None}
+        return out
 
     # ---- attachments and files ------------------------------------------------------------------------------
 

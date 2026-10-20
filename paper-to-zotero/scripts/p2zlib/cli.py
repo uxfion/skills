@@ -1,9 +1,12 @@
 """The skeleton every script shares: how it stops with a code, prints its lines, reads its arguments and loops.
 
 stdout carries JSON only, one compact object per line: one per thing handled ({key or slug, code, ...}), then
-{"summary": {...}} when a script handles several. `hint` appears only when the code is neither ok nor skipped; a
-skip is always `code: skipped` with a `reason` word. Exit 0 = everything done or skipped, 1 = something is the
-agent's to act on, 2 = cannot check (Zotero not running, no key, ...).
+{"summary": {...}} when a script handles several. `hint` appears only when the code is neither ok nor skipped (nor
+one of the script's answers); a skip is always `code: skipped` with a `reason` word. Exit 0 = everything done or
+skipped, 1 = something is the agent's to act on, 2 = cannot check (Zotero not running, no key, ...).
+
+A script whose lines answer a question (find_in_library: found, not_found) names those codes as its `answers`: they
+count as ok, so the answer is in the code and not in the exit status.
 """
 import argparse
 import json
@@ -43,9 +46,9 @@ def skipped(reason, **fields):
     return {"code": "skipped", "reason": reason, **fields}
 
 
-def outcome(line):
+def outcome(line, answers=()):
     code = line.get("code")
-    return "ok" if code == "ok" else "skipped" if code == "skipped" else "failed"
+    return "ok" if code == "ok" or code in answers else "skipped" if code == "skipped" else "failed"
 
 
 def parser(doc, **kwargs):
@@ -55,9 +58,16 @@ def parser(doc, **kwargs):
                                    formatter_class=argparse.RawDescriptionHelpFormatter, **kwargs)
 
 
+BASE_URL_ENV = "PAPER_TO_ZOTERO_BASE_URL"
+
+
 def add_base_url(p):
+    """--base-url, its default from env PAPER_TO_ZOTERO_BASE_URL (p2z.py sets it for the scripts it runs) or Zotero's."""
+    import os
+
     from . import zotero
-    p.add_argument("--base-url", default=zotero.DEFAULT_BASE_URL, help="Zotero's local API (default: %(default)s)")
+    p.add_argument("--base-url", default=os.environ.get(BASE_URL_ENV) or zotero.DEFAULT_BASE_URL,
+                   help="Zotero's local API (default: %(default)s)")
 
 
 def add_targets(p, what="item"):
@@ -84,11 +94,11 @@ def targets_of(p, args, required=True):
     return args
 
 
-def finish(lines, *, stopped=None, extra=None):
+def finish(lines, *, stopped=None, extra=None, answers=()):
     """Print the lines, then the summary; return the exit code."""
     counts = {"total": len(lines), "ok": 0, "skipped": 0, "failed": 0}
     for line in lines:
-        counts[outcome(line)] += 1
+        counts[outcome(line, answers)] += 1
         emit(line)
     counts.update(extra or {})
     if stopped is not None:
@@ -158,9 +168,36 @@ def main_items(doc, process, argv=None, *, configure=None, check=None):
 
 
 def main_records(doc, process, argv=None, *, configure=None, check=None, setup=None, zotero=False, dry_run=False,
-                 all_valid=False):
-    """The loop over record files: process(rec, ctx) -> one line's fields; a record it changed is written back
-    (not with --dry-run). ctx is setup(args, records) when given, else args.
+                 all_valid=False, answers=()):
+    """records_parser(), then each_record() over the records named. configure(p) adds the script's own arguments;
+    check(p, args) reads and checks them first (p.error for a usage error, a Stop for bad input)."""
+    p = records_parser(doc, zotero=zotero, dry_run=dry_run)
+    if configure:
+        configure(p)
+    args = p.parse_args(argv)
+
+    def loop():
+        if check:
+            check(p, args)
+        return each_record(args, process, setup=setup, all_valid=all_valid, answers=answers)
+
+    return run(loop)
+
+
+def records_parser(doc, *, zotero=False, dry_run=False):
+    """The parser a script on record files starts from: the record paths, --dry-run (dry_run), --base-url (zotero)."""
+    p = parser(doc)
+    p.add_argument("records", nargs="*", metavar="RECORD", help="record files: <work>/records/*.json")
+    if dry_run:
+        p.add_argument("--dry-run", action="store_true", help="show what would be written; write nothing")
+    if zotero:
+        add_base_url(p)
+    return p
+
+
+def each_record(args, process, *, setup=None, all_valid=False, answers=()):
+    """The loop over args.records: process(rec, ctx) -> one line's fields; a record it changed is written back
+    (not with --dry-run). ctx is setup(args, records) when given, else args. -> the exit code.
 
     A file that is not a record is its own failed line; with all_valid (a script that writes the library) any such
     file stops the run before anything is done. A Stop with exit 2 ends the loop: the records not yet handled are
@@ -168,62 +205,48 @@ def main_records(doc, process, argv=None, *, configure=None, check=None, setup=N
     from pathlib import Path
 
     from . import run as work
-    p = parser(doc)
-    p.add_argument("records", nargs="*", metavar="RECORD", help="record files: <work>/records/*.json")
-    if dry_run:
-        p.add_argument("--dry-run", action="store_true", help="show what would be written; write nothing")
-    if configure:
-        configure(p)
-    if zotero:
-        add_base_url(p)
-    args = p.parse_args(argv)
-
-    def loop():
-        if check:
-            check(p, args)
-        if not args.records:
-            raise Stop("no_records", hint="Pass the record files: <work>/records/*.json.")
-        entries = []
-        for path in args.records:
+    if not args.records:
+        raise Stop("no_records", hint="Pass the record files: <work>/records/*.json.")
+    entries = []
+    for path in args.records:
+        try:
+            entries.append(work.read(path))
+        except Stop as stop:
+            entries.append(stop.line(slug=Path(path).stem))
+    recs = [e for e in entries if isinstance(e, work.Record)]
+    if all_valid and len(recs) != len(entries):
+        return finish([e for e in entries if not isinstance(e, work.Record)],
+                      extra={"not_run": len(recs), "why": "a file is not a record; nothing was done"})
+    ctx = setup(args, recs) if setup else args
+    dry_run = getattr(args, "dry_run", False)
+    lines, stopped = [], None
+    for e in entries:
+        if not isinstance(e, work.Record):
+            lines.append(e)
+            continue
+        head = {"slug": e.slug}
+        if stopped is not None:
+            lines.append({**head, "code": "not_run"})
+            continue
+        try:
+            fields = dict(process(e, ctx))
+            line = tidy({**head, "code": fields.pop("code", "ok"), **fields}, answers)
+        except Stop as stop:
+            if stop.exit == CANNOT:
+                stopped = stop
+            line = stop.line(**head)
+        if e.changed() and not dry_run:
             try:
-                entries.append(work.read(path))
-            except Stop as stop:
-                entries.append(stop.line(slug=Path(path).stem))
-        recs = [e for e in entries if isinstance(e, work.Record)]
-        if all_valid and len(recs) != len(entries):
-            return finish([e for e in entries if not isinstance(e, work.Record)],
-                          extra={"not_run": len(recs), "why": "a file is not a record; nothing was done"})
-        ctx = setup(args, recs) if setup else args
-        lines, stopped = [], None
-        for e in entries:
-            if not isinstance(e, work.Record):
-                lines.append(e)
-                continue
-            head = {"slug": e.slug}
-            if stopped is not None:
-                lines.append({**head, "code": "not_run"})
-                continue
-            try:
-                fields = dict(process(e, ctx))
-                line = tidy({**head, "code": fields.pop("code", "ok"), **fields})
-            except Stop as stop:
-                if stop.exit == CANNOT:
-                    stopped = stop
-                line = stop.line(**head)
-            if e.changed() and not getattr(args, "dry_run", False):
-                try:
-                    e.save()
-                except OSError as err:
-                    line = {**head, "code": "write_failed", "path": str(e.path), "detail": str(err),
-                            "hint": "The record file could not be rewritten; what was written to Zotero stands."}
-            lines.append(line)
-        return finish(lines, stopped=stopped, extra={"dry_run": True} if getattr(args, "dry_run", False) else None)
-
-    return run(loop)
+                e.save()
+            except OSError as err:
+                line = {**head, "code": "write_failed", "path": str(e.path), "detail": str(err),
+                        "hint": "The record file could not be rewritten; what was written to Zotero stands."}
+        lines.append(line)
+    return finish(lines, stopped=stopped, extra={"dry_run": True} if dry_run else None, answers=answers)
 
 
-def tidy(line):
-    """Drop a hint from a line whose code is ok or skipped."""
-    if outcome(line) != "failed":
+def tidy(line, answers=()):
+    """Drop a hint from a line whose code is ok, skipped or an answer."""
+    if outcome(line, answers) != "failed":
         line.pop("hint", None)
     return line

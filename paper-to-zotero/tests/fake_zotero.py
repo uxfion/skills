@@ -37,6 +37,8 @@ Hooks, all reset by reset():
   file_step_status       {step: (status, body)}: what that upload step ("authorize", "transfer", "register")
                          answers instead (a dict body goes as JSON: (200, {"exists": 1}) works too)
   file_md5               the md5 the register step records instead of the uploaded file's (another file stored)
+  authorize_replies      [(status, headers, body) | ("sleep", seconds)]: POST /api/local/authorize answers these in
+                         turn (the dialog's outcome); with none left, 404
 The authorize step counts for bump_before_write / concurrent_edit, and the register step for ignore_writes.
 
 `requests` logs (method, path, query dict, body) for every request; `uploads` holds {uploadKey: bytes} received by
@@ -47,6 +49,7 @@ import json
 import shutil
 import tempfile
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -118,6 +121,7 @@ class FakeZotero:
         self.on_write = None
         self.file_step_status = {}
         self.file_md5 = None
+        self.authorize_replies = []
         self.uploads, self.pending_uploads, self.upload_counter = {}, {}, 0
 
     # ---- building the library ---------------------------------------------------------------------------------
@@ -392,6 +396,14 @@ class _Handler(BaseHTTPRequestHandler):
         path, _, raw = self.parse()
         if path.startswith(UPLOADS):
             return self.transfer(path[len(UPLOADS):], raw)
+        if path == "/api/local/authorize":
+            if not z.authorize_replies:
+                return self.send(404, "Not found")
+            step = z.authorize_replies.pop(0)
+            if step[0] == "sleep":
+                time.sleep(step[1])
+                return self.send(200, {})
+            return self.send(step[0], step[2], headers=step[1])
         if not self.authorized():
             return
         with z.lock:

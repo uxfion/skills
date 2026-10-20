@@ -16,7 +16,8 @@ it until the stop ends, and Blocked carries the Retry-After and the end.
 pace.json: {"last": {host: epoch seconds of the last request, or of the slot reserved for the next},
 "stopped": {host: {"at", "until", "retry_after"}}}; a stop past its end is dropped on the next write.
 
-Remote services go through the environment's proxy settings, unlike Zotero's local API.
+Remote services go through the environment's proxy settings, unlike Zotero's local API; endpoint() gives a
+service's base URL, which a test may point elsewhere.
 
 Paper pages. page_meta() reads a landing page's citation_* tags (Highwire Press, which Google Scholar asks
 publishers for), with Dublin Core (dc.*), PRISM and Open Graph (og:*) standing in where one is missing, and
@@ -188,6 +189,12 @@ class Pacer:
 PACER = Pacer()
 
 
+def endpoint(env, default):
+    """A service's base URL: the environment variable `env` when set (the tests point it at a fake), else `default`;
+    read at each call, so a test may set it after the script is loaded."""
+    return os.environ.get(env, default).rstrip("/")
+
+
 def host_of(url):
     try:
         return (urllib.parse.urlsplit(url).hostname or "").lower()
@@ -258,6 +265,37 @@ def get(url, *, params=None, headers=None, host=None, timeout=30, pacer=None, ma
     if status == 429:
         raise Blocked(hops.key, *pacer.stop(hops.key, retry_after(rheaders)))
     return status, rheaders, body, final
+
+
+class NoData(Exception):
+    """A service gave nothing to read; `code` says why: source_blocked (the host answered 429, now or earlier),
+    network_error, not_found (404, 410), http_<status>, bad_response (not what was asked for)."""
+
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+
+
+def read(url, **kwargs):
+    """get() for a service: the body of a 200, else NoData."""
+    try:
+        status, _, body, _ = get(url, **kwargs)
+    except Blocked:
+        raise NoData("source_blocked") from None
+    except OSError:
+        raise NoData("network_error") from None
+    if status != 200:
+        raise NoData("not_found" if status in (404, 410) else f"http_{status}")
+    return body
+
+
+def read_json(url, **kwargs):
+    """read() with Accept: application/json, parsed; NoData("bad_response") for a body that is not JSON."""
+    kwargs["headers"] = {"Accept": "application/json", **(kwargs.get("headers") or {})}
+    try:
+        return json.loads(read(url, **kwargs).decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        raise NoData("bad_response") from None
 
 
 # ---- paper pages ----------------------------------------------------------------------------------------------

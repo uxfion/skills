@@ -1,6 +1,6 @@
 # Publisher sites: what the tools will not tell you
 
-Context for step 3 of [`paper-to-zotero`](../SKILL.md), learned from real runs: what to do when `fetch.py` stops on a page and the page is yours to work. Commands belong to the `opencli-browser` skill; this file holds only what is specific to fetching paper PDFs. Add a publisher once a run has verified it, and mark guesses as unverified; when a site behaves differently from what is written here, follow the page and say so in the report's skill notes. Every file from any source — an open-access link, a discovery system, a click — is the paper only once it has gone through `claim.py` (which runs `check_pdf.py`): a correction notice, another paper and a proxy's error page all arrived looking right (2026-10).
+Context for step 3 of [`paper-to-zotero`](../SKILL.md), learned from real runs: what to do when `fetch` stops on a page and the page is yours to work. Commands belong to the `opencli-browser` skill; this file holds only what is specific to fetching paper PDFs. Add a publisher once a run has verified it, and mark guesses as unverified; when a site behaves differently from what is written here, follow the page and say so in the report's skill notes. Every file from any source — an open-access link, a discovery system, a click — is the paper only once it has gone through `claim` (which checks it): a correction notice, another paper and a proxy's error page all arrived looking right (2026-10).
 
 ## Chrome's PDF setting decides everything
 
@@ -21,7 +21,7 @@ Downloads: the watcher (SKILL.md step 0) files whatever lands in Downloads, so a
 `fetch.py --via page` does these in order, once the article page has loaded; when it stops, do the same by hand where the page needs it (a PDF link it could not find, a button):
 
 1. **In-page request.** `fetch(<PDF link>, {credentials: 'include'})` inside the article page, the bytes taken out base64-encoded in chunks through `browser eval`. A `content-type` of PDF is the file; HTML means no access, or a gate the session has not passed. Nothing lands in Downloads. Take the link from the page (`citation_pdf_url`, the "Download PDF" anchor), never from a pattern.
-2. **Open the link in the tab**, as a click would, when the in-page request is refused (403, HTML, a cross-origin `TypeError`). With the download setting on, Chrome downloads it; `claim.py` files it from Downloads.
+2. **Open the link in the tab**, as a click would, when the in-page request is refused (403, HTML, a cross-origin `TypeError`). With the download setting on, Chrome downloads it; the watcher (`claim --watch`) files it from Downloads.
 3. **A PDF inside a pdf.js viewer** (aggregator readers): `PDFViewerApplication.pdfDocument.getData()` in the frame that hosts the viewer gives the bytes — `fetch.py --via viewer` on the tab.
 
 On a proxied page (next section) `citation_pdf_url` still names the publisher's own host; fetched from the proxied origin it is a cross-origin request without the proxy's cookies, and comes back as HTML. When the current host is a proxied form of the link's host, request only the link's path on the current origin (`fetch.py` does this when the config names the proxy). A plain `http://` link on an `https://` page (PMLR) is refused as mixed content: same fix.
@@ -119,7 +119,7 @@ When the publisher says no access, the institution may still have the paper thro
 | --- | --- | --- |
 | click, then no file and no `.crdownload` in Downloads | the click opened a viewer page, or the Save As dialog is up | navigate to the embedded PDF's URL (or `fetch.py --via viewer`); if that fails too, check the PDF setting and the Save As option |
 | `.crdownload` lingers | large file or slow link | keep waiting |
-| the user says the file downloaded, but nothing was filed | `claim.py` is not running, or the file matched no record or several | `claim.py --scan`; a `left` line names the file — read it, then `claim.py --file <copy> --slug <slug>` files it through the check |
+| the user says the file downloaded, but nothing was filed | the watcher is not running, or the file matched no record or several | `p2z.py claim --work <work> --scan`; a `left` line names the file — read it, then `p2z.py claim --work <work> --file <copy> --slug <slug>` files it through the check |
 | `opencli browser … wait text` / `wait selector` answers `detached_mid_command` | the tab navigated while waiting (a login redirect does this) | wait with `fetch.py --wait`, which reads the tab every 10 s and goes on through navigations |
 | `attach_failed … chrome-extension://` | built-in PDF viewer is on | PDF setting above |
 | downloaded "PDF" is HTML, or its text is a login / access-denied page | the gate was not really passed | wait at the gate again |

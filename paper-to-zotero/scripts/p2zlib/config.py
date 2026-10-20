@@ -6,6 +6,7 @@ missing one turns its feature off. No value read here is ever printed.
 """
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 from .cli import CANNOT, Stop
@@ -29,7 +30,12 @@ def read(strict=True):
             raise Stop("config_unreadable", exit=CANNOT, hint="The config file is unreadable; fix it, then rerun.",
                        config=str(p), detail=str(e)) from None
         return {}
-    return config if isinstance(config, dict) else {}
+    if not isinstance(config, dict):
+        if strict:
+            raise Stop("config_unreadable", exit=CANNOT, hint="The config file must hold one JSON object; fix it, then rerun.",
+                       config=str(p))
+        return {}
+    return config
 
 
 def section(name, strict=False):
@@ -51,6 +57,23 @@ def zotero_key(server_id):
                    hint="The stored key was issued by another Zotero instance; run ready.py --authorize again.",
                    config=str(path()))
     return zot["key"]
+
+
+def save_key(key, server_id):
+    """Write the "zotero" block, keeping every other field; mode 600, replaced at once. An unreadable config stops it:
+    a file it cannot read is not overwritten."""
+    p = path()
+    config = read(strict=True)
+    config["zotero"] = {"key": key, "serverID": server_id,
+                        "created": datetime.now().astimezone().isoformat(timespec="seconds")}
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_name(p.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(config, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    os.replace(tmp, p)
+    os.chmod(p, 0o600)
 
 
 def institution():

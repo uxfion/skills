@@ -19,6 +19,8 @@ import time
 import unittest
 from pathlib import Path
 
+from helpers import load
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "fetch.py"
 TITLE = "Progressive Deep Learning for Cardiac Image Segmentation"
 OTHER = "A Completely Different Paper About Lung Nodules"
@@ -165,8 +167,10 @@ class FetchTest(unittest.TestCase):
     def record(self, slug, title=TITLE, doi="10.1000/x.1", **extra):
         item = {"itemType": "journalArticle", "title": title, "DOI": doi,
                 "creators": [{"creatorType": "author", "lastName": "Liu", "firstName": "Wei"}]}
+        if isinstance(extra.get("links"), list):
+            extra["links"] = {"items": extra["links"]}
         path = self.work / "records" / f"{slug}.json"
-        path.write_text(json.dumps({"slug": slug, "item": item, **extra}))
+        path.write_text(json.dumps({"item": item, **extra}))
         return path
 
     def run_script(self, *argv, path=None):
@@ -315,10 +319,7 @@ class FetchTest(unittest.TestCase):
         self.assertEqual((r.returncode, out["why"], out["title"]), (1, "refused", "Purchase this article"))
 
     def test_request_url_rules(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("fetch", SCRIPT)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = load("fetch")
         p = "proxy.example.edu"
         self.assertEqual(mod.request_url("https://ieeexplore.ieee.org/x.pdf", "https://ieeexplore-ieee-org.proxy.example.edu/doc", p),
                          "https://ieeexplore-ieee-org.proxy.example.edu/x.pdf")
@@ -378,10 +379,7 @@ class FetchTest(unittest.TestCase):
         self.assertTrue((self.work / "records" / "paper.pdf").is_file(), "the publisher's page was still tried")
 
     def module(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("fetch", SCRIPT)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        mod = load("fetch")
         return mod
 
     def test_discovery_route_takes_the_get_pdf_link_of_the_record_with_this_title(self):

@@ -99,11 +99,6 @@ def check(p, args):
     args.sets = sets
 
 
-def own_field(field, t):
-    """The type's name for a field: itself, or the type's field for that base name; None when it has neither."""
-    return field if field in t["fields"] else t["by_base"].get(field)
-
-
 def plan(item, sets, types):
     """What to PATCH so the item holds `sets` -> (body, {changes, mapped_fields, fields_to_extra}); body {} when
     nothing differs."""
@@ -133,7 +128,7 @@ def plan(item, sets, types):
                                creator_types=sorted(new["creator_types"]))
             own, value, before = field, [{k: str(v).strip() for k, v in c.items()} for c in value], d.get("creators") or []
         else:
-            own = own_field(field, new)
+            own = zotero.own_field(new, field)
             if own is None:
                 invalid.append(field)
                 continue
@@ -149,7 +144,7 @@ def plan(item, sets, types):
     to_extra = {}
     if new_type != old_type:
         to_extra = {f: v for f, v in d.items() if v and f in old["fields"]
-                    and not (own_field(f, new) or own_field(old["base_of"].get(f, f), new))}
+                    and not (zotero.own_field(new, f) or zotero.own_field(new, old["base_of"].get(f, f)))}
     return body, {"changes": changes, "mapped_fields": mapped, "fields_to_extra": to_extra}
 
 

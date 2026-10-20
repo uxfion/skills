@@ -8,29 +8,28 @@ Every paper is one file, `<work>/records/<slug>.json`, and every script is a fil
 
 Every script skips what is already done and says so (`skipped`), so the same command line is also the recovery: after an interruption, a crash or a "继续", run it again. With `-i` the scripts print one summary line per record — read those, not the files.
 
-A .bib or .ris the user has is a list source, not something to import as is: `doi_to_item.py --bib ref.bib` takes each entry's DOI (else arXiv id, else title) as the identifier and its citation key as the slug and `citationKey`, so the created items carry the keys the manuscript cites.
+A .bib or .ris the user has is a list source, not something to import as is: `p2z.py doi_to_item --bib ref.bib --out-dir <work>/records` takes each entry's DOI (else arXiv id, else title) as the identifier and its citation key as the slug and `citationKey`, so the created items carry the keys the manuscript cites.
 
 ## The run
 
 **1. Triage** (main conversation, minutes):
 
 ```bash
-uv run scripts/doi_to_item.py --ids ids.txt --out-dir <work>/records       # `id<TAB>citation key` per line
-uv run scripts/find_in_library.py -i <work>/records/*.json
-uv run scripts/fulltext_links.py -i <work>/records/*.json
+uv run scripts/p2z.py doi_to_item --ids ids.txt --out-dir <work>/records       # `id<TAB>citation key` per line
+uv run scripts/p2z.py prepare <work>/records/*.json
 ```
 
-Settle the versions now, before anything is created (step 2 of SKILL.md): each arXiv record's `published_candidates`, checked against its arXiv comment; papers.cool's venue search for the rest, one request at a time; `--redraft` the ones you confirm, then rerun `find_in_library.py` and `fulltext_links.py` on them. Put every question in one message (below). And say early what you foresee needing the user for ("8 of these go through the institutional login — if you can, log in now: Ctrl+N, a normal window") and how long the institutional routes will take: `fetch.py` spaces full-text requests through the institution 15 s apart (references/publishers.md, *Pacing*).
+Settle the versions now, before anything is created (step 2 of SKILL.md): each arXiv record's `published_candidates`, checked against its arXiv comment; papers.cool's venue search for the rest, one request at a time; `--redraft` the ones you confirm, write `keep_preprint` for the rest, then `prepare` again: its `decide` lists say what is still open. Put every question in one message (below). And say early what you foresee needing the user for ("8 of these go through the institutional login — if you can, log in now: Ctrl+N, a normal window") and how long the institutional routes will take: `fetch` spaces full-text requests through the institution 15 s apart (references/publishers.md, *Pacing*).
 
-**2. First pass.** With the watcher of step 0 running (and every `fetch.py` call given `--downloads`), walk the chain (SKILL.md step 3) over the records that have no file, a stage at a time across all of them: the open published copies over HTTP, then the publisher pages (a site at a time), then the discovery system, then accepted manuscripts and preprints over HTTP. Every command carries `--pass 1`. When a browser route stops, the page is yours (SKILL.md step 3): look, act, record a conclusion with `--verdict`, and rerun the same command.
+**2. First pass.** With the watcher of step 0 running, walk the chain (SKILL.md step 3) over the records that have no file, a stage at a time across all of them: the open published copies over HTTP, then the publisher pages (a site at a time), then the discovery system, then accepted manuscripts and preprints over HTTP. Every command carries `--pass 1`. When a browser route stops, the page is yours (SKILL.md step 3): look, act, record a conclusion with `--verdict`, and rerun the same command.
 
-**3. Save what is in hand:** `check_pdf.py -i`, `create_item.py -i`, `attach_file.py -i`. Every paper gets its item now, with or without a file.
+**3. Save what is in hand:** `p2z.py save <work>/records/*.json`. Every paper gets its item now, with or without a file; run it again after each pass.
 
 **4. Second pass:** the same chain with `--pass 2` for the records still without a file. Time has passed since the first: a login, a rate limit or a flaky site may have recovered.
 
 **5. Last pass, with the user** (SKILL.md step 3): one message for all the papers that remain ("3 wait for the institutional login, 2 were found nowhere"), then `--pass 3` with the user there, the browser routes one paper at a time in the foreground; snapshots for what still has no file.
 
-**6.** Read back, report, clear residue (SKILL.md steps 4–6; `claim.py --sweep` lists what is left in Downloads).
+**6.** Report and clear residue (SKILL.md steps 5–6; `p2z.py claim --sweep` lists what is left in Downloads).
 
 ## Ask once, then run
 

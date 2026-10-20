@@ -56,17 +56,6 @@ def read_records(paths):
     return records, invalid
 
 
-def record_key(rec):
-    """The item a record names: the one it created, else the one it found (a near match names another item). Read as
-    find_in_library writes `found` today, without the `from` that run.item_key asks of it."""
-    saved, found = rec.get("saved"), rec.get("found")
-    if isinstance(saved, dict) and saved.get("key") and not saved.get("pending"):
-        return saved["key"]
-    if isinstance(found, dict) and found.get("code") != "near_match":
-        return found.get("key")
-    return None
-
-
 def collection_keys(zot, root, recursive):
     """(the item keys, the collection keys): the collection's top-level items, --recursive its live sub-collections' too."""
     cols = zot.collection_scope(root, recursive)
@@ -110,7 +99,7 @@ def export(zot, args):
         else:
             keys.append(key)
     for rec in records:
-        key = record_key(rec)
+        key = run.item_key(rec)
         if key:
             keys.append(key)
         else:

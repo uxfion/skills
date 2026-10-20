@@ -3,41 +3,119 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Run one paper-to-zotero script by name: `p2z.py <command> [args...]` is `<command>.py` from this directory.
+"""Run paper-to-zotero's commands: `p2z.py <command> [args...]` runs scripts/<command>.py; prepare and save run several.
 
-`p2z.py --help` (or no arguments) lists every script here with the first line
-of its docstring. The script runs with the same interpreter as the dispatcher
-and its exit code is passed through; an unknown command exits 2 with the list.
+`p2z.py --help` (or no arguments) lists every command with the first line of its docstring. A script runs with the
+same interpreter and its exit code is passed through; an unknown command exits 2 with the list.
+
+Two commands run several scripts over the same record files, one after the other, and print one line per record:
+  prepare RECORD...   fill the blocks computed from a record: doi_to_item (a preprint's published versions),
+                      find_in_library (found, near_matches), fulltext_links (links), check_item (checks). Each script
+                      skips a block that is done, so after any change to a record run prepare again.
+  save RECORD...      create_item, then attach_file: the item, then its file. Each skips what it has done, so save can
+                      run after every pass of fetch.
+Each line: {slug, code: ok | decide | failed, decide?: [what is the agent's to settle], steps: {script: its code}}.
+`decide` comes from the record itself: near matches (write same_as, or add the key to distinct_from), published
+versions of a preprint not settled (redraft, or write keep_preprint with the reason), checks that are not ok, sources
+that did not answer (prepare again later), and the steps that failed. Then {"summary"}. --dry-run and --base-url go
+to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a script could not go on (the next steps did not
+run).
 """
-import ast
+import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
+from p2zlib import cli, run
+
 HERE = Path(__file__).resolve().parent
 SELF = Path(__file__).name
+STEPS = {"prepare": ("doi_to_item", "find_in_library", "fulltext_links", "check_item"),
+         "save": ("create_item", "attach_file")}
 
 
-def commands():
-    """{name: first docstring line} for every other *.py in this directory."""
-    out = {}
-    for script in sorted(HERE.glob("*.py")):
-        if script.name == SELF:
-            continue
-        try:
-            doc = ast.get_docstring(ast.parse(script.read_text(encoding="utf-8"))) or ""
-        except (OSError, SyntaxError):
-            doc = ""
-        out[script.stem] = doc.strip().splitlines()[0] if doc.strip() else "(no docstring)"
-    return out
+def scripts():
+    return sorted(p.stem for p in HERE.glob("*.py") if p.name != SELF)
 
 
 def usage(stream):
-    listing = commands()
-    width = max((len(name) for name in listing), default=0) + 2
+    import ast
+
+    def first_line(name):
+        doc = ast.get_docstring(ast.parse((HERE / f"{name}.py").read_text(encoding="utf-8"))) or ""
+        return doc.strip().splitlines()[0] if doc.strip() else "(no docstring)"
+
+    listing = {**{name: first_line(name) for name in scripts()},
+               **{name: f"runs {', '.join(steps)} over the records" for name, steps in STEPS.items()}}
+    width = max(map(len, listing)) + 2
     print(f"usage: {SELF} <command> [args...]   (each command takes --help)\n\ncommands:", file=stream)
-    for name, line in listing.items():
-        print(f"  {name:<{width}}{line}", file=stream)
+    for name in sorted(listing):
+        print(f"  {name:<{width}}{listing[name]}", file=stream)
+
+
+def decisions(rec):
+    """What the record leaves for the agent to settle, read from the record itself."""
+    block = lambda name: rec.get(name) if isinstance(rec.get(name), dict) else {}  # noqa: E731
+    out = []
+    if rec.get("near_matches") and block("found").get("code") != "found":
+        out.append({"near_matches": [m.get("key") for m in rec["near_matches"] if isinstance(m, dict)]})
+    if block("published_candidates").get("items") and not rec.get("keep_preprint"):  # the block is a preprint's only
+        out.append({"published_candidates": len(block("published_candidates")["items"])})
+    if block("checks") and block("checks").get("code") != "ok":
+        out.append({"checks": block("checks").get("code")})
+    unanswered = sorted({s for name in ("published_candidates", "checks", "found", "links") for s in block(name).get("incomplete") or []})
+    if unanswered:
+        out.append({"unanswered": unanswered})
+    return out
+
+
+def compound(name, argv):
+    """Run the command's scripts in turn over the records -> the exit code."""
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__)
+        return 0
+    env, args = dict(os.environ), list(argv)
+    if "--base-url" in args:  # every script takes it from the environment: not every one talks to Zotero
+        i = args.index("--base-url")
+        env["PAPER_TO_ZOTERO_BASE_URL"] = args[i + 1]
+        del args[i:i + 2]
+    paths = [a for a in args if a.endswith(".json")]
+    steps, stopped = {Path(p).stem: {} for p in paths}, None
+    failed = {slug: [] for slug in steps}
+    for script in STEPS[name]:
+        done = subprocess.run([sys.executable, str(HERE / f"{script}.py"), *args], capture_output=True, text=True, env=env)
+        sys.stderr.write(done.stderr)
+        for raw in done.stdout.splitlines():
+            try:
+                line = json.loads(raw)
+            except ValueError:
+                continue
+            slug = line.get("slug") if isinstance(line, dict) else None
+            if slug in steps:
+                code = line.get("code")
+                steps[slug][script] = f"skipped: {line.get('reason')}" if code == "skipped" else code
+                if code not in ("ok", "skipped", "found", "not_found", "not_run"):
+                    failed[slug].append(script)
+        if done.returncode == 2:
+            stopped = script
+            break
+    lines = []
+    for path in paths:
+        slug = Path(path).stem
+        try:
+            settle = decisions(run.read(path)) + [{"failed": s} for s in failed[slug]]
+        except cli.Stop as stop:
+            lines.append(stop.line(slug=slug))
+            continue
+        lines.append({"slug": slug, "code": "decide" if settle else "ok", **({"decide": settle} if settle else {}),
+                      "steps": steps[slug]})
+    counts = {"total": len(lines), "ok": sum(1 for x in lines if x["code"] == "ok"),
+              "decide": sum(1 for x in lines if x["code"] == "decide"),
+              "failed": sum(1 for x in lines if x["code"] not in ("ok", "decide"))}
+    for line in lines + [{"summary": {**counts, **({"stopped": stopped} if stopped else {})}}]:
+        print(json.dumps(line, ensure_ascii=False))
+    return 2 if stopped else 1 if counts["decide"] or counts["failed"] else 0
 
 
 def main(argv):
@@ -45,7 +123,9 @@ def main(argv):
         usage(sys.stdout)
         return 0
     name = argv[0]
-    if name not in commands():
+    if name in STEPS:
+        return compound(name, argv[1:])
+    if name not in scripts():
         print(f"{SELF}: unknown command {name!r}\n", file=sys.stderr)
         usage(sys.stderr)
         return 2

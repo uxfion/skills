@@ -713,3 +713,12 @@ issue 里写"对外的命令、参数和输出形状尽量不变"。审查后我
   - dry-run 什么都不写，所以不需要 key；
   - 429 的停用期限（§6.6）；
   - 第二期再做的：`paper.same_paper` 和查库函数随 find_in_library 一起搬；export_bib 的记录到条目改用 `run.item_key`（要等导入脚本写出带 `from` 的 `found`）。
+- 2026-10-20：实现第二期时的修正：
+  - 起草只写记录，不查正式版候选；候选由 `prepare` 在记录上补（§2 的"起草"一行，产物里的 `published_candidates` 来自 `prepare`）。起草的输出行以 `id` 开头，记录写成后才有 `slug`；起草失败不建文件。
+  - doi.org 的 429 和断网是退出 2，后面的标识符 `not_run`；某个 DOI 的 5xx 只算这一条失败（`doi_org_error`）。
+  - create_item 每条记录一次 POST，不再 50 条一批：每条先记 `pending` 再发，中途断了只影响那一条。
+  - "找到 / 没找到"算完成，改成各脚本自己声明（`answers`），不再是全局的：update_item 等脚本里的 `not_found` 仍是失败。
+  - `p2z.py prepare/save` 把 `--base-url` 经环境变量 `PAPER_TO_ZOTERO_BASE_URL` 传给各脚本（不是每个脚本都连 Zotero）；四个预备脚本都接受 `--dry-run`。
+  - 扫描下载目录挪进 `run.py`，claim 和 fetch 直接调用，脚本之间不再有子进程调用。fetch 的路线不变，留给第三期。
+  - 条目类型表（字段顺序、基础字段、创建者类型）只在 `zotero.types_of` 一处；服务地址的测试替换只在 `web.endpoint` 一处；"问一个服务拿到正文或原因"只在 `web.read` / `read_json` 一处。
+  - 真库验收：一篇测试论文走完起草 → prepare → 取文件 → save（建条目、挂附件，重跑全部跳过）→ report → 移进回收站 → 恢复 → 再移进回收站，都对。

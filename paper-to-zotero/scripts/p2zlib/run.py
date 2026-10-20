@@ -9,23 +9,50 @@ Layout (ready.py makes it):
   fetch.jsonl             what happened to the files: one JSON line per event, appended
   pace.json               request gaps per host (web.Pacer)
 
-A record holds the agent's fields (item, tags, collection, citationKey, alt_titles, distinct_from, same_as,
-keep_preprint, blocker), which scripts read and never change, and blocks each written by one script. The blocks
-prepare fills (published_candidates, checks, found + near_matches, links) carry `from`, a short hash of the inputs
-they were computed from, and `incomplete: [sources]` when a source did not answer. Such a block is due again when
-it is absent (or has no `from`: an older run's), incomplete, or stale (its inputs changed); due() says which.
-`saved` (the item this run created) and `attach` (keyed by the file's md5) record writes to the library and are
-trusted as they are.
+A record is records/<slug>.json, one JSON object; its slug is the file name. The agent's fields — scripts read
+them and never change them; doi_to_item writes their first values when it drafts the record:
+  item            the Zotero item to create (doi_to_item drafts it; the agent revises it; --redraft replaces it)
+  warnings        [str]: what doi_to_item noticed while drafting (an erratum-like title, a guessed type)
+  tags            [{tag, type}]               collection     KEY or [KEYS]          citationKey   str
+  alt_titles      [str]: other titles the file may carry (the preprint's, after a redraft)
+  distinct_from   [KEYS]: library items the agent judged to be other papers
+  same_as         KEY: the library item the agent judged to be this paper (a near match settled)
+  keep_preprint   str: why the preprint stays the item although published_candidates has entries
+  blocker         str: what the record waits for (the last pass with the user, ...)
+Blocks, each written by one script and nothing else:
+  published_candidates  doi_to_item, for a preprint item only:
+                  {from, items: [{doi, venue, year, title, url?, sources: [arxiv | crossref], title_differs, type?,
+                  journal_ref?}], comment?: arXiv's comment, incomplete?}
+  checks          check_item: {from, code: ok | needs_attention | unknown_item_type, itemType, ok_fields, mapped,
+                  to_extra, dropped_or_rewritten, empty_fields, missing_minimum, suggestions?}
+  found           zotero.Zotero.lookup (find_in_library; create_item's look before it posts): {from, code: found,
+                  key, version, citationKey, title, date, collections, tags, attachments: [{key, title, kind,
+                  contentType, linkMode, filename, md5}], matched_by: doi | arxiv | same_as, duplicates?: [KEYS]} or
+                  {from, code: not_found, searched: [{q, qmode, hits}]}; a near match is never here
+  near_matches    written with found, under its `from`: [{key, title, itemType, reason, matched_by?}]
+  links           fulltext_links: {from, items: [{url, source, version: published | accepted | preprint | unknown,
+                  needs_browser: true | false | null}], incomplete?: [sources]}
+  saved           create_item: {pending: true, at} right before the POST, then {key, version, citationKey, created_at}
+  attach          attach_file: {attachment, md5, kind, title, filename, url, at} for the file it attached; another
+                  file (another md5) is attached afresh
+The four blocks prepare fills carry `from`, a short hash of the inputs they were computed from (inputs() names
+them), and `incomplete: [sources]` when a source did not answer. Such a block is due again when it is absent (or has
+no `from`: an older run's, not trusted), incomplete, or stale; due() says which. `saved` and `attach` record writes
+to the library and are trusted as they are. The facts about files are not in the record: the file's name is its
+kind, and fetch.jsonl has how it came (events claim, accept, try, stop).
 """
 import hashlib
 import json
 import os
+import shutil
 import tempfile
+import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import paper
-from .cli import ACT, Stop
+from . import paper, verify
+from .cli import ACT, CANNOT, Stop
 
 PREPARED = ("published_candidates", "checks", "found", "links")
 FILE_SUFFIXES = tuple(paper.KINDS[k]["suffix"] for k in ("published", "accepted", "preprint", "supplement", "snapshot"))
@@ -208,3 +235,150 @@ def item_key(rec):
     if isinstance(found, dict) and found.get("code") == "found" and found.get("key") and due(rec, "found") is None:
         return found["key"]
     return None
+
+
+# ---- files reaching a record --------------------------------------------------------------------------------
+
+def place(work, slug, src, kind):
+    """File src as the record's file of that kind -> ("claimed" | "stray", its new path); src is consumed either way.
+    First come, first served: the copy is linked to its final name, so a record that already has its file (the paper
+    came another way meanwhile) sends this one to stray/."""
+    target = work.records / (slug + paper.KINDS[kind]["suffix"])
+    if work.file_of(slug) is not None:
+        return "stray", move(src, work.stray, target.name)
+    tmp = work.records / f".{slug}.{uuid.uuid4().hex[:8]}.tmp"
+    shutil.copy2(src, tmp)
+    try:
+        os.link(tmp, target)
+    except FileExistsError:
+        return "stray", move(src, work.stray, target.name)
+    finally:
+        tmp.unlink(missing_ok=True)
+    Path(src).unlink(missing_ok=True)
+    return "claimed", target
+
+
+def move(src, directory, name):
+    """Move src into directory under name, numbered when the name is taken -> the new path."""
+    directory.mkdir(exist_ok=True)
+    dest, n = directory / name, 2
+    while dest.exists():
+        stem, dot, ext = name.partition(".")
+        dest, n = directory / f"{stem}-{n}{dot}{ext}", n + 1
+    shutil.move(str(src), str(dest))
+    return dest
+
+
+def claim(work, src, slug, *, kind=None, source=None, via=None, cache=None):
+    """Check a file against one record and file it: passing -> beside the record under its kind's name (stray/ when
+    the record has its file already), failing -> unverified/<slug>.<via>.<ext> for the agent to look at. -> the claim
+    event, logged. `kind` as verify.kind_of takes it (a link's version, or None: the file's name and page 1 say)."""
+    src = Path(src)
+    rec = read(work.records / f"{slug}.json")
+    verdict = verify.check(src, rec, kind, cache)
+    if verdict["code"] in verify.PASS_CODES:
+        result, path = place(work, slug, src, verdict["kind"])
+    else:
+        ext = ".html" if verdict["kind"] == "snapshot" else ".pdf"
+        result, path = "unverified", move(src, work.unverified, f"{slug}.{via or 'file'}{ext}")
+    return work.append({"event": "claim", "file": path.name, "slug": slug, "result": result, "kind": verdict["kind"],
+                        "code": verdict["code"], "md5": verdict["md5"], "source": source})
+
+
+def accept(work, src, slug, reason, kind=None):
+    """File a file the check refused, on the agent's reading of it -> the accept event (claim's shape plus the
+    reason), logged; attach_file attaches a file with this md5 unchecked."""
+    src = Path(src)
+    if not src.is_file():
+        raise Stop("file_not_found", hint="No such file; give the path of the file to accept.", file=str(src))
+    read(work.records / f"{slug}.json")
+    ex = verify.extract(src)
+    kind = verify.kind_of(src, ex, kind)
+    md5 = ex.md5 if ex else hashlib.md5(src.read_bytes()).hexdigest()
+    result, path = place(work, slug, src, kind)
+    return work.append({"event": "accept", "file": path.name, "slug": slug, "result": result, "kind": kind, "md5": md5,
+                        "reason": reason, "source": str(src)})
+
+
+def accepted(work, slug, md5):
+    """The accept event for this record's file with this md5, or None."""
+    return next((e for e in reversed(work.events("accept")) if e.get("slug") == slug and e.get("md5") == md5), None)
+
+
+# ---- the browser's Downloads ---------------------------------------------------------------------------------
+
+PARTIAL = (".crdownload", ".part", ".tmp", ".download")
+
+
+def md5_of(path):
+    h = hashlib.md5()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def new_downloads(work, dl):
+    """Complete files newer than .started, oldest first."""
+    if not work.started.exists():
+        raise Stop("no_started", exit=CANNOT, hint="The work directory has no .started: run ready.py --work first.")
+    started, out = work.started.stat().st_mtime, []
+    for f in dl.iterdir():
+        try:
+            if f.is_file() and not f.name.startswith(".") and f.suffix.lower() not in PARTIAL and f.stat().st_mtime >= started:
+                out.append((f.stat().st_mtime, f))
+        except OSError:
+            continue
+    return [f for _, f in sorted(out)]
+
+
+def records_of(work):
+    """The work directory's records; a file that is not one is left out."""
+    out = []
+    for path in sorted(work.records.glob("*.json")):
+        try:
+            out.append(read(path))
+        except Stop:
+            continue
+    return out
+
+
+def has_pdf(rec):
+    """The library item the record found holds a PDF already."""
+    found = rec.get("found") if item_key(rec) and isinstance(rec.get("found"), dict) else {}
+    return any(a.get("kind") in ("published", "accepted", "preprint") or a.get("contentType") == "application/pdf"
+               for a in found.get("attachments") or [] if isinstance(a, dict))
+
+
+def scan_downloads(work, dl):
+    """Claim the new files in Downloads (dl): each PDF is checked against every record whose library item has no PDF
+    yet; one match -> filed, else left there (it may be the user's own) and checked again only against records drafted
+    since. -> the events, logged."""
+    events = []
+    left = {}  # (name, md5) -> the slugs it was checked against when it was left
+    for e in work.events("claim"):
+        if e.get("result") == "left":
+            left.setdefault((e.get("file"), e.get("md5")), set()).update(e.get("against") or [])
+    for f in new_downloads(work, dl):
+        try:
+            with open(f, "rb") as fh:
+                if not fh.read(1024).lstrip().startswith(b"%PDF-"):
+                    continue
+            size, md5 = f.stat().st_size, md5_of(f)
+            time.sleep(0.2)
+            if f.stat().st_size != size:  # still being written
+                continue
+        except OSError:
+            continue
+        records = [r for r in records_of(work) if not has_pdf(r) and r.slug not in left.get((f.name, md5), ())]
+        if not records:
+            continue
+        cache = {}
+        matched = [r.slug for r in records if verify.check(f, r, cache=cache)["code"] in verify.PASS_CODES]
+        if len(matched) == 1:
+            events.append(claim(work, f, matched[0], cache=cache, source=str(f)))
+        else:
+            events.append(work.append({"event": "claim", "file": f.name, "result": "left", "md5": md5, "source": str(f),
+                                       "why": "ambiguous" if matched else "unmatched", "matched": matched or None,
+                                       "against": sorted(r.slug for r in records)}))
+    return events

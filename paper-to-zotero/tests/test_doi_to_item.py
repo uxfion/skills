@@ -2,186 +2,122 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/doi_to_item.py: doi.org, Crossref, the arXiv API, the Zotero schema and the venue pages read by
---redraft are one http.server (DOI_BASE_URL, CROSSREF_BASE_URL, ARXIV_API_URL, --base-url, /page/... URLs)."""
-
-import html
-import http.server
-import importlib.util
+"""Tests for scripts/doi_to_item.py: drafting records from identifiers, a preprint's published_candidates and
+--redraft, against the fake web (doi.org, Crossref, arXiv's API, venue pages) and the fake Zotero's schema."""
 import json
-import os
-import socket
-import subprocess
-import sys
 import tempfile
-import threading
-import time
 import unittest
-import urllib.parse
 from pathlib import Path
+from unittest import mock
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "doi_to_item.py"
+from helpers import call, closed_port, load, smoke
+from fake_web import FakeWeb
+from fake_zotero import FakeZotero
 
-SCHEMA = {
-    "version": 44,
-    "itemTypes": [
-        {"itemType": "journalArticle",
-         "fields": [{"field": f} for f in ("title", "abstractNote", "publicationTitle", "volume", "issue", "pages", "date",
-                                            "DOI", "ISSN", "url", "libraryCatalog", "extra")],
-         "creatorTypes": [{"creatorType": "author", "primary": True}, {"creatorType": "editor"}, {"creatorType": "contributor"}]},
-        {"itemType": "conferencePaper",
-         "fields": [{"field": "title"}, {"field": "abstractNote"}, {"field": "proceedingsTitle", "baseField": "publicationTitle"},
-                    {"field": "conferenceName"}, {"field": "date"}, {"field": "DOI"}, {"field": "url"}, {"field": "pages"},
-                    {"field": "publisher"}, {"field": "place"}, {"field": "series"}, {"field": "ISBN"}, {"field": "ISSN"},
-                    {"field": "libraryCatalog"}, {"field": "extra"}],
-         "creatorTypes": [{"creatorType": "author", "primary": True}, {"creatorType": "editor"}, {"creatorType": "contributor"}]},
-        {"itemType": "bookSection",
-         "fields": [{"field": "title"}, {"field": "abstractNote"}, {"field": "bookTitle", "baseField": "publicationTitle"},
-                    {"field": "series"}, {"field": "date"}, {"field": "publisher"}, {"field": "place"}, {"field": "pages"},
-                    {"field": "ISBN"}, {"field": "DOI"}, {"field": "url"}, {"field": "ISSN"}, {"field": "libraryCatalog"},
-                    {"field": "extra"}],
-         "creatorTypes": [{"creatorType": "author", "primary": True}, {"creatorType": "editor"}, {"creatorType": "contributor"}]},
-        {"itemType": "preprint",
-         "fields": [{"field": "title"}, {"field": "abstractNote"}, {"field": "repository", "baseField": "publisher"},
-                    {"field": "archiveID", "baseField": "number"}, {"field": "date"}, {"field": "DOI"}, {"field": "url"},
-                    {"field": "libraryCatalog"}, {"field": "extra"}],
-         "creatorTypes": [{"creatorType": "author", "primary": True}, {"creatorType": "contributor"}]},
-    ],
-    "csl": {
-        "types": {"article-journal": ["journalArticle"], "paper-conference": ["conferencePaper"], "article": ["preprint"],
-                  "chapter": ["bookSection"]},
-        "fields": {
-            "text": {"title": ["title"], "container-title": ["publicationTitle"], "volume": ["volume"], "issue": ["issue"],
-                     "page": ["pages"], "DOI": ["DOI"], "URL": ["url"], "ISSN": ["ISSN"], "abstract": ["abstractNote"],
-                     "publisher": ["publisher"], "event-title": ["conferenceName"], "publisher-place": ["place"]},
-            "date": {"issued": "date", "accessed": "accessDate"},
-        },
-        "names": {"author": "author", "editor": "editor"},
-    },
-}
+from p2zlib import run, web
 
+doi_to_item = load("doi_to_item")
+
+
+def fields(*names, **based):
+    return [{"field": n} for n in names] + [{"field": f, "baseField": b} for f, b in based.items()]
+
+
+AUTHORS = [{"creatorType": "author", "primary": True}, {"creatorType": "editor"}, {"creatorType": "contributor"}]
+# The item types and CSL mappings of Zotero's schema that drafting touches, as Zotero 7 names them.
+SCHEMA = {"version": 44, "itemTypes": [
+    {"itemType": "journalArticle", "creatorTypes": AUTHORS,
+     "fields": fields("title", "abstractNote", "publicationTitle", "publisher", "place", "date", "volume", "issue", "pages",
+                      "journalAbbreviation", "DOI", "citationKey", "url", "ISSN", "libraryCatalog", "extra")},
+    {"itemType": "conferencePaper", "creatorTypes": AUTHORS,
+     "fields": fields("title", "abstractNote", "conferenceName", "publisher", "place", "date", "volume", "pages", "series",
+                      "DOI", "ISBN", "citationKey", "url", "ISSN", "libraryCatalog", "extra",
+                      proceedingsTitle="publicationTitle")},
+    {"itemType": "bookSection", "creatorTypes": AUTHORS + [{"creatorType": "bookAuthor"}],
+     "fields": fields("title", "abstractNote", "series", "volume", "date", "publisher", "place", "pages", "ISBN", "DOI",
+                      "citationKey", "url", "ISSN", "libraryCatalog", "extra", bookTitle="publicationTitle")},
+    {"itemType": "preprint", "creatorTypes": AUTHORS[:1] + AUTHORS[2:],
+     "fields": fields("title", "abstractNote", "place", "date", "series", "DOI", "citationKey", "url", "libraryCatalog",
+                      "extra", repository="publisher", archiveID="number")},
+], "csl": {
+    "types": {"article-journal": ["journalArticle"], "paper-conference": ["conferencePaper"], "article": ["preprint"],
+              "chapter": ["bookSection"]},
+    "fields": {"text": {"title": ["title"], "container-title": ["publicationTitle"], "volume": ["volume"], "issue": ["issue"],
+                        "page": ["pages"], "DOI": ["DOI"], "URL": ["url"], "ISSN": ["ISSN"], "abstract": ["abstractNote"],
+                        "publisher": ["publisher"], "event-title": ["conferenceName"], "publisher-place": ["place"]},
+               "date": {"issued": "date", "accessed": "accessDate"}},
+    "names": {"author": "author", "editor": "editor", "bookAuthor": "container-author", "contributor": "contributor"},
+}}
+
+JBHI, CVPR, DDPM, REFLEXION = "10.1109/JBHI.2022.3142076", "10.1109/CVPR.2016.90", "2006.11239", "2303.11366"
+NEURIPS = "10.52202/075280-0377"
 CSL = {
-    "10.1109/JBHI.2022.3142076": {
-        "type": "journal-article", "source": "Crossref",
-        "title": "Progressive Residual Learning With Memory Upgrade for Ultrasound Image Blind Super-Resolution",
-        "author": [{"family": "Liu", "given": "Heng"}, {"family": "Liu", "given": "Jianyong"}],
-        "issued": {"date-parts": [[2022, 9]]}, "container-title": "IEEE Journal of Biomedical and Health Informatics",
-        "volume": "26", "issue": "9", "page": "4593-4604", "DOI": "10.1109/JBHI.2022.3142076",
-        "URL": "http://dx.doi.org/10.1109/JBHI.2022.3142076", "ISSN": ["2168-2194"], "abstract": "<jats:p>Ultrasound.</jats:p>"},
-    "10.1109/CVPR.2016.90": {
-        "type": "proceedings-article", "source": "Crossref", "title": "Deep Residual Learning for Image Recognition",
-        "author": [{"family": "He", "given": "Kaiming"}], "issued": {"date-parts": [[2016, 6]]},
-        "container-title": "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
-        "event-title": "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
-        "DOI": "10.1109/CVPR.2016.90", "abstract": "Deeper networks."},
-    "10.48550/arXiv.2006.11239": {
-        "type": "article", "title": "Denoising Diffusion Probabilistic Models", "author": [{"family": "Ho", "given": "Jonathan"}],
-        "issued": {"date-parts": [[2020]]}, "DOI": "10.48550/ARXIV.2006.11239", "publisher": "arXiv", "abstract": "We present."},
-    "10.9999/twin": {
-        "type": "journal-article", "source": "Crossref", "title": "Progressive Twin Paper",
-        "author": [{"family": "Liu", "given": "Wei"}], "issued": {"date-parts": [[2022]]}, "container-title": "J",
-        "DOI": "10.9999/twin", "abstract": "x"},
-    # round 1 of v3: subtitle, arXiv categories, erratum signals, LNCS
-    "10.1001/jama.2023.4855": {
-        "type": "journal-article", "source": "Crossref", "title": "Randomized Trials vs Real-world Evidence",
-        "subtitle": ["How Can Both Inform Decision-making?"], "author": [{"family": "Fang", "given": "Lee"}],
-        "issued": {"date-parts": [[2023, 4]]}, "container-title": "JAMA", "page": "1645-1646", "DOI": "10.1001/jama.2023.4855",
-        "abstract": "x"},
+    JBHI: {"type": "journal-article", "source": "Crossref",
+           "title": "Progressive Residual Learning With Memory Upgrade for Ultrasound Image Blind Super-Resolution",
+           "author": [{"family": "Liu", "given": "Heng"}, {"family": "Liu", "given": "Jianyong"}],
+           "issued": {"date-parts": [[2022, 9]]}, "container-title": "IEEE Journal of Biomedical and Health Informatics",
+           "volume": "26", "issue": "9", "page": "4593-4604", "DOI": JBHI, "URL": "http://dx.doi.org/" + JBHI,
+           "ISSN": ["2168-2194"], "abstract": "<jats:p>Ultrasound.</jats:p>"},
+    CVPR: {"type": "proceedings-article", "source": "Crossref", "title": "Deep Residual Learning for Image Recognition",
+           "author": [{"family": "He", "given": "Kaiming"}], "issued": {"date-parts": [[2016, 6]]},
+           "container-title": "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)",
+           "event-title": "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)", "DOI": CVPR,
+           "abstract": "Deeper networks."},
+    "10.9999/twin": {"type": "journal-article", "source": "Crossref", "title": "Progressive Twin Paper",
+                     "author": [{"family": "Liu", "given": "Wei"}], "issued": {"date-parts": [[2022]]}, "container-title": "J",
+                     "DOI": "10.9999/twin", "abstract": "x"},
+    "10.48550/arXiv." + DDPM: {"type": "article", "title": "Denoising Diffusion Probabilistic Models",
+                               "author": [{"family": "Ho", "given": "Jonathan"}], "issued": {"date-parts": [[2020]]},
+                               "DOI": "10.48550/ARXIV." + DDPM, "publisher": "arXiv", "abstract": "We present."},
+    "10.1001/jama.2023.4855": {"type": "journal-article", "source": "Crossref", "title": "Randomized Trials vs Real-world Evidence",
+                               "subtitle": ["How Can Both Inform Decision-making?"], "author": [{"family": "Fang", "given": "Lee"}],
+                               "issued": {"date-parts": [[2023, 4]]}, "container-title": "JAMA", "page": "1645-1646",
+                               "DOI": "10.1001/jama.2023.4855", "abstract": "x"},
     "10.48550/arXiv.2105.05537": {
         "type": "article", "title": "Swin-Unet: Unet-like Pure Transformer for Medical Image Segmentation",
         "author": [{"family": "Cao", "given": "Hu"}], "issued": {"date-parts": [[2021]]}, "DOI": "10.48550/ARXIV.2105.05537",
         "publisher": "arXiv", "abstract": "x",
         "categories": ["Image and Video Processing (eess.IV)", "Computer Vision and Pattern Recognition (cs.CV)",
                        "FOS: Electrical engineering, electronic engineering, information engineering",
-                       "FOS: Electrical engineering, electronic engineering, information engineering",
                        "Machine Learning (stat.ML)", "Quantum Physics (quant-ph)", "Something New (zz.AB)",
                        "Computer Vision and Pattern Recognition (cs.CV)", "FOS: Computer and information sciences"]},
-    "10.1001/jama.erratum": {
-        "type": "journal-article", "source": "Crossref", "title": "Error in Author Name", "issued": {"date-parts": [[2026, 9]]},
-        "container-title": "JAMA", "page": "804", "DOI": "10.1001/jama.erratum"},
+    "10.1001/jama.erratum": {"type": "journal-article", "source": "Crossref", "title": "Error in Author Name",
+                             "issued": {"date-parts": [[2026, 9]]}, "container-title": "JAMA", "page": "804",
+                             "DOI": "10.1001/jama.erratum"},
+    "10.1001/jama.notice": {"type": "journal-article", "source": "Crossref", "title": "Author Correction: Diagnostics",
+                            "author": [{"family": "Kim", "given": "Ana"}], "issued": {"date-parts": [[2025]]},
+                            "container-title": "JAMA", "page": "1-2", "DOI": "10.1001/jama.notice", "abstract": "x"},
     "10.1007/978-3-319-24574-4_28": {
         "type": "book-chapter", "source": "Crossref", "title": "U-Net: Convolutional Networks for Biomedical Image Segmentation",
         "subtitle": [], "author": [{"family": "Ronneberger", "given": "Olaf"}], "issued": {"date-parts": [[2015]]},
         "container-title": "Lecture Notes in Computer Science", "ISSN": ["0302-9743", "1611-3349"],
         "ISBN": ["9783319245737", "9783319245744"], "page": "234-241", "publisher": "Springer International Publishing",
         "publisher-location": "Cham", "DOI": "10.1007/978-3-319-24574-4_28", "abstract": "x"},
-    "10.1007/other-series": {
-        "type": "book-chapter", "source": "Crossref", "title": "A Chapter In Some Series", "author": [{"family": "Roe", "given": "Ann"}],
-        "issued": {"date-parts": [[2020]]}, "container-title": "Some Book Series", "ISSN": ["1234-5678"], "page": "1-10",
-        "DOI": "10.1007/other-series", "abstract": "x"},
-    "10.1007/crossref-down": {
-        "type": "book-chapter", "source": "Crossref", "title": "A Chapter Whose Crossref Record Fails",
-        "author": [{"family": "Poe", "given": "Al"}], "issued": {"date-parts": [[2020]]},
-        "container-title": "Lecture Notes in Computer Science", "ISSN": ["0302-9743"], "page": "1-10",
-        "DOI": "10.1007/crossref-down", "abstract": "x"},
-}
-CSL.update({
-    # v3 round 2: published versions
-    "10.48550/arXiv.2303.11366": {
+    "10.1007/other-series": {"type": "book-chapter", "source": "Crossref", "title": "A Chapter In Some Series",
+                             "author": [{"family": "Roe", "given": "Ann"}], "issued": {"date-parts": [[2020]]},
+                             "container-title": "Some Book Series", "ISSN": ["1234-5678"], "page": "1-10",
+                             "DOI": "10.1007/other-series", "abstract": "x"},
+    "10.1007/crossref-down": {"type": "book-chapter", "source": "Crossref", "title": "A Chapter Whose Crossref Record Fails",
+                              "author": [{"family": "Poe", "given": "Al"}], "issued": {"date-parts": [[2020]]},
+                              "container-title": "Lecture Notes in Computer Science", "ISSN": ["0302-9743"], "page": "1-10",
+                              "DOI": "10.1007/crossref-down", "abstract": "x"},
+    "10.48550/arXiv." + REFLEXION: {
         "type": "article", "title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
         "author": [{"family": "Shinn", "given": "Noah"}, {"family": "Cassano", "given": "Federico"}],
-        "issued": {"date-parts": [[2023]]}, "DOI": "10.48550/ARXIV.2303.11366", "publisher": "arXiv", "abstract": "Reflexion.",
+        "issued": {"date-parts": [[2023]]}, "DOI": "10.48550/ARXIV." + REFLEXION, "publisher": "arXiv", "abstract": "Reflexion.",
         "categories": ["Artificial Intelligence (cs.AI)"]},
-    "10.52202/075280-0377": {
-        "type": "proceedings-article", "source": "Crossref", "title": "Reflexion: language agents with verbal reinforcement learning",
-        "author": [{"family": "Shinn", "given": "Noah"}, {"family": "Cassano", "given": "Federico"}],
-        "issued": {"date-parts": [[2023]]}, "container-title": "Advances in Neural Information Processing Systems 36",
-        "page": "8634-8652", "DOI": "10.52202/075280-0377", "URL": "https://doi.org/10.52202/075280-0377", "abstract": "Reflexion."},
-    "10.1234/journal-version": {
-        "type": "journal-article", "source": "Crossref", "title": "Verbal Reinforcement for Language Agents",
-        "author": [{"family": "Shinn", "given": "Noah"}], "issued": {"date-parts": [[2024, 5]]}, "container-title": "Journal of Agents",
-        "page": "1-20", "DOI": "10.1234/journal-version", "abstract": "Journal."},
-    "10.48550/arXiv.2310.00001": {
-        "type": "article", "title": "LabelDP-Pro: Learning with Label Differential Privacy via Projection",
-        "author": [{"family": "Ghazi", "given": "Badih"}, {"family": "Huang", "given": "Yangsibo"}],
-        "issued": {"date-parts": [[2023]]}, "DOI": "10.48550/ARXIV.2310.00001", "publisher": "arXiv", "abstract": "Label DP."},
-})
-
-# arXiv API / OAI-PMH stand-in: id -> {title, journal_ref?, doi?, comment?}
-ARXIV = {
-    "2303.11366": {"title": "Reflexion: Language Agents with Verbal Reinforcement Learning", "comment": "v4 contains a few additional experiments"},
-    "2105.05537": {"title": "Swin-Unet: Unet-like Pure Transformer for Medical Image Segmentation",
-                   "journal_ref": "ECCV 2022 Workshops", "doi": "10.1007/978-3-031-25066-8_9"},
-    "2310.00001": {"title": "LabelDP-Pro: Learning with Label Differential Privacy via Projection", "comment": "ICLR 2024"},
-}
-# Crossref title search stand-in: first words of query.bibliographic -> items
-CROSSREF_SEARCH = {
-    "Reflexion": [
-        {"DOI": "10.52202/075280-0377", "type": "proceedings-article", "title": ["Reflexion: language agents with verbal reinforcement learning"],
-         "container-title": ["Advances in Neural Information Processing Systems 36"], "issued": {"date-parts": [[2023]]}},
-        {"DOI": "10.21203/rs.3.rs-1/v1", "type": "posted-content", "title": ["Reflexion: Language Agents with Verbal Reinforcement Learning"],
-         "issued": {"date-parts": [[2023]]}},
-        {"DOI": "10.1109/isaics.2025.1", "type": "proceedings-article", "title": ["Robust Verbal Reinforcement Learning for Language Agents"],
-         "container-title": ["ISAICS"], "issued": {"date-parts": [[2025]]}},
-        {"DOI": "10.48550/arXiv.2303.11366", "type": "proceedings-article", "title": ["Reflexion: Language Agents with Verbal Reinforcement Learning"]},
-    ],
-}
-# Crossref REST stand-in (CROSSREF_BASE_URL): DOI -> container-title; a DOI missing here answers 500.
-CROSSREF = {
-    "10.1007/978-3-319-24574-4_28": ["Lecture Notes in Computer Science",
-                                     "Medical Image Computing and Computer-Assisted Intervention \u2013 MICCAI 2015"],
-    "10.1007/other-series": ["Some Book Series", "A Volume of Some Book Series"],
-    "10.1007/978-3-031-25066-8_9": {"DOI": "10.1007/978-3-031-25066-8_9", "type": "book-chapter",
-                                    "title": ["Swin-Unet: Unet-Like Pure Transformer for Medical Image Segmentation"],
-                                    "container-title": ["Lecture Notes in Computer Science", "Computer Vision \u2013 ECCV 2022 Workshops"],
-                                    "issued": {"date-parts": [[2023]]}},
-}
-
-# Venue pages for --redraft <URL>: name -> HTML (attribute order varies on purpose, as on real sites).
-PAGES = {
-    "neurips": """<html><head>
-<meta name="citation_title" content="Reflexion: Language Agents with Verbal Reinforcement Learning">
-<meta content="Shinn, Noah" name="citation_author"><meta name="citation_author" content="Cassano, Federico">
-<meta name="citation_journal_title" content="Advances in Neural Information Processing Systems">
-<meta name="citation_volume" content="36"><meta name="citation_firstpage" content="8634"><meta name="citation_lastpage" content="8652">
-<meta name="citation_publication_date" content="2023/12/15">
-<meta name="citation_pdf_url" content="/paper_files/paper/2023/file/1b44-Paper-Conference.pdf">
-</head><body>Abstract ...</body></html>""",
-    "tmlr": """<html><head><meta name="citation_title" content="A Journal Paper on Agents">
-<meta name="citation_author" content="Ada Lovelace"><meta name="citation_journal_title" content="Transactions on Machine Learning Research">
-<meta name="citation_publication_date" content="2024"><meta name="citation_issn" content="2835-8856">
-<meta name="description" content="An abstract from the description tag."></head></html>""",
-    "bare": "<html><head><title>Just a page</title></head><body>no meta here</body></html>",
+    NEURIPS: {"type": "proceedings-article", "source": "Crossref",
+              "title": "Reflexion: language agents with verbal reinforcement learning",
+              "author": [{"family": "Shinn", "given": "Noah"}, {"family": "Cassano", "given": "Federico"}],
+              "issued": {"date-parts": [[2023]]}, "container-title": "Advances in Neural Information Processing Systems 36",
+              "page": "8634-8652", "DOI": NEURIPS, "URL": "https://doi.org/" + NEURIPS, "abstract": "Reflexion."},
+    "10.1234/journal-version": {"type": "journal-article", "source": "Crossref", "title": "Verbal Reinforcement for Language Agents",
+                                "author": [{"family": "Shinn", "given": "Noah"}], "issued": {"date-parts": [[2024, 5]]},
+                                "container-title": "Journal of Agents", "page": "1-20", "DOI": "10.1234/journal-version",
+                                "abstract": "Journal."},
+    "10.48550/arXiv.2310.00001": {"type": "article", "title": "LabelDP-Pro: Learning with Label Differential Privacy via Projection",
+                                  "author": [{"family": "Ghazi", "given": "Badih"}], "issued": {"date-parts": [[2023]]},
+                                  "DOI": "10.48550/ARXIV.2310.00001", "publisher": "arXiv", "abstract": "Label DP."},
 }
 
 BIB = """\
@@ -212,615 +148,308 @@ BIB = """\
 """
 
 
-def closed_port_url():
-    """A local URL that refuses connections at once (port 9 hangs on some WSL setups)."""
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
-    return f"http://127.0.0.1:{port}"
-
-
-def atom_feed(ids):
-    entries = []
-    for aid in ids:
-        a = ARXIV.get(aid)
-        if a:
-            extra = "".join(f"<arxiv:{tag}>{html.escape(a[tag])}</arxiv:{tag}>" for tag in ("journal_ref", "doi", "comment") if a.get(tag))
-            entries.append(f"<entry><id>http://arxiv.org/abs/{aid}v2</id><title>{html.escape(a['title'])}</title>{extra}</entry>")
-    return ('<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">'
-            + "".join(entries) + "</feed>")
-
-
-class Handler(http.server.BaseHTTPRequestHandler):
-    requests = []
-    overrides = {}  # path prefix -> (status, headers, body), set per test
-
-    def log_message(self, *a):
-        pass
-
-    def send(self, status, ctype, body, headers=None):
-        self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        for k, v in (headers or {}).items():
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self):
-        url = urllib.parse.urlsplit(self.path)
-        path = urllib.parse.unquote(url.path)
-        query = dict(urllib.parse.parse_qsl(url.query))
-        Handler.requests.append((path, query))
-        for prefix, (status, headers, body) in Handler.overrides.items():
-            if path.startswith(prefix):
-                return self.send(status, headers.get("Content-Type", "text/plain"), body.encode(), headers)
-        if path == "/arxiv/api/query":
-            return self.send(200, "application/atom+xml", atom_feed(query.get("id_list", "").split(",")).encode())
-        if path.startswith("/page/"):
-            page = PAGES.get(path[len("/page/"):])
-            return self.send(200, "text/html; charset=utf-8", page.encode()) if page else self.send(404, "text/plain", b"nope")
-        if path == "/works":
-            words = query.get("query.bibliographic", "").split()
-            items = CROSSREF_SEARCH.get(words[0].rstrip(":") if words else "", [])
-            return self.send(200, "application/json", json.dumps({"status": "ok", "message": {"items": items}}).encode())
-        if path.startswith("/works/"):
-            doi = path[len("/works/"):]
-            if doi in CROSSREF:
-                found = CROSSREF[doi]
-                message = found if isinstance(found, dict) else {"DOI": doi, "container-title": found}
-                body = {"status": "ok", "message-type": "work", "message": message}
-                return self.send(200, "application/json", json.dumps(body).encode())
-            return self.send(500, "text/plain", b"upstream error")
-        if path == "/api/schema":
-            return self.send(200, "application/json", json.dumps(SCHEMA).encode())
-        doi = path.lstrip("/")
-        if doi in CSL:
-            return self.send(200, "application/vnd.citationstyles.csl+json", json.dumps(CSL[doi]).encode())
-        if doi == "10.9999/html":
-            return self.send(200, "text/html", b"<html>landing page</html>")
-        self.send(404, "text/plain", b"DOI not found")
-
-
-class DoiToItemTest(unittest.TestCase):
+class Base(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
-        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
-        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
-        cls.env = {**env, "DOI_BASE_URL": cls.base, "CROSSREF_BASE_URL": cls.base, "no_proxy": "127.0.0.1,localhost",
-                   "ARXIV_API_URL": cls.base + "/arxiv/api/query"}
-        spec = importlib.util.spec_from_file_location("doi_to_item", SCRIPT)
-        cls.mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.mod)
+        cls.web, cls.zot = FakeWeb(), FakeZotero()
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.shutdown()
+        cls.web.close()
+        cls.zot.close()
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
-        self.env = dict(type(self).env)
-        Handler.requests.clear()
-        Handler.overrides = {}
+        w = self.web
+        w.reset()
+        self.zot.reset()
+        self.zot.schema = SCHEMA
+        for doi, csl in CSL.items():
+            w.doi(doi, csl)
+        w.doi("10.9999/html", None, landing="/landing")
+        w.page("/landing", "A landing page")
+        # Crossref's REST API: the LNCS volumes, the published versions a title search finds, and look-alikes.
+        w.crossref("10.1007/978-3-319-24574-4_28", container_title=[
+            "Lecture Notes in Computer Science", "Medical Image Computing and Computer-Assisted Intervention – MICCAI 2015"])
+        w.crossref("10.1007/other-series", container_title=["Some Book Series", "A Volume of Some Book Series"])
+        w.route("/crossref/works/10.1007/crossref-down", "upstream error", status=500)
+        w.crossref(NEURIPS, type="proceedings-article", title="Reflexion: language agents with verbal reinforcement learning",
+                   container_title="Advances in Neural Information Processing Systems 36", issued={"date-parts": [[2023]]})
+        w.crossref("10.21203/rs.3.rs-1/v1", type="posted-content", title="Reflexion: Language Agents with Verbal Reinforcement Learning")
+        w.crossref("10.48550/arXiv." + REFLEXION, type="proceedings-article", title="Reflexion: Language Agents with Verbal Reinforcement Learning")
+        w.crossref("10.1109/isaics.2025.1", type="proceedings-article", title="Robust Verbal Reinforcement Learning for Language Agents",
+                   container_title="ISAICS", issued={"date-parts": [[2025]]})
+        w.crossref("10.1007/978-3-031-25066-8_9", type="book-chapter",
+                   title="Swin-Unet: Unet-Like Pure Transformer for Medical Image Segmentation",
+                   container_title=["Lecture Notes in Computer Science", "Computer Vision – ECCV 2022 Workshops"],
+                   issued={"date-parts": [[2023]]})
+        w.arxiv(REFLEXION, "Reflexion: Language Agents with Verbal Reinforcement Learning",
+                comment="v4 contains a few additional experiments")
+        w.arxiv("2105.05537", "Swin-Unet: Unet-like Pure Transformer for Medical Image Segmentation",
+                journal_ref="ECCV 2022 Workshops", doi="10.1007/978-3-031-25066-8_9")
+        w.arxiv("2310.00001", "LabelDP-Pro: Learning with Label Differential Privacy via Projection", comment="ICLR 2024")
+        self.work = run.Work(tempfile.mkdtemp(prefix="p2z-doi-"))
+        self.work.records.mkdir()
+        self.enterContext(mock.patch.dict(web.GAPS, {h: 0 for h in ("doi.org", "api.crossref.org", "export.arxiv.org", "127.0.0.1")}))
 
-    def run_script(self, *args, stdin=None, base=None, env=None, candidates=False):
-        """Old tests draft without the published_candidates lookup unless they ask for it."""
-        extra = [] if candidates or "--redraft" in args or "--candidates" in args else ["--no-candidates"]
-        return subprocess.run([sys.executable, str(SCRIPT), "--base-url", base or self.base, *args, *extra],
-                              input=stdin, capture_output=True, text=True, env={**self.env, **(env or {})})
+    def run_(self, *argv, base_url=None, env=None):
+        return call(doi_to_item, *argv, "--base-url", base_url or self.zot.base_url, env={**self.web.env(), **(env or {})})
 
-    def lines(self, text):
-        """JSON lines only; the script's GET logs on stderr are skipped."""
-        return [json.loads(ln) for ln in text.splitlines() if ln.startswith(("{", "["))]
+    def draft(self, *ids):
+        """Draft identifiers into the work directory -> the result."""
+        return self.run_(*[a for i in ids for a in ("--doi", i)], "--out-dir", self.work.records)
 
-    # --- v1 -------------------------------------------------------------------
+    def path(self, slug):
+        return self.work.records / f"{slug}.json"
 
-    def test_v1_single_mode_unchanged(self):
-        out = self.tmp / "item.json"
-        proc = self.run_script("--doi", "10.1109/JBHI.2022.3142076", "--out", str(out))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        report = json.loads(proc.stdout)
-        self.assertEqual(report["code"], "ok")
-        self.assertEqual(report["out"], str(out))
-        self.assertEqual(report["itemType"], "journalArticle")
-        item = json.loads(out.read_text())
-        self.assertEqual(item["DOI"], "10.1109/JBHI.2022.3142076")
-        self.assertEqual(item["creators"][0]["lastName"], "Liu")
-        self.assertEqual(item["libraryCatalog"], "DOI.org (Crossref)")
-        self.assertNotIn("slug", item)
+    def rec(self, slug):
+        return json.loads(self.path(slug).read_text(encoding="utf-8"))
 
-    def test_v1_not_found(self):
-        proc = self.run_script("--doi", "10.9999/missing", "--out", str(self.tmp / "x.json"))
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(json.loads(proc.stdout)["code"], "not_found")
+    def requested(self, prefix):
+        return [r.path for r in self.web.requested("GET", prefix)]
 
-    def test_out_needs_exactly_one_doi(self):
-        proc = self.run_script("--doi", "10.1109/CVPR.2016.90", "--doi", "10.9999/twin", "--out", str(self.tmp / "x.json"))
-        self.assertEqual(proc.returncode, 2)
-        proc = self.run_script("-i")
-        self.assertEqual(proc.returncode, 2)
 
-    # --- stream: inputs ---------------------------------------------------------
+class Drafting(Base):
+    def test_identifiers_become_records_and_a_rerun_keeps_them(self):
+        ids = self.work.root / "ids.txt"
+        ids.write_text(f"# comment\n{JBHI}\tliu2022jbhi\n\n{CVPR}\narXiv:{DDPM}v2\n", encoding="utf-8")
+        r = self.run_("--ids", ids, "--doi", "10.9999/twin", "--out-dir", self.work.records)
+        self.assertEqual(r.code, 0, r)
+        self.assertEqual([(o["id"], o.get("cite"), o["code"], o["slug"]) for o in r.lines[:-1]],
+                         [("10.9999/twin", None, "ok", "liu2022progressive"), (JBHI, "liu2022jbhi", "ok", "liu2022jbhi"),
+                          (CVPR, None, "ok", "he2016deep"), (f"arXiv:{DDPM}v2", None, "ok", "ho2020denoising")])
+        liu = self.rec("liu2022jbhi")
+        self.assertEqual((liu["id"], liu["citationKey"]), (JBHI, "liu2022jbhi"))
+        self.assertNotIn("slug", liu, "the file name is the slug")
+        item = liu["item"]
+        self.assertEqual(list(item)[:3], ["itemType", "title", "creators"])
+        self.assertEqual((item["itemType"], item["DOI"], item["libraryCatalog"], item["url"], item["abstractNote"], item["creators"][0]),
+                         ("journalArticle", JBHI, "DOI.org (Crossref)", "https://doi.org/" + JBHI, "Ultrasound.",
+                          {"creatorType": "author", "firstName": "Heng", "lastName": "Liu"}))
+        he = self.rec("he2016deep")["item"]
+        self.assertEqual((he["itemType"], he["proceedingsTitle"]),
+                         ("conferencePaper", "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)"))
+        ho = self.rec("ho2020denoising")["item"]
+        self.assertEqual((ho["itemType"], ho["archiveID"], ho["url"], ho["libraryCatalog"]),
+                         ("preprint", f"arXiv:{DDPM}", f"https://arxiv.org/abs/{DDPM}v2", "DOI.org (Datacite)"))
+        self.assertEqual(self.requested("/arxiv/*") + self.requested("/crossref/works"), [], "candidates are prepare's")
+        # Rerun: what is there stays, even edited; a record is also known by its item's identifiers.
+        liu["tags"] = [{"tag": "mine", "type": 0}]
+        self.path("liu2022jbhi").write_text(json.dumps(liu), encoding="utf-8")
+        self.path("byhand").write_text(json.dumps({"item": {"itemType": "journalArticle", "title": "x", "DOI": "10.1001/JAMA.2023.4855"}}))
+        self.web.requests.clear()
+        r = self.draft("doi:" + JBHI.lower(), "10.1001/jama.2023.4855", "10.9999/missing")
+        self.assertEqual([(o["code"], o.get("reason"), o.get("slug")) for o in r.lines[:-1]],
+                         [("skipped", "exists", "liu2022jbhi"), ("skipped", "exists", "byhand"), ("not_found", None, None)])
+        self.assertEqual(self.rec("liu2022jbhi"), liu)
+        self.assertEqual(self.requested("/doi/*"), ["/doi/10.9999/missing"])
 
-    def test_repeated_doi_to_jsonl(self):
-        proc = self.run_script("--doi", "10.1109/JBHI.2022.3142076", "--doi", "arXiv:2006.11239")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        rows = self.lines(proc.stdout)
-        self.assertEqual([r["slug"] for r in rows], ["liu2022progressive", "ho2020denoising"])
-        self.assertEqual(rows[0]["id"], "10.1109/JBHI.2022.3142076")
-        self.assertEqual(rows[1]["item"]["itemType"], "preprint")
-        self.assertEqual(rows[1]["item"]["archiveID"], "arXiv:2006.11239")
-        self.assertNotIn("code", rows[0])
-        summary = self.lines(proc.stderr)[-1]
-        self.assertEqual(summary, {"summary": {"total": 2, "ok": 2, "skipped": 0, "failed": 0}})
+    def test_failures_make_no_record(self):
+        self.web.route("/doi/10.9999/broken", "upstream", status=503)
+        r = self.draft("10.9999/missing", "10.9999/html", "not-an-id", "10.9999/broken", JBHI, "10.9999/twin", JBHI)
+        self.assertEqual(r.code, 1, r)
+        self.assertEqual([o["code"] for o in r.lines[:-1]],
+                         ["not_found", "no_csl_record", "no_identifier", "doi_org_error", "ok", "ok", "skipped"])
+        self.assertTrue(all("hint" in o and "slug" not in o for o in r.lines[:4]))
+        self.assertEqual([o.get("slug") for o in r.lines[4:7]], ["liu2022progressive", "liu2022progressive-2", "liu2022progressive"])
+        self.assertEqual(r.lines[6]["reason"], "duplicate")
+        self.assertEqual(sorted(p.name for p in self.work.records.iterdir()), ["liu2022progressive-2.json", "liu2022progressive.json"])
+        rec = self.path("liu2022progressive")
+        for argv in (["--doi", JBHI], ["--doi", JBHI, "--out-dir", self.work.records, rec], ["--redraft", NEURIPS, rec, rec],
+                     ["--out-dir", self.work.records]):
+            self.assertEqual(self.run_(*argv).code, 2, argv)
 
-    def test_stdin_identifier_lines_and_records(self):
-        proc = self.run_script(stdin="# list\n10.1109/CVPR.2016.90\tresnet\n\n")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        row = self.lines(proc.stdout)[0]
-        self.assertEqual((row["slug"], row["citationKey"]), ("resnet", "resnet"))
-        self.assertEqual(row["item"]["itemType"], "conferencePaper")
-        self.assertEqual(row["item"]["proceedingsTitle"], "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)")
+    def test_cannot_draft(self):
+        r = self.run_("--doi", JBHI, "--doi", CVPR, "--out-dir", self.work.records, base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]]), (2, ["zotero_unreachable", "not_run"]))
+        self.assertEqual(self.requested("/doi/*"), [], "the schema comes first")
+        self.web.rate_limit("/doi/10.1109/JBHI*", retry_after=120)
+        r = self.draft(JBHI, CVPR)
+        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]], r.lines[-1]["summary"]["stopped"]),
+                         (2, ["source_blocked", "not_run"], "source_blocked"))
+        self.assertIn("until", r.lines[0])
+        self.assertEqual(self.draft(CVPR).lines[0]["code"], "source_blocked", "the stop holds for the work directory's next run")
+        self.assertNotIn("/doi/" + CVPR, self.requested("/doi/*"))
+        (self.work.root / "pace.json").unlink()
+        r = self.run_("--doi", CVPR, "--out-dir", self.work.records, env={"DOI_BASE_URL": f"http://127.0.0.1:{closed_port()}"})
+        self.assertEqual((r.code, r.lines[0]["code"]), (2, "doi_org_unreachable"))
 
-        proc = self.run_script(stdin='{"id": "10.1109/CVPR.2016.90", "slug": "mine", "tags": [{"tag": "x", "type": 0}]}\n')
-        row = self.lines(proc.stdout)[0]
-        self.assertEqual(row["slug"], "mine")
-        self.assertEqual(row["tags"], [{"tag": "x", "type": 0}])
-        self.assertIn("item", row)
+    def test_a_bib_file(self):
+        bib = self.work.root / "refs.bib"
+        bib.write_text(BIB, encoding="utf-8")
+        r = self.run_("--bib", bib, "--out-dir", self.work.records)
+        self.assertEqual(r.code, 1, r)
+        self.assertEqual([(o["id"], o["cite"], o["code"]) for o in r.lines[:-1]],
+                         [(JBHI, "liuJBHI2022", "ok"), ("arXiv:2006.11239", "ho2020ddpm", "ok"),
+                          ("arXiv:1512.03385v1", "he2016resnet", "not_found"),
+                          ("The TeXbook: A Nested Brace Title", "knuth1984", "no_identifier")])
+        self.assertEqual(sorted(p.name for p in self.work.records.iterdir()), ["ho2020ddpm.json", "liuJBHI2022.json"])
 
-        proc = self.run_script(stdin='[{"id": "10.1109/CVPR.2016.90"}, {"id": "10.9999/twin"}]')
-        self.assertEqual([r["slug"] for r in self.lines(proc.stdout)], ["he2016deep", "liu2022progressive"])
-
-    def test_empty_stdin_is_no_records(self):
-        proc = self.run_script(stdin="")
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(json.loads(proc.stdout)["code"], "no_records")
-
-    def test_record_paths_in_place(self):
-        path = self.tmp / "r1.json"
-        path.write_text(json.dumps({"slug": "resnet", "id": "10.1109/CVPR.2016.90", "tags": [{"tag": "x", "type": 0}]}))
-        proc = self.run_script("-i", str(path))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        rows = self.lines(proc.stdout)
-        self.assertEqual(rows[0]["slug"], "resnet")
-        self.assertEqual(rows[0]["code"], "ok")
-        self.assertEqual(rows[-1]["summary"], {"total": 1, "ok": 1, "skipped": 0, "failed": 0})
-        text = path.read_text()
-        rec = json.loads(text)
-        self.assertEqual(rec["item"]["title"], "Deep Residual Learning for Image Recognition")
-        self.assertEqual(rec["tags"], [{"tag": "x", "type": 0}])
-        self.assertTrue(text.endswith("}\n") and "\n  " in text, "indent=2 with trailing newline")
-        self.assertEqual([p.name for p in self.tmp.iterdir()], ["r1.json"], "no temp files left")
-
-        proc = self.run_script("-i", str(path))
-        self.assertEqual(proc.returncode, 0)
-        rows = self.lines(proc.stdout)
-        self.assertEqual((rows[0]["code"], rows[0]["reason"]), ("skipped", "has_item"))
-        self.assertEqual(json.loads(path.read_text()), rec, "unchanged on rerun")
-
-    # --- stream: --ids / --out-dir --------------------------------------------
-
-    def test_ids_file_out_dir_and_rerun(self):
-        ids = self.tmp / "ids.txt"
-        ids.write_text("# comment\n10.1109/JBHI.2022.3142076\tliu2022jbhi\n\n10.1109/CVPR.2016.90\n10.9999/missing\tghost2020\n")
-        out = self.tmp / "records"
-        proc = self.run_script("--ids", str(ids), "--out-dir", str(out))
-        self.assertEqual(proc.returncode, 1, proc.stderr)
-        rows = self.lines(proc.stdout)
-        self.assertEqual([(r["slug"], r["code"]) for r in rows[:-1]],
-                         [("liu2022jbhi", "ok"), ("he2016deep", "ok"), ("ghost2020", "not_found")])
-        self.assertEqual(rows[0]["file"], "liu2022jbhi.json")
-        self.assertEqual(rows[-1]["summary"], {"total": 3, "ok": 2, "skipped": 0, "failed": 1})
-        self.assertEqual(sorted(p.name for p in out.iterdir()), ["ghost2020.json", "he2016deep.json", "liu2022jbhi.json"])
-        liu = json.loads((out / "liu2022jbhi.json").read_text())
-        self.assertEqual(liu["citationKey"], "liu2022jbhi")
-        self.assertEqual(liu["item"]["itemType"], "journalArticle")
-        ghost = json.loads((out / "ghost2020.json").read_text())
-        self.assertEqual(ghost["code"], "not_found")
-        self.assertEqual(ghost["id"], "10.9999/missing")
-        self.assertNotIn("item", ghost)
-
-        # A rerun keeps existing records (even edited ones) and retries only the failed stub.
-        liu["note"] = "mine"
-        (out / "liu2022jbhi.json").write_text(json.dumps(liu))
-        proc = self.run_script("--ids", str(ids), "--out-dir", str(out))
-        self.assertEqual(proc.returncode, 1)
-        rows = self.lines(proc.stdout)
-        self.assertEqual([(r["slug"], r["code"]) for r in rows[:-1]],
-                         [("liu2022jbhi", "skipped"), ("he2016deep", "skipped"), ("ghost2020", "not_found")])
-        self.assertEqual(rows[0]["reason"], "exists")
-        self.assertEqual(rows[-1]["summary"], {"total": 3, "ok": 0, "skipped": 2, "failed": 1})
-        self.assertEqual(json.loads((out / "liu2022jbhi.json").read_text())["note"], "mine")
-
-    def test_failure_isolation_and_codes(self):
-        proc = self.run_script("--doi", "10.9999/missing", "--doi", "10.9999/html", "--doi", "not-an-id", "--doi", "10.1109/CVPR.2016.90")
-        self.assertEqual(proc.returncode, 1)
-        rows = self.lines(proc.stdout)
-        self.assertEqual([r.get("code") for r in rows], ["not_found", "no_csl_record", "invalid_identifier", None])
-        self.assertEqual(rows[0]["slug"], "109999missing")
-        self.assertEqual(rows[3]["item"]["title"], "Deep Residual Learning for Image Recognition")
-        self.assertEqual(self.lines(proc.stderr)[-1]["summary"]["failed"], 3)
-
-    def test_slug_collisions_and_duplicates(self):
-        proc = self.run_script("--doi", "10.1109/JBHI.2022.3142076", "--doi", "10.9999/twin", "--doi", "doi:10.1109/JBHI.2022.3142076")
-        rows = self.lines(proc.stdout)
-        self.assertEqual([r["slug"] for r in rows], ["liu2022progressive", "liu2022progressive-2", "liu2022progressive"])
-        self.assertEqual(self.lines(proc.stderr)[-1]["summary"], {"total": 3, "ok": 2, "skipped": 1, "failed": 0})
-
-    def test_zotero_unreachable_is_exit_2(self):
-        proc = self.run_script("--doi", "10.1109/CVPR.2016.90", base=closed_port_url())
-        self.assertEqual(proc.returncode, 2)
-        self.assertEqual(json.loads(proc.stdout)["code"], "zotero_unreachable")
-
-    # --- v3 round 1: subtitle ---------------------------------------------------
-
-    def test_subtitle_appended(self):
-        add = self.mod.add_subtitle
-        self.assertEqual(add("Randomized Trials vs Real-world Evidence", ["How Can Both Inform Decision-making?"]),
-                         "Randomized Trials vs Real-world Evidence: How Can Both Inform Decision-making?")
-        self.assertEqual(add("Main", "Sub Part"), "Main: Sub Part", "a string subtitle works too")
-        self.assertEqual(add("Main: Sub Part", ["sub part"]), "Main: Sub Part", "already ends with it")
-        self.assertEqual(add("Main \u2014 Sub-Part", ["Sub Part"]), "Main \u2014 Sub-Part", "punctuation does not matter")
-        self.assertEqual(add("Does It Work?", ["A <i>Trial</i>"]), "Does It Work? A Trial")
-        self.assertEqual(add("Ends With Colon:", ["Sub"]), "Ends With Colon: Sub")
-        self.assertEqual(add("Main", []), "Main")
-        self.assertEqual(add("Main", ["", "Second"]), "Main: Second", "first non-empty subtitle")
-        self.assertEqual(add("Main", None), "Main")
-
-        proc = self.run_script("--doi", "10.1001/jama.2023.4855")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(self.lines(proc.stdout)[0]["item"]["title"],
-                         "Randomized Trials vs Real-world Evidence: How Can Both Inform Decision-making?")
-
-    # --- arXiv categories --------------------------------------------------------
-
-    def test_arxiv_category_mapping(self):
-        tags = self.mod.arxiv_category_tags
-        self.assertEqual(tags(["Machine Learning (cs.LG)", "Machine Learning (stat.ML)", "FOS: Computer and information sciences",
-                               "FOS: Computer and information sciences"]),
-                         ["Computer Science - Machine Learning", "Statistics - Machine Learning"])
-        self.assertEqual(tags(["Image and Video Processing (eess.IV)", "Statistics Theory (math.ST)", "Medical Physics (physics.med-ph)",
-                               "Quantitative Methods (q-bio.QM)", "Computational Finance (q-fin.CP)", "Econometrics (econ.EM)",
-                               "Strongly Correlated Electrons (cond-mat.str-el)", "Astrophysics of Galaxies (astro-ph.GA)"]),
-                         ["Electrical Engineering and Systems Science - Image and Video Processing", "Mathematics - Statistics Theory",
-                          "Physics - Medical Physics", "Quantitative Biology - Quantitative Methods",
-                          "Quantitative Finance - Computational Finance", "Economics - Econometrics",
-                          "Condensed Matter - Strongly Correlated Electrons", "Astrophysics - Astrophysics of Galaxies"])
-        self.assertEqual(tags(["Quantum Physics (quant-ph)", "High Energy Physics - Theory (hep-th)"]),
-                         ["Quantum Physics", "High Energy Physics - Theory"], "single-archive categories: the name alone")
-        self.assertEqual(tags(["Something New (zz.AB)", "no code at all"]), ["Something New (zz.AB)", "no code at all"],
-                         "unknown archive / unparseable: DataCite's wording kept")
-        self.assertEqual(tags(None), [])
-        self.assertEqual(tags("Machine Learning (cs.LG)"), ["Computer Science - Machine Learning"])
-
-    def test_arxiv_categories_become_type1_tags(self):
-        expected = [{"tag": t, "type": 1} for t in (
+    def test_drafting_rules(self):
+        self.path("shinn").write_text(json.dumps({"id": "arXiv:" + REFLEXION, "tags": [{"tag": "mine", "type": 0}]}))
+        r = self.draft("10.1001/jama.2023.4855", "arXiv:2105.05537", REFLEXION, "10.1001/jama.erratum", "10.1001/jama.notice",
+                       "10.1007/978-3-319-24574-4_28", "10.1007/other-series", "10.1007/crossref-down")
+        self.assertEqual(r.code, 0, r)
+        jama, swin, own, erratum, notice, unet, other, down = (self.rec(o["slug"]) for o in r.lines[:-1])
+        self.assertEqual(jama["item"]["title"], "Randomized Trials vs Real-world Evidence: How Can Both Inform Decision-making?")
+        self.assertEqual(swin["tags"], [{"tag": t, "type": 1} for t in (
             "Electrical Engineering and Systems Science - Image and Video Processing",
             "Computer Science - Computer Vision and Pattern Recognition", "Statistics - Machine Learning", "Quantum Physics",
-            "Something New (zz.AB)")]
-        proc = self.run_script("--doi", "arXiv:2105.05537")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        rec = self.lines(proc.stdout)[0]
-        self.assertEqual(rec["tags"], expected)
-        self.assertNotIn("tags", rec["item"], "stream mode: tags live on the record")
-        self.assertNotIn("categories", rec["item"])
+            "Something New (zz.AB)")], "Zotero's arXiv translator's form; FOS entries and repeats dropped")
+        self.assertEqual((own["tags"], r.lines[2]["slug"], own["item"]["itemType"]), ([{"tag": "mine", "type": 0}], "shinn", "preprint"),
+                         "a record set up before drafting keeps its tags")
+        self.assertNotIn("tags", jama)
+        self.assertIn("no authors; single page '804'", " ".join(erratum["warnings"]))
+        self.assertIn("title starts with 'Author Correction'", " ".join(notice["warnings"]))
+        self.assertFalse(any("erratum" in w for w in jama.get("warnings", [])))
+        item = unet["item"]
+        self.assertEqual((item["itemType"], item["proceedingsTitle"], item["series"], item["ISBN"], item["place"]),
+                         ("conferencePaper", "Medical Image Computing and Computer-Assisted Intervention – MICCAI 2015",
+                          "Lecture Notes in Computer Science", "9783319245737, 9783319245744", "Cham"))
+        self.assertEqual((other["item"]["itemType"], down["item"]["itemType"]), ("bookSection", "bookSection"))
+        self.assertTrue(any('"A Volume of Some Book Series"' in w for w in other["warnings"]))
+        self.assertTrue(any("Crossref lookup failed: HTTP 500" in w for w in down["warnings"]))
+        self.assertEqual(len(self.requested("/crossref/works/*")), 3, "one Crossref call per chapter with an ISSN, none for articles")
 
-        # Existing tags are never overwritten; an empty list counts as none yet.
-        proc = self.run_script(stdin=json.dumps({"id": "2105.05537", "tags": [{"tag": "mine", "type": 0}]}))
-        self.assertEqual(self.lines(proc.stdout)[0]["tags"], [{"tag": "mine", "type": 0}])
-        proc = self.run_script(stdin=json.dumps({"id": "2105.05537", "tags": []}))
-        self.assertEqual(self.lines(proc.stdout)[0]["tags"], expected)
+    def test_smoke(self):
+        r = smoke("doi_to_item", "--doi", CVPR, "--out-dir", self.work.records, "--base-url", self.zot.base_url, env=self.web.env())
+        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
-        # Only arXiv records: a Crossref DOI gets no tags.
-        proc = self.run_script("--doi", "10.1109/CVPR.2016.90")
-        self.assertNotIn("tags", self.lines(proc.stdout)[0])
 
-        # v1 single mode has no record: the item carries them.
-        out = self.tmp / "item.json"
-        proc = self.run_script("--doi", "2105.05537", "--out", str(out))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(json.loads(out.read_text())["tags"], expected)
+class Candidates(Base):
+    """A preprint record's published_candidates: what prepare runs doi_to_item for."""
 
-    # --- erratum warnings --------------------------------------------------------
+    def preprint(self, aid):
+        r = self.draft("arXiv:" + aid)
+        self.assertEqual(r.code, 0, r)
+        return self.path(r.lines[0]["slug"])
 
-    def test_erratum_signals(self):
-        sig = self.mod.erratum_signals
-        authors = [{"family": "A", "given": "B"}]
-        self.assertEqual(sig({"title": "Correction to: Deep Nets", "author": authors, "page": "1-12"}, "journalArticle"),
-                         ["title starts with 'Correction'"])
-        self.assertEqual(sig({"title": "Author Correction: Diagnostics", "author": authors, "article-number": "52"}, "journalArticle"),
-                         ["title starts with 'Author Correction'"])
-        self.assertEqual(sig({"title": "RETRACTED: A Study", "author": authors}, "journalArticle"), ["title starts with 'RETRACTED'"])
-        for t in ("Erratum", "Corrigendum to \u201cX\u201d", "Corrections to \u201cY\u201d", "Retraction Note: Z"):
-            self.assertTrue(sig({"title": t, "author": authors}, "journalArticle"), t)
-        self.assertEqual(sig({"title": "Correctional Facilities and Health", "author": authors, "page": "1-9"}, "journalArticle"), [])
-        self.assertEqual(sig({"title": "Error in Author Name", "page": "804"}, "journalArticle"), ["no authors", "single page '804'"])
-        self.assertEqual(sig({"title": "Notice", "author": authors, "page": "E1"}, "journalArticle"), ["single page 'E1'"])
-        self.assertEqual(sig({"title": "Notice", "author": authors, "page": "457\u2013457"}, "journalArticle"), ["single page '457\u2013457'"])
-        # Article numbers and e-page ranges are ordinary papers.
-        for page, extra in (("104336", {"article-number": "104336"}), ("e0360436", {}), ("e2640040", {}), ("e563-e595", {}),
-                            ("234-241", {})):
-            self.assertEqual(sig({"title": "A Paper", "author": authors, "page": page, **extra}, "journalArticle"), [], page)
-        # Page and author signals only for article-like types; titles for every type.
-        self.assertEqual(sig({"title": "Edited Volume", "page": "1"}, "book"), [])
-        self.assertEqual(sig({"title": "Erratum", "author": authors}, "preprint"), ["title starts with 'Erratum'"])
-
-    def test_erratum_warning_in_record(self):
-        proc = self.run_script("--doi", "10.1001/jama.erratum", "--doi", "10.1109/JBHI.2022.3142076")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        erratum, paper = self.lines(proc.stdout)
-        notes = [w for w in erratum["warnings"] if w.startswith("possible erratum")]
-        self.assertEqual(len(notes), 1)
-        self.assertIn("no authors; single page '804'", notes[0])
-        self.assertFalse(any(w.startswith("possible erratum") for w in paper.get("warnings", [])))
-
-    # --- LNCS via Crossref -------------------------------------------------------
-
-    def test_lncs_chapter_becomes_conference_paper(self):
-        proc = self.run_script("--doi", "10.1007/978-3-319-24574-4_28")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        rec = self.lines(proc.stdout)[0]
-        item = rec["item"]
-        self.assertEqual(item["itemType"], "conferencePaper")
-        self.assertEqual(item["proceedingsTitle"], "Medical Image Computing and Computer-Assisted Intervention \u2013 MICCAI 2015")
-        self.assertEqual(item["series"], "Lecture Notes in Computer Science")
-        self.assertEqual(item["title"], "U-Net: Convolutional Networks for Biomedical Image Segmentation", "subtitle [] adds nothing")
-        self.assertEqual((item["pages"], item["ISBN"], item["ISSN"]), ("234-241", "9783319245737, 9783319245744", "0302-9743, 1611-3349"))
-        self.assertEqual((item["publisher"], item["place"]), ("Springer International Publishing", "Cham"))
-        self.assertFalse(any("probably the series name" in w for w in rec["warnings"]))
-        self.assertTrue(any("proceedings series 'Lecture Notes in Computer Science'" in w for w in rec["warnings"]))
-        self.assertIn(("/works/10.1007/978-3-319-24574-4_28", {}), Handler.requests, "no config -> no mailto")
-        self.assertEqual(sum(1 for p, _ in Handler.requests if p.startswith("/works/")), 1, "one Crossref call")
-
-    def test_lncs_fallbacks_stay_book_section(self):
-        proc = self.run_script("--doi", "10.1007/other-series", "--doi", "10.1007/crossref-down")
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        other, down = self.lines(proc.stdout)
-        self.assertEqual((other["item"]["itemType"], other["item"]["bookTitle"]), ("bookSection", "Some Book Series"))
-        self.assertTrue(any("probably the series name" in w and '"A Volume of Some Book Series"' in w for w in other["warnings"]))
-        self.assertEqual((down["item"]["itemType"], down["item"]["bookTitle"]), ("bookSection", "Lecture Notes in Computer Science"))
-        self.assertTrue(any("probably the series name" in w and "Crossref lookup failed: HTTP 500" in w for w in down["warnings"]))
-
-        # Crossref unreachable: same as now, plus the reason; no failure code.
-        proc = self.run_script("--doi", "10.1007/978-3-319-24574-4_28", env={"CROSSREF_BASE_URL": closed_port_url()})
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        rec = self.lines(proc.stdout)[0]
-        self.assertNotIn("code", rec)
-        self.assertEqual(rec["item"]["itemType"], "bookSection")
-        self.assertTrue(any("Crossref lookup failed: network error" in w for w in rec["warnings"]))
-
-    def test_no_crossref_call_for_journal_articles(self):
-        self.run_script("--doi", "10.1109/JBHI.2022.3142076")
-        self.assertFalse(any(p.startswith("/works/") for p, _ in Handler.requests))
-
-    # --- --bib -------------------------------------------------------------------
-
-    def test_bib_parser(self):
-        entries = list(self.mod.parse_bib(BIB))
-        self.assertEqual([(t, k) for t, k, _ in entries],
-                         [("article", "liuJBHI2022"), ("misc", "ho2020ddpm"), ("inproceedings", "he2016resnet"), ("book", "knuth1984")])
-        liu, ho, he, knuth = (f for _, _, f in entries)
-        self.assertEqual(liu["title"], "Progressive Residual Learning")
-        self.assertEqual(liu["year"], "2022")
-        self.assertEqual(self.mod.bib_identifier(liu), "10.1109/JBHI.2022.3142076")
-        self.assertEqual(self.mod.bib_identifier(ho), "arXiv:2006.11239")
-        self.assertEqual(he["title"], "Deep Residual Learning for Image Recognition", "field names are case-insensitive")
-        self.assertEqual(self.mod.bib_identifier(he), "arXiv:1512.03385v1")
-        self.assertEqual(knuth["title"], "The TeXbook: A Nested Brace Title")
-        self.assertEqual(knuth["publisher"], "ieee Press")
-        self.assertEqual(knuth["note"], "quoted with braces, and a comma")
-        self.assertIsNone(self.mod.bib_identifier(knuth))
-
-    def test_bib_stream(self):
-        bib = self.tmp / "refs.bib"
-        bib.write_text(BIB, encoding="utf-8")
-        out = self.tmp / "records"
-        proc = self.run_script("--bib", str(bib), "--out-dir", str(out))
-        self.assertEqual(proc.returncode, 1, proc.stderr)
-        rows = self.lines(proc.stdout)
-        self.assertEqual([(r["slug"], r["code"]) for r in rows[:-1]],
-                         [("liuJBHI2022", "ok"), ("ho2020ddpm", "ok"), ("he2016resnet", "not_found"), ("knuth1984", "no_identifier")])
-        knuth = json.loads((out / "knuth1984.json").read_text())
-        self.assertEqual(knuth["id"], "The TeXbook: A Nested Brace Title")
-        self.assertEqual(knuth["citationKey"], "knuth1984")
-        self.assertEqual(knuth["code"], "no_identifier")
-        ho = json.loads((out / "ho2020ddpm.json").read_text())
-        self.assertEqual(ho["id"], "arXiv:2006.11239")
-        self.assertEqual(ho["item"]["itemType"], "preprint")
-
-    def test_derive_slug(self):
-        self.assertEqual(self.mod.derive_slug({"creators": [{"lastName": "Müller-Lé"}], "date": "2021-03", "title": "On a New Way"}), "mullerle2021")
-        self.assertEqual(self.mod.derive_slug({"creators": [{"name": "Ada Lovelace"}], "date": "1843", "title": "Notes upon the memoir"}), "lovelace1843notes")
-        self.assertEqual(self.mod.derive_slug({}), "")
-
-    # --- v3 round 2: pacing ----------------------------------------------------------------
-
-    def test_a_429_stops_doi_org_for_the_rest_of_the_run(self):
-        Handler.overrides = {"/10.1109/JBHI": (429, {"Retry-After": "120"}, "busy")}
-        proc = self.run_script("--doi", "10.1109/JBHI.2022.3142076", "--doi", "10.1109/CVPR.2016.90")
-        self.assertEqual(proc.returncode, 1)
-        rows = self.lines(proc.stdout)
-        self.assertEqual([r["code"] for r in rows], ["source_blocked", "source_blocked"])
-        self.assertEqual([p for p, _ in Handler.requests if p.startswith("/10.")], ["/10.1109/JBHI.2022.3142076"],
-                         "after the 429 the second DOI is not requested")
-        Handler.overrides = {}
-        proc = self.run_script("--doi", "10.1109/CVPR.2016.90")
-        self.assertEqual(proc.returncode, 0, "a new run asks doi.org again")
-
-    # --- published_candidates ------------------------------------------------------------
-
-    def draft(self, ident, out_dir=None, candidates=True, env=None):
-        out_dir = out_dir or self.tmp / "records"
-        proc = self.run_script("--doi", ident, "--out-dir", str(out_dir), candidates=candidates, env=env)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        row = self.lines(proc.stdout)[0]
-        return out_dir / row["file"], row, proc
-
-    def test_candidates_from_arxiv_and_crossref(self):
-        proc = self.run_script("--doi", "arXiv:2303.11366", candidates=True)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        rec = self.lines(proc.stdout)[0]
-        self.assertEqual(rec["published_candidates"], [{
-            "doi": "10.52202/075280-0377", "venue": "Advances in Neural Information Processing Systems 36", "year": 2023,
-            "title": "Reflexion: language agents with verbal reinforcement learning",
-            "url": "https://doi.org/10.52202/075280-0377", "source": "crossref", "title_differs": False,
-            "type": "proceedings-article", "redraft": "10.52202/075280-0377"}],
+    def test_published_versions_of_preprints(self):
+        reflexion, swin = self.preprint(REFLEXION), self.preprint("2105.05537")
+        self.draft(CVPR)
+        journal, empty = self.path("he2016deep"), self.path("empty")
+        empty.write_text("{}")
+        self.web.requests.clear()
+        r = self.run_(reflexion, swin, journal, empty)
+        self.assertEqual(r.code, 1, r)
+        self.assertEqual([(o["code"], o.get("reason"), o.get("candidates")) for o in r.lines[:4]],
+                         [("ok", "absent", 1), ("ok", "absent", 1), ("skipped", "not_preprint", None), ("no_item", None, None)])
+        self.assertEqual((r.lines[0]["comment"], r.lines[0]["sources"]),
+                         ("v4 contains a few additional experiments", {"arxiv": "ok", "crossref": "ok"}))
+        self.assertEqual(len(self.requested("/arxiv/api/query")), 1, "one arXiv call for all records")
+        rec = run.read(reflexion)
+        self.assertEqual(rec["published_candidates"]["items"], [{
+            "doi": NEURIPS, "venue": "Advances in Neural Information Processing Systems 36", "year": 2023,
+            "title": "Reflexion: language agents with verbal reinforcement learning", "url": "https://doi.org/" + NEURIPS,
+            "sources": ["crossref"], "title_differs": False, "type": "proceedings-article"}],
             "posted-content, arXiv's own DOI and a dissimilar title are left out")
         self.assertEqual(rec["item"]["itemType"], "preprint", "the item is never changed")
-        self.assertEqual(sum(1 for p, _ in Handler.requests if p == "/arxiv/api/query"), 1)
-        _, summary, _ = self.draft("arXiv:2303.11366")  # with --out-dir the summary lines carry the arXiv comment
-        self.assertEqual((summary["candidates"], summary["arxiv_comment"]), (1, "v4 contains a few additional experiments"))
-        self.assertNotIn("candidate_sources", summary)
-
-    def test_doi_declared_on_arxiv_is_completed_from_crossref(self):
-        rec = self.lines(self.run_script("--doi", "arXiv:2105.05537", candidates=True).stdout)[0]
-        self.assertEqual(rec["published_candidates"], [{
-            "doi": "10.1007/978-3-031-25066-8_9", "venue": "Computer Vision \u2013 ECCV 2022 Workshops", "year": 2023,
+        self.assertEqual(run.read(swin)["published_candidates"]["items"], [{
+            "doi": "10.1007/978-3-031-25066-8_9", "venue": "Computer Vision – ECCV 2022 Workshops", "year": 2023,
             "title": "Swin-Unet: Unet-Like Pure Transformer for Medical Image Segmentation",
-            "url": "https://doi.org/10.1007/978-3-031-25066-8_9", "source": "arxiv", "title_differs": False,
-            "type": "book-chapter", "journal_ref": "ECCV 2022 Workshops", "redraft": "10.1007/978-3-031-25066-8_9"}])
+            "url": "https://doi.org/10.1007/978-3-031-25066-8_9", "sources": ["arxiv", "crossref"], "title_differs": False,
+            "type": "book-chapter", "journal_ref": "ECCV 2022 Workshops"}], "the DOI arXiv declares, completed from Crossref")
+        # Done until its inputs change.
+        self.web.requests.clear()
+        self.assertEqual([o["reason"] for o in self.run_(reflexion, swin).lines[:2]], ["done", "done"])
+        self.assertEqual(self.web.requests, [])
+        rec["item"]["title"] = "Reflexion: Language Agents"
+        rec.save()
+        self.assertEqual(self.run_(reflexion).lines[0]["reason"], "stale")
 
-    def test_a_failing_source_is_reported_not_fatal(self):
-        Handler.overrides = {"/works": (429, {"Content-Type": "application/json"}, "{}")}
-        proc = self.run_script("--doi", "arXiv:2303.11366", "--doi", "arXiv:2310.00001", "--out-dir", str(self.tmp / "r"),
-                               candidates=True)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        summaries = self.lines(proc.stdout)[:2]
-        self.assertEqual(summaries[0]["candidate_sources"]["crossref"]["code"], "source_blocked")
-        self.assertEqual(summaries[1]["candidate_sources"]["crossref"]["code"], "source_blocked")
-        self.assertEqual(sum(1 for p, _ in Handler.requests if p == "/works"), 1, "Crossref is not asked again after its 429")
-        self.assertEqual(summaries[1]["arxiv_comment"], "ICLR 2024", "the comment points the agent to papers.cool")
+    def test_sources_that_do_not_answer(self):
+        swin, reflexion = self.preprint("2105.05537"), self.preprint(REFLEXION)
+        rec = run.read(swin)
+        old = {"doi": "10.1007/978-3-031-25066-8_9", "venue": "ECCV 2022 Workshops", "year": 2023, "title": None,
+               "url": "https://doi.org/10.1007/978-3-031-25066-8_9", "sources": ["arxiv"], "title_differs": None,
+               "journal_ref": "ECCV 2022 Workshops"}
+        run.stamp(rec, "published_candidates", {"items": [old], "comment": "before"}, incomplete=["crossref"])
+        rec.save()
+        self.web.route("/arxiv/api/query", "busy", status=503)
+        r = self.run_(swin)
+        self.assertEqual((r.code, r.lines[0]["reason"], r.lines[0]["sources"]), (0, "incomplete", {"arxiv": "http_503", "crossref": "ok"}))
+        block = run.read(swin)["published_candidates"]
+        self.assertEqual((block["incomplete"], block["comment"]), (["arxiv"], "before"))
+        self.assertEqual([(c["sources"], c["journal_ref"], c["venue"]) for c in block["items"]],
+                         [(["arxiv", "crossref"], "ECCV 2022 Workshops", "Computer Vision \u2013 ECCV 2022 Workshops")],
+                         "what the silent source gave before stays, completed from Crossref's answer")
+        self.web.rate_limit("/crossref/works", retry_after=120)
+        r = self.run_(swin, reflexion)
+        self.assertEqual((r.code, [o["code"] for o in r.lines[:2]]), (1, ["no_answer", "no_answer"]))
+        self.assertEqual(r.lines[1]["sources"]["crossref"], "source_blocked")
+        self.assertEqual(len(self.requested("/crossref/works")), 2, "after its 429 Crossref is not asked again")
+        self.assertEqual(run.read(reflexion)["published_candidates"]["incomplete"], ["arxiv", "crossref"])
 
-    def test_candidates_mode_for_drafted_records(self):
-        path, _, _ = self.draft("arXiv:2303.11366", candidates=False)
-        before = json.loads(path.read_text())
-        self.assertNotIn("published_candidates", before)
-        proc = self.run_script("--candidates", "-i", str(path))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        row = self.lines(proc.stdout)[0]
-        self.assertEqual((row["code"], row["candidates"]), ("ok", 1))
-        after = json.loads(path.read_text())
-        self.assertEqual(after["item"], before["item"])
-        Handler.requests.clear()
-        row = self.lines(self.run_script("--candidates", "-i", str(path)).stdout)[0]
-        self.assertEqual((row["code"], row["reason"]), ("skipped", "has_candidates"))
-        self.assertEqual(Handler.requests, [], "candidates are not looked up again")
-        self.assertEqual(self.lines(self.run_script("--candidates", "--refresh", "-i", str(path)).stdout)[0]["code"], "ok")
-        journal, _, _ = self.draft("10.1109/CVPR.2016.90")
-        self.assertEqual(self.lines(self.run_script("--candidates", "-i", str(journal)).stdout)[0]["reason"], "has_item",
-                         "not a preprint: nothing to look up")
-        self.assertEqual(self.run_script("--candidates", "--no-candidates", "-i", str(path)).returncode, 2)
-        self.assertEqual(self.run_script("--refresh", "-i", str(path)).returncode, 2)
 
-    def test_merge_keeps_two_dois_apart(self):
-        c = self.mod.candidate
-        merged = self.mod.merge_candidates([
-            c("arxiv", doi="10.1/a", venue="J", journal_ref="J 2023"), c("crossref", doi="10.1/A", title="Same Title", year=2023,
-                                                                         venue="V"),
-            c("crossref", doi="10.2/b", title="Same Title", year=2024), c("arxiv", venue="Workshop 2023", year=2023)], ["Same Title"])
-        self.assertEqual([(m["doi"], m.get("sources"), m["redraft"]) for m in merged],
-                         [("10.1/a", ["arxiv", "crossref"], "10.1/a"), ("10.2/b", None, "10.2/b"), (None, None, None)])
-        self.assertEqual((merged[0]["title"], merged[0]["journal_ref"]), ("Same Title", "J 2023"))
+class Redraft(Base):
+    def preprint(self, aid=REFLEXION, **extra):
+        """A drafted, prepared preprint record with the agent's fields."""
+        path = self.path(self.draft("arXiv:" + aid).lines[0]["slug"])
+        rec = run.read(path)
+        rec.update({"citationKey": "shinn2023reflexion", "tags": [{"tag": "mine", "type": 0}], "collection": ["AAA"], **extra})
+        for block in ("found", "links", "checks"):
+            run.stamp(rec, block, {"code": "x"})
+        rec.save()
+        self.assertEqual(self.run_(path).code, 0)
+        return path, run.read(path)
 
-    # --- --redraft -----------------------------------------------------------------------
+    def test_by_doi(self):
+        self.web.doi(NEURIPS, {k: v for k, v in CSL[NEURIPS].items() if k != "abstract"})
+        path, before = self.preprint(alt_titles=["An Earlier Title"])
+        r = self.run_("--redraft", NEURIPS, path)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["itemType"]), (0, "ok", "conferencePaper"), r)
+        rec = run.read(path)
+        self.assertEqual({k: rec[k] for k in ("id", "citationKey", "tags", "collection", "links")},
+                         {k: before[k] for k in ("id", "citationKey", "tags", "collection", "links")})
+        self.assertEqual((rec.item["DOI"], rec.item["extra"], rec.item["abstractNote"]), (NEURIPS, f"arXiv: {REFLEXION}", "Reflexion."))
+        self.assertIn("the DOI record has no abstract: the preprint's is kept", rec["warnings"])
+        self.assertTrue(any("sales page" in w for w in rec["warnings"]))
+        self.assertEqual(rec["alt_titles"], ["An Earlier Title"], "the same title up to case: nothing added")
+        self.assertEqual([run.due(rec, b) for b in ("found", "links", "checks")], ["stale"] * 3, "the next prepare redoes them")
+        self.assertEqual(self.run_(path).lines[0]["reason"], "not_preprint")
+        self.assertNotIn("published_candidates", run.read(path))
+        self.assertEqual(self.run_("--redraft", "doi:" + NEURIPS, path).lines[0]["reason"], "same_doi")
+        self.run_("--redraft", "https://doi.org/10.1234/journal-version", path)
+        self.assertEqual(run.read(path)["alt_titles"], ["An Earlier Title", "Reflexion: language agents with verbal reinforcement learning"])
+        # Refused: an item already in Zotero (or being created), the preprint's own DOI, an unknown DOI.
+        saved, _ = self.preprint("2310.00001", saved={"pending": True, "at": "2026-10-20T00:00:00Z"})
+        self.assertEqual(self.run_("--redraft", NEURIPS, saved).lines[0]["code"], "already_saved")
+        for target, code in (("10.48550/arXiv." + REFLEXION, "not_published"), ("10.9999/missing", "not_found")):
+            r = self.run_("--redraft", target, path)
+            self.assertEqual((r.code, r.lines[0]["code"]), (1, code), target)
 
-    def preprint_record(self, ident="arXiv:2303.11366", **extra):
-        """A freshly drafted preprint record (own directory) with the fields --redraft must keep or clear."""
-        path, _, _ = self.draft(ident, out_dir=Path(tempfile.mkdtemp(dir=self.tmp)))
-        rec = json.loads(path.read_text())
-        rec.update({"citationKey": "shinn2023reflexion", "tags": [{"tag": "mine", "type": 0}], "collection": ["AAA", "BBB"],
-                    "found": {"key": "PRE1"}, "checks": {"code": "ok"},
-                    "links": [{"url": "https://arxiv.org/pdf/2303.11366", "source": "arxiv"}],
-                    "pdf": {"code": "ok", "md5": "abc"}, "file": "x.pdf", **extra})
-        path.write_text(json.dumps(rec))
-        return path, rec
-
-    def test_redraft_doi_form(self):
-        path, before = self.preprint_record()
-        self.assertTrue(before["published_candidates"])
-        proc = self.run_script("--redraft", "10.52202/075280-0377", "-i", str(path))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        row = self.lines(proc.stdout)[0]
-        self.assertEqual((row["code"], row["itemType"]), ("ok", "conferencePaper"))
-        self.assertEqual(row["cleared"], ["found", "checks", "links", "published_candidates", "pdf"])
-        rec = json.loads(path.read_text())
-        for key in ("slug", "id", "citationKey", "tags", "collection", "file"):
-            self.assertEqual(rec[key], before[key], key)
-        for key in self.mod.REDRAFT_CLEARS:
-            self.assertNotIn(key, rec)
-        item = rec["item"]
-        self.assertEqual((item["DOI"], item["proceedingsTitle"]),
-                         ("10.52202/075280-0377", "Advances in Neural Information Processing Systems 36"))
-        self.assertEqual(item["extra"], "arXiv: 2303.11366")
-        self.assertNotIn("alt_titles", rec, "same title up to case: nothing to add")
-        self.assertTrue(any("sales page" in w for w in rec["warnings"]), "a NeurIPS DOI's page is a sales page")
-        no_abstract = self.preprint_record()[0]
-        CSL["10.52202/075280-0377"].pop("abstract")
-        try:
-            self.run_script("--redraft", "10.52202/075280-0377", "-i", str(no_abstract))
-        finally:
-            CSL["10.52202/075280-0377"]["abstract"] = "Reflexion."
-        rec2 = json.loads(no_abstract.read_text())
-        self.assertEqual(rec2["item"]["abstractNote"], "Reflexion.")
-        self.assertIn("the DOI record has no abstract: the preprint's is kept", rec2["warnings"])
-        proc = self.run_script("--redraft", "doi:10.52202/075280-0377", "-i", str(path))
-        self.assertEqual((proc.returncode, self.lines(proc.stdout)[0]["reason"]), (0, "same_doi"))
-
-    def test_redraft_doi_form_new_title_goes_to_alt_titles(self):
-        path, before = self.preprint_record(alt_titles=["An Earlier Title"])
-        proc = self.run_script("--redraft", "https://doi.org/10.1234/journal-version", str(path))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        rec = self.lines(proc.stdout)[0]
-        self.assertEqual(rec["item"]["title"], "Verbal Reinforcement for Language Agents")
-        self.assertEqual(rec["alt_titles"], ["An Earlier Title", "Reflexion: Language Agents with Verbal Reinforcement Learning"])
-        self.assertEqual(json.loads(path.read_text()), before, "without -i the file is left alone")
-
-    def test_redraft_page_form(self):
-        path, before = self.preprint_record()
-        page = self.base + "/page/neurips"
-        proc = self.run_script("--redraft", page, "-i", str(path))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        row = self.lines(proc.stdout)[0]
-        self.assertEqual((row["code"], row["itemType"], row["url"]), ("ok", "conferencePaper", page))
-        rec = json.loads(path.read_text())
-        item = rec["item"]
-        self.assertEqual((item["proceedingsTitle"], item["pages"], item["date"], item["extra"]),
-                         ("Advances in Neural Information Processing Systems", "8634-8652", "2023-12-15", "arXiv: 2303.11366"))
-        self.assertEqual(item["creators"], [{"creatorType": "author", "firstName": "Noah", "lastName": "Shinn"},
-                                            {"creatorType": "author", "firstName": "Federico", "lastName": "Cassano"}])
-        self.assertEqual(item["abstractNote"], "Reflexion.", "the page has none: the preprint's is kept")
-        self.assertEqual(rec["links"], [{"url": self.base + "/paper_files/paper/2023/file/1b44-Paper-Conference.pdf",
-                                         "source": "page", "version": "published", "needs_browser": False}])
-        self.assertEqual(rec["citationKey"], before["citationKey"])
-        # A journal page (TMLR): journalArticle, abstract from the description tag when the preprint has none.
-        path, _ = self.preprint_record()
-        rec = json.loads(path.read_text())
-        rec["item"].pop("abstractNote", None)
-        path.write_text(json.dumps(rec))
-        self.run_script("--redraft", self.base + "/page/tmlr", "-i", str(path))
-        item = json.loads(path.read_text())["item"]
-        self.assertEqual((item["itemType"], item["publicationTitle"], item["ISSN"], item["date"]),
-                         ("journalArticle", "Transactions on Machine Learning Research", "2835-8856", "2024"))
-        self.assertEqual(item["abstractNote"], "An abstract from the description tag.")
-        self.assertIn("A Journal Paper on Agents", item["title"])
-        # Pages that cannot be read.
-        for name, code in (("bare", "no_citation_meta"), ("missing", "page_unreachable")):
-            proc = self.run_script("--redraft", self.base + "/page/" + name, "-i", str(path))
-            self.assertEqual((proc.returncode, self.lines(proc.stdout)[0]["code"]), (1, code), name)
-
-    def test_redraft_refusals(self):
-        path, before = self.preprint_record(saved={"key": "NEW1"})
-        proc = self.run_script("--redraft", "10.52202/075280-0377", "-i", str(path))
-        self.assertEqual((proc.returncode, self.lines(proc.stdout)[0]["code"]), (1, "already_saved"))
-        self.assertEqual(json.loads(path.read_text()), before)
-        path, _ = self.preprint_record()
-        proc = self.run_script("--redraft", "10.48550/arXiv.2303.11366", "-i", str(path))
-        self.assertEqual((proc.returncode, self.lines(proc.stdout)[0]["code"]), (1, "not_published"))
-        proc = self.run_script("--redraft", "10.9999/missing", "-i", str(path))
-        self.assertEqual((proc.returncode, self.lines(proc.stdout)[0]["code"]), (1, "not_found"))
-        self.assertEqual(self.run_script("--redraft", "10.52202/075280-0377", "-i", str(path), str(path)).returncode, 2)
-        self.assertEqual(self.run_script("--redraft", "10.52202/075280-0377", "--doi", "10.1/x", str(path)).returncode, 2)
+    def test_by_the_papers_page(self):
+        neurips = self.web.page("/paper/neurips", "Reflexion", meta={
+            "citation_title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
+            "citation_author": ["Shinn, Noah", "Cassano, Federico"],
+            "citation_journal_title": "Advances in Neural Information Processing Systems", "citation_volume": "36",
+            "citation_firstpage": "8634", "citation_lastpage": "8652", "citation_publication_date": "2023/12/15",
+            "citation_pdf_url": "/paper_files/1b44-Paper-Conference.pdf"})
+        path, before = self.preprint()
+        r = self.run_("--redraft", neurips, path)
+        self.assertEqual((r.code, r.lines[0]["itemType"], r.lines[0]["url"]), (0, "conferencePaper", neurips), r)
+        rec = run.read(path)
+        self.assertEqual({k: rec.item.get(k) for k in ("proceedingsTitle", "pages", "date", "extra", "abstractNote")},
+                         {"proceedingsTitle": "Advances in Neural Information Processing Systems", "pages": "8634-8652",
+                          "date": "2023-12-15", "extra": f"arXiv: {REFLEXION}", "abstractNote": "Reflexion."})
+        self.assertEqual(rec.item["creators"], [{"creatorType": "author", "firstName": "Noah", "lastName": "Shinn"},
+                                                {"creatorType": "author", "firstName": "Federico", "lastName": "Cassano"}])
+        self.assertEqual(rec["links"], before["links"], "the page's PDF is fulltext_links' to list")
+        tmlr = self.web.page("/paper/tmlr", "", meta={
+            "citation_title": "A Journal Paper on Agents", "citation_author": "Ada Lovelace",
+            "citation_journal_title": "Transactions on Machine Learning Research", "citation_publication_date": "2024",
+            "description": "An abstract from the description tag."})
+        path, _ = self.preprint("2310.00001")
+        rec = run.read(path)
+        rec["item"].pop("abstractNote")
+        rec.save()
+        self.run_("--redraft", tmlr, path)
+        item = run.read(path).item
+        self.assertEqual((item["itemType"], item["publicationTitle"], item["abstractNote"]),
+                         ("journalArticle", "Transactions on Machine Learning Research", "An abstract from the description tag."))
+        for url, code in ((self.web.page("/paper/bare", "Just a page"), "no_citation_meta"),
+                          (self.web.url("/paper/missing"), "page_unreachable")):
+            r = self.run_("--redraft", url, path)
+            self.assertEqual((r.code, r.lines[0]["code"]), (1, code), url)
 
 
 if __name__ == "__main__":

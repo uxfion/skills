@@ -2,21 +2,18 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/check_item.py against a minimal local-API mock (itemTypes, itemTypeFields, itemTypeCreatorTypes, schema)."""
-
-import http.server
+"""Tests for scripts/check_item.py against the fake Zotero's schema."""
 import json
-import re
-import subprocess
-import sys
 import tempfile
-import threading
 import unittest
-import urllib.parse
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check_item.py"
+from helpers import call, closed_port, load, smoke
+from fake_zotero import FakeZotero
 
+from p2zlib import run
+
+check = load("check_item")
 FIELDS = {
     "journalArticle": [{"field": f} for f in ("title", "abstractNote", "publicationTitle", "volume", "date", "DOI", "url", "extra")],
     "conferencePaper": [{"field": "title"}, {"field": "abstractNote"}, {"field": "proceedingsTitle", "baseField": "publicationTitle"},
@@ -25,7 +22,6 @@ FIELDS = {
 }
 CREATORS = [{"creatorType": "author", "primary": True}, {"creatorType": "editor"}]
 SCHEMA = {"version": 44, "itemTypes": [{"itemType": t, "fields": f, "creatorTypes": CREATORS} for t, f in FIELDS.items()]}
-
 OK_ITEM = {"itemType": "journalArticle", "title": "A Paper", "creators": [{"creatorType": "author", "firstName": "A", "lastName": "B"}],
            "date": "2024", "DOI": "10.1/x", "publicationTitle": "J"}
 MAPPED_ITEM = {"itemType": "conferencePaper", "title": "A Talk", "creators": [{"creatorType": "author", "name": "C"}],
@@ -33,158 +29,88 @@ MAPPED_ITEM = {"itemType": "conferencePaper", "title": "A Talk", "creators": [{"
 UNKNOWN_ITEM = {"itemType": "journalArticl", "title": "Typo"}
 
 
-class Handler(http.server.BaseHTTPRequestHandler):
-    disabled = False
-
-    def log_message(self, *a):
-        pass
-
-    def send_json(self, obj, status=200):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps(obj).encode())
-
-    def do_GET(self):
-        url = urllib.parse.urlsplit(self.path)
-        q = urllib.parse.parse_qs(url.query)
-        if Handler.disabled:
-            self.send_response(403)
-            self.end_headers()
-            self.wfile.write(b"Local API is not enabled")
-            return
-        if url.path == "/api/itemTypes":
-            return self.send_json([{"itemType": t, "localized": t} for t in FIELDS])
-        if url.path == "/api/itemTypeFields":
-            return self.send_json(FIELDS.get(q["itemType"][0], []))
-        if url.path == "/api/itemTypeCreatorTypes":
-            return self.send_json([{"creatorType": c["creatorType"]} for c in CREATORS])
-        if url.path == "/api/schema":
-            return self.send_json(SCHEMA)
-        self.send_json("Not found", 404)
-
-
-class CheckItemTest(unittest.TestCase):
+class CheckItem(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
-        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.zot = FakeZotero()
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.shutdown()
+        cls.zot.close()
 
     def setUp(self):
-        Handler.disabled = False
-        self.tmp = Path(tempfile.mkdtemp())
+        self.zot.reset()
+        self.zot.schema = json.loads(json.dumps(SCHEMA))
+        self.work = run.Work(tempfile.mkdtemp(prefix="p2z-check-"))
+        self.work.records.mkdir()
 
-    def run_script(self, *args, stdin=None, base=None):
-        return subprocess.run([sys.executable, str(SCRIPT), "--base-url", base or self.base, *args],
-                              input=stdin, capture_output=True, text=True)
-
-    def lines(self, text):
-        return [json.loads(ln) for ln in text.splitlines() if ln.strip()]
-
-    def write(self, name, obj):
-        path = self.tmp / name
-        path.write_text(json.dumps(obj), encoding="utf-8")
+    def record(self, slug, data):
+        path = self.work.records / f"{slug}.json"
+        path.write_text(data if isinstance(data, str) else json.dumps(data), encoding="utf-8")
         return path
 
-    def test_v1_item_mode(self):
-        proc = self.run_script("--item", str(self.write("ok.json", OK_ITEM)))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        report = json.loads(proc.stdout)
-        self.assertEqual(report["code"], "ok")
-        self.assertEqual(report["missing_minimum"], [])
-        proc = self.run_script("--item", str(self.write("mapped.json", MAPPED_ITEM)))
-        self.assertEqual(proc.returncode, 1)
-        report = json.loads(proc.stdout)
-        self.assertEqual(report["code"], "needs_attention")
-        self.assertEqual(report["mapped"], [{"from": "publicationTitle", "to": "proceedingsTitle"}])
-        proc = self.run_script("--item", str(self.write("unknown.json", UNKNOWN_ITEM)))
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(json.loads(proc.stdout)["code"], "unknown_item_type")
-        proc = self.run_script("--item", str(self.tmp / "nope.json"))
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(json.loads(proc.stdout)["code"], "item_unreadable")
+    def run_(self, *argv, base_url=None):
+        return call(check, *argv, "--base-url", base_url or self.zot.base_url)
 
-    def test_item_excludes_stream_flags(self):
-        proc = self.run_script("--item", str(self.write("ok.json", OK_ITEM)), "-i")
-        self.assertEqual(proc.returncode, 2)
-        proc = self.run_script("-i")
-        self.assertEqual(proc.returncode, 2)
+    def test_each_record_gets_checks_with_its_inputs(self):
+        paths = [self.record("a", {"item": OK_ITEM, "note_to_self": "keep me"}), self.record("b", {"item": MAPPED_ITEM}),
+                 self.record("c", {"item": UNKNOWN_ITEM}), self.record("d", {"tags": []})]
+        r = self.run_(*paths)
+        self.assertEqual(r.code, 1, r)
+        self.assertEqual([(o["slug"], o["code"]) for o in r.lines[:4]],
+                         [("a", "ok"), ("b", "needs_attention"), ("c", "unknown_item_type"), ("d", "no_item")])
+        self.assertEqual((r.lines[0]["reason"], r.lines[0]["itemType"]), ("absent", "journalArticle"))
+        self.assertEqual(r.lines[1]["mapped"], [{"from": "publicationTitle", "to": "proceedingsTitle"}])
+        self.assertIn("hint", r.lines[1])
+        self.assertEqual(r.lines[2]["suggestions"], ["journalArticle"])
+        self.assertEqual(r.lines[-1], {"summary": {"total": 4, "ok": 1, "skipped": 0, "failed": 3}})
+        a = run.read(paths[0])
+        self.assertEqual((a["note_to_self"], a["checks"]["code"], a["checks"]["missing_minimum"]), ("keep me", "ok", []))
+        self.assertIsNone(run.due(a, "checks"))
+        self.assertNotIn("checks", run.read(paths[3]), "a record without an item gets nothing written")
 
-    def test_stream_paths_to_stdout(self):
-        p1 = self.write("a.json", {"slug": "a", "item": OK_ITEM})
-        p2 = self.write("b.json", {"slug": "b", "item": MAPPED_ITEM})
-        p3 = self.write("c.json", {"slug": "c", "id": "10.1/z"})
-        proc = self.run_script(str(p1), str(p2), str(p3))
-        self.assertEqual(proc.returncode, 1, proc.stderr)
-        rows = self.lines(proc.stdout)
-        self.assertEqual([r["checks"]["code"] for r in rows], ["ok", "needs_attention", "no_item"])
-        self.assertEqual(rows[0]["item"], OK_ITEM, "record returned whole")
-        self.assertTrue(re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", rows[0]["checks"]["checked_at"]))
-        self.assertEqual(self.lines(proc.stderr)[-1], {"summary": {"total": 3, "ok": 1, "skipped": 0, "failed": 2}})
-        self.assertEqual(json.loads(p1.read_text()), {"slug": "a", "item": OK_ITEM}, "files untouched without -i")
+    def test_a_rerun_skips_what_is_done_and_redoes_what_changed(self):
+        a, b = self.record("a", {"item": OK_ITEM}), self.record("b", {"item": MAPPED_ITEM})
+        self.run_(a, b)
+        self.zot.requests.clear()
+        r = self.run_(a, b)
+        self.assertEqual([(o["code"], o.get("reason"), o.get("checks")) for o in r.lines[:2]],
+                         [("skipped", "done", "ok"), ("skipped", "done", "needs_attention")])
+        self.assertEqual(r.code, 0, "a done block is not the agent's to act on again")
+        self.assertEqual(self.zot.requests, [], "nothing asked of Zotero")
+        rec = run.read(b)
+        rec["item"]["proceedingsTitle"] = rec["item"].pop("publicationTitle")
+        rec.save()
+        r = self.run_(b)
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"]), ("ok", "stale"))
 
-    def test_stream_in_place_and_rerun(self):
-        p1 = self.write("a.json", {"slug": "a", "item": OK_ITEM, "note_to_self": "keep me"})
-        p2 = self.write("b.json", {"slug": "b", "item": MAPPED_ITEM})
-        proc = self.run_script("-i", str(p1), str(p2))
-        self.assertEqual(proc.returncode, 1, proc.stderr)
-        rows = self.lines(proc.stdout)
-        self.assertEqual(rows[0], {"slug": "a", "code": "ok", "itemType": "journalArticle"})
-        self.assertEqual(rows[1]["code"], "needs_attention")
-        self.assertEqual(rows[1]["mapped"], [{"from": "publicationTitle", "to": "proceedingsTitle"}])
-        self.assertEqual(rows[2], {"summary": {"total": 2, "ok": 1, "skipped": 0, "failed": 1}})
-        self.assertEqual(proc.stderr.strip(), "", "stderr quiet in -i mode")
-        text = p1.read_text()
-        rec = json.loads(text)
-        self.assertEqual(rec["note_to_self"], "keep me")
-        self.assertEqual(rec["checks"]["code"], "ok")
-        self.assertTrue(text.endswith("\n") and text.startswith("{\n  "), "indent=2 with trailing newline")
-        self.assertEqual(sorted(p.name for p in self.tmp.iterdir()), ["a.json", "b.json"], "no temp files left")
+    def test_the_schema_is_read_once_a_run(self):
+        self.run_(self.record("a", {"item": OK_ITEM}))
+        self.assertTrue((self.work.scratch / "schema.json").is_file())
+        self.zot.requests.clear()
+        self.run_(self.record("b", {"item": MAPPED_ITEM}))
+        self.assertEqual(self.zot.requested("GET", "/api/schema"), [])
 
-        first = rec["checks"]["checked_at"]
-        proc = self.run_script("-i", str(p1))
-        self.assertEqual(proc.returncode, 0)
-        rec2 = json.loads(p1.read_text())
-        self.assertEqual(rec2["checks"]["code"], "ok", "re-checked, not skipped")
-        self.assertGreaterEqual(rec2["checks"]["checked_at"], first)
+    def test_a_bad_file_does_not_stop_the_others(self):
+        bad = self.record("bad", "{not json")
+        r = self.run_(bad, self.record("good", {"item": OK_ITEM}))
+        self.assertEqual([(o["slug"], o["code"]) for o in r.lines[:2]], [("bad", "record_invalid"), ("good", "ok")])
+        self.assertEqual(bad.read_text(), "{not json")
 
-    def test_stdin_forms(self):
-        proc = self.run_script(stdin=json.dumps({"slug": "one", "item": OK_ITEM}))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(self.lines(proc.stdout)[0]["checks"]["code"], "ok")
-        proc = self.run_script(stdin=json.dumps([{"slug": "one", "item": OK_ITEM}, {"slug": "two", "item": OK_ITEM}]))
-        self.assertEqual(len(self.lines(proc.stdout)), 2)
-        proc = self.run_script(stdin="\n".join(json.dumps({"slug": s, "item": OK_ITEM}) for s in "abc") + "\n")
-        self.assertEqual([r["slug"] for r in self.lines(proc.stdout)], ["a", "b", "c"])
-        proc = self.run_script(stdin="")
-        self.assertEqual(proc.returncode, 1)
-        self.assertEqual(json.loads(proc.stdout)["code"], "no_records")
+    def test_help_has_the_skeleton_and_cannot_check(self):
+        r = self.run_("--help")
+        self.assertEqual(r.code, 0)
+        self.assertIn('"itemType": "journalArticle"', r.out)
+        a = self.record("a", {"item": OK_ITEM})
+        r = self.run_(a, self.record("b", {"item": OK_ITEM}), base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, [o["code"] for o in r.lines[:2]]), (2, ["zotero_unreachable", "not_run"]))
+        self.zot.disabled = True
+        self.assertEqual(self.run_(a).lines[0]["code"], "local_api_disabled")
+        self.assertEqual(self.run_().lines[0]["code"], "no_records")
 
-    def test_bad_file_does_not_stop_the_others(self):
-        bad = self.tmp / "bad.json"
-        bad.write_text("{not json")
-        good = self.write("good.json", {"slug": "good", "item": OK_ITEM})
-        proc = self.run_script("-i", str(bad), str(good))
-        self.assertEqual(proc.returncode, 1)
-        rows = self.lines(proc.stdout)
-        self.assertEqual((rows[0]["slug"], rows[0]["code"]), ("bad", "invalid_json"))
-        self.assertEqual(rows[1]["code"], "ok")
-        self.assertEqual(rows[2]["summary"], {"total": 2, "ok": 1, "skipped": 0, "failed": 1})
-        self.assertEqual(bad.read_text(), "{not json", "unreadable input never written back")
-
-    def test_cannot_check(self):
-        proc = self.run_script("--item", str(self.write("ok.json", OK_ITEM)), base="http://127.0.0.1:9")
-        self.assertEqual(proc.returncode, 2)
-        self.assertEqual(json.loads(proc.stdout)["code"], "zotero_unreachable")
-        Handler.disabled = True
-        proc = self.run_script(stdin=json.dumps({"slug": "one", "item": OK_ITEM}))
-        self.assertEqual(proc.returncode, 2)
-        self.assertEqual(json.loads(proc.stdout)["code"], "local_api_disabled")
+    def test_smoke(self):
+        r = smoke("check_item", self.record("a", {"item": OK_ITEM}), "--base-url", self.zot.base_url)
+        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
 
 if __name__ == "__main__":

@@ -2,301 +2,216 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/fulltext_links.py: OpenAlex and Europe PMC on one http.server (OPENALEX_BASE_URL,
-EUROPEPMC_BASE_URL); each test gets its own config file."""
-import http.server
-import importlib.util
+"""Tests for scripts/fulltext_links.py against the fake web's OpenAlex, Europe PMC and venue pages."""
 import json
-import os
-import subprocess
-import sys
 import tempfile
-import threading
 import unittest
-import urllib.parse
-from pathlib import Path
+from unittest import mock
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "fulltext_links.py"
+from helpers import call, config_file, load, smoke
+from fake_web import FakeWeb, full_text_url, location
+
+from p2zlib import run, web
+
+links = load("fulltext_links")
 KEY = "sk-TEST-openalex-SECRET-0042"
 PUB_PDF = "https://www.publisher.example/articles/nat-1.pdf"
 
 
-def loc(url_pdf=None, landing=None, version=None, is_oa=True, stype="journal"):
-    return {"is_oa": is_oa, "pdf_url": url_pdf, "landing_page_url": landing, "version": version,
-            "source": {"type": stype, "display_name": "x"}}
-
-
-OPENALEX = {
-    "10.1000/nat.1": {
-        "best_oa_location": loc(PUB_PDF, "https://doi.org/10.1000/nat.1", "publishedVersion"),
-        "locations": [
-            loc(PUB_PDF, "https://doi.org/10.1000/nat.1", "publishedVersion"),
-            loc(None, "https://pubmed.ncbi.nlm.nih.gov/456", "publishedVersion", is_oa=False, stype="repository"),
-            loc("https://arxiv.org/pdf/2212.00001", "http://arxiv.org/abs/2212.00001", "submittedVersion", stype="repository"),
-            loc("https://pmc.ncbi.nlm.nih.gov/articles/PMC123/pdf/nat.pdf", "https://www.ncbi.nlm.nih.gov/pmc/articles/123",
-                "submittedVersion", stype="repository"),
-            loc(None, "https://doi.org/10.5281/zenodo.1", None, stype="repository"),
-        ]},
-    "10.1000/jno.2": {"best_oa_location": loc(None, "https://doi.org/10.1000/jno.2", "publishedVersion"),
-                      "locations": [loc(None, "https://doi.org/10.1000/jno.2", "publishedVersion")]},
-    "10.1000/am.3": {"locations": []},
-    "10.48550/arxiv.2006.11239": {
-        "best_oa_location": loc("https://arxiv.org/pdf/2006.11239", "http://arxiv.org/abs/2006.11239", "submittedVersion",
-                                stype="repository"),
-        "locations": [loc("https://arxiv.org/pdf/2006.11239v2", None, "submittedVersion", stype="repository")]},
-    "10.1000/closed.5": {"locations": [loc(None, "https://doi.org/10.1000/closed.5", "publishedVersion", is_oa=False)]},
-    "10.1000/acc.6": {"locations": [loc("https://repo.example.edu/acc.pdf", None, "acceptedVersion", stype="journal")]},
-}
-
-
-def epmc(doi, **kw):
-    base = {"id": "456", "source": "MED", "doi": doi, "pmid": "456", "isOpenAccess": "N", "inPMC": "N",
-            "authMan": "N", "epmcAuthMan": "N", "nihAuthMan": "N", "fullTextUrlList": {"fullTextUrl": []}}
-    return {**base, **kw}
-
-
-def ftu(code, style, site, url):
-    return {"availabilityCode": code, "documentStyle": style, "site": site, "url": url}
-
-
-EUROPEPMC = {
-    "10.1000/nat.1": epmc("10.1000/nat.1", pmcid="PMC123", inPMC="Y", fullTextUrlList={"fullTextUrl": [
-        ftu("S", "doi", "DOI", "https://doi.org/10.1000/nat.1"),
-        ftu("OA", "html", "Europe_PMC", "https://europepmc.org/articles/PMC123"),
-        ftu("OA", "pdf", "Europe_PMC", "https://europepmc.org/articles/PMC123?pdf=render")]}),
-    "10.1000/jno.2": epmc("10.1000/jno.2", pmcid="PMC777", inPMC="Y", fullTextUrlList={"fullTextUrl": [
-        ftu("F", "doi", "DOI", "https://doi.org/10.1000/jno.2")]}),
-    "10.1000/am.3": epmc("10.1000/am.3", pmcid="PMC333", inPMC="Y", authMan="Y", fullTextUrlList={"fullTextUrl": [
-        ftu("OA", "pdf", "Europe_PMC", "https://europepmc.org/articles/PMC333?pdf=render"),
-        ftu("OA", "html", "Unpaywall", "https://hal.example.org/hal-333")]}),
-    "10.1000/ppr.7": epmc("10.1000/ppr.7", source="PPR", fullTextUrlList={"fullTextUrl": [
-        ftu("OA", "doi", "DOI", "https://doi.org/10.1000/ppr.7")]}),
-}
-
-
-class Handler(http.server.BaseHTTPRequestHandler):
-    requests = []
-
-    def log_message(self, *a):
-        pass
-
-    def send(self, status, body, ctype="application/json"):
-        self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        self.end_headers()
-        self.wfile.write(body if isinstance(body, bytes) else json.dumps(body).encode())
-
-    def do_GET(self):
-        url = urllib.parse.urlsplit(self.path)
-        path = urllib.parse.unquote(url.path)
-        query = dict(urllib.parse.parse_qsl(url.query, keep_blank_values=True))
-        Handler.requests.append((path, query))
-        if path.startswith("/openalex/works/doi:"):
-            doi = path[len("/openalex/works/doi:"):].lower()
-            if doi == "10.1000/limit":
-                return self.send(429, {"error": "slow down"})
-            if doi in ("10.1000/err", "10.1000/allfail"):
-                return self.send(500, b"boom", "text/plain")
-            return self.send(200, OPENALEX[doi]) if doi in OPENALEX else self.send(404, {"error": "not found"})
-        if path == "/epmc/europepmc/webservices/rest/search":
-            doi = query.get("query", "")[len('DOI:"'):-1].lower()
-            if doi == "10.1000/allfail":
-                return self.send(500, b"boom", "text/plain")
-            hits = [EUROPEPMC[doi]] if doi in EUROPEPMC else []
-            return self.send(200, {"hitCount": len(hits), "resultList": {"result": hits}})
-        self.send(404, {"error": "no route"})
-
-
-class FulltextLinksTest(unittest.TestCase):
+class FulltextLinks(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
-        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
-        env = {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
-        cls.env = {**env, "no_proxy": "127.0.0.1,localhost", "OPENALEX_BASE_URL": cls.base + "/openalex",
-                   "EUROPEPMC_BASE_URL": cls.base + "/epmc"}
-        spec = importlib.util.spec_from_file_location("fulltext_links", SCRIPT)
-        cls.mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cls.mod)
+        cls.web = FakeWeb()
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.shutdown()
+        cls.web.close()
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
-        self.records = self.tmp / "records"
-        self.records.mkdir()
-        self.config = self.tmp / "config.json"
-        self.write_config({"openalex_key": KEY})
-        Handler.requests.clear()
+        w = self.web
+        w.reset()
+        w.openalex("10.1000/nat.1", [
+            location(PUB_PDF, "https://doi.org/10.1000/nat.1", "publishedVersion"),
+            location(None, "https://pubmed.ncbi.nlm.nih.gov/456", "publishedVersion", is_oa=False, source_type="repository"),
+            location("https://arxiv.org/pdf/2212.00001", "http://arxiv.org/abs/2212.00001", "submittedVersion", source_type="repository"),
+            location("https://pmc.ncbi.nlm.nih.gov/articles/PMC123/pdf/nat.pdf", "https://www.ncbi.nlm.nih.gov/pmc/articles/123",
+                     "submittedVersion", source_type="repository"),
+            location(None, "https://doi.org/10.5281/zenodo.1", None, source_type="repository")])
+        w.europepmc("10.1000/nat.1", [full_text_url("S", "doi", "DOI", "https://doi.org/10.1000/nat.1"),
+                                      full_text_url("OA", "html", "Europe_PMC", "https://europepmc.org/articles/PMC123"),
+                                      full_text_url("OA", "pdf", "Europe_PMC", "https://europepmc.org/articles/PMC123?pdf=render")],
+                    pmcid="PMC123")
+        self.work = run.Work(tempfile.mkdtemp(prefix="p2z-links-"))
+        self.work.records.mkdir()
+        self.config = config_file(self.work.root, openalex_key=KEY)
+        self.enterContext(mock.patch.dict(web.GAPS, {"api.openalex.org": 0, "www.ebi.ac.uk": 0, "127.0.0.1": 0}))
 
-    def write_config(self, cfg):
-        self.config.write_text(json.dumps(cfg))
-
-    def record(self, slug, doi=None, **fields):
-        item = {"itemType": "journalArticle", "title": f"Title of {slug}"}
-        if doi:
-            item["DOI"] = doi
-        item.update(fields.pop("item", {}))
-        path = self.records / f"{slug}.json"
-        path.write_text(json.dumps({"slug": slug, "item": item, **fields}, indent=2))
+    def record(self, slug, doi=None, **item):
+        path = self.work.records / f"{slug}.json"
+        path.write_text(json.dumps({"item": {"itemType": "journalArticle", "title": f"Title of {slug}",
+                                             **({"DOI": doi} if doi else {}), **item}}), encoding="utf-8")
         return path
 
-    def run_script(self, *args, stdin=None):
-        return subprocess.run([sys.executable, str(SCRIPT), *args], input=stdin, capture_output=True, text=True,
-                              env={**self.env, "PAPER_TO_ZOTERO_CONFIG": str(self.config)})
+    def run_(self, *argv, config=None):
+        return call(links, *argv, config=config or self.config, env=self.web.env())
 
-    def lines(self, text):
-        return [json.loads(ln) for ln in text.splitlines() if ln.startswith("{")]
+    def items(self, path):
+        return [(link["url"], link["version"]) for link in run.read(path)["links"]["items"]]
 
-    def summaries(self, proc):
-        rows = self.lines(proc.stdout)
-        return {r["slug"]: r for r in rows if "slug" in r}, rows[-1]["summary"]
-
-    def read(self, path):
-        return json.loads(Path(path).read_text())
-
-    def hits(self, prefix):
-        return [r for r in Handler.requests if r[0].startswith(prefix)]
-
-    def test_full_record_dedupe_versions_and_order(self):
-        path = self.record("nat", "10.1000/nat.1", item={"extra": "arXiv: 2212.00001"})
-        proc = self.run_script("-i", str(path))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        links = self.read(path)["links"]
-        self.assertEqual([(l["url"], l["source"], l["version"], l["needs_browser"]) for l in links], [
+    def test_every_source_one_link_per_url_by_version(self):
+        path = self.record("nat", "10.1000/nat.1", extra="arXiv: 2212.00001")
+        r = self.run_(path)
+        self.assertEqual(r.code, 0, r)
+        got = run.read(path)["links"]["items"]
+        self.assertEqual([(x["url"], x["source"], x["version"], x["needs_browser"]) for x in got], [
             (PUB_PDF, "openalex", "published", None),
             ("https://pmc.ncbi.nlm.nih.gov/articles/PMC123/pdf/nat.pdf", "openalex", "published", True),
             ("https://europepmc.org/articles/PMC123?pdf=render", "europepmc", "published", True),
             ("https://arxiv.org/pdf/2212.00001", "arxiv", "preprint", False),
             ("https://doi.org/10.5281/zenodo.1", "openalex", "unknown", None)],
-            "PMC copies take Europe PMC's verdict; an arXiv copy is a preprint; a repository location is unknown")
-        rows, summary = self.summaries(proc)
-        self.assertEqual(rows["nat"]["sources"], {"arxiv": "ok", "openalex": "ok", "europepmc": "ok"})
-        self.assertEqual(rows["nat"]["first"], {"version": "published", "needs_browser": None, "host": "www.publisher.example"})
-        self.assertEqual(summary, {"total": 1, "ok": 1, "skipped": 0, "failed": 0})
+            "PMC copies take Europe PMC's word; an arXiv copy is a preprint; a repository location is unknown")
+        line = r.lines[0]
+        self.assertEqual((line["code"], line["reason"], line["links"]), ("ok", "absent", 5))
+        self.assertEqual(line["sources"], {"arxiv": "ok", "openalex": "ok", "europepmc": "ok", "page": "no_identifier"})
+        self.assertEqual(line["first"], {"version": "published", "needs_browser": None, "host": "www.publisher.example"})
 
-    def test_key_sent_as_parameter_never_printed(self):
+    def test_the_key_goes_as_a_parameter_and_is_never_printed(self):
         path = self.record("nat", "10.1000/nat.1")
-        proc = self.run_script("-i", "--sources", "openalex", str(path))
-        self.assertEqual(self.hits("/openalex/")[0][1], {"api_key": KEY})
-        self.assertNotIn(KEY, proc.stdout + proc.stderr)
-        self.write_config({})
-        Handler.requests.clear()
-        proc = self.run_script("-i", "--refresh", "--sources", "openalex", str(path))
-        self.assertEqual(self.hits("/openalex/")[0][1], {}, "no key: unkeyed, and nothing else is sent")
-        self.assertEqual(self.summaries(proc)[1]["openalex_key"], False)
+        r = self.run_(path)
+        self.assertEqual(self.web.requested("GET", "/openalex/*")[0].query, {"api_key": KEY})
+        self.assertNotIn(KEY, r.out + r.err)
+        self.web.requests.clear()
+        self.run_(self.record("nat2", "10.1000/nat.1"), config=config_file())
+        self.assertEqual(self.web.requested("GET", "/openalex/*")[0].query, {}, "no key: unkeyed, nothing else sent")
 
     def test_closed_paper_and_accepted_label(self):
-        closed = self.record("closed", "10.1000/closed.5")
-        acc = self.record("acc", "10.1000/acc.6")
-        self.run_script("-i", "--sources", "openalex", str(closed), str(acc))
-        self.assertEqual(self.read(closed)["links"], [], "answered with nothing open: links [] is written")
-        self.assertEqual([(l["version"], l["url"]) for l in self.read(acc)["links"]],
-                         [("accepted", "https://repo.example.edu/acc.pdf")])
+        self.web.openalex("10.1000/closed.5", [location(None, "https://doi.org/10.1000/closed.5", "publishedVersion", is_oa=False)])
+        self.web.openalex("10.1000/acc.6", [location("https://repo.example.edu/acc.pdf", None, "acceptedVersion")])
+        closed, acc = self.record("closed", "10.1000/closed.5"), self.record("acc", "10.1000/acc.6")
+        self.run_(closed, acc)
+        self.assertEqual(self.items(closed), [], "answered with nothing open: an empty list, done")
+        self.assertIsNone(run.due(run.read(closed), "links"))
+        self.assertEqual(self.items(acc), [("https://repo.example.edu/acc.pdf", "accepted")])
 
-    def test_europepmc_versions_and_pmc_page(self):
-        paths = [self.record(s, d) for s, d in (("jno", "10.1000/jno.2"), ("am", "10.1000/am.3"), ("ppr", "10.1000/ppr.7"))]
-        self.run_script("-i", "--sources", "europepmc", *map(str, paths))
-        jno, am, ppr = (self.read(p)["links"] for p in paths)
-        self.assertEqual([(l["url"], l["version"]) for l in jno], [
-            ("https://doi.org/10.1000/jno.2", "published"), ("https://pmc.ncbi.nlm.nih.gov/articles/PMC777/", "published")],
-            "in PMC without a PMC link: its article page is added")
-        self.assertEqual([(l["url"], l["version"]) for l in am], [
-            ("https://europepmc.org/articles/PMC333?pdf=render", "accepted"),
-            ("https://pmc.ncbi.nlm.nih.gov/articles/PMC333/", "accepted"),
-            ("https://hal.example.org/hal-333", "unknown")])
-        self.assertEqual([(l["url"], l["version"]) for l in ppr], [("https://doi.org/10.1000/ppr.7", "preprint")])
+    def test_europepmc_versions_and_the_pmc_page(self):
+        w = self.web
+        w.europepmc("10.1000/jno.2", [full_text_url("F", "doi", "DOI", "https://doi.org/10.1000/jno.2")], pmcid="PMC777")
+        w.europepmc("10.1000/am.3", [full_text_url("OA", "pdf", "Europe_PMC", "https://europepmc.org/articles/PMC333?pdf=render"),
+                                     full_text_url("OA", "html", "Unpaywall", "https://hal.example.org/hal-333")],
+                    pmcid="PMC333", authMan="Y")
+        w.europepmc("10.1000/ppr.7", [full_text_url("OA", "doi", "DOI", "https://doi.org/10.1000/ppr.7")], source="PPR")
+        jno, am, ppr = (self.record(s, d) for s, d in (("jno", "10.1000/jno.2"), ("am", "10.1000/am.3"), ("ppr", "10.1000/ppr.7")))
+        self.run_(jno, am, ppr)
+        self.assertEqual(self.items(jno), [("https://doi.org/10.1000/jno.2", "published"),
+                                           ("https://pmc.ncbi.nlm.nih.gov/articles/PMC777/", "published")],
+                         "in PMC without a PMC link: its article page is added")
+        self.assertEqual(self.items(am), [("https://europepmc.org/articles/PMC333?pdf=render", "accepted"),
+                                          ("https://pmc.ncbi.nlm.nih.gov/articles/PMC333/", "accepted"),
+                                          ("https://hal.example.org/hal-333", "unknown")])
+        self.assertEqual(self.items(ppr), [("https://doi.org/10.1000/ppr.7", "preprint")])
 
-    def test_arxiv_record(self):
-        path = self.record("ddpm", "10.48550/arXiv.2006.11239", item={"itemType": "preprint"})
-        proc = self.run_script("-i", str(path))
-        self.assertEqual([(l["url"], l["version"]) for l in self.read(path)["links"]],
-                         [("https://arxiv.org/pdf/2006.11239", "preprint")], "arXiv URLs of every spelling are one link")
-        self.assertEqual(self.summaries(proc)[0]["ddpm"]["sources"], {"arxiv": "ok", "openalex": "ok", "europepmc": "no_identifier"})
-        Handler.requests.clear()
-        self.run_script("-i", "--refresh", "--sources", "arxiv", str(path))
-        self.assertEqual(Handler.requests, [], "the arXiv link needs no request")
+    def test_an_arxiv_record_needs_no_request(self):
+        path = self.record("ddpm", "10.48550/arXiv.2006.11239", itemType="preprint", url="https://arxiv.org/abs/2006.11239")
+        r = self.run_(path)
+        self.assertEqual(self.items(path), [("https://arxiv.org/pdf/2006.11239", "preprint")])
+        self.assertEqual(r.lines[0]["sources"], {"arxiv": "ok", "openalex": "no_identifier", "europepmc": "no_identifier",
+                                                 "page": "no_identifier"})
+        self.assertEqual(self.web.requests, [])
 
-    def test_identifiers(self):
-        ids = self.mod.identifiers
-        self.assertEqual(ids({"item": {"DOI": "https://doi.org/10.1000/X", "extra": "arXiv: 2101.00001"}}),
-                         {"doi": "10.1000/X", "arxiv": "2101.00001"})
-        self.assertEqual(ids({"item": {"archiveID": "arXiv:2101.00002v3"}}), {"doi": None, "arxiv": "2101.00002"})
-        self.assertEqual(ids({"item": {"url": "https://arxiv.org/abs/2101.00003"}}), {"doi": None, "arxiv": "2101.00003"})
-        self.assertEqual(ids({"id": "10.48550/arXiv.2101.00004", "item": {}}),
-                         {"doi": "10.48550/arXiv.2101.00004", "arxiv": "2101.00004"})
-        self.assertEqual(ids({"item": {"extra": "DOI: 10.5555/abc"}}), {"doi": "10.5555/abc", "arxiv": None})
+    def test_a_venue_page_gives_its_pdf(self):
+        self.web.page("/paper/42.html", "A NeurIPS paper", meta={"citation_title": "A NeurIPS paper",
+                                                                "citation_pdf_url": "/paper/42.pdf"})
+        path = self.record("nips", None, itemType="conferencePaper", url=self.web.url("/paper/42.html"))
+        r = self.run_(path)
+        self.assertEqual(self.items(path), [(self.web.url("/paper/42.pdf"), "published")])
+        self.assertEqual(r.lines[0]["sources"]["page"], "ok")
+        self.web.route("/paper/43.html", "no", status=403)
+        r = self.run_(self.record("shut", None, itemType="conferencePaper", url=self.web.url("/paper/43.html")))
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["sources"]["page"]), ("ok", "refused"), "an answer, not incomplete")
 
-    def test_needs_browser_and_proxy(self):
-        fin = self.mod.finalize
-        raw = self.mod.raw_link
-        links = fin([raw("https://www-publisher-example.proxy.example.edu/a.pdf", "openalex", "published"),
-                     raw("https://export.arxiv.org/abs/2101.00001v2", "openalex"),
-                     raw("https://jamanetwork.com/x.pdf", "openalex", "published"),
-                     raw("https://www.new.example/y.pdf", "openalex", "published")], None, None, "proxy.example.edu")
-        self.assertEqual([(l["url"], l["needs_browser"]) for l in links], [
-            ("https://www.new.example/y.pdf", None), ("https://www-publisher-example.proxy.example.edu/a.pdf", True),
-            ("https://jamanetwork.com/x.pdf", True), ("https://arxiv.org/pdf/2101.00001", False)])
+    def test_done_stale_and_incomplete(self):
+        path = self.record("nat", "10.1000/nat.1")
+        self.run_(path)
+        self.web.requests.clear()
+        r = self.run_(path)
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"]), ("skipped", "done"))
+        self.assertEqual(self.web.requests, [])
+        rec = run.read(path)
+        rec["tags"] = [{"tag": "x", "type": 0}]
+        rec.save()
+        self.assertEqual(self.run_(path).lines[0]["code"], "skipped", "tags are no input of links")
+        self.web.route("/epmc/*", status=503)
+        rec = run.read(path)
+        rec["item"]["url"] = "https://doi.org/10.1000/nat.1"
+        rec.save()
+        r = self.run_(path)
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"], r.lines[0]["sources"]["europepmc"]), ("ok", "stale", "http_503"))
+        rec = run.read(path)
+        self.assertEqual(rec["links"]["incomplete"], ["europepmc"])
+        self.assertNotIn("europepmc", {x["source"] for x in rec["links"]["items"]}, "stale: last time's links are gone")
+        self.web.reset()
+        self.web.openalex("10.1000/nat.1", [])
+        self.web.europepmc("10.1000/nat.1", [full_text_url("OA", "pdf", "Europe_PMC", "https://europepmc.org/articles/PMC9?pdf=render")])
+        r = self.run_(path)
+        self.assertEqual((r.lines[0]["reason"], self.items(path)), ("incomplete", [("https://europepmc.org/articles/PMC9?pdf=render", "published")]))
+        self.assertIsNone(run.due(run.read(path), "links"))
 
-    def test_dedupe_keeps_the_more_specific_version(self):
-        raw = self.mod.raw_link
-        links = self.mod.finalize([raw("https://site.example/u.pdf", "europepmc", repository=True),
-                                   raw("http://SITE.example/u.pdf/", "openalex", "published"),
-                                   raw("not a url", "openalex", "published")], None, None, None)
-        self.assertEqual([(l["url"], l["source"], l["version"]) for l in links],
-                         [("https://site.example/u.pdf", "openalex", "published")])
-
-    def test_skip_when_links_exist_and_refresh_a_subset(self):
-        path = self.record("nat", "10.1000/nat.1", links=[
-            {"url": "https://old.example/epmc.pdf", "source": "europepmc", "version": "unknown", "needs_browser": None},
-            {"url": "https://old.example/oa.pdf", "source": "openalex", "version": "published", "needs_browser": None}])
-        rows, _ = self.summaries(self.run_script("-i", str(path)))
-        self.assertEqual((rows["nat"]["code"], rows["nat"]["reason"]), ("skipped", "has_links"))
-        self.assertEqual(Handler.requests, [])
-        self.run_script("-i", "--refresh", "--sources", "europepmc", str(path))
-        urls = [l["url"] for l in self.read(path)["links"]]
-        self.assertIn("https://old.example/oa.pdf", urls, "openalex did not run: its old link stays")
-        self.assertNotIn("https://old.example/epmc.pdf", urls, "europepmc answered: its own links are replaced")
-
-    def test_stdin_stream_and_unchanged_files(self):
-        rec = {"slug": "s", "item": {"DOI": "10.1000/jno.2"}}
-        proc = self.run_script("--sources", "europepmc", stdin=json.dumps(rec))
-        self.assertEqual(self.lines(proc.stdout)[0]["links"][0]["url"], "https://doi.org/10.1000/jno.2")
-        self.assertEqual(self.lines(proc.stderr)[-1]["summary"]["ok"], 1)
-        path = self.record("skip", "10.1000/jno.2", links=[])
-        before = path.stat().st_mtime_ns
-        self.run_script("-i", str(path))
-        self.assertEqual(path.stat().st_mtime_ns, before, "a skipped record is not rewritten")
-        self.assertEqual(self.run_script("-i").returncode, 2, "-i needs record paths")
+    def test_a_source_that_does_not_answer_keeps_its_links(self):
+        path = self.record("nat", "10.1000/nat.1")
+        self.web.route("/openalex/*", status=500)
+        self.run_(path)
+        self.web.reset()
+        self.web.route("/openalex/*", status=500)
+        self.web.europepmc("10.1000/nat.1", [full_text_url("OA", "pdf", "Europe_PMC", "https://europepmc.org/articles/PMC9?pdf=render")])
+        self.run_(path)
+        rec = run.read(path)
+        self.assertEqual(rec["links"]["incomplete"], ["openalex"])
+        self.assertEqual([x["source"] for x in rec["links"]["items"]], ["europepmc"])
 
     def test_failures_and_exit_codes(self):
-        paths = [self.record("noid"), self.record("allfail", "10.1000/allfail"), self.record("ok", "10.1000/jno.2")]
-        bad = self.records / "bad.json"
+        self.web.route("/openalex/works/doi:10.1000/allfail", status=500)
+        self.web.route("/epmc/*", status=500)
+        noid, allfail = self.record("noid"), self.record("allfail", "10.1000/allfail")
+        bad = self.work.records / "bad.json"
         bad.write_text("[1, 2]")
-        proc = self.run_script("-i", "--sources", "openalex,europepmc", *map(str, paths), str(bad))
-        self.assertEqual(proc.returncode, 1)
-        rows, summary = self.summaries(proc)
-        self.assertEqual(rows["noid"]["code"], "no_identifier")
-        self.assertEqual((rows["allfail"]["code"], rows["allfail"]["sources"]),
-                         ("no_answer", {"openalex": "http_500", "europepmc": "http_500"}))
-        self.assertNotIn("links", self.read(paths[1]), "no answer: nothing written, a rerun tries again")
-        self.assertEqual(rows["bad"]["code"], "invalid_record")
-        self.assertEqual(summary, {"total": 4, "ok": 1, "skipped": 0, "failed": 3})
-        self.config.write_text("{not json")
-        proc = self.run_script("-i", str(paths[2]))
-        self.assertEqual((proc.returncode, json.loads(proc.stderr.strip().splitlines()[-1])["code"]), (1, "bad_config"))
+        r = self.run_(noid, allfail, bad)
+        self.assertEqual(r.code, 1)
+        self.assertEqual([(o["slug"], o["code"]) for o in r.lines[:3]],
+                         [("noid", "no_identifier"), ("allfail", "no_answer"), ("bad", "record_invalid")])
+        self.assertEqual(run.read(allfail)["links"]["incomplete"], ["europepmc", "openalex"])
+        unreadable = config_file()
+        unreadable.write_text("{not json")
+        r = self.run_(self.record("x", "10.1000/nat.1"), config=unreadable)
+        self.assertEqual((r.code, r.lines[0]["code"]), (2, "config_unreadable"))
 
     def test_a_429_stops_the_host_for_the_run(self):
-        paths = [self.record("a", "10.1000/limit"), self.record("b", "10.1000/nat.1")]
-        proc = self.run_script("-i", "--sources", "openalex,europepmc", *map(str, paths))
-        rows, summary = self.summaries(proc)
-        self.assertEqual(len(self.hits("/openalex/")), 1, "after the 429 OpenAlex is not asked again")
-        self.assertEqual(rows["a"]["sources"]["openalex"], "source_blocked")
-        self.assertEqual(rows["b"]["sources"], {"openalex": "source_blocked", "europepmc": "ok"})
-        self.assertEqual(summary["stopped"], ["api.openalex.org"])
+        self.web.rate_limit("/openalex/works/doi:10.1000/limit")
+        a, b = self.record("a", "10.1000/limit"), self.record("b", "10.1000/nat.1")
+        r = self.run_(a, b)
+        self.assertEqual(len(self.web.requested("GET", "/openalex/*")), 1, "after the 429 OpenAlex is not asked again")
+        self.assertEqual((r.lines[0]["sources"]["openalex"], r.lines[1]["sources"]["openalex"]), ("source_blocked", "source_blocked"))
+        self.web.requests.clear()
+        self.run_(a)
+        self.assertEqual(self.web.requested("GET", "/openalex/*"), [], "nor in the next run: pace.json keeps the stop")
+
+    def test_needs_browser_and_one_link_per_url(self):
+        raw = links.raw_link
+        got = links.finalize([raw("https://www-publisher-example.proxy.example.edu/a.pdf", "openalex", "published"),
+                              raw("https://export.arxiv.org/abs/2101.00001v2", "openalex"),
+                              raw("https://jamanetwork.com/x.pdf", "openalex", "published"),
+                              raw("https://www.new.example/y.pdf", "openalex", "published")], None, None, "proxy.example.edu")
+        self.assertEqual([(x["url"], x["needs_browser"]) for x in got], [
+            ("https://www.new.example/y.pdf", None), ("https://www-publisher-example.proxy.example.edu/a.pdf", True),
+            ("https://jamanetwork.com/x.pdf", True), ("https://arxiv.org/pdf/2101.00001", False)])
+        got = links.finalize([raw("https://site.example/u.pdf", "europepmc", repository=True),
+                              raw("http://SITE.example/u.pdf/", "openalex", "published"),
+                              raw("not a url", "openalex", "published")], None, None, None)
+        self.assertEqual([(x["url"], x["source"], x["version"]) for x in got], [("https://site.example/u.pdf", "openalex", "published")])
+
+    def test_smoke(self):
+        r = smoke("fulltext_links", self.record("nat", "10.1000/nat.1"), config=self.config,
+                  env=self.web.env())
+        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
 
 if __name__ == "__main__":

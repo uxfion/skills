@@ -101,6 +101,18 @@ def identifiers(data):
     return doi, aid
 
 
+def same_paper(a, b):
+    """Why two items are one paper: "doi" or "arxiv" (the same identifier), "title" (the same title, which alone
+    proves nothing: the agent decides); None when nothing ties them."""
+    (doi_a, aid_a), (doi_b, aid_b) = identifiers(a), identifiers(b)
+    if doi_a and doi_a == doi_b:
+        return "doi"
+    if aid_a and aid_a == aid_b:
+        return "arxiv"
+    title = norm_title(a.get("title"))
+    return "title" if title and title == norm_title(b.get("title")) else None
+
+
 # ---- titles -------------------------------------------------------------------------------------------------
 
 def norm_title(s):
@@ -254,8 +266,19 @@ ERRATUM_HEAD = re.compile(r"^[ \t]*((?:(?:author|authors'?|publisher'?s?|editori
                           + r"(?:[ \t]+(?:note|notice))?)" + HEADING_TAIL, re.M)
 # A title with one of these words is a notice itself, or a paper about corrections.
 ERRATUM_WORDS = re.compile(rf"\b{NOTICE_WORD}\b")
+# A title that marks the paper itself as retracted ("RETRACTED: ...", "RETRACTED ARTICLE: ...").
+RETRACTED_HEAD = re.compile(r"^[ \t]*(retracted(?:[ \t]+article)?)" + HEADING_TAIL)
 SUPPLEMENT_HEAD = re.compile(r"^[ \t]*((?:online[ \t]+|electronic[ \t]+)?supplement(?:ary|al)[ \t]+"
                              r"(?:materials?|information|info|appendix|appendices|data|methods|online[ \t]+content))"
                              + HEADING_TAIL, re.M)
 # Words that suggest supplementary material anywhere in a text, a weaker sign than the heading.
 SUPPLEMENT_WORDS = re.compile(r"supplement(?:ary|al)|appendix", re.I)
+
+
+def notice_title(title):
+    """The words a title opens with when it names a correction, erratum or retraction notice ("Correction to: ...",
+    "Author Correction: ...", "Retraction Note: ...") or a retracted paper ("RETRACTED: ..."), as the title spells
+    them; None for an ordinary title."""
+    title = (title or "").strip()
+    m = ERRATUM_HEAD.match(title.casefold()) or RETRACTED_HEAD.match(title.casefold())
+    return title[m.start(1):m.end(1)] if m else None

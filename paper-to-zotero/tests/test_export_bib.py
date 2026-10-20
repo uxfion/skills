@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from helpers import call, closed_port, load, smoke
+from p2zlib import run
 from fake_zotero import FakeZotero, LIB
 
 export = load("export_bib")
@@ -132,18 +133,19 @@ class ExportBib(unittest.TestCase):
         self.assertEqual(len(entries(r.out)), 120)
 
     def test_records_and_out(self):
+        found = lambda key: {"key": key, "code": "found", "from": run.fingerprint(run.inputs(run.Record("x", {}), "found"))}  # noqa: E731
         paths = [self.record("a", {"saved": {"key": "KEY00001"}}),
-                 self.record("b", {"found": {"key": "KEY00003", "code": "found"}}),
+                 self.record("b", {"found": found("KEY00003")}),
                  self.record("c", {"item": {"title": "not in the library"}}),
-                 self.record("d", {"saved": {"pending": True}, "found": {"key": "KEY00007", "code": "found"}}),
-                 self.record("e", {"found": {"key": "KEY00005", "code": "near_match"}})]
+                 self.record("d", {"saved": {"pending": True}, "found": found("KEY00007")}),
+                 self.record("e", {"found": {"key": "KEY00005", "code": "found"}})]
         out_file = self.tmp / "ref.bib"
         r = self.run_(*paths, "--out", out_file)
         self.assertEqual(r.code, 1, r)
         self.assertEqual(r.out, "")
         self.assertEqual(entries(out_file.read_text(encoding="utf-8")), ["Abel2019first", "lonely2018", "zhou2021handheld"])
         s = self.summary(r)
-        self.assertEqual(s["no_item_key"], ["c", "e"], "a near match names another item")
+        self.assertEqual(s["no_item_key"], ["c", "e"], "a found an older run left, without `from`, is not trusted")
         self.assertEqual((s["count"], s["out"]), (3, str(out_file)))
 
         r = self.run_(paths[0], paths[1])

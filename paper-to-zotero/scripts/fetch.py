@@ -56,10 +56,11 @@ shows it.
 
 Every try is one line appended to <work>/fetch.jsonl: {"event": "try", "slug", "pass", "via", "url", "result",
 "at", "note"?}; result: ok | wrong_file (the check failed: claim.py moved it to unverified/) | not_pdf | no_link |
-http_<n> | network_error | stopped | the agent's verdict. Fetched bytes go to <work>/inbox/ and through claim.py
---file (subprocess). The work directory is the parent of the records' directory. Requests to one host are spaced
-(1 s; medRxiv / bioRxiv 10 s; full text through the institution's proxy or discovery system 15 s,
-PAPER_TO_ZOTERO_INSTITUTION_GAP) inside this process. Exit 0 = the run went through (records may still lack a file:
+http_<n> | network_error | stopped | the agent's verdict. Fetched bytes go to <work>/inbox/ and are claimed (checked and
+filed as claim.py --file does). The work directory is the parent of the records' directory; --downloads and
+--session default to its run.json (ready.py). Requests to one host keep their gap across the work directory's scripts
+(web.GAPS: medRxiv / bioRxiv 10 s; full text through the institution's proxy or discovery system 15 s,
+PAPER_TO_ZOTERO_INSTITUTION_GAP). Exit 0 = the run went through (records may still lack a file:
 see the lines), 1 = stopped at a record, 2 = cannot run (no opencli, records in different work directories).
 """
 
@@ -72,21 +73,11 @@ import re
 import subprocess
 import sys
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
-from datetime import datetime, timezone
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-CLAIM_SCRIPT = HERE / "claim.py"
-STEM_FILES = (".pdf", ".accepted.pdf", ".preprint.pdf", ".supplement.pdf", ".html")
-BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-# Seconds between requests to one host in this process. "institution" is every full-text request made through the
-# institution's subscriptions (a proxied page's PDF, a discovery system's Get PDF): licences forbid systematic
-# downloading, and a proxy that sees too many suspends the institution's account, not just this browser.
-PACE = {"www.medrxiv.org": 10.0, "www.biorxiv.org": 10.0,
-        "institution": float(os.environ.get("PAPER_TO_ZOTERO_INSTITUTION_GAP", "15"))}
+from p2zlib import config, paper, run as work_run, web
+
 CHUNK = 1_000_000            # base64 characters per eval read
 OPEN_TIMEOUT = 60
 EVAL_TIMEOUT = 120
@@ -139,15 +130,7 @@ def log(msg):
     print(msg, file=sys.stderr)
 
 
-def now_iso():
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def host_of(url):
-    try:
-        return (urllib.parse.urlsplit(url).hostname or "").lower()
-    except ValueError:
-        return ""
+host_of = web.host_of
 
 
 # ------------------------------------------------------------------ work directory and log
@@ -155,27 +138,20 @@ def host_of(url):
 class Run:
     def __init__(self, args, entries):
         self.args, self.entries = args, entries
-        works = {p.resolve().parent.parent for p, _ in entries}
+        works = {work_run.Work.of(rec.path).root for rec in entries}
         if len(works) != 1:
             raise Stop("mixed_work_dirs", "pass records of one work directory", work_dirs=sorted(map(str, works)))
-        self.work = works.pop()
-        self.inbox = self.work / "inbox"
-        self.last = {}
-        inst = self.config_institution()
-        proxy, discovery = inst.get("proxy"), inst.get("discovery")
-        self.proxy = proxy.strip().lower().lstrip(".") if isinstance(proxy, str) and proxy.strip() else None
-        self.discovery = discovery.strip() if isinstance(discovery, str) and discovery.strip() else None
-
-    def config_institution(self):
-        path = Path(os.environ.get("PAPER_TO_ZOTERO_CONFIG") or Path.home() / ".config" / "paper-to-zotero" / "config.json")
-        try:
-            inst = json.loads(path.read_text(encoding="utf-8")).get("institution") or {}
-        except (OSError, ValueError, AttributeError):
-            inst = {}
-        return inst if isinstance(inst, dict) else {}
+        self.work = work_run.Work(works.pop())
+        self.pacer = web.Pacer(self.work)
+        settings = self.work.settings()
+        args.downloads = args.downloads or settings.get("downloads")
+        args.session = args.session or settings.get("session") or "p2z"
+        inst = config.institution()
+        self.proxy, self.discovery = inst["proxy"], inst["discovery"]
 
     def file_of(self, slug):
-        return next((slug + s for s in STEM_FILES if (self.work / "records" / (slug + s)).is_file()), None)
+        path = self.work.file_of(slug)
+        return path.name if path else None
 
     def has_file(self, slug):
         return self.file_of(slug) is not None
@@ -190,56 +166,31 @@ class Run:
 
     def tried(self):
         """Slugs with a try line for this pass and route (http: and version) whose result is not 'stopped'."""
-        done = set()
-        try:
-            with open(self.work / "fetch.jsonl", encoding="utf-8") as fh:
-                for line in fh:
-                    try:
-                        obj = json.loads(line)
-                    except ValueError:
-                        continue
-                    if (isinstance(obj, dict) and obj.get("event") == "try" and obj.get("pass") == self.args.pass_
-                            and obj.get("via") == self.args.via and obj.get("result") != "stopped"
-                            and not obj.get("start")
-                            and (self.args.via != "http" or obj.get("version", "published") == self.args.version)):
-                        done.add(obj.get("slug"))
-        except OSError:
-            pass
-        return done
+        return {e.get("slug") for e in self.work.events("try")
+                if e.get("pass") == self.args.pass_ and e.get("via") == self.args.via and e.get("result") != "stopped"
+                and not e.get("start") and (self.args.via != "http" or e.get("version", "published") == self.args.version)}
 
     def log_try(self, slug, url, result, **extra):
-        line = {"event": "try", "slug": slug, "pass": self.args.pass_, "via": self.args.via,
-                "version": self.args.version if self.args.via == "http" else None, "start": self.args.start,
-                "url": url, "result": result, **extra, "at": now_iso()}
-        line = {k: v for k, v in line.items() if v is not None}
-        data = (json.dumps(line, ensure_ascii=False) + "\n").encode("utf-8")
-        fd = os.open(self.work / "fetch.jsonl", os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
-        try:
-            os.write(fd, data)
-        finally:
-            os.close(fd)
+        line = self.work.append({"event": "try", "slug": slug, "pass": self.args.pass_, "via": self.args.via,
+                                 "version": self.args.version if self.args.via == "http" else None,
+                                 "start": self.args.start, "url": url, "result": result, **extra})
         print(json.dumps(line, ensure_ascii=False))
 
     def claim(self, slug, data, url, version, html=False):
-        """Bytes -> inbox -> claim.py --file -> "ok" | "wrong_file" | "stray"."""
-        self.inbox.mkdir(exist_ok=True)
-        path = self.inbox / f"{slug}.{self.args.via}.{'html' if html else 'pdf'}"
+        """Bytes -> inbox -> checked and filed -> ("ok" | "wrong_file" | "stray", the check's code)."""
+        self.work.inbox.mkdir(exist_ok=True)
+        path = self.work.inbox / f"{slug}.{self.args.via}.{'html' if html else 'pdf'}"
         path.write_bytes(data)
-        argv = [sys.executable, str(CLAIM_SCRIPT), "--work", str(self.work), "--file", str(path), "--slug", slug,
-                "--via", self.args.via, "--source", url]
-        if version:
-            argv += ["--version", version]
-        done = subprocess.run(argv, capture_output=True, text=True, timeout=600)
-        rows = [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
-        if done.returncode == 2 or not rows:
-            raise Stop("claim_failed", "claim.py could not check the file", detail=rows[-1] if rows else done.stderr[-400:])
-        result = rows[-1].get("result")
-        return {"claimed": "ok", "unverified": "wrong_file"}.get(result, result or "error"), rows[-1].get("code")
+        try:
+            event = work_run.claim(self.work, path, slug, kind=version if version in paper.KINDS else None,
+                                   source=url, via=self.args.via)
+        except work_run.Stop as e:
+            raise Stop(e.code, e.hint or "the file could not be checked", **e.extra) from None
+        return {"claimed": "ok", "unverified": "wrong_file"}.get(event["result"], event["result"]), event.get("code")
 
     def scan_downloads(self):
-        if self.args.downloads:
-            subprocess.run([sys.executable, str(CLAIM_SCRIPT), "--work", str(self.work), "--scan", "--downloads",
-                            self.args.downloads], capture_output=True, text=True, timeout=600)
+        if self.args.downloads and Path(self.args.downloads).is_dir():
+            work_run.scan_downloads(self.work, Path(self.args.downloads))
 
     def wait_for_file(self, slug, seconds):
         deadline = time.monotonic() + seconds
@@ -252,14 +203,10 @@ class Run:
         return self.has_file(slug)
 
     def pace(self, host):
-        wait = self.last.get(host, 0.0) + PACE.get(host, 1.0) - time.monotonic()
-        if wait > 0:
-            time.sleep(wait)
-        self.last[host] = time.monotonic()
-
-
-def slug_of(path, rec):
-    return rec.get("slug") if isinstance(rec.get("slug"), str) and rec.get("slug") else path.stem
+        try:
+            self.pacer.wait(host)
+        except web.Blocked:  # a 429 a script met there: the browser asks anyway, after the gap
+            pass
 
 
 def start_url(rec, override):
@@ -279,8 +226,8 @@ def http_route(run, todo):
     for path, rec, slug in todo:
         if run.arrived(slug):
             continue
-        links = [l for l in rec.get("links") or [] if isinstance(l, dict) and l.get("version") == run.args.version
-                 and l.get("needs_browser") is not True and isinstance(l.get("url"), str)]
+        links = [l for l in (rec.get("links") or {}).get("items") or [] if isinstance(l, dict)
+                 and l.get("version") == run.args.version and l.get("needs_browser") is not True and isinstance(l.get("url"), str)]
         if not links:
             run.log_try(slug, None, "no_link", note=f"no {run.args.version} link that plain HTTP can fetch")
             continue
@@ -288,16 +235,17 @@ def http_route(run, todo):
             if run.has_file(slug):
                 break
             url = link["url"]
-            run.pace(host_of(url))
             try:
-                req = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": "application/pdf,*/*"})
-                with urllib.request.urlopen(req, timeout=60) as resp:
-                    data = resp.read(MAX_BYTES)
-            except urllib.error.HTTPError as e:
-                run.log_try(slug, url, f"http_{e.code}")
+                status, _, data, _ = web.get(url, headers={"User-Agent": web.BROWSER_UA, "Accept": "application/pdf,*/*"},
+                                             pacer=run.pacer, timeout=60, max_bytes=MAX_BYTES)
+            except web.Blocked:
+                run.log_try(slug, url, "http_429")
                 continue
-            except (urllib.error.URLError, TimeoutError, OSError) as e:
-                run.log_try(slug, url, "network_error", note=str(getattr(e, "reason", e))[:120])
+            except OSError as e:
+                run.log_try(slug, url, "network_error", note=str(e)[:120])
+                continue
+            if status != 200:
+                run.log_try(slug, url, f"http_{status}")
                 continue
             if not data.lstrip()[:5] == b"%PDF-":
                 run.log_try(slug, url, "not_pdf")
@@ -407,7 +355,7 @@ def page_route(run, todo):
         url = start_url(rec, run.args.start)
         if not url:
             return stop(run, slug, "no_start", None, None, "the record has neither item.DOI nor item.url")
-        if host_of(url) in PACE:
+        if host_of(url) in web.GAPS:
             run.pace(host_of(url))
         err = b.open(url)
         if err is not None:
@@ -423,7 +371,7 @@ def page_route(run, todo):
         link = urllib.parse.urljoin(href, info["pdf"])
         req = request_url(info["pdf"], href, run.proxy)
         if run.proxy and host_of(href).endswith("." + run.proxy):
-            run.pace("institution")
+            run.pace(web.INSTITUTION)
         meta, err = b.eval(FETCH_JS.replace("__URL__", json.dumps(req)))
         if err is None and isinstance(meta, dict) and meta.get("pdf"):
             data = b.read_b64(int(meta.get("b64len") or 0))
@@ -514,7 +462,7 @@ def discovery_route(run, todo):
                 if run.has_file(slug):
                     break
                 tried_links += 1
-                run.pace("institution")
+                run.pace(web.INSTITUTION)
                 b.open(link)
                 data = read_viewer(b, VIEWER_WAIT)
                 if data:
@@ -618,17 +566,10 @@ ROUTES = {"http": http_route, "page": page_route, "discovery": discovery_route, 
 
 
 def load(paths):
-    entries = []
-    for raw in paths:
-        path = Path(raw)
-        try:
-            rec = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as e:
-            raise Stop("record_invalid", "every record file holds one JSON object", path=str(path), error=str(e))
-        if not isinstance(rec, dict):
-            raise Stop("record_invalid", "every record file holds one JSON object", path=str(path))
-        entries.append((path, rec))
-    return entries
+    try:
+        return [work_run.read(p) for p in paths]
+    except work_run.Stop as e:
+        raise Stop(e.code, e.hint, **e.extra) from None
 
 
 def main():
@@ -651,9 +592,9 @@ def main():
                     help="--via http: the links of this version (default published)")
     ap.add_argument("--start", metavar="URL", help="--via page / snapshot, one record: the page to open")
     ap.add_argument("--current", action="store_true", help="--via snapshot, one record: the session's current tab")
-    ap.add_argument("--session", default="p2z", help="opencli browser session (default p2z)")
+    ap.add_argument("--session", help="opencli browser session (default: run.json's, else p2z)")
     ap.add_argument("--downloads", metavar="DIR",
-                    help="the browser's Downloads folder: scanned when a link is opened (else claim.py --watch must run)")
+                    help="the browser's Downloads folder, scanned when a link is opened (default: run.json's)")
     ap.add_argument("--verdict", metavar="RESULT", help="one record: log the agent's conclusion for this pass and route")
     ap.add_argument("--wait", action="store_true",
                     help="one record: wait at the gate in the current tab until its file arrives or the page changes")
@@ -671,16 +612,14 @@ def main():
     try:
         run = Run(args, load(args.records))
         if args.verdict:
-            path, rec = run.entries[0]
-            run.log_try(slug_of(path, rec), None, args.verdict, by="agent")
+            run.log_try(run.entries[0].slug, None, args.verdict, by="agent")
             sys.exit(0)
         if args.wait:
-            path, rec = run.entries[0]
-            sys.exit(wait_at_gate(run, slug_of(path, rec)))
+            sys.exit(wait_at_gate(run, run.entries[0].slug))
         tried = run.tried()
         todo = []
-        for path, rec in run.entries:
-            slug = slug_of(path, rec)
+        for rec in run.entries:
+            path, slug = rec.path, rec.slug
             if run.file_of(slug):
                 print(json.dumps({"slug": slug, "code": "skipped", "reason": "has_file", "file": run.file_of(slug)}))
             elif slug in tried and not (args.via == "viewer" or args.current or args.start):
