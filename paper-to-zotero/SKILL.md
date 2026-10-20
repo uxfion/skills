@@ -93,24 +93,28 @@ Done when `prepare` has run on the final records and its `decide` lists are sett
 
 ### 3. Get the file: the chain
 
-The **chain** is the order of routes to a paper's full text. One walk down it is a **pass**, and a pass stops at the first route that yields a file:
+The **chain** is the order of routes to a paper's full text; one walk down it is a **pass**, and a paper's pass stops at the first route that yields a file:
 
-1. **An open copy of the published version** — `p2z.py fetch --via http --pass N <records>` tries the `links` of version published that a plain client can fetch; one that needs the browser (PMC) goes through `p2z.py fetch --via page --pass N --start <url> <record>`.
-2. **The publisher, through the institution's login** — `p2z.py fetch --via page --pass N <records>` opens `https://doi.org/<DOI>` in the `p2z` session and fetches the PDF link the page declares, inside the page and with its cookies.
-3. **The discovery system** — `p2z.py fetch --via discovery --pass N <records>` searches the title in the library's discovery system and follows its own "Get PDF" links to an aggregator (ProQuest and the like) through the institution. `not_in_discovery`: no record there carries this title.
-4. **The accepted manuscript** — `p2z.py fetch --via http --version accepted --pass N <records>`.
-5. **The preprint**, last — `p2z.py fetch --via http --version preprint --pass N <records>`.
+1. `open` — an open copy of the published version (the record's `links`, then those of unknown version);
+2. `publisher` — the publisher's page through the institution's login, in the `p2z` session;
+3. `discovery` — the library's discovery system, its own full-text links (skipped while `institution.discovery` is unset: ask the user for it);
+4. `accepted` — the accepted manuscript;
+5. `preprint` — the preprint, last.
 
-An alternate version counts as obtained: its file name carries the version (`<slug>.accepted.pdf`, `<slug>.preprint.pdf`), the attachment title follows it, and the report lists it under alternate versions.
+```bash
+uv run scripts/p2z.py fetch --pass N <work>/records/*.json
+```
 
-**Scripts first, then you, then the user.** `fetch` does the generic thing and never judges a page. When a browser route stops (`{"code": "stopped", "slug", "why", "url", "title"}`), the tab is still on that page and the page is yours. Before each move on it, and before you record a verdict, look whether the paper's file has arrived meanwhile — `records/<slug>.pdf`, `.accepted.pdf`, `.preprint.pdf` or `.html`, those names exactly, or a `claimed` event: it has → rerun the command, which goes on with the next paper. Otherwise work the page as references/publishers.md says — the PDF button, a viewer's bytes, the institutional sign-in entry, a missing subscription, a page nobody can pass; a gate is the user's (*Gate* under Rules). When no file came of it, record your conclusion — `p2z.py fetch --via <the route that stopped> --verdict <result> --pass N <record>` (`no_access`, `no_pdf`, `gate_timeout`, `proxy_unconfigured`, `site_blocked`, `not_public`, …; add `--start <url>` for a page you opened yourself) — then rerun the same `fetch` command: it skips what this pass has done and goes on. Purchase pages are never a route.
+One command walks the whole pass: each route over every paper still without a file, then the next. On a page it takes whatever PDF the page offers — the declared PDF, an embedded viewer, a "PDF" link and the reading page behind it — and every file goes through the check, so a wrong guess costs nothing. An alternate version counts as obtained: its file name carries the version (`<slug>.accepted.pdf`, `<slug>.preprint.pdf`), and the report lists it.
+
+**Scripts first, then you, then the user.** `fetch` never judges a page. When it stops (`{"code": "stopped", "slug", "route", "why", "url", "title"}`), the tab is still on that page and the page is yours. Before each move on it, look whether the paper's file has arrived meanwhile (`records/<slug>.*` or a `claimed` event): it has → rerun the command. Otherwise work the page as references/publishers.md says; a gate is the user's (*Gate* under Rules). A page you found yourself is one more candidate: `p2z.py fetch --pass N --start <url> [--version accepted] <record>`. When no file came of it, record your conclusion — `p2z.py fetch --pass N --verdict <word> <record>` (the words are in `fetch --help`: `no_access`, `no_pdf`, `gate_timeout`, …) — then rerun the same command: it skips what this pass has done and goes on. Purchase pages are never a route.
 
 **Every file goes through `claim`**, whoever got it: it checks the file against the paper and files it beside the record (`records/<slug>[.version].pdf`) or moves it to `<work>/unverified/`. `p2z.py check_pdf <record> [--file F]` shows the verdict and its evidence. A file there that you believe is the paper after all: read its first page (`pdf` skill), then `p2z.py claim --work <work> --accept <file> --slug <slug> --reason "…"` (`--version accepted|preprint|…` when its name does not say) files it; `save` attaches it on that word, and the report names it.
 
-**Three passes at most.** Every pass is the same chain and may ask the user at a gate. Between passes the items are created and what was found is attached (step 4), so the next pass comes later, when a login, a rate limit or a flaky site may have recovered. The **last pass needs the user**:
+**Three passes at most.** Every pass is the same chain and may ask the user at a gate. Between passes run `save` (step 4), so the next pass comes later, when a login, a rate limit or a flaky site may have recovered. The **last pass needs the user**:
 1. Finish everything else first. Then report to the user — in the conversation and with a push notification — which papers remain, what each pass met and what each needs. While they are away, each remaining record's `blocker` says what it waits for ("last pass with the user: institutional login"), the report goes out, and these papers resume when the user says "继续".
-2. With the user there, walk the chain once more; its browser routes take the papers one at a time in a foreground window (`--window foreground`). At each paper a route stops on, tell the user which paper this is, what the earlier passes met and what they could do (log in, click the PDF button); work the page yourself meanwhile, and wait with `p2z.py fetch --via page --pass 3 --wait --for file <record>` in the background — it ends when the file arrives. The user says 跳过 → stop the wait, `--verdict skipped_by_user`, rerun, and the next paper opens.
-3. A paper still without a file gets a snapshot of its article page: `p2z.py fetch --via snapshot --pass 3 <record>`. The page that arrives is checked like any file, so a login page never becomes the snapshot; it is attached like a PDF and listed under 无法获取 with every try, pass by pass.
+2. With the user there, `fetch --pass 3 --window foreground`: pages open where the user sees them. At each paper it stops on, tell the user which paper this is, what the earlier passes met and what they could do (log in, click the PDF button); work the page yourself meanwhile, and wait with `p2z.py wait <record> --file-only` in the background — it ends when the file arrives. The user says 跳过 → stop the wait, `--verdict skipped_by_user`, rerun, and the next paper opens.
+3. A paper still without a file gets a snapshot of its article page: `p2z.py fetch --pass 3 --route snapshot <record>`. The page that arrives is checked like any file, so a login page never becomes the snapshot; it is attached like a PDF and listed under 无法获取 with every try, pass by pass.
 
 Done when every record has a file that passed the check (or that you accepted), or its last pass is in `fetch.jsonl` and its snapshot is filed.
 
@@ -167,13 +171,13 @@ A gate is anything the user can pass and you cannot: institutional login, CAPTCH
 Wait at a gate once per pass. **Alert the user** with a push notification (load the tool if it is deferred) — and, when you are a subagent, a `SendMessage` to the main conversation with the same line, since only the main conversation reaches the user's screen. Say which page waits and what to do; for a login, "Ctrl+N for a normal window and log in there": the login holds for the whole of Chrome, so the gate tab stays untouched. *Then* wait up to 5 minutes, reading the page only:
 
 ```bash
-uv run scripts/p2z.py fetch --via page --pass N --wait <record>   # --until "Access provided by": text or selector only the passed gate shows
+uv run scripts/p2z.py wait <record>   # --until "Access provided by": text or selector only the passed gate shows
 ```
 
 It looks at the tab and at the paper's file every 10 seconds and ends on whichever comes first:
 - `arrived` — the file came another way (the user downloaded it): go on with the next paper. The gate itself was not passed, so the next paper behind it may wait afresh.
 - `passed` — the page shows `--until`, or, without it, its URL or title changed: continue where you stopped.
-- `gate_timeout` after 5 minutes, logged as this pass's try for the paper: leave the gate tab as it is, open a new tab for what follows (`opencli browser p2z tab new`, then `tab select` it), and take the paper's next route. For the rest of the pass, other papers behind the same gate go straight to their next route (`--verdict gate_timeout`); the next pass meets the gate afresh.
+- `timeout` after 5 minutes: record `p2z.py fetch --pass N --verdict gate_timeout <record>`, leave the gate tab as it is, open a new tab for what follows (`opencli browser p2z tab new`, then `tab select` it), and rerun `fetch`, which takes the paper's next route. Other papers behind the same gate skip that route for the rest of the pass: `p2z.py fetch --pass N --route publisher --verdict gate_timeout <their records>`; the next pass meets the gate afresh.
 
 A login from another window leaves the gate tab as it was, so the user's word ("登好了") is what ends that wait: run it in the background where the harness tells you when a command ends, so their reply reaches you meanwhile, and stop it when the reply comes; in the foreground, give the command a timeout above 300 s. Record every gate you hit (page, time, what you were doing) for the report.
 

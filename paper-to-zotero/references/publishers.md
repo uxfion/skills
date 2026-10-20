@@ -18,13 +18,13 @@ Downloads: the watcher (SKILL.md step 0) files whatever lands in Downloads, so a
 
 ## Getting the bytes (verified 2026-10)
 
-`fetch.py --via page` does these in order, once the article page has loaded; when it stops, do the same by hand where the page needs it (a PDF link it could not find, a button):
+`fetch` does these in order for each PDF candidate a page offers (its declared PDF, an embedded document or viewer, a link saying PDF; three at most), and looks once more through an HTML page a link opens; when it stops, do the same by hand where the page needs it (a button it could not see, a gate):
 
 1. **In-page request.** `fetch(<PDF link>, {credentials: 'include'})` inside the article page, the bytes taken out base64-encoded in chunks through `browser eval`. A `content-type` of PDF is the file; HTML means no access, or a gate the session has not passed. Nothing lands in Downloads. Take the link from the page (`citation_pdf_url`, the "Download PDF" anchor), never from a pattern.
 2. **Open the link in the tab**, as a click would, when the in-page request is refused (403, HTML, a cross-origin `TypeError`). With the download setting on, Chrome downloads it; the watcher (`claim --watch`) files it from Downloads.
-3. **A PDF inside a pdf.js viewer** (aggregator readers): `PDFViewerApplication.pdfDocument.getData()` in the frame that hosts the viewer gives the bytes — `fetch.py --via viewer` on the tab.
+3. **A PDF inside a pdf.js viewer** (aggregator readers): `PDFViewerApplication.pdfDocument.getData()` in the frame that hosts the viewer gives the bytes; `fetch` reads a viewer it lands on.
 
-On a proxied page (next section) `citation_pdf_url` still names the publisher's own host; fetched from the proxied origin it is a cross-origin request without the proxy's cookies, and comes back as HTML. When the current host is a proxied form of the link's host, request only the link's path on the current origin (`fetch.py` does this when the config names the proxy). A plain `http://` link on an `https://` page (PMLR) is refused as mixed content: same fix.
+On a proxied page (next section) `citation_pdf_url` still names the publisher's own host; fetched from the proxied origin it is a cross-origin request without the proxy's cookies, and comes back as HTML. When the current host is a proxied form of the link's host, request only the link's path on the current origin (`fetch` does this when the config names the proxy). A plain `http://` link on an `https://` page (PMLR) is refused as mixed content: same fix.
 
 ## The Zotero Connector's proxy redirect (verified 2026-10)
 
@@ -43,7 +43,7 @@ All of these are solved by the user in seconds — alert them and wait at the ga
 
 ## Pages nobody can pass
 
-Not gates: waiting does not help and the user cannot fix them by logging in. Record the verdict for the paper (`fetch.py --via <the route> --verdict <result>`), tell the user the first time one shows (before moving on, not only in the report), and take the paper's next route. Two of them close a whole host for the run; the others are about this one paper, and the next paper on the same site is tried as usual — a subscription covers journals, not sites.
+Not gates: waiting does not help and the user cannot fix them by logging in. Record the verdict for the paper (`p2z.py fetch --pass N --verdict <word> <record>`), tell the user the first time one shows (before moving on, not only in the report), and take the paper's next route. Two of them close a whole host for the run; the others are about this one paper, and the next paper on the same site is tried as usual — a subscription covers journals, not sites.
 
 | page | meaning | scope | verdict |
 | --- | --- | --- | --- |
@@ -55,7 +55,7 @@ Not gates: waiting does not help and the user cannot fix them by logging in. Rec
 
 ## Open copies and metadata services (2026-10)
 
-- **PMC**: a plain HTTP client gets a JavaScript verification page, so PMC is a browser route (`fetch.py --via page --start <PMC article URL>`). The article page may open on a cookie wall and the PDF link (`…/articles/PMC<n>/pdf/main.pdf`) on a reCAPTCHA — two gates in a row; once passed, the same link downloads. Lancet and BMJ papers on PMC had no PDF.
+- **PMC**: a plain HTTP client gets a JavaScript verification page, so PMC is a browser route (`p2z.py fetch --pass N --start <PMC article URL> <record>`). The article page may open on a cookie wall and the PDF link (`…/articles/PMC<n>/pdf/main.pdf`) on a reCAPTCHA — two gates in a row; once passed, the same link downloads. Lancet and BMJ papers on PMC had no PDF.
 - **Europe PMC**: `?pdf=render` returns HTML, not the PDF.
 - **medRxiv / bioRxiv**: behind Cloudflare, which blocks the browser after a few programmatic requests (table above). Leave generous gaps between papers, keep requests in one session few, and prefer their API and Europe PMC.
 - **Rate limits seen**: the arXiv API answered 429 after about 60 calls; OpenReview searches hit `ChallengeRequiredError` after about 45, for curl and the opencli adapter alike; DBLP answered with a bot check from one machine. Parallel subagents share these limits.
@@ -75,10 +75,10 @@ The published version of most ML and vision conference papers is a free file; ta
 
 ## Discovery systems and aggregators (verified 2026-10)
 
-When the publisher says no access, the institution may still have the paper through an aggregator, and only its library discovery system knows: in one run three of four such papers were in ProQuest. `fetch.py --via discovery` does the steps below for Primo; read on when it stops on a record. The system's address is the config's `institution.discovery`, a search URL (the value stays in the local config, never in this repo).
+When the publisher says no access, the institution may still have the paper through an aggregator, and only its library discovery system knows: in one run three of four such papers were in ProQuest. `fetch`'s discovery route searches the title there, takes the result links whose text is the title, and works each record page; read on when it stops on one. The system's address is the config's `institution.discovery`, a search URL (the value stays in the local config, never in this repo).
 
 - **Primo NDE** (Ex Libris): each result is an anchor to `fulldisplay?…&docid=…`, and the docid names the source — `cdi_crossref_primary_<doi>` (the published article), `cdi_proquest_journals_<docview id>`, `cdi_arxiv_primary_<id>` (the preprint). The full record lists "Get PDF" and "Read online" links per provider. The same title can come back three times (publisher, ProQuest, arXiv); a ProQuest record may hold the arXiv version. Its links are not always right: one PDF link for a JAMIA paper downloaded a JMIR paper, twice. The search page's own request (`primaws/rest/pub/pnxs`) carries the same links, but `browser network` captured nothing on 2026-10-18; the page is the reliable source.
-- **ProQuest**: "Get PDF" leads to `docview/<id>/fulltextPDF`, which the proxy association opens through the institution: a same-origin pdf.js iframe with no outer download link, whose bytes `PDFViewerApplication.pdfDocument.getData()` gives (`fetch.py --via viewer` on that tab). Open these links in the session's own tab: "Get PDF" clicked on the page opens a tab that does not belong to the session. A paper the discovery system does not index can be searched in ProQuest directly by title. Other aggregators appear in the facets (Journals@Ovid, EBSCOhost).
+- **ProQuest**: "Get PDF" leads to `docview/<id>/fulltextPDF`, which the proxy association opens through the institution: a same-origin pdf.js iframe with no outer download link, whose bytes `PDFViewerApplication.pdfDocument.getData()` gives (`fetch` reads such a viewer). Open these links in the session's own tab: "Get PDF" clicked on the page opens a tab that does not belong to the session. A paper the discovery system does not index can be searched in ProQuest directly by title. Other aggregators appear in the facets (Journals@Ovid, EBSCOhost).
 - **Pacing**: licences forbid systematic downloading, and a proxy that sees too many full-text requests suspends the institution's account, not just this browser. `fetch.py` spaces every full-text request made through the institution 15 s apart; work done by hand on these sites keeps the same pace.
 
 ## Verified publishers
@@ -86,7 +86,7 @@ When the publisher says no access, the institution may still have the paper thro
 ### IEEE Xplore (2026-09)
 
 - A subscribed article page shows "Access provided by: <institution>".
-- The page declares no `citation_pdf_url`, so `fetch.py --via page` stops on it (an open issue). The PDF button (`a[href*='stamp.jsp']`, text "PDF") opens a viewer page whose `iframe` (`stampPDF/getPDF.jsp?…`) is the real PDF: open the viewer page, `<host>/stamp/stamp.jsp?tp=&arnumber=<n>`, read the iframe's `src` with `browser eval`, and open that in the session — Chrome downloads it and the watcher files it (verified 2026-10).
+- The page declares no `citation_pdf_url`; its PDF button (`stamp.jsp`, text "PDF") opens a reading page whose `iframe` (`stampPDF/getPDF.jsp?…`) is the real PDF, which `fetch` finds by looking through that page (by hand, verified 2026-10; through `fetch`, to verify on the next real run).
 - After an institutional login the site may be served from an EZproxy host (`ieeexplore-ieee-org.<proxy-domain>`); it behaves identically.
 - Abstract and keywords: `xplGlobal.document.metadata` on the article page (`abstract`, `keywords[].kwd`). The "IEEE Keywords" list there is index terms generated by IEEE, not the authors' keywords; the authors' own list is labelled "Author Keywords".
 - CVPR / ICCV papers usually have a free copy on CVF Open Access: a route to the file, while the item stays the IEEE version.
@@ -117,10 +117,10 @@ When the publisher says no access, the institution may still have the paper thro
 
 | symptom | meaning | next move |
 | --- | --- | --- |
-| click, then no file and no `.crdownload` in Downloads | the click opened a viewer page, or the Save As dialog is up | navigate to the embedded PDF's URL (or `fetch.py --via viewer`); if that fails too, check the PDF setting and the Save As option |
+| click, then no file and no `.crdownload` in Downloads | the click opened a viewer page, or the Save As dialog is up | navigate to the embedded PDF's URL; if that fails too, check the PDF setting and the Save As option |
 | `.crdownload` lingers | large file or slow link | keep waiting |
 | the user says the file downloaded, but nothing was filed | the watcher is not running, or the file matched no record or several | `p2z.py claim --work <work> --scan`; a `left` line names the file — read it, then `p2z.py claim --work <work> --file <copy> --slug <slug>` files it through the check |
-| `opencli browser … wait text` / `wait selector` answers `detached_mid_command` | the tab navigated while waiting (a login redirect does this) | wait with `fetch.py --wait`, which reads the tab every 10 s and goes on through navigations |
+| `opencli browser … wait text` / `wait selector` answers `detached_mid_command` | the tab navigated while waiting (a login redirect does this) | wait with `p2z.py wait <record>`, which reads the tab every 10 s and goes on through navigations |
 | `attach_failed … chrome-extension://` | built-in PDF viewer is on | PDF setting above |
 | downloaded "PDF" is HTML, or its text is a login / access-denied page | the gate was not really passed | wait at the gate again |
 | in-page request of the PDF link returns HTML on a proxied host | cross-origin request without the proxy's cookies | request the link's path on the current origin |

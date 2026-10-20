@@ -350,35 +350,64 @@ def has_pdf(rec):
                for a in found.get("attachments") or [] if isinstance(a, dict))
 
 
-def scan_downloads(work, dl):
-    """Claim the new files in Downloads (dl): each PDF is checked against every record whose library item has no PDF
-    yet; one match -> filed, else left there (it may be the user's own) and checked again only against records drafted
-    since. -> the events, logged."""
-    events = []
-    left = {}  # (name, md5) -> the slugs it was checked against when it was left
-    for e in work.events("claim"):
-        if e.get("result") == "left":
-            left.setdefault((e.get("file"), e.get("md5")), set()).update(e.get("against") or [])
-    for f in new_downloads(work, dl):
-        try:
-            with open(f, "rb") as fh:
-                if not fh.read(1024).lstrip().startswith(b"%PDF-"):
-                    continue
-            size, md5 = f.stat().st_size, md5_of(f)
-            time.sleep(0.2)
-            if f.stat().st_size != size:  # still being written
+class Scanner:
+    """Claims the new files in Downloads (dl), remembering what it saw: a file is looked at again only when its size or
+    time changed, and counts as complete once two looks found it the same; a file that is no PDF is never opened
+    again; the records are read again only when records/ changed. Each PDF is checked against every record whose
+    library item has no PDF yet: one match -> filed, else left there (it may be the user's own) and checked again only
+    against records drafted since."""
+
+    def __init__(self, work, dl):
+        self.work, self.dl = work, Path(dl)
+        self.seen, self.md5 = {}, {}  # name -> (size, mtime) at the last look; name -> ((size, mtime), md5)
+        self.records, self.records_at = [], None
+
+    def scan(self):
+        """One look -> the events, logged."""
+        changed = self.work.records.stat().st_mtime_ns
+        if changed != self.records_at:
+            self.records, self.records_at = records_of(self.work), changed
+        left = {}  # (name, md5) -> the slugs it was checked against when it was left
+        for e in self.work.events("claim"):
+            if e.get("result") == "left":
+                left.setdefault((e.get("file"), e.get("md5")), set()).update(e.get("against") or [])
+        events = []
+        for f in new_downloads(self.work, self.dl):
+            try:
+                st = f.stat()
+                sig, before = (st.st_size, st.st_mtime_ns), self.seen.get(f.name)
+                self.seen[f.name] = sig
+                if sig != before or self.md5.get(f.name, (None,))[0] == "no pdf":
+                    continue  # new or still growing: the next look decides; or known not to be a PDF
+                if self.md5.get(f.name, (None,))[0] != sig:
+                    with open(f, "rb") as fh:
+                        if not fh.read(1024).lstrip().startswith(b"%PDF-"):
+                            self.md5[f.name] = ("no pdf", None)
+                            continue
+                    self.md5[f.name] = (sig, md5_of(f))
+            except OSError:
                 continue
-        except OSError:
-            continue
-        records = [r for r in records_of(work) if not has_pdf(r) and r.slug not in left.get((f.name, md5), ())]
-        if not records:
-            continue
-        cache = {}
-        matched = [r.slug for r in records if verify.check(f, r, cache=cache)["code"] in verify.PASS_CODES]
-        if len(matched) == 1:
-            events.append(claim(work, f, matched[0], cache=cache, source=str(f)))
-        else:
-            events.append(work.append({"event": "claim", "file": f.name, "result": "left", "md5": md5, "source": str(f),
-                                       "why": "ambiguous" if matched else "unmatched", "matched": matched or None,
-                                       "against": sorted(r.slug for r in records)}))
-    return events
+            md5 = self.md5[f.name][1]
+            records = [r for r in self.records if not has_pdf(r) and r.slug not in left.get((f.name, md5), ())]
+            if not records:
+                continue
+            cache = {}
+            matched = [r.slug for r in records if verify.check(f, r, cache=cache)["code"] in verify.PASS_CODES]
+            if len(matched) == 1:
+                events.append(claim(self.work, f, matched[0], cache=cache, source=str(f)))
+            else:
+                events.append(self.work.append({"event": "claim", "file": f.name, "result": "left", "md5": md5,
+                                                "source": str(f), "why": "ambiguous" if matched else "unmatched",
+                                                "matched": matched or None, "against": sorted(r.slug for r in records)}))
+                left.setdefault((f.name, md5), set()).update(r.slug for r in records)
+        return events
+
+
+def watcher_alive(work):
+    """Whether the watcher (claim.py --watch) of this work directory is running: its pid in run.json, alive."""
+    pid = work.settings().get("watcher")
+    try:
+        os.kill(int(pid), 0)
+    except (TypeError, ValueError, ProcessLookupError, PermissionError):
+        return False
+    return True

@@ -2,15 +2,14 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/fetch.py. The browser is a stub `opencli` on PATH that plays a scenario (pages by URL, in-page
-fetch answers by URL, links that download, pdf.js viewers) and keeps its tab state in a file; plain HTTP is a local
-http.server. claim.py and check_pdf.py run for real, with pdftotext stubbed to print a PDF's bytes after its 9-byte
-header (a test PDF is b"%PDF-1.4\\n" + its text)."""
+"""Tests for scripts/fetch.py and scripts/wait.py. The browser is a stub `opencli` on PATH that plays a scenario
+(pages by URL with their PDF candidates, in-page fetch answers, links that download, pdf.js viewers, result links) and
+keeps its tab in a file; plain HTTP is a local http.server; pdftotext is stubbed to print a PDF's bytes after its
+9-byte header (a test PDF is b"%PDF-1.4\\n" + its text)."""
 import base64
 import http.server
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,7 +20,9 @@ from pathlib import Path
 
 from helpers import load
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "fetch.py"
+from p2zlib import run
+
+SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 TITLE = "Progressive Deep Learning for Cardiac Image Segmentation"
 OTHER = "A Completely Different Paper About Lung Nodules"
 
@@ -40,19 +41,13 @@ scen = json.load(open(os.environ["STUB_SCENARIO"]))
 state_path = os.environ["STUB_STATE"]
 state = json.load(open(state_path)) if os.path.exists(state_path) else {"current": None, "mark": None, "b64": None}
 args = [a for a in sys.argv[1:] if a not in ("--window", "background", "foreground")]
-with open(os.environ["STUB_STATE"] + ".calls", "a") as log:
-    log.write(json.dumps(sys.argv[1:]) + "\n")
-def save():
-    json.dump(state, open(state_path, "w"))
 def out(value):
     print(value if isinstance(value, str) else json.dumps(value))
-    save()
+    json.dump(state, open(state_path, "w"))
     sys.exit(0)
 cmd = args[2]
 if cmd == "open":
     url = args[3]
-    for path, data in scen.get("drops", {}).get(url, {}).items():  # the watcher files a download meanwhile
-        open(path, "wb").write(base64.b64decode(data))
     dl = scen.get("downloads", {}).get(url)
     if dl:  # Chrome downloads it; the tab keeps its document (and the mark)
         open(os.path.join(dl["dir"], dl["name"]), "wb").write(base64.b64decode(dl["bytes"]))
@@ -64,19 +59,19 @@ if cmd == "open":
     out({"url": url})
 js = args[3]
 page = scen.get("pages", {}).get(state["current"]) or {}
-if "p2z:info" in js:
-    out({"href": page.get("href", state["current"]), "title": page.get("title", ""), "pdf": page.get("pdf"),
-         "mark": state["mark"]})
+if "p2z:find" in js:
+    out({"href": page.get("href", state["current"]), "title": page.get("title", ""), "mark": state["mark"],
+         "viewer": bool(page.get("viewer")), "candidates": [{"url": u, "why": "stub"} for u in page.get("pdf", [])]})
 if "p2z:mark" in js:
     state["mark"] = re.search(r"__p2z_mark='([^']*)'", js).group(1)
     out(state["current"] or "")
 if "p2z:fetch" in js:
     url = json.loads(re.search(r"fetch\((\"[^\"]*\")", js).group(1))
-    ans = scen.get("fetch", {}).get(url, {"status": 403, "ct": "text/html"})
-    if ans.get("bytes"):
-        state["b64"] = ans["bytes"]
-        out({"status": 200, "ct": "application/pdf", "pdf": True, "b64len": len(ans["bytes"])})
-    out({"status": ans["status"], "ct": ans["ct"], "pdf": False, "b64len": 0})
+    ans = scen.get("fetch", {}).get(url)
+    if ans:
+        state["b64"] = ans
+        out({"status": 200, "ct": "application/pdf", "pdf": True, "b64len": len(ans)})
+    out({"status": 403, "ct": "text/html", "pdf": False, "b64len": 0})
 if "p2z:chunk" in js:
     a, b = map(int, re.search(r"slice\((\d+),(\d+)\)", js).groups())
     out(state["b64"][a:b] if state["b64"] else "null")
@@ -84,22 +79,17 @@ if "p2z:clear" in js:
     state["b64"] = None
     out("true")
 if "p2z:html" in js:
-    data = base64.b64encode(page.get("html", "").encode()).decode()
-    state["b64"] = data
-    out({"size": len(data), "b64len": len(data), "href": page.get("href", state["current"])})
-if "p2z:results" in js:
-    out({"done": True, "results": page.get("results", [])})
-if "p2z:links" in js:
-    out({"pdf": page.get("links", []), "online": len(page.get("links", []))})
-if "p2z:wait" in js:
-    until = json.loads(re.search(r"const u=(null|\"[^\"]*\");", js).group(1))
-    out({"href": page.get("href", state["current"]), "title": page.get("title", ""),
-         "found": bool(until) and until in page.get("text", "")})
-if "p2z:viewer-ready" in js:
-    out({"app": bool(page.get("viewer")), "ready": bool(page.get("viewer"))})
+    state["b64"] = base64.b64encode(page.get("html", "").encode()).decode()
+    out({"size": len(state["b64"]), "b64len": len(state["b64"]), "href": page.get("href", state["current"])})
 if "p2z:viewer-data" in js:
     state["b64"] = page.get("viewer")
     out({"pdf": True, "b64len": len(page["viewer"])} if page.get("viewer") else {"pdf": False})
+if "p2z:anchors" in js:
+    out({"href": state["current"], "anchors": page.get("anchors", [])})
+if "p2z:watch" in js:
+    until = json.loads(re.search(r"const u=(null|\"[^\"]*\");", js).group(1))
+    out({"href": page.get("href", state["current"]), "title": page.get("title", ""),
+         "found": bool(until) and until in page.get("text", "")})
 print("stub: unknown call " + json.dumps(args), file=sys.stderr)
 sys.exit(1)
 '''
@@ -110,24 +100,15 @@ class Http(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        path = self.path.split("?", 1)[0]
-        if path == "/paper.pdf":
-            body, ctype = pdf(f"{TITLE}\nWei Liu"), "application/pdf"
-        elif path == "/wrong.pdf":
-            body, ctype = pdf(f"{OTHER}\nSomeone Else"), "application/pdf"
-        elif path == "/landing":
-            body, ctype = b"<html>a landing page</html>", "text/html"
-        else:
-            self.send_response(404)
-            self.end_headers()
-            return
-        self.send_response(200)
-        self.send_header("Content-Type", ctype)
+        body = {"/paper.pdf": pdf(f"{TITLE}\nWei Liu"), "/wrong.pdf": pdf(f"{OTHER}\nSomeone Else"),
+                "/landing": b"<html>a landing page</html>"}.get(self.path.split("?", 1)[0])
+        self.send_response(200 if body else 404)
+        self.send_header("Content-Type", "application/pdf" if body and body.startswith(b"%PDF") else "text/html")
         self.end_headers()
-        self.wfile.write(body)
+        self.wfile.write(body or b"")
 
 
-class FetchTest(unittest.TestCase):
+class Fetch(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Http)
@@ -139,320 +120,145 @@ class FetchTest(unittest.TestCase):
         cls.server.shutdown()
 
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp(prefix="fetch_test_"))
-        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
-        self.work = self.tmp / "work"
-        (self.work / "records").mkdir(parents=True)
-        (self.work / ".started").touch()
-        past = time.time() - 600
-        os.utime(self.work / ".started", (past, past))
+        self.tmp = Path(tempfile.mkdtemp(prefix="p2z-fetch-"))
+        self.work = run.Work(self.tmp / "work")
+        self.work.records.mkdir(parents=True)
+        self.work.started.touch()
+        os.utime(self.work.started, (time.time() - 600,) * 2)
         self.dl = self.tmp / "Downloads"
         self.dl.mkdir()
-        self.bin = self.tmp / "bin"
-        self.bin.mkdir()
-        (self.bin / "pdftotext").write_text('#!/bin/sh\nexec tail -c +10 "$7"\n')
-        (self.bin / "pdfinfo").write_text("#!/bin/sh\necho 'Pages: 1'\n")
-        (self.bin / "opencli").write_text(OPENCLI_STUB.replace("PYTHON", sys.executable))
+        self.work.set(downloads=str(self.dl), session="p2z")
+        bin_ = self.tmp / "bin"
+        bin_.mkdir()
+        (bin_ / "pdftotext").write_text('#!/bin/sh\nexec tail -c +10 "$7"\n')
+        (bin_ / "pdfinfo").write_text("#!/bin/sh\necho 'Pages: 1'\n")
+        (bin_ / "opencli").write_text(OPENCLI_STUB.replace("PYTHON", sys.executable))
         for n in ("pdftotext", "pdfinfo", "opencli"):
-            (self.bin / n).chmod(0o755)
-        self.scenario = self.tmp / "scenario.json"
-        self.state = self.tmp / "state.json"
-        self.config = self.tmp / "config.json"
+            (bin_ / n).chmod(0o755)
+        self.scenario, self.config = self.tmp / "scenario.json", self.tmp / "config.json"
         self.config.write_text(json.dumps({"institution": {"proxy": "proxy.example.edu"}}))
+        self.env = {**{k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")},
+                    "PATH": f"{bin_}{os.pathsep}{os.environ['PATH']}", "STUB_SCENARIO": str(self.scenario),
+                    "STUB_STATE": str(self.tmp / "state.json"), "PAPER_TO_ZOTERO_CONFIG": str(self.config),
+                    "PAPER_TO_ZOTERO_INSTITUTION_GAP": "0", "PAPER_TO_ZOTERO_CLICK_WAIT": "3",
+                    "PAPER_TO_ZOTERO_DISCOVERY_WAIT": "0"}
         self.scene({})
 
     def scene(self, scenario):
         self.scenario.write_text(json.dumps(scenario))
 
-    def record(self, slug, title=TITLE, doi="10.1000/x.1", **extra):
-        item = {"itemType": "journalArticle", "title": title, "DOI": doi,
+    def record(self, slug, title=TITLE, doi="10.1000/x.1", links=()):
+        item = {"itemType": "journalArticle", "title": title, **({"DOI": doi} if doi else {}),
                 "creators": [{"creatorType": "author", "lastName": "Liu", "firstName": "Wei"}]}
-        if isinstance(extra.get("links"), list):
-            extra["links"] = {"items": extra["links"]}
-        path = self.work / "records" / f"{slug}.json"
-        path.write_text(json.dumps({"item": item, **extra}))
-        return path
+        path = self.work.records / f"{slug}.json"
+        path.write_text(json.dumps({"item": item, "links": {"items": list(links)}}))
+        return str(path)
 
-    def run_script(self, *argv, path=None):
-        env = dict(os.environ, PATH=path or f"{self.bin}{os.pathsep}{os.environ['PATH']}", STUB_SCENARIO=str(self.scenario),
-                   STUB_STATE=str(self.state), PAPER_TO_ZOTERO_CONFIG=str(self.config),
-                   PAPER_TO_ZOTERO_DOWNLOAD_WAIT="2", PAPER_TO_ZOTERO_VIEWER_WAIT="1",
-                   PAPER_TO_ZOTERO_DISCOVERY_WAIT="2", PAPER_TO_ZOTERO_INSTITUTION_GAP="0")
-        env = {k: v for k, v in env.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
-        return subprocess.run([sys.executable, str(SCRIPT), *argv], capture_output=True, text=True, env=env, timeout=120)
+    def link(self, path, version="published"):
+        return {"url": self.base + path, "source": "openalex", "version": version, "needs_browser": None}
 
-    def lines(self, text):
-        return [json.loads(ln) for ln in text.splitlines() if ln.startswith("{")]
+    def run_(self, script, *argv):
+        done = subprocess.run([sys.executable, str(SCRIPTS / f"{script}.py"), *argv], capture_output=True, text=True,
+                              env=self.env, timeout=120)
+        return done.returncode, [json.loads(ln) for ln in done.stdout.splitlines() if ln.startswith("{")], done.stderr
 
-    def tries(self):
-        path = self.work / "fetch.jsonl"
-        return [e for e in map(json.loads, path.read_text().splitlines()) if e["event"] == "try"] if path.exists() else []
+    def fetch(self, *argv):
+        return self.run_("fetch", *argv)
 
-    # --- page --------------------------------------------------------------------------
+    def events(self, kind):
+        return [(e["slug"], e["route"], e.get("result") or e.get("why")) for e in self.work.events(kind)]
 
-    def test_page_fetches_the_declared_pdf_inside_the_page(self):
-        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://pub.example/article/1", "title": TITLE,
-                                                               "pdf": "/article/1.pdf"}},
-                    "fetch": {"https://pub.example/article/1.pdf": {"bytes": b64(pdf(f"{TITLE}\nWei Liu"))}}})
-        p = self.record("paper")
-        r = self.run_script("--via", "page", "--pass", "1", str(p))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertTrue((self.work / "records" / "paper.pdf").is_file())
-        t = self.tries()[-1]
-        self.assertEqual((t["slug"], t["pass"], t["via"], t["url"], t["result"]),
-                         ("paper", 1, "page", "https://pub.example/article/1.pdf", "ok"))
-        calls = [json.loads(ln) for ln in Path(str(self.state) + ".calls").read_text().splitlines()]
-        self.assertIn(["browser", "p2z", "open", "https://doi.org/10.1000/x.1", "--window", "background"], calls)
-        r = self.run_script("--via", "page", "--pass", "1", str(p))
-        self.assertEqual(self.lines(r.stdout)[0]["reason"], "has_file")
+    def files(self):
+        return sorted(p.name for p in self.work.records.iterdir() if not p.name.endswith(".json"))
 
-    def test_proxied_page_requests_the_path_on_its_own_origin(self):
-        proxied = "https://www-pub-example.proxy.example.edu"
-        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": f"{proxied}/article/1", "title": TITLE,
-                                                               "pdf": "https://www.pub.example/article/1.pdf"}},
-                    "fetch": {f"{proxied}/article/1.pdf": {"bytes": b64(pdf(f"{TITLE}\nWei Liu"))}}})
-        r = self.run_script("--via", "page", str(self.record("paper")))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(self.tries()[-1]["url"], "https://www.pub.example/article/1.pdf", "logged as the canonical link")
+    def test_one_pass_walks_the_routes_in_order(self):
+        self.scene({"pages": {"https://doi.org/10.1000/b.2": {"href": "https://pub.example/b", "pdf": ["https://pub.example/b.pdf"]}},
+                    "fetch": {"https://pub.example/b.pdf": b64(pdf(f"{OTHER}\nWei Liu"))}})
+        recs = [self.record("a", links=[self.link("/paper.pdf"), self.link("/landing", "accepted")]),
+                self.record("b", OTHER, "10.1000/b.2"),
+                self.record("e", doi=None, links=[self.link("/wrong.pdf", "preprint"), self.link("/paper.pdf", "preprint")])]
+        code, lines, err = self.fetch("--pass", "1", *recs)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.files(), ["a.pdf", "b.pdf", "e.preprint.pdf"], "each candidate's version goes along")
+        self.assertEqual(self.events("try"), [("a", "open", "ok"), ("b", "publisher", "ok"), ("e", "preprint", "wrong_file"),
+                                              ("e", "preprint", "ok")])
+        self.assertEqual((lines[-1]["summary"]["with_file"], [x.get("reason") for x in lines if x.get("code") == "skipped"]),
+                         (3, ["no_discovery"]))
+        self.assertEqual(self.fetch("--pass", "1", *recs)[0], 0)
+        self.assertEqual(len(self.work.events("try")), 4, "nothing is tried twice")
 
-    def test_refused_request_then_the_opened_link_downloads(self):
-        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://pub.example/a", "title": TITLE,
-                                                               "pdf": "https://pub.example/a.pdf"}},
-                    "downloads": {"https://pub.example/a.pdf": {"dir": str(self.dl), "name": "a.pdf",
-                                                                 "bytes": b64(pdf(f"{TITLE}\nWei Liu"))}}})
-        r = self.run_script("--via", "page", "--downloads", str(self.dl), str(self.record("paper")))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertTrue((self.work / "records" / "paper.pdf").is_file())
-        self.assertEqual(self.tries()[-1]["result"], "ok")
-        self.assertFalse((self.dl / "a.pdf").exists())
+    def test_a_page_the_browser_cannot_pass_stops_until_the_agent_decides(self):
+        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://pub.example/x", "title": "Sign in"}}})
+        rec = self.record("x", links=[self.link("/wrong.pdf", "preprint")])
+        code, lines, _ = self.fetch("--pass", "1", rec)
+        stop = next(x for x in lines if x.get("code") == "stopped")
+        self.assertEqual((code, stop["why"], stop["url"]), (1, "no_pdf_link", "https://pub.example/x"))
+        self.assertEqual((self.events("try"), self.events("stop")), ([], [("x", "publisher", "no_pdf_link")]), "a stop is no try")
+        self.assertEqual(self.fetch("--pass", "1", rec)[0], 1, "the page is asked again on a rerun")
+        self.assertEqual(self.fetch("--pass", "1", "--verdict", "no_access", rec)[0], 0)
+        self.assertEqual(self.fetch("--pass", "1", rec)[0], 0)
+        self.assertEqual(self.events("try"), [("x", "publisher", "no_access"), ("x", "preprint", "wrong_file")])
+        other = self.record("y", OTHER, "10.1000/y.2")
+        self.assertEqual(self.fetch("--pass", "1", "--route", "publisher", "--verdict", "gate_timeout", other)[0], 0)
+        self.assertEqual(self.fetch("--pass", "1", "--route", "publisher", other)[0], 0, "the route is closed for it")
+        code, lines, _ = self.fetch("--pass", "2", "--verdict", "no_access", rec)
+        self.assertEqual((code, lines[0]["code"]), (1, "nothing_stopped"))
 
-    def test_refused_then_a_pdfjs_viewer(self):
-        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://agg.example/doc", "title": TITLE,
-                                                               "pdf": "https://agg.example/doc/pdf"},
-                              "https://agg.example/doc/pdf": {"title": "viewer", "viewer": b64(pdf(f"{TITLE}\nWei Liu"))}}})
-        r = self.run_script("--via", "page", str(self.record("paper")))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual(self.tries()[-1]["note"], "read from the pdf.js viewer")
-        self.assertTrue((self.work / "records" / "paper.pdf").is_file())
-
-    def test_a_page_without_a_pdf_link_stops_the_run_until_the_agent_decides(self):
-        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://sso.example.edu/login", "title": "Sign in"},
-                              "https://doi.org/10.1000/y.2": {"href": "https://pub.example/b", "title": OTHER,
-                                                               "pdf": "https://pub.example/b.pdf"}},
-                    "fetch": {"https://pub.example/b.pdf": {"bytes": b64(pdf(f"{OTHER}\nWei Liu"))}}})
-        paths = [self.record("paper"), self.record("other", OTHER, "10.1000/y.2")]
-        r = self.run_script("--via", "page", *map(str, paths))
-        self.assertEqual(r.returncode, 1)
-        out = self.lines(r.stdout)[-1]
-        self.assertEqual((out["code"], out["slug"], out["why"], out["url"], out["title"]),
-                         ("stopped", "paper", "no_pdf_link", "https://sso.example.edu/login", "Sign in"))
-        self.assertFalse((self.work / "records" / "other.pdf").exists(), "the run stops at the first record")
-        r = self.run_script("--via", "page", *map(str, paths))
-        self.assertEqual(self.lines(r.stdout)[-1]["slug"], "paper", "a stopped record is tried again on rerun")
-        r = self.run_script("--via", "page", "--verdict", "gate_timeout", str(paths[0]))
-        self.assertEqual((r.returncode, self.tries()[-1]["result"], self.tries()[-1]["by"]), (0, "gate_timeout", "agent"))
-        r = self.run_script("--via", "page", *map(str, paths))
-        self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertEqual(self.lines(r.stdout)[0]["reason"], "tried", "the agent's verdict counts as tried")
-        self.assertTrue((self.work / "records" / "other.pdf").is_file())
-        r = self.run_script("--via", "page", "--pass", "2", str(paths[0]))
-        self.assertEqual(self.lines(r.stdout)[-1]["code"], "stopped", "a new pass tries it again")
-
-    def test_a_file_that_arrives_meanwhile_ends_that_record(self):
-        rec = self.work / "records"
-        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://sso.example.edu/login", "title": "Sign in"},
-                              "https://doi.org/10.1000/y.2": {"href": "https://pub.example/b", "title": OTHER}},
-                    "drops": {"https://doi.org/10.1000/x.1": {str(rec / "paper.pdf"): b64(pdf(f"{TITLE}\nWei Liu")),
-                                                              str(rec / "other.pdf"): b64(pdf(f"{OTHER}\nWei Liu"))}}})
-        paths = [self.record("paper"), self.record("other", OTHER, "10.1000/y.2")]
-        r = self.run_script("--via", "page", "--window", "foreground", *map(str, paths))
-        self.assertEqual(r.returncode, 0, "no stop on a login page whose paper the user downloaded meanwhile")
-        self.assertEqual([(ln["slug"], ln["reason"]) for ln in self.lines(r.stdout)], [("paper", "has_file"), ("other", "has_file")])
-        calls = [json.loads(ln) for ln in Path(str(self.state) + ".calls").read_text().splitlines()]
-        self.assertIn(["browser", "p2z", "open", "https://doi.org/10.1000/x.1", "--window", "foreground"], calls)
-        self.assertNotIn("https://doi.org/10.1000/y.2", json.dumps(calls), "the second paper's page is never opened")
-
-    def wait(self, *argv, change=None, delay=0.6):
-        env = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}", STUB_SCENARIO=str(self.scenario),
-                   STUB_STATE=str(self.state), PAPER_TO_ZOTERO_CONFIG=str(self.config), PAPER_TO_ZOTERO_WAIT_STEP="0.2")
-        proc = subprocess.Popen([sys.executable, str(SCRIPT), "--via", "page", "--pass", "1", "--wait", *argv],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
-        if change:
-            time.sleep(delay)
-            change()
-        out, err = proc.communicate(timeout=60)
-        return proc.returncode, self.lines(out)[-1]
-
-    def test_wait_ends_when_the_file_arrives_or_the_page_changes(self):
-        self.scene({"pages": {"https://sso.example.edu/login": {"title": "Sign in"},
-                              "https://pub.example/a": {"title": TITLE, "text": "Access provided by Example University"}}})
-        p = self.record("paper")
-        self.state.write_text(json.dumps({"current": "https://sso.example.edu/login", "mark": None, "b64": None}))
-        filed = lambda: (self.work / "records" / "paper.pdf").write_bytes(pdf(TITLE))
-        code, out = self.wait(str(p), change=filed)
-        self.assertEqual((code, out["code"], out["file"]), (0, "arrived", "paper.pdf"))
-        (self.work / "records" / "paper.pdf").unlink()
-        moved = lambda: self.state.write_text(json.dumps({"current": "https://pub.example/a", "mark": None, "b64": None}))
-        code, out = self.wait(str(p), change=moved)
-        self.assertEqual((code, out["code"], out["url"]), (0, "passed", "https://pub.example/a"))
-        code, out = self.wait("--until", "Access provided by", str(p))
-        self.assertEqual((code, out["code"]), (0, "passed"), "the marker is already there")
-        calls = Path(str(self.state) + ".calls").read_text()
-        self.assertNotIn('"open"', calls, "waiting never navigates")
-
-    def test_wait_times_out_once_per_pass(self):
-        self.scene({"pages": {"https://sso.example.edu/login": {"title": "Sign in"}}})
-        self.state.write_text(json.dumps({"current": "https://sso.example.edu/login", "mark": None, "b64": None}))
-        p = self.record("paper")
-        code, out = self.wait("--until", "Access provided by", "--timeout", "1", str(p))
-        self.assertEqual((code, out["code"], out["url"]), (1, "gate_timeout", "https://sso.example.edu/login"))
-        self.assertEqual((self.tries()[-1]["result"], self.tries()[-1]["via"]), ("gate_timeout", "page"))
-        r = self.run_script("--via", "page", "--pass", "1", str(p))
-        self.assertEqual(self.lines(r.stdout)[0]["reason"], "tried", "the paper takes its next route this pass")
-
-    def test_refused_and_no_viewer_stops(self):
-        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://pub.example/a", "title": TITLE,
-                                                               "pdf": "https://pub.example/a.pdf"},
-                              "https://pub.example/a.pdf": {"title": "Purchase this article"}}})
-        r = self.run_script("--via", "page", str(self.record("paper")))
-        out = self.lines(r.stdout)[-1]
-        self.assertEqual((r.returncode, out["why"], out["title"]), (1, "refused", "Purchase this article"))
-
-    def test_request_url_rules(self):
-        mod = load("fetch")
-        p = "proxy.example.edu"
-        self.assertEqual(mod.request_url("https://ieeexplore.ieee.org/x.pdf", "https://ieeexplore-ieee-org.proxy.example.edu/doc", p),
-                         "https://ieeexplore-ieee-org.proxy.example.edu/x.pdf")
-        self.assertEqual(mod.request_url("https://www.my-site.org/x.pdf", "https://www-my--site-org.proxy.example.edu/a", p),
-                         "https://www-my--site-org.proxy.example.edu/x.pdf")
-        self.assertEqual(mod.request_url("http://proceedings.mlr.press/v1/a.pdf", "https://proceedings.mlr.press/v1/a.html", p),
-                         "https://proceedings.mlr.press/v1/a.pdf", "plain http on an https page: same path on the page's origin")
-        self.assertEqual(mod.request_url("https://downloads.hindawi.com/x.pdf", "https://www.hindawi.com/a", p),
-                         "https://downloads.hindawi.com/x.pdf", "a real cross-host link stays")
-        self.assertEqual(mod.request_url("/x.pdf", "https://pub.example/a", None), "https://pub.example/x.pdf")
-
-    # --- http / snapshot / viewer --------------------------------------------------------
-
-    def test_http_goes_through_the_links_of_one_version(self):
-        links = [{"url": f"{self.base}/landing", "source": "openalex", "version": "published", "needs_browser": None},
-                 {"url": f"{self.base}/wrong.pdf", "source": "openalex", "version": "published", "needs_browser": None},
-                 {"url": "https://pmc.example/x", "source": "europepmc", "version": "published", "needs_browser": True},
-                 {"url": f"{self.base}/paper.pdf", "source": "openalex", "version": "published", "needs_browser": None},
-                 {"url": f"{self.base}/paper.pdf?pre", "source": "arxiv", "version": "preprint", "needs_browser": False}]
-        p = self.record("paper", links=links)
-        q = self.record("other", OTHER, "10.1000/y.2", links=[])
-        r = self.run_script("--via", "http", str(p), str(q))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual([(t["slug"], t["result"]) for t in self.tries()],
-                         [("paper", "not_pdf"), ("paper", "wrong_file"), ("paper", "ok"), ("other", "no_link")])
-        self.assertTrue((self.work / "records" / "paper.pdf").is_file(), "the preprint link was never needed")
-        self.assertTrue((self.work / "unverified" / "paper.http.pdf").is_file())
-        r = self.run_script("--via", "http", str(q))
-        self.assertEqual(self.lines(r.stdout)[0]["reason"], "tried")
-        r = self.run_script("--via", "http", "--version", "preprint", str(self.record("pre", links=links)))
-        self.assertTrue((self.work / "records" / "pre.preprint.pdf").is_file(), "a preprint link files a preprint")
-
-    def test_each_version_is_its_own_route_in_a_pass(self):
-        links = [{"url": f"{self.base}/landing", "source": "openalex", "version": "published", "needs_browser": None},
-                 {"url": f"{self.base}/paper.pdf?pre", "source": "arxiv", "version": "preprint", "needs_browser": False}]
-        p = self.record("paper", links=links)
-        self.run_script("--via", "http", "--pass", "1", str(p))
-        self.assertEqual(self.tries()[-1]["result"], "not_pdf")
-        r = self.run_script("--via", "http", "--pass", "1", "--version", "accepted", str(p))
-        self.assertNotIn("skipped", [ln.get("code") for ln in self.lines(r.stdout)],
-                         "a published try does not stand for the accepted route")
-        self.assertEqual((self.tries()[-1]["version"], self.tries()[-1]["result"]), ("accepted", "no_link"))
-        self.run_script("--via", "http", "--pass", "1", "--version", "preprint", str(p))
-        self.assertTrue((self.work / "records" / "paper.preprint.pdf").is_file())
-
-    def test_a_start_page_leaves_the_publisher_route_open(self):
-        self.scene({"pages": {"https://pmc.example/x": {"href": "https://pmc.example/x", "title": "PMC"},
-                              "https://doi.org/10.1000/x.1": {"href": "https://pub.example/a", "title": TITLE,
-                                                               "pdf": "/a.pdf"}},
-                    "fetch": {"https://pub.example/a.pdf": {"bytes": b64(pdf(f"{TITLE}\nWei Liu"))}}})
-        p = self.record("paper")
-        r = self.run_script("--via", "page", "--pass", "1", "--start", "https://pmc.example/x", str(p))
-        self.assertEqual((r.returncode, self.tries()[-1]["start"]), (1, "https://pmc.example/x"))
-        self.run_script("--via", "page", "--pass", "1", "--start", "https://pmc.example/x", "--verdict", "no_pdf", str(p))
-        r = self.run_script("--via", "page", "--pass", "1", str(p))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertTrue((self.work / "records" / "paper.pdf").is_file(), "the publisher's page was still tried")
-
-    def module(self):
-        mod = load("fetch")
-        return mod
-
-    def test_discovery_route_takes_the_get_pdf_link_of_the_record_with_this_title(self):
-        base = "https://disc.example/nde/search?tab=Everything&vid=INST"
-        self.config.write_text(json.dumps({"institution": {"proxy": "proxy.example.edu", "discovery": base}}))
-        mod = self.module()
-        search_a, search_b = mod.with_query(base, TITLE), mod.with_query(base, OTHER)
+    def test_the_page_ladder(self):
+        c, f, g = "Cardiac Segmentation With Diffusion Models", "Lung Nodule Detection in Low Dose CT", "Retinal Vessel Segmentation Using Transformers"
+        proxied = "https://ieeexplore-ieee-org.proxy.example.edu"
         self.scene({"pages": {
-            search_a: {"title": "Discovery", "results": [
-                {"title": "Progressive deep learning for cardiac image segmentation", "href": "https://disc.example/full?docid=cdi_arxiv_1"},
-                {"title": "Something Else Entirely", "href": "https://disc.example/full?docid=x"},
-                {"title": TITLE.upper(), "href": "https://disc.example/full?docid=cdi_crossref_1"}]},
-            "https://disc.example/full?docid=cdi_crossref_1": {"title": "Record", "links": ["https://agg.example/doc/pdf"]},
-            "https://disc.example/full?docid=cdi_arxiv_1": {"title": "Record", "links": []},
-            "https://agg.example/doc/pdf": {"title": "viewer", "viewer": b64(pdf(f"{TITLE}\nWei Liu"))},
-            search_b: {"title": "Discovery", "results": [{"title": "Unrelated", "href": "https://disc.example/full?docid=y"}]}}})
-        paths = [self.record("other", OTHER, "10.1000/y.2"), self.record("paper")]
-        r = self.run_script("--via", "discovery", "--pass", "1", *map(str, paths))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertEqual([(t["slug"], t["result"]) for t in self.tries()], [("other", "not_in_discovery"), ("paper", "ok")])
-        self.assertTrue((self.work / "records" / "paper.pdf").is_file())
-        calls = Path(str(self.state) + ".calls").read_text()
-        self.assertLess(calls.index("cdi_crossref_1"), calls.index("cdi_arxiv_1") if "cdi_arxiv_1" in calls else len(calls),
-                        "the published record before the arXiv one")
+            # refused inside the page, then the opened link downloads: this command files it (no watcher runs)
+            "https://doi.org/10.1000/c.3": {"href": "https://pub.example/c", "pdf": ["https://pub.example/c.pdf"]},
+            # refused, then the opened link shows a pdf.js viewer
+            "https://doi.org/10.1000/f.4": {"href": "https://pub.example/f", "pdf": ["https://pub.example/f.pdf"]},
+            "https://pub.example/f.pdf": {"viewer": b64(pdf(f"{f}\nWei Liu"))},
+            # refused, then the opened link is an HTML reading page whose own candidate is the PDF (IEEE's stamp.jsp)
+            "https://doi.org/10.1109/g.5": {"href": f"{proxied}/document/5", "pdf": ["https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=5"]},
+            f"{proxied}/stamp/stamp.jsp?arnumber=5": {"pdf": [f"{proxied}/stampPDF/getPDF.jsp?arnumber=5"]}},
+            "downloads": {"https://pub.example/c.pdf": {"dir": str(self.dl), "name": "c.pdf", "bytes": b64(pdf(f"{c}\nWei Liu"))}},
+            "fetch": {f"{proxied}/stampPDF/getPDF.jsp?arnumber=5": b64(pdf(f"{g}\nWei Liu"))}})
+        recs = [self.record("c", c, "10.1000/c.3"), self.record("f", f, "10.1000/f.4"), self.record("g", g, "10.1109/g.5")]
+        code, lines, err = self.fetch("--pass", "1", "--route", "publisher", *recs)
+        self.assertEqual(code, 0, err + json.dumps(lines))
+        self.assertEqual(self.files(), ["c.pdf", "f.pdf", "g.pdf"])
+        request_url = load("fetch").request_url
+        self.assertEqual(request_url("https://ieeexplore.ieee.org/x.pdf", f"{proxied}/d/1", "proxy.example.edu"), f"{proxied}/x.pdf")
+        self.assertEqual(request_url("http://pub.example/x.pdf", "https://pub.example/a", None), "https://pub.example/x.pdf")
 
-    def test_discovery_route_stops_on_a_record_without_a_pdf_link_and_needs_an_address(self):
-        r = self.run_script("--via", "discovery", "--pass", "1", str(self.record("paper")))
-        self.assertEqual((r.returncode, self.lines(r.stdout)[-1]["code"], self.tries()[-1]["result"]), (0, "no_discovery", "no_discovery"))
-        base = "https://disc.example/nde/search?vid=INST"
-        self.config.write_text(json.dumps({"institution": {"discovery": base}}))
-        self.scene({"pages": {self.module().with_query(base, TITLE): {"title": "Discovery", "results": [
-                                  {"title": TITLE, "href": "https://disc.example/full?docid=z"}]},
-                              "https://disc.example/full?docid=z": {"title": "Record", "links": []}}})
-        r = self.run_script("--via", "discovery", "--pass", "2", str(self.record("paper")))
-        out = self.lines(r.stdout)[-1]
-        self.assertEqual((r.returncode, out["code"], out["why"]), (1, "stopped", "no_pdf_link"))
+    def test_the_discovery_route(self):
+        self.config.write_text(json.dumps({"institution": {"discovery": "https://disc.example/search?vid=X&query=old"}}))
+        search = lambda t: "https://disc.example/search?query=" + t.replace(" ", "+") + "&vid=X"  # noqa: E731
+        record_page = "https://disc.example/full?docid=1"
+        self.scene({"pages": {search(TITLE): {"anchors": [{"text": TITLE, "href": "https://disc.example/full?docid=arxiv_1"},
+                                                          {"text": TITLE.upper(), "href": record_page}, {"text": "Other", "href": "x"}]},
+                              "https://disc.example/full?docid=arxiv_1": {}, record_page: {"pdf": ["https://agg.example/doc/pdf"]},
+                              search(OTHER): {"anchors": []}},
+                    "fetch": {"https://agg.example/doc/pdf": b64(pdf(f"{TITLE}\nWei Liu"))}})
+        code, lines, err = self.fetch("--pass", "1", "--route", "discovery", self.record("p", doi=None), self.record("q", OTHER, doi=None))
+        self.assertEqual(code, 0, err + json.dumps(lines))
+        self.assertEqual(self.events("try"), [("p", "discovery", "ok"), ("q", "discovery", "not_in_discovery")], "arXiv's record last")
 
-    def test_wait_for_the_file_alone(self):
-        self.scene({"pages": {"https://pub.example/a": {"title": TITLE}}})
-        self.state.write_text(json.dumps({"current": "https://pub.example/a", "mark": None, "b64": None}))
-        p = self.record("paper")
-        code, out = self.wait("--for", "file", "--timeout", "1", str(p))
-        self.assertEqual((code, out["code"]), (1, "timeout"))
-        self.assertEqual(self.tries(), [], "a file-only wait logs nothing")
-        self.assertNotIn("p2z:wait", Path(str(self.state) + ".calls").read_text() if Path(str(self.state) + ".calls").exists() else "")
+    def test_a_snapshot_and_a_start_page(self):
+        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"html": f"<html><title>{TITLE}</title><h1>{TITLE}</h1>Wei Liu</html>"},
+                              "https://pmc.example/1": {"pdf": ["https://pmc.example/1.pdf"]}},
+                    "fetch": {"https://pmc.example/1.pdf": b64(pdf(f"{OTHER}\nWei Liu"))}})
+        self.assertEqual(self.fetch("--pass", "3", "--route", "snapshot", self.record("s"))[0], 0)
+        self.assertEqual(self.fetch("--pass", "1", "--start", "https://pmc.example/1", "--version", "accepted",
+                                    self.record("t", OTHER, "10.1000/t.9"))[0], 0)
+        self.assertEqual(self.files(), ["s.html", "t.accepted.pdf"])
+        self.assertEqual(self.events("try")[-1], ("t", "start", "ok"), "a start page is never a route's try")
 
-    def test_snapshot_of_the_article_page(self):
-        self.scene({"pages": {"https://doi.org/10.1000/x.1": {
-            "href": "https://pub.example/article/1", "title": TITLE,
-            "html": f"<html><head><title>{TITLE}</title></head><body>Abstract. Keywords.</body></html>"}}})
-        r = self.run_script("--via", "snapshot", "--pass", "3", str(self.record("paper")))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertTrue((self.work / "records" / "paper.html").is_file())
-        self.assertEqual((self.tries()[-1]["result"], self.tries()[-1]["url"]), ("ok", "https://pub.example/article/1"))
-
-    def test_viewer_in_the_current_tab(self):
-        self.scene({"pages": {"https://agg.example/doc": {"title": "ProQuest", "viewer": b64(pdf(f"{TITLE}\nWei Liu"))}}})
-        self.state.write_text(json.dumps({"current": "https://agg.example/doc", "mark": None, "b64": None}))
-        r = self.run_script("--via", "viewer", str(self.record("paper")))
-        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
-        self.assertTrue((self.work / "records" / "paper.pdf").is_file())
-
-    def test_cannot_run(self):
-        other = self.tmp / "elsewhere" / "records"
-        other.mkdir(parents=True)
-        (other / "z.json").write_text(json.dumps({"slug": "z", "item": {"title": "t"}}))
-        r = self.run_script("--via", "http", str(self.record("paper")), str(other / "z.json"))
-        self.assertEqual((r.returncode, json.loads(r.stdout)["code"]), (2, "mixed_work_dirs"))
-        empty = self.tmp / "empty"
-        empty.mkdir()
-        r = self.run_script("--via", "page", str(self.record("paper")), path=str(empty))
-        self.assertEqual((r.returncode, json.loads(r.stdout.splitlines()[-1])["code"]), (2, "no_opencli"))
-        self.assertEqual(self.run_script("--via", "viewer", str(self.record("a")), str(self.record("b"))).returncode, 2)
+    def test_wait(self):
+        self.scene({"pages": {"https://gate.example/login": {"title": "Sign in", "text": "Sign in"}}})
+        subprocess.run(["opencli", "browser", "p2z", "open", "https://gate.example/login"], env=self.env, capture_output=True)
+        rec = self.record("w")
+        code, lines, _ = self.run_("wait", rec, "--timeout", "1")
+        self.assertEqual((code, lines[0]["code"]), (1, "timeout"))
+        self.assertEqual(self.run_("wait", rec, "--until", "Sign in")[1][0]["code"], "passed")
+        (self.work.records / "w.pdf").write_bytes(pdf(TITLE))
+        self.assertEqual(self.run_("wait", rec, "--file-only")[1][0]["code"], "arrived")
+        self.assertEqual(self.work.events(), [], "waiting records nothing")
 
 
 if __name__ == "__main__":

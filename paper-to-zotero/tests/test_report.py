@@ -63,10 +63,11 @@ class Report(unittest.TestCase):
         (self.work.unverified / "lost.file.pdf").write_bytes(b"%PDF")
         left = self.dl / "invoice.pdf"
         left.write_bytes(b"%PDF")
-        for e in ({"event": "try", "slug": "lost", "pass": 1, "via": "http", "url": "https://repo.example/x", "result": "not_pdf"},
-                  {"event": "try", "slug": "lost", "pass": 1, "via": "page", "url": "https://pub.example/a", "result": "stopped",
-                   "why": "no_pdf_link"},
-                  {"event": "try", "slug": "lost", "pass": 1, "via": "page", "result": "no_access", "by": "agent"},
+        for e in ({"event": "try", "slug": "lost", "pass": 1, "route": "open", "url": "https://repo.example/x", "result": "wrong_file"},
+                  {"event": "stop", "slug": "lost", "pass": 1, "route": "publisher", "url": "https://doi.org/10.1/a",
+                   "page": "https://pub.example/a", "why": "no_pdf_link"},
+                  {"event": "try", "slug": "lost", "pass": 1, "route": "publisher", "url": "https://doi.org/10.1/a",
+                   "result": "no_access", "by": "agent"},
                   {"event": "claim", "file": "invoice.pdf", "result": "left", "why": "unmatched", "source": str(left)},
                   {"event": "accept", "slug": "kim", "file": "kim.preprint.pdf", "reason": "a scan", "md5": "m2"}):
             self.work.append(e)
@@ -80,7 +81,7 @@ class Report(unittest.TestCase):
         self.assertEqual(out["summary"], {"total": 3, "in_library": 2, "with_pdf": 2, "with_snapshot": 0, "missing": 1, "blocked": 1})
         s = out["sections"]
         self.assertEqual(s["not_obtained"], [{"slug": "lost", "snapshot": True, "passes": {"1": [
-            "http repo.example: not_pdf", "page pub.example: stopped (no_pdf_link)", "page: verdict no_access"]}}])
+            "open repo.example: wrong_file", "publisher doi.org: verdict no_access"]}}])
         self.assertEqual([(a["slug"], a["kind"]) for a in s["alternate_versions"]], [("kim", "preprint")])
         self.assertEqual(s["preprint_kept"], [{"slug": "kim", "reason": "the user wants the preprint"}])
         self.assertEqual(s["accepted"], [{"slug": "kim", "file": "kim.preprint.pdf", "reason": "a scan"}])

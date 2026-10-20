@@ -42,6 +42,7 @@ from pathlib import Path
 from p2zlib import cli, paper, run, verify, zotero
 
 WATCH_SECONDS = 3.0
+SETTLE_SECONDS = 0.5  # --scan: the second look, which tells a finished download from a growing one
 
 
 def downloads(work, given):
@@ -103,13 +104,15 @@ def main(argv=None):
         verify.require_pdftotext()
         if args.watch:
             work.set(watcher=os.getpid())
+        scanner = run.Scanner(work, dl)
+        scanner.scan()  # the first look: every file seen once, settled on the next
         try:
             while True:
-                for event in run.scan_downloads(work, dl):
+                time.sleep(SETTLE_SECONDS if args.scan else WATCH_SECONDS)
+                for event in scanner.scan():
                     cli.emit(event)
                 if args.scan or not work.records.is_dir():
                     break
-                time.sleep(WATCH_SECONDS)
         except KeyboardInterrupt:
             pass
         finally:

@@ -92,7 +92,7 @@ def sections_of(gathered, rows, work, zot):
             passes = defaultdict(list)
             for t in tries.get(rec.slug, []):
                 what = f"verdict {t.get('result')}" if t.get("by") == "agent" else t.get("result", "") + (f" ({t['why']})" if t.get("why") else "")
-                passes[t.get("pass", 1)].append(f"{t.get('via')} {host(t.get('url'))}".strip() + f": {what}")
+                passes[t.get("pass", 1)].append(f"{t.get('route')} {host(t.get('url'))}".strip() + f": {what}")
             out["not_obtained"].append({"slug": rec.slug, "passes": {str(k): v for k, v in sorted(passes.items())},
                                         "snapshot": row["file"] == "snapshot" or bool(own and own.suffix == ".html")})
         if attach.get("kind") not in (None, "published", "snapshot"):
@@ -130,10 +130,11 @@ def sections_of(gathered, rows, work, zot):
                             for src, e in latest.items() if e.get("result") == "left" and Path(src).exists()]
         out["leftovers"] += [{"file": f"unverified/{f.name}", "why": "refused by the check"}
                              for f in sorted(work.unverified.glob("*")) if f.is_file()]
-    verdicts = {(e.get("slug"), e.get("pass"), e.get("via")): e.get("result") for e in events if e.get("event") == "try" and e.get("by") == "agent"}
-    out["stops"] = [{"slug": e.get("slug"), "pass": e.get("pass"), "why": e.get("why"), "host": host(e.get("url")),
-                     "verdict": verdicts.get((e.get("slug"), e.get("pass"), e.get("via")))}
-                    for e in events if e.get("event") == "try" and e.get("result") == "stopped"]
+    verdicts = {(e.get("slug"), e.get("pass"), e.get("route"), e.get("url")): e.get("result") for e in events
+                if e.get("event") == "try" and e.get("by") == "agent"}
+    out["stops"] = [{"slug": e.get("slug"), "pass": e.get("pass"), "why": e.get("why"), "host": host(e.get("page") or e.get("url")),
+                     "verdict": verdicts.get((e.get("slug"), e.get("pass"), e.get("route"), e.get("url")))}
+                    for e in events if e.get("event") == "stop"]
     return {k: v for k, v in out.items() if v}
 
 
