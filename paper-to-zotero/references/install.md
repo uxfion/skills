@@ -23,7 +23,12 @@ brew install poppler                # macOS
 
 ## OpenCLI and Chrome
 
-Fetching from publisher pages drives the user's own Chrome through OpenCLI and its bridge extension: the `opencli-usage` skill covers installing and checking it. Chrome must be set to download PDFs rather than show them (references/publishers.md, first section).
+Fetching drives the user's own Chrome — headed, signed in to their library — through OpenCLI: a CLI, a local daemon, and the Browser Bridge extension in Chrome. A direct request comes first everywhere; the browser takes what needs the user's login or a human check. `ready` reports `opencli` (path, version, extension connected) and the issues `opencli doctor` names.
+
+- **OpenCLI 2.x.** The scripts call `opencli browser <command> --session p2z` and read its `{"ok", "data"}` results, which OpenCLI 1.x does not have: there every browser step fails. Install or upgrade it the way it was installed — `npm install -g @jackwener/opencli@latest`, `bun add -g @jackwener/opencli@latest`, or the OpenCLI app (opencli.info) — a system tool, so show the user the command and run it on their word. The `opencli-usage` skill covers the details.
+- **After an upgrade**, `opencli daemon restart` (doctor: "Stale daemon"). The Chrome extension is updated apart from the CLI, by the user: from the Chrome Web Store, or by hand from the OpenCLI releases (doctor: "Extension update available").
+- **The `opencli-usage` and `opencli-browser` skills** come from `jackwener/opencli` and describe the installed CLI only when updated with it: `skills update -g`. `opencli skills read opencli-browser -f plain` prints the one bundled with the CLI, to compare.
+- **Chrome's downloads.** Every file reaches the run through Chrome's download folder. Two Chrome settings are the user's to set (automation cannot open `chrome://` pages): PDFs download rather than open, and no Save As prompt — references/publishers.md, first section. `ready` finds the folder (on WSL, the Windows user's Downloads) and writes it to `run.json` as `downloads`; `ready --downloads DIR` names another. The watcher files only what lands there.
 
 ## The config file
 

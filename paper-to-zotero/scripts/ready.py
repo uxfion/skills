@@ -136,10 +136,16 @@ def command_output(argv, timeout, cwd=None):
 
 
 def opencli_status():
-    """opencli's own check, `opencli doctor` -> {path, version, connected, issues}; {path: None} when it is missing."""
+    """opencli's own check, `opencli doctor` -> {path, version, connected, issues}; {path: None} when it is missing.
+    An OpenCLI before 2.x is named as the issue: the browser calls are 2.x's."""
     path = shutil.which("opencli")
     if not path:
         return {"path": None}
+    version = command_output(["opencli", "--version"], 30)
+    major = re.match(r"v?(\d+)\.", version or "")
+    if not major or int(major.group(1)) < 2:
+        return {"path": path, "version": version,
+                "issues": [f"OpenCLI {version or '(no version)'}: this skill needs 2.x (references/install.md)"]}
     try:
         data = json.loads(command_output(["opencli", "doctor"], 60) or "")["data"]
     except (ValueError, KeyError, TypeError):

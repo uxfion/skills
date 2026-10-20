@@ -35,7 +35,7 @@ uv run scripts/p2z.py claim --work <work> --watch                    # in the ba
 - `no_key`: Zotero will show an authorization dialog — tell the user first, ask them to click **Always Allow**, then run again with `--authorize`.
 - `config.ask_user`: a setting only the user can give (the library's discovery search page) — ask for it in your first message and add it to the config.
 - `no_pdftotext` and other missing pieces: references/install.md.
-- `opencli.issues` (`opencli doctor`'s): an old daemon → `opencli daemon restart`; an outdated or disconnected Chrome extension is the user's to install or reconnect — tell them before step 3.
+- `opencli.issues`: OpenCLI before 2.x, or an outdated or disconnected Chrome extension → references/install.md, the user's to install on their word; an old daemon → `opencli daemon restart`. Settle them before step 3.
 - `resumed: true`: an earlier run of this task left the work directory — carry on from its records. `leftovers` are reported, never deleted: a PDF that never reached Zotero belongs to the user. `old_format`: records an older version of this skill wrote; `prepare` (step 2) recomputes their blocks, so run it on them before step 3.
 
 The browser session is `p2z`. Every temporary file of the run lives under the work directory; one-off code goes in `scratch/`.
