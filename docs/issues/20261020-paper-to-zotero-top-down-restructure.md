@@ -11,7 +11,8 @@
   | 领域小规则 | `identifiers` / `ARXIV_ID`、`normalize_tags`、`check_creators`、`retry_after`、各自的 `USER_AGENT` 和限速间隔 | 约 290 |
   | 测试 | 假 Zotero 服务 `Handler`（15 / 15）、`FakeZotero`（3 / 3）、`Base`、`State`、`ITEMS`、`SCHEMA`、`COLLECTIONS` | 约 1260 |
 
-  `main`、`parse_args`、`run` 这类各脚本本来就该不同的不算在内。查过 v3 spec，没有"每个脚本必须自成一体"的决定：这是 v1 到 v3、再到整理工具，一路拿旧脚本当模板复制出来的。
+  `main`、`parse_args`、`run` 这类各脚本本来就该不同的不算在内。这是 v1 到 v3、再到整理工具，一路拿旧脚本当模板复制出来的。
+  - 更正（2026-10-20）：原来这里写"查过 v3 spec，没有'每个脚本必须自成一体'的决定"，不对。v1 spec §2（用户的明确要求）第 4 条是"脚本单一功能、互不依赖"；v2 spec §4.2 写明"脚本互不 import（重复的 Api / Stop / load_key 允许）"，§4.3 写明测试"不共享 fixture"；v3 spec §5.2 沿用"脚本之间只通过子进程调用，不互相 import"。重构 spec 的 §0 说明了为什么改。
 - 痛点：同一段逻辑有好几种写法，修一处、别处还是旧的；加新功能又要再复制一遍。接下来要做的"结构化包存进 Zotero、任何项目取用、核对后写回"由 paper-to-zotero 负责（2026-10-20 与用户确认），要上传附件、移进回收站、按 citation key 查条目，正好落在这些重复最多的地方。用户原话：「你之前说的paper-to-zotero问题需要优化，需要做得比较优雅，可复用。需要全面设计一下，从顶层设计优化，而不是像现在这样修修补补，内容重复，这个应该单独拉一张issue出来优化，作为前置条件。」
 - 方向：先写 spec，评审通过再动手，不在现有脚本上逐个打补丁。
   - 从整个 skill 的职责出发重新划分：访问 Zotero、记录流水线、命令行骨架、领域规则各有一个归属，做成共享模块，供各脚本导入（同目录导入，和 paddleocr 的脚本一样）；
@@ -20,5 +21,6 @@
   - SKILL.md（200 行）和 references 一并梳理；
   - 新的结构化包流程要能直接复用这些模块。
   - paper-to-zotero 其余未关闭的 issue（IEEE PDF 链接、投稿稿件分类）在同一份 spec 里一起分拣。
+- 设计：[20261020-paper-to-zotero-restructure-spec.md](../specs/20261020-paper-to-zotero-restructure-spec.md)（定稿，2026-10-20）；四份审查报告在 [20261020-paper-to-zotero-top-down-restructure-reference/](20261020-paper-to-zotero-top-down-restructure-reference/)。
 - 前置于：[20261020-paper-to-zotero-structured-package.md](20261020-paper-to-zotero-structured-package.md)（Zotero 结构化包流程），这张关闭后才开始做。
 - 状态：open
