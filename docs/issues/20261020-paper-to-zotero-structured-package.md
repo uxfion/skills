@@ -1,7 +1,7 @@
 # paper-to-zotero：Zotero 里每篇 PDF 一份结构化包，任何项目都能直接取来读
 
 - 来源：用户 · 2026-10-19 提出，2026-10-20 立项
-- 前置：[20261020-paper-to-zotero-top-down-restructure.md](20261020-paper-to-zotero-top-down-restructure.md)。那张关闭后，这张才开始设计。
+- 前置：[20261020-paper-to-zotero-top-down-restructure-fixed.md](archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)，2026-10-20 已关闭，这张可以开始设计。
 - 状态：open。以下分成"已定"、"10-19 的倾向（没拍板）"、"待定"三部分，不要把倾向当成定论。
 
 ## 目标

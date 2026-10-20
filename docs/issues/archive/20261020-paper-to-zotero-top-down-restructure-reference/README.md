@@ -1,6 +1,6 @@
 # paper-to-zotero 顶层重构：审查材料
 
-> 2026-10-20，针对 [20261020-paper-to-zotero-top-down-restructure.md](../20261020-paper-to-zotero-top-down-restructure.md)。设计见 [20261020-paper-to-zotero-restructure-spec.md](../../specs/20261020-paper-to-zotero-restructure-spec.md)。
+> 2026-10-20，针对 [20261020-paper-to-zotero-top-down-restructure-fixed.md](../20261020-paper-to-zotero-top-down-restructure-fixed.md)。设计见 [20261020-paper-to-zotero-restructure-spec.md](../../../specs/20261020-paper-to-zotero-restructure-spec.md)。
 >
 > 用户的要求：「你先读一下20261020-paper-to-zotero-top-down-restructure.md 这张issue，然后调用/simplify ，review一遍，然后写优化重构spec」。
 >

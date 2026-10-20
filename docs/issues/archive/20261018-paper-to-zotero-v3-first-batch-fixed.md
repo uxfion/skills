@@ -1,6 +1,6 @@
 # paper-to-zotero v3：第一次真实批量（2026-10-18）
 
-> 已处理：6 条都有了去向（2026-10-18），修复见提交 `f35880b`、`976bd1d`；IEEE 一项单独成为 `docs/issues/20261018-paper-to-zotero-ieee-pdf-link.md`（open）。
+> 已处理：6 条都有了去向（2026-10-18），修复见提交 `f35880b`、`976bd1d`；IEEE 一项单独成为 `docs/issues/archive/20261018-paper-to-zotero-ieee-pdf-link-fixed.md`（2026-10-20 已解决）。
 
 v3 导入部分（`b6a3ce9`）的验收批量，共 7 篇：用户点名 2 篇，agent 另挑 5 篇（用户后来说都保留）。这里记录使用中发现的问题，事后一起整理。
 
@@ -66,7 +66,7 @@ v3 导入部分（`b6a3ce9`）的验收批量，共 7 篇：用户点名 2 篇�
 ## 5. 其他观察
 
 - 快照来自经代理的页面：Zotero Connector 把 `doi.org` 自动转到学校代理，所以快照是代理页面。用户已登录，核对通过，附件 URL 仍是原站。SKILL.md 说"快照取不经代理的页面"，与实际不符，要改写成"取到的页面必须核对通过"。已处理：SKILL.md 和 `fetch.py` 说明已改。
-- IEEE 页面没有 `citation_pdf_url`：已移出，单独成为 `docs/issues/20261018-paper-to-zotero-ieee-pdf-link.md`。
+- IEEE 页面没有 `citation_pdf_url`：已移出，单独成为 `docs/issues/archive/20261018-paper-to-zotero-ieee-pdf-link-fixed.md`。
 - arXiv API 在查正式版候选时返回 503（Harness^2、Restormer 两篇），候选只来自 Crossref。Restormer 和 PromptIR 仍然找到了正式版。
 - 同一篇 Harness^2 来了两份：页面内请求取到一份，Chrome 又下载了一份，第二份按设计进了 `stray/`。
 - Semantic Scholar 不带 key 时返回 429，本次不再使用。

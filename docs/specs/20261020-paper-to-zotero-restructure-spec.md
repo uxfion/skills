@@ -1,8 +1,8 @@
 # paper-to-zotero：从顶层重构，每样机制只有一处实现
 
 > **定稿**（2026-10-20）：advisor 审过两轮；你看过之后让我自审，觉得没问题就提交。实现过程中如有修正，直接改本文。
-> 来源：[20261020-paper-to-zotero-top-down-restructure.md](../issues/20261020-paper-to-zotero-top-down-restructure.md)。
-> 依据：四份只读审查（复用、简化、效率、层次），原文在 issue 的参考资料文件夹 [`20261020-paper-to-zotero-top-down-restructure-reference/`](../issues/20261020-paper-to-zotero-top-down-restructure-reference/)。报告里我对着代码确认过的，文中标"已核实"。
+> 来源：[20261020-paper-to-zotero-top-down-restructure.md](../issues/archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)。
+> 依据：四份只读审查（复用、简化、效率、层次），原文在 issue 的参考资料文件夹 [`20261020-paper-to-zotero-top-down-restructure-reference/`](../issues/archive/20261020-paper-to-zotero-top-down-restructure-reference/)。报告里我对着代码确认过的，文中标"已核实"。
 > 文中的行数、秒数、请求数都是我的估计，不是要求。
 
 ## 0. 目的和范围
@@ -670,8 +670,8 @@ issue 里写"对外的命令、参数和输出形状尽量不变"。审查后我
 
 | issue | 去向 |
 |---|---|
-| [top-down-restructure](../issues/20261020-paper-to-zotero-top-down-restructure.md) | 本稿；三期做完、验收通过后关闭 |
-| [ieee-pdf-link](../issues/20261018-paper-to-zotero-ieee-pdf-link.md) | 并入 §6.2；验收时 IEEE 论文不停下就拿到，即可关闭 |
+| [top-down-restructure](../issues/archive/20261020-paper-to-zotero-top-down-restructure-fixed.md) | 本稿；三期做完、验收通过后关闭 |
+| [ieee-pdf-link](../issues/archive/20261018-paper-to-zotero-ieee-pdf-link-fixed.md) | 并入 §6.2；验收时 IEEE 论文不停下就拿到，即可关闭 |
 | [manuscript-collections](../issues/20260923-paper-to-zotero-manuscript-collections.md) | 不在范围内，不动（你说过"先这样放着不要动"）。重构不对分类结构做任何新假设，`tmp` 仍是唯一会自己建的分类 |
 | [structured-package](../issues/20261020-paper-to-zotero-structured-package.md) | 下一份 spec；用到第一期的 `zotero.attach`、`resolve_cite`、回收站、附件列表，以及文件种类表里多出的一行 |
 
