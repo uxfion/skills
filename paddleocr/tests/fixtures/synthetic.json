@@ -1,0 +1,664 @@
+{
+ "format": 3,
+ "source": {
+  "kind": "pdf",
+  "file": "synthetic.pdf",
+  "path": "",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "page_count": 5,
+  "pages": [
+   1,
+   2,
+   3,
+   5
+  ]
+ },
+ "run": {
+  "engine": "PaddleOCR-VL-1.6",
+  "paddleocr": "3.7.0",
+  "backend": "vllm-server",
+  "options": {
+   "charts": false,
+   "figure_text": false,
+   "photo": false
+  },
+  "layout_model": {
+   "name": "PP-DocLayout_plus-L",
+   "settings": {
+    "threshold": 0.3
+   }
+  },
+  "at": "2026-10-19T00:00:00+08:00",
+  "versions": {
+   "refine": 1,
+   "checks": 5,
+   "figures": 2,
+   "conventions": 1
+  }
+ },
+ "pages": [
+  {
+   "page": 1,
+   "image_size": [
+    1224,
+    1584
+   ],
+   "scale": 2.0,
+   "layout": []
+  },
+  {
+   "page": 2,
+   "image_size": [
+    1224,
+    1584
+   ],
+   "scale": 2.0,
+   "layout": [
+    [
+     "image",
+     0.95,
+     95,
+     95,
+     1125,
+     530
+    ],
+    [
+     "table",
+     0.9,
+     100,
+     740,
+     1120,
+     1480
+    ]
+   ]
+  },
+  {
+   "page": 3,
+   "image_size": [
+    1224,
+    1584
+   ],
+   "scale": 2.0,
+   "layout": [
+    [
+     "table",
+     0.9,
+     100,
+     100,
+     1120,
+     300
+    ]
+   ]
+  },
+  {
+   "page": 5,
+   "image_size": [
+    1224,
+    1584
+   ],
+   "scale": 2.0,
+   "layout": [
+    [
+     "image",
+     0.9,
+     100,
+     460,
+     600,
+     800
+    ]
+   ]
+  }
+ ],
+ "blocks": [
+  {
+   "id": "p1-0",
+   "label": "header",
+   "box": [
+    80,
+    40,
+    400,
+    60
+   ],
+   "text": "Journal of Examples"
+  },
+  {
+   "id": "p1-1",
+   "label": "doc_title",
+   "box": [
+    150,
+    100,
+    1070,
+    150
+   ],
+   "text": "A Synthetic Paper for Testing"
+  },
+  {
+   "id": "p1-2",
+   "label": "text",
+   "box": [
+    400,
+    160,
+    820,
+    190
+   ],
+   "text": "Ann Author, Bob Writer"
+  },
+  {
+   "id": "p1-3",
+   "label": "abstract",
+   "box": [
+    100,
+    210,
+    1120,
+    300
+   ],
+   "text": "Abstract We test a parser on pages it has never seen.\nIt reads them in order."
+  },
+  {
+   "id": "p1-4",
+   "label": "paragraph_title",
+   "box": [
+    100,
+    320,
+    400,
+    350
+   ],
+   "text": "1 Introduction",
+   "changes": [
+    {
+     "by": "auto:restructure",
+     "level": 1
+    }
+   ]
+  },
+  {
+   "id": "p1-5",
+   "label": "text",
+   "box": [
+    100,
+    360,
+    600,
+    670
+   ],
+   "text": "The first paragraph runs across\nthe column break and continues on the right."
+  },
+  {
+   "id": "p1-6",
+   "label": "text",
+   "box": [
+    620,
+    360,
+    1120,
+    500
+   ],
+   "text": "",
+   "group": "p1-5"
+  },
+  {
+   "id": "p1-7",
+   "label": "display_formula",
+   "box": [
+    300,
+    720,
+    900,
+    780
+   ],
+   "text": " $$ E = m c^{2} $$ "
+  },
+  {
+   "id": "p1-8",
+   "label": "text",
+   "box": [
+    100,
+    690,
+    600,
+    712
+   ],
+   "text": "where E is energy:"
+  },
+  {
+   "id": "p1-9",
+   "label": "formula_number",
+   "box": [
+    1050,
+    735,
+    1110,
+    765
+   ],
+   "text": "(1)"
+  },
+  {
+   "id": "p1-10",
+   "label": "footnote",
+   "box": [
+    100,
+    1450,
+    600,
+    1480
+   ],
+   "text": "* Corresponding author."
+  },
+  {
+   "id": "p1-11",
+   "label": "text",
+   "box": [
+    100,
+    800,
+    1120,
+    900
+   ],
+   "text": "Second paragraph after the formula, which cites Fig. 1 and Table 1."
+  },
+  {
+   "id": "p1-12",
+   "label": "footer",
+   "box": [
+    80,
+    1520,
+    400,
+    1540
+   ],
+   "text": "Synthetic Journal 2026"
+  },
+  {
+   "id": "p1-13",
+   "label": "number",
+   "box": [
+    1100,
+    1520,
+    1120,
+    1540
+   ],
+   "text": "1"
+  },
+  {
+   "id": "p2-0",
+   "label": "header",
+   "box": [
+    80,
+    40,
+    400,
+    60
+   ],
+   "text": "Journal of Examples"
+  },
+  {
+   "id": "p2-1",
+   "label": "figure_title",
+   "box": [
+    100,
+    100,
+    120,
+    118
+   ],
+   "text": "a"
+  },
+  {
+   "id": "p2-2",
+   "label": "image",
+   "box": [
+    100,
+    120,
+    560,
+    500
+   ],
+   "text": ""
+  },
+  {
+   "id": "p2-3",
+   "label": "figure_title",
+   "box": [
+    620,
+    100,
+    640,
+    118
+   ],
+   "text": "b"
+  },
+  {
+   "id": "p2-4",
+   "label": "chart",
+   "box": [
+    620,
+    120,
+    1120,
+    500
+   ],
+   "text": ""
+  },
+  {
+   "id": "p2-5",
+   "label": "figure_title",
+   "box": [
+    700,
+    505,
+    1000,
+    525
+   ],
+   "text": "Accuracy over time"
+  },
+  {
+   "id": "p2-6",
+   "label": "text",
+   "box": [
+    100,
+    560,
+    1120,
+    620
+   ],
+   "text": "Fig. 1 | Two panels. a, An image. b, A chart of accuracy."
+  },
+  {
+   "id": "p2-7",
+   "label": "paragraph_title",
+   "box": [
+    100,
+    660,
+    400,
+    690
+   ],
+   "text": "2 Results",
+   "changes": [
+    {
+     "by": "auto:restructure",
+     "level": 1
+    }
+   ]
+  },
+  {
+   "id": "p2-8",
+   "label": "figure_title",
+   "box": [
+    100,
+    700,
+    1120,
+    730
+   ],
+   "text": "Table 1. Scores of the models."
+  },
+  {
+   "id": "p2-9",
+   "label": "table",
+   "box": [
+    100,
+    740,
+    1120,
+    1480
+   ],
+   "text": "<table><tr><td>Model</td><td>Score</td></tr><tr><td>A</td><td>0.91</td></tr></table>",
+   "changes": [
+    {
+     "by": "auto:restructure",
+     "text": "<table><tr><td>Model</td><td>Score</td></tr><tr><td>A</td><td>0.91</td></tr><tr><td>B</td><td>0.87</td></tr><tr><td>C <img \"=\"\" alt=\"Image\" src=\"imgs/img_in_image_box_300_150_340_180.jpg\"/></td><td>0.80</td></tr></table>"
+    }
+   ]
+  },
+  {
+   "id": "p2-10",
+   "label": "footer",
+   "box": [
+    80,
+    1520,
+    400,
+    1540
+   ],
+   "text": "Synthetic Journal 2026"
+  },
+  {
+   "id": "p2-11",
+   "label": "number",
+   "box": [
+    1100,
+    1520,
+    1120,
+    1540
+   ],
+   "text": "2"
+  },
+  {
+   "id": "p3-0",
+   "label": "header",
+   "box": [
+    80,
+    40,
+    400,
+    60
+   ],
+   "text": "Journal of Examples"
+  },
+  {
+   "id": "p3-1",
+   "label": "table",
+   "box": [
+    100,
+    100,
+    1120,
+    300
+   ],
+   "text": "<table><tr><td>B</td><td>0.87</td></tr><tr><td>C <img src=\"imgs/img_in_image_box_300_150_340_180.jpg\" alt=\"Image\"\" /></td><td>0.80</td></tr></table>",
+   "changes": [
+    {
+     "by": "auto:restructure",
+     "merged_into": "p2-9"
+    }
+   ]
+  },
+  {
+   "id": "p3-2",
+   "label": "text",
+   "box": [
+    100,
+    320,
+    1120,
+    400
+   ],
+   "text": "Text after the table with a reference [1]."
+  },
+  {
+   "id": "p3-3",
+   "label": "paragraph_title",
+   "box": [
+    100,
+    420,
+    400,
+    450
+   ],
+   "text": "References",
+   "changes": [
+    {
+     "by": "auto:restructure",
+     "level": 1
+    }
+   ]
+  },
+  {
+   "id": "p3-4",
+   "label": "reference_content",
+   "box": [
+    100,
+    460,
+    1120,
+    500
+   ],
+   "text": "[1] A. Author. A paper. 2025."
+  },
+  {
+   "id": "p3-5",
+   "label": "algorithm",
+   "box": [
+    100,
+    520,
+    1120,
+    700
+   ],
+   "text": "Algorithm 1 Search\n1: for each node do\n2:   expand it\n"
+  },
+  {
+   "id": "p3-6",
+   "label": "aside_text",
+   "box": [
+    20,
+    300,
+    60,
+    1200
+   ],
+   "text": "arXiv:2601.00001v1 [cs.CL] 1 Jan 2026"
+  },
+  {
+   "id": "p3-7",
+   "label": "footer",
+   "box": [
+    80,
+    1520,
+    400,
+    1540
+   ],
+   "text": "Synthetic Journal 2026"
+  },
+  {
+   "id": "p3-8",
+   "label": "number",
+   "box": [
+    1100,
+    1520,
+    1120,
+    1540
+   ],
+   "text": "3"
+  },
+  {
+   "id": "p5-0",
+   "label": "text",
+   "box": [
+    100,
+    100,
+    1120,
+    160
+   ],
+   "text": "A page after a gap in the pages parsed."
+  },
+  {
+   "id": "p5-1",
+   "label": "vision_footnote",
+   "box": [
+    100,
+    170,
+    1120,
+    200
+   ],
+   "text": "Arrow indicates a better direction.\nBest in bold."
+  },
+  {
+   "id": "p5-2",
+   "label": "content",
+   "box": [
+    100,
+    210,
+    1120,
+    300
+   ],
+   "text": "1 Intro\n2 Methods"
+  },
+  {
+   "id": "p5-3",
+   "label": "reference",
+   "box": [
+    100,
+    310,
+    1120,
+    400
+   ],
+   "text": "References\n[2] B. Writer. Another paper. 2024."
+  },
+  {
+   "id": "p5-4",
+   "label": "paragraph_title",
+   "box": [
+    100,
+    410,
+    400,
+    440
+   ],
+   "text": "# 3 Discussion",
+   "changes": [
+    {
+     "by": "auto:restructure",
+     "text": "3 Discussion",
+     "level": 1
+    }
+   ]
+  },
+  {
+   "id": "p5-5",
+   "label": "image",
+   "box": [
+    100,
+    460,
+    600,
+    800
+   ],
+   "text": ""
+  },
+  {
+   "id": "p5-6",
+   "label": "text",
+   "box": [
+    100,
+    820,
+    1120,
+    880
+   ],
+   "text": "A figure without a caption sits above this line."
+  }
+ ],
+ "figures": [
+  {
+   "id": "p2-2",
+   "image": "imgs/p2-2.png",
+   "caption": "p2-6",
+   "number": "Fig. 1",
+   "inside": [
+    "p2-1",
+    "p2-3",
+    "p2-5"
+   ],
+   "changes": [
+    {
+     "by": "auto:figures",
+     "box": [
+      95,
+      95,
+      1125,
+      530
+     ],
+     "members": [
+      "p2-2",
+      "p2-4"
+     ],
+     "grouped_by": "layout"
+    }
+   ]
+  },
+  {
+   "id": "p5-5",
+   "image": "imgs/p5-5.png",
+   "inside": [],
+   "changes": [
+    {
+     "by": "auto:figures",
+     "box": [
+      100,
+      460,
+      600,
+      800
+     ],
+     "members": [
+      "p5-5"
+     ]
+    }
+   ]
+  }
+ ],
+ "findings": [],
+ "checks": "skipped:no_source"
+}
