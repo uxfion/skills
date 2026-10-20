@@ -29,7 +29,8 @@ Single mode (--key --file --url): stdout is exactly one JSON object with a
 stable `code` (`ok` or `already_attached` on success).
 
 Stream mode (record paths, or records on stdin as JSONL / a JSON array / one
-object): the item key is the record's `saved.key`, else `found.key`; the file
+object): the item key is the record's `saved.key`, else `found.key` unless
+`found` is still a near_match (another item, until the agent resolves it); the file
 is the record's `file` (relative to the record's directory; stdin records:
 the working directory), else --file, else the first of <stem>.pdf,
 <stem>.accepted.pdf, <stem>.preprint.pdf, <stem>.supplement.pdf, <stem>.html
@@ -556,10 +557,10 @@ def write_results(outcomes, in_place, stopped=None):
 
 
 def item_key_of(rec):
-    """The record's item key: saved.key, else found.key (spec 3.2)."""
+    """The record's item key: saved.key, else found.key — never a near_match's, which names another item."""
     for section in ("saved", "found"):
         block = rec.get(section)
-        if isinstance(block, dict) and block.get("key"):
+        if isinstance(block, dict) and block.get("key") and block.get("code") != "near_match":
             return block["key"]
     return None
 
@@ -581,6 +582,10 @@ def attach_record(api, wh, o, args):
     rec = o.record
     item_key = item_key_of(rec)
     if not item_key:
+        if isinstance(rec.get("found"), dict) and rec["found"].get("code") == "near_match":
+            raise Stop("no_item_key", 1, "found is a near_match, another item: decide it first (SKILL.md step 2) — "
+                       "the same paper -> set found to {\"key\": KEY}; another paper -> add KEY to distinct_from and "
+                       "run find_in_library.py and create_item.py again")
         raise Stop("no_item_key", 1, "the record has neither saved.key nor found.key: run create_item.py "
                    "(or find_in_library.py) first")
     attach = rec.get("attach")

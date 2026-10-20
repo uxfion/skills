@@ -336,6 +336,21 @@ class StreamMode(Base):
         for p in (p1, p2, p3, p4, p6):
             self.assertNotIn("attach", json.loads(p.read_text()), p.name)
 
+    def test_near_match_is_not_an_item_key(self):
+        p = self.record("near", saved=None, found={"code": "near_match", "key": PARENT2, "reason": "title only"})
+        r = self.run_script("-i", str(p))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        out = self.lines(r.stdout)
+        self.assertEqual(out[0]["code"], "no_item_key")
+        self.assertIn("near_match", out[0]["hint"])
+        self.assertEqual((self.attachments_of(PARENT2), self.state.posts), ([], []))
+        rec = json.loads(p.read_text())
+        rec["found"] = {"key": PARENT2}  # the agent: the same paper
+        p.write_text(json.dumps(rec), encoding="utf-8")
+        r = self.run_script("-i", str(p))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(len(self.attachments_of(PARENT2)), 1)
+
     def test_found_key_and_flag_fallbacks(self):
         p = self.record("f", saved=None, found={"key": PARENT2, "version": 2},
                         item={"itemType": "journalArticle", "title": "no doi"}, content=None,
