@@ -7,6 +7,9 @@ __MACOSX/
 __pycache__/
 .ruff_cache/
 
+# Issue reference material (root AGENTS.md)
+docs/issues/**/*-reference/
+
 # Local secrets and agent state
 .env
 **/.memory/

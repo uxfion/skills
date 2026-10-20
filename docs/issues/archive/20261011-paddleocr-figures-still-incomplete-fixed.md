@@ -1,6 +1,10 @@
 # paddleocr：合图之后仍不完整的图
 
-> 已解决（2026-10-19）：合图之后加了图的核对，没把握的图报 `figure_check`、交给 agent，见 [spec 20261019-paddleocr-figure-checks](../../specs/20261019-paddleocr-figure-checks-spec.md)；可行性报告和验证在 [20261011-paddleocr-figures-still-incomplete-reference/README.md](20261011-paddleocr-figures-still-incomplete-reference/README.md)。
+> 已解决（2026-10-19）：合图之后加了图的核对，没把握的图报 `figure_check`、交给 agent，见 [spec 20261019-paddleocr-figure-checks](../../specs/20261019-paddleocr-figure-checks-spec.md)。可行性报告和文献调研里 spec 没写的要点（原文已删，最后在提交 `4c791dc`）：
+>
+> - 否掉的方案：在现方案上继续补规则（越补越多，看不出缺一块）；以图注为锚的新算法替换现方案（13 篇新论文改好 5 张、改坏 3 张，留作第二意见）；整图检测模型 DocLayNet（25 张难图只对 6–7 张）；直接从 PDF 取图（截图、扫描件用不了）；换整条流水线 MinerU、docling、PP-StructureV3（拆图一样严重，或文字召回下降）。本地 VLM 代替 agent 判断没测，等需要无人值守的批量时再看。
+> - 上游（2026-10-12）：PaddleOCR、PaddleX、MinerU 都没有整图类别或合图选项；同一行多张图各成一块的 [PaddleOCR #18081](https://github.com/PaddlePaddle/PaddleOCR/issues/18081) 未修。
+> - 可借鉴的做法：[pdffigures2](https://github.com/allenai/pdffigures2) 从图注向外长出图的范围，并检查裁剪边有没有切到元素（`boxCutsFigure`）；[DeepFigures](https://arxiv.org/abs/1804.02445) 用匈牙利算法给图配图注，用 arXiv LaTeX 的浮动体框当整图标注；[DocLayNet 标注规范](https://arxiv.org/abs/2206.01062) 定义"一个图注一张图"，图内文字算图的一部分。
 
 > 接续 [20261007-paddleocr-figure-split-fixed.md](20261007-paddleocr-figure-split-fixed.md)。那条的问题是图被拆成小图，已经用合图解决；这里记合图之后仍然不完整的图，多数是图里的文字被 VL 标成了正文。
 
@@ -61,7 +65,7 @@
 - VL 把图认成表格（第 1、2 类）；
 - 有裁剪但不完整的图，检查报不出来。
 
-2026-10-12：做了可行性分析，见 [20261011-paddleocr-figures-still-incomplete-reference/README.md](20261011-paddleocr-figures-still-incomplete-reference/README.md)。
+2026-10-12：做了可行性分析，结论见开头的说明和 spec。
 - 以图注为锚的新算法单独替换现方案，在新论文上改好 5 张、改坏 3 张，不采用。
 - 推荐方案 G：现方案照旧出图，新算法当第二意见，两者不一致的图报告警，交给 agent 判断。
 - 等用户审定。

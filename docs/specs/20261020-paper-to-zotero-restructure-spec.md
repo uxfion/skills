@@ -2,7 +2,7 @@
 
 > **定稿**（2026-10-20）：advisor 审过两轮；你看过之后让我自审，觉得没问题就提交。实现过程中如有修正，直接改本文。
 > 来源：[20261020-paper-to-zotero-top-down-restructure.md](../issues/archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)。
-> 依据：四份只读审查（复用、简化、效率、层次），原文在 issue 的参考资料文件夹 [`20261020-paper-to-zotero-top-down-restructure-reference/`](../issues/archive/20261020-paper-to-zotero-top-down-restructure-reference/)。报告里我对着代码确认过的，文中标"已核实"。
+> 依据：四份只读审查（复用、简化、效率、层次），结论都写在本稿里（原文已删，最后在提交 `4c791dc`，见 [issue](../issues/archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)）。报告里我对着代码确认过的，文中标"已核实"。
 > 文中的行数、秒数、请求数都是我的估计，不是要求。
 
 ## 0. 目的和范围

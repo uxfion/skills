@@ -1,6 +1,6 @@
 # paddleocr：合图之后的核对，没把握的图交给 agent（设计）
 
-来源：[issue 20261011-paddleocr-figures-still-incomplete](../issues/archive/20261011-paddleocr-figures-still-incomplete-fixed.md) 和它的[可行性报告](../issues/archive/20261011-paddleocr-figures-still-incomplete-reference/README.md)（阶段一到五）。合图本身的设计见 [20261009-paddleocr-figure-groups-spec.md](20261009-paddleocr-figure-groups-spec.md)，本设计不改它。
+来源：[issue 20261011-paddleocr-figures-still-incomplete](../issues/archive/20261011-paddleocr-figures-still-incomplete-fixed.md) 和它的可行性报告（阶段一到五；原文已删，要点在 issue 开头）。合图本身的设计见 [20261009-paddleocr-figure-groups-spec.md](20261009-paddleocr-figure-groups-spec.md)，本设计不改它。
 
 用户的决定：
 - 10-12 选方案 G：「大部分没有问题的，就直接通过我们合并的方式解决了……那种困难的，你需要把它检测出来」；「怎么检测可能会出问题，这点非常重要」。
