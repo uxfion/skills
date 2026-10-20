@@ -1,6 +1,6 @@
 ---
 name: paddleocr
-description: Parses a document's PDF or page images (papers, reports, slides, scans, screenshots) into Markdown with PaddleOCR-VL on the local GPU — reading order, formulas as LaTeX, tables as HTML, figures as images — checked against the PDF text layer and settled by an agent. Use when a document has to be read in full, quoted, or mined for its tables and formulas (读全文、PDF/截图/扫描件转 Markdown 或结构化), instead of reading it as page images.
+description: Parses a PDF or page images (papers and other documents, scans, screenshots) into Markdown with PaddleOCR-VL on the local GPU — formulas as LaTeX, tables as HTML, figures as images. Use when a document has to be read in full, quoted, or mined for its tables and formulas (读全文、PDF/截图/扫描件转 Markdown 或结构化), instead of reading it as page images.
 ---
 
 # PaddleOCR

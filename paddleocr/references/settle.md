@@ -1,6 +1,6 @@
 # Settling a parse
 
-This brief is for settling one document that the paddleocr skill has parsed: check every open finding and every figure note against the source, fix the Markdown or give a verdict, record it, and report back. The agent that sent you reads the result and builds its answer on it. A wrong fix costs that answer; confirming a false alarm costs nothing.
+This brief is for settling one document that the paddleocr skill has parsed: check every open finding against the source, fix the Markdown or give a verdict, record it, read every page's weak spots, and report back. The agent that sent you reads the result and builds its answer on it. A wrong fix costs that answer; confirming a false alarm costs nothing.
 
 Your prompt names the document's folder and its source: a PDF, or the page images. It may also name figures to settle, by page and caption, and, for a paper, the path of `papers.md`: read that too, it adds what papers get wrong.
 
@@ -69,17 +69,17 @@ Done when `doc.py show <folder>` lists no open finding but `figure_check` ones.
 Settle every `figure_check` finding and every figure your prompt names. The reasons a figure was flagged:
 
 - `no_crop`: the figure was read as text or a table, or missed. False alarms: a list of figure captions, a sentence opening with "Figure 2."
-- `split`: the figure is in several images.
-- `two_figures`: one image holds two figures.
+- `split`: the figure is in several crops.
+- `two_figures`: one crop holds two figures.
 - `table`: a table was drawn into the figure.
 - `edge_cut`: an edge runs through text or lines.
-- `second_opinion`: the extent found from the caption outwards differs from the image's.
+- `second_opinion`: the extent found from the caption outwards differs from the crop's.
 
 For each:
 
-1. `doc.py show <folder> <finding id>` and open its overlay: the caption in blue, each image on the page numbered in its own colour, the second opinion as a green dashed box. Judge the numbered images first, on their own: does one image hold the whole figure, and nothing but it (no other figure, table or body text)? Then weigh the reasons and the second opinion. For `edge_cut`, view that edge enlarged (`show p<N> --box … --dpi 400`): the overlay is too small to show a line of text sliced in half. The second opinion is a candidate and can be the wrong one, taking in a table or a note under the figure.
+1. `doc.py show <folder> <finding id>` and open its overlay: the caption in blue, each crop on the page numbered in its own colour, the second opinion as a green dashed box. Judge the numbered crops first, on their own: does one crop hold the whole figure, and nothing but it (no other figure, table or body text)? Then weigh the reasons and the second opinion. For `edge_cut`, view that edge enlarged (`show p<N> --box … --dpi 400`): the overlay is too small to show a line of text sliced in half. The second opinion is a candidate and can be the wrong one, taking in a table or a note under the figure.
 2. Whole and clean: verdict `ok`, with what you checked.
-3. Otherwise cut it anew: `doc.py figure <folder> <figure id> --box X1 Y1 X2 Y2 --why "<what was wrong>"`, starting from the second opinion's box when it looks right. It prints the new image's path: view it, and cut again until it holds the whole figure and no caption or body text. A figure can be wider than its caption or sit beside it. The image blocks inside the box become part of this figure, so for a figure split into several images, cut any one of them to the whole box and the others go with it. The finding goes once the figure is cut.
+3. Otherwise cut it anew: `doc.py figure <folder> <figure id> --box X1 Y1 X2 Y2 --why "<what was wrong>"`, starting from the second opinion's box when it looks right. It prints the new crop's path: view it, and cut again until it holds the whole figure and no caption or body text. A figure can be wider than its caption or sit beside it. The image blocks inside the box become part of this figure, so for a figure split into several crops, cut any one of them to the whole box and the others go with it. The finding goes once the figure is cut.
 4. A figure the parse read as text or missed (`no_crop`): `doc.py figure <folder> --page N --box … --why …` makes it, and the text the model read from it stays. When that text already says everything and its colours and layout add nothing, verdict `ok` instead.
 
 An image that is no content of the document, such as a logo or a stray icon: delete its image line in the Markdown to hide it.
@@ -90,7 +90,9 @@ Done when every `figure_check` finding is gone or has a verdict, and every named
 
 ## 3. Beyond the findings
 
-The checks see only what a text layer can prove; these slip past them (2026-10, six papers):
+The checks see only what a text layer can prove. On every page, compare the last block and the first line of each column with the text layer (or, without one, the image), and fix what you find the same way, with a `fixed` note. Where a page has a finding, read that page whole.
+
+What slips past the checks (2026-10, six papers):
 
 - **A paragraph that ends early with an invented closing.** The block's box is far taller than its text needs; `missing_text` and `missing_numbers` on the same page are the trace.
 - **Text joined in the wrong order across columns.** Every word is present, so no check fires; look for a sentence that breaks off and continues with an unrelated one.
@@ -101,8 +103,6 @@ The checks see only what a text layer can prove; these slip past them (2026-10, 
 - **Header cells merged** in a table whose values are right.
 - **Inline math garbled** in pseudo-code and tables.
 - **A long line cut by your reading tool** is not a truncated paragraph: check its length or its tail before calling it cut.
-
-On every page, compare the last block and the first line of each column with the text layer (or, without one, the image), and fix what you find the same way, with a `fixed` note. Where a page has a finding, read that page whole.
 
 Done when every page's last block and column starts have been compared; the report says how many pages that was.
 
