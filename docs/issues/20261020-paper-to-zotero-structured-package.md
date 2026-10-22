@@ -2,7 +2,8 @@
 
 - 来源：用户 · 2026-10-19 提出，2026-10-20 立项
 - 前置：[20261020-paper-to-zotero-top-down-restructure-fixed.md](archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)，2026-10-20 已关闭，这张可以开始设计。
-- 状态：open。以下分成"已定"、"10-19 的倾向（没拍板）"、"待定"三部分，不要把倾向当成定论。
+- 暂缓（2026-10-20）：用户「这边先暂缓一下，先去解决那个issue，解决完后你再重新恢复现在的现场」，先解决 [20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)。恢复时的现场：下面"10-20 的提议"里的文件夹结构已经给用户看过预览（用 `savageLargeLanguageModel2024` 举例：zip 37 KB，里面 md 42 KB、json 93 KB；项目里裁出 5 张图共约 8 MB），还在等用户回应。恢复时先重新给出这份预览，再一条一条定。
+- 状态：open，讨论阶段（2026-10-20 起）。除这张 issue 外一切只读：不改代码、不写 Zotero、不动各项目；这张 issue 随时记录讨论中得到的事实、用户的补充和方向。以下分成"已定"、"10-19 的倾向（没拍板）"、"10-20 的提议（没拍板）"、"待定"四部分，不要把倾向和提议当成定论。
 
 ## 目标
 
@@ -34,6 +35,8 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
    1. 按 citation key 找到条目里的结构化包。包里 json 记的源 PDF 哈希和条目当前的 PDF 一致，就解压到项目里直接读。
    2. 没有包，或者 PDF 已经换了（比如预印本换成了正式版）：`read_library.py pdf` 拿到 PDF → paddleocr 解析（这次要读就顺便核对）→ 打包挂回 Zotero。
    3. 在项目里核对、改了内容：重新打包挂回。
+
+4. **多个版本都可以结构化**（2026-10-20）。用户原话：「如果有多个版本，你想打开哪个就打开哪个，结构化也可以全部结构化。」区分版本靠保存时的规范命名，见 [20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)。"10-20 的提议"里"默认只解析排第一的那份"按这一条改。
 
 已有的地基：
 
@@ -81,8 +84,42 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
 - 体积几乎全是图片，PNG 本身已经压缩过，打成 zip 也省不了多少。
 - 按 800 篇算，整包约 2.6 GB，只放 md + json 约 50 MB。
 - **图片可以从 PDF 重新裁**：`doc.py render <folder> --source <pdf>` 只要拿到 PDF，就会按 json 里每张图的框重新裁出 `imgs/`（`paddleocr/scripts/doc.py` 的 `build` → `write_images`）。所以"包里只放 md + json，图片取用时在本地从 PDF 裁"是一个可选方案，没有讨论过。
+- **重裁实测**（2026-10-20，上面 143 篇里抽 6 篇，11–44 页）：拷贝一份、删掉 `imgs/`，跑 `doc.py render`（源 PDF 在记录的路径上），每篇 3.5–6 秒；`.md` 和全部图片与原来逐字节一致。
+
+## 2026-10-20 查到的另外两件事（只读）
+
+- **paddleocr 的命名**（读 `parse.py` 的 `resolve_input` 和 `process`）：文件夹名、md 和 json 的文件名都取输入文件名的 stem。输入是软链接时，stem 取软链自己的名字，`source.path` 记真实文件（`resolve()`），sha256 按内容算。所以给它一个 `<citation key>.pdf` 软链接，指向 Zotero 存储里的 PDF，解析出来就是 `<citation key>/`。
+- **库里一个条目有几个 PDF**（只读统计）：785 个条目有 PDF，768 个一份，17 个两份：
+  - 10 个是同一篇的不同版本（正式版加预印本、接收稿或投稿版）；
+  - 2 个是正文加补充材料；
+  - 5 个看标题分不出（两份都叫 "Full Text PDF"，或 "PDF" 加 "全文" 之类），可能是重复下载。
+  - `read_library pdf` 的排序靠附件标题认版本（`paper.py` 的 `TITLE_PREFIXES`），认不出的 PDF 一律当正式版。那 10 对版本里有 3 对两份都被当成正式版，因为标题是 "Author manuscript (eScholarship, UCSF)"、"Related preprint v1 — …"、"已提交版本"（Zotero 中文界面下的 Submitted Version）。加上那 5 个，共 8 个条目的"排第一的 PDF"是并列的；并列时按添加时间排，跟版本无关。用户 10-20 定：这是 paper-to-zotero 本身的问题，单独一张 issue：[20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)。
+
+## 10-20 的提议（没拍板）
+
+用户 2026-10-20：「因为现在前置的 issue 已经解决了，要做结构化这个事情，但是你需要先跟我讲一下结构化后的文件夹结构」，接着问：「然后如果有多个PDF，应该如何解决呢？」。下面是我的回答，用户还没回应。
+
+**文件夹结构**
+
+- **Zotero 里**：条目下的 PDF 不动；旁边挂一个 `<citation key>.paddleocr.zip`。只挂一个 zip，不另挂 `.md`（同 10-19 的倾向）。
+- **zip 里**：`<citation key>/` 下只有 `<citation key>.md` 和 `<citation key>.json`，不放 `imgs/`。理由是上面的实测：体积约 61 KB 对 3.2 MB；图片能从 PDF 原样裁回；核对数字本来就要 PDF。
+- **项目里**：解压到 `<项目根>/zotero-papers/<citation key>/`，再从 PDF 裁出 `imgs/`。
+  - 目录里放一个内容为 `*` 的 `.gitignore`，所以不进 git，也不用改项目的 `.gitignore`。
+  - 不复制 PDF。各项目自己的 INDEX、`meta.json`、对照表不再需要：文件夹名就是 citation key，其余回 Zotero 查。
+  - 目录名是我起的。不用 `papers/`，因为 diffusion 已有一个结构不同的同名目录。
+
+**多个 PDF**：包跟着某一份 PDF，而不是跟着条目；json 里的哈希定了它属于哪份。
+
+- **默认只解析一份**：`read_library pdf` 排第一的那份（正式版 → 接收稿 → 预印本），项目里 `<key>/` 就是它。
+- **其它 PDF 用到才解析**：各自一个包，文件夹带版本后缀，沿用 p2z 的文件命名：`<key>.preprint/`、`<key>.accepted/`、`<key>.supplement/`。
+- **正式版后来才到**：哈希对不上排第一的 PDF，就解析正式版，`<key>/` 换成它。
+- **旧版本的包**：预印本的包跟预印本 PDF 同去同留；PDF 已经不在了的包，列进报告等用户确认清理。
+- **同一版本两份**：是库里的重复，读排第一的那份，把条目报给用户，按 organize 去重。
+- **并列的情况**（上面那 8 个）：交给 [20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)。这张只依赖"`read_library pdf` 排第一的就是论文的 PDF"。
 
 ## 待定（一件一件定）
+
+第 1、3、4、5 条在上面"10-20 的提议"里有答案，等用户回应。
 
 1. **包的格式和内容**：
    - 一个 zip，还是别的形式；
