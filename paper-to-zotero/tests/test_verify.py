@@ -234,25 +234,28 @@ class DoiMismatch(Base):
 class Kinds(Base):
     STAMPED = f"arXiv:2201.00001v2 [cs.CV] 3 Jan 2022\n{TITLE}\nWei Liu\nDOI: 10.48550/arXiv.2201.00001"
 
-    def test_arxiv_stamp_makes_a_published_name_a_preprint(self):
+    def test_the_arxiv_stamp_is_evidence_not_a_kind(self):
         res = self.check(self.STAMPED)
-        self.assertEqual((res["code"], res["kind"], res["evidence"]["kind"]), ("ok", "preprint", "preprint"))
-        self.assertEqual(res["evidence"]["arxiv_stamp"], "arXiv:2201.00001v2 [cs.CV]")
-        self.assertEqual(self.check(self.STAMPED, kind="published")["code"], "doi_mismatch", "a given kind wins")
-        self.assertEqual(self.check(self.STAMPED, kind="unknown")["kind"], "preprint", "unknown is no kind given")
-
-    def test_the_stamp_only_turns_a_published_file(self):
+        self.assertEqual((res["code"], res["kind"], res["evidence"]["arxiv_stamp"]),
+                         ("ok", "published", "arXiv:2201.00001v2 [cs.CV]"))  # the arXiv DOI on it is no doi_mismatch
         self.assertEqual(self.check(self.STAMPED, file_name="r.accepted.pdf")["kind"], "accepted")
-        self.assertEqual(self.check(self.STAMPED, file_name="download")["kind"], "preprint", "no suffix: published")
+        self.assertEqual(self.check(self.STAMPED, kind="unknown")["kind"], "published", "unknown is no kind given")
+
+    def test_pdf_dates_and_page_two(self):
+        f = self.pdf("r.pdf", [PAPER_PAGE, "Introduction and more"], 9)
+        f.with_name("r.pdf.dates").write_text("CreationDate:   2023-10-09T18:57:41+08\nModDate:        2023-10-10T09:00:00Z\n")
+        ev = verify.check(f, self.record())["evidence"]
+        self.assertEqual((ev["pdf_dates"], ev["excerpt_page_2"], ev["page_count"]),
+                         ({"created": "2023-10-09T18:57:41+08", "modified": "2023-10-10T09:00:00Z"}, "Introduction and more", 9))
 
     def test_kind_of_names(self):
         for name, kind in (("s.pdf", "published"), ("s.accepted.pdf", "accepted"), ("s.preprint.pdf", "preprint"),
                            ("s.supplement.pdf", "supplement"), ("s.html", "snapshot"), ("s.htm", "snapshot"),
                            ("S.PDF", "published"), ("getPDF.jsp", "published")):
-            self.assertEqual(verify.kind_of(self.tmp / name, None), kind, name)
-        self.assertEqual(verify.kind_of("s.pdf", None, "accepted"), "accepted")
+            self.assertEqual(verify.kind_of(self.tmp / name), kind, name)
+        self.assertEqual(verify.kind_of("s.pdf", "accepted"), "accepted")
         with self.assertRaises(ValueError):
-            verify.kind_of("s.pdf", None, "version_of_record")
+            verify.kind_of("s.pdf", "version_of_record")
 
 
 class Html(Base):

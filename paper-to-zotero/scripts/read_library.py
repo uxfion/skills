@@ -10,10 +10,14 @@ Read-only; the local API answers GETs without a key. One JSON object per stdout 
                wrapper: jq '.title'). Top-level items unless --all; within a --collection; by --key / --cite; by
                --q search text; changed --since a library version; with a --tag ('a || b' for either)
   children     the attachments and notes of the items named by --key / --cite
-  pdf          one line per PDF attachment of each named item, the paper's PDF first (published, then accepted
-               manuscript, then preprint): {key, citationKey, title, attachment, attachment_title, kind, md5, link_mode,
-               path, exists}; `path` is the file as this machine opens it (a Windows path from Zotero on Windows goes
-               through wslpath in WSL). How another skill gets a library paper's PDF to read or parse.
+  pdf          one line per PDF attachment of each named item, best first: {key, citationKey, title, attachment,
+               attachment_title, version, source, detail, standard, md5, link_mode, path, exists}. Version, source and
+               detail come from the attachment title (Published-IEEE, Accepted-arXiv-v3: version published | accepted
+               | preprint | unknown | supplement); a title outside that scheme reads as version unknown with standard
+               false — the paper's file all the same, its version not checked. Order: published, accepted, preprint,
+               unknown; within one, final before in_press, the larger vN, the later added; supplements last. `path` is
+               the file as this machine opens it (a Windows path from Zotero on Windows goes through wslpath in WSL).
+               How another skill gets a library paper's PDF to read or parse: take the row of the version it wants.
                {key, citationKey, title, code: no_pdf, attachments: [content types]} for an item without one
   collections  the collection's data; --tree adds `path` (names from the root joined by "/") and leaves out the
                collections in the trash and those under one
@@ -114,7 +118,8 @@ def cmd_pdf(zot, args):
             path = zot.file_path(a["key"])
             exists = bool(path and os.path.isfile(path))
             on_disk |= exists
-            cli.emit({**head, "attachment": a["key"], "attachment_title": a["title"], "kind": a["kind"], "md5": a["md5"],
+            cli.emit({**head, "attachment": a["key"], "attachment_title": a["title"],
+                      **{k: a[k] for k in ("version", "source", "detail", "standard", "md5")},
                       "link_mode": a["linkMode"], "path": path, "exists": exists})
         if not on_disk:
             cli.log(f"{key}: no PDF of this item is on disk (not synced, or a linked file that moved)")
@@ -162,7 +167,7 @@ def parse_args(argv):
     s.set_defaults(func=cmd_items, need_targets=False)
 
     for name, func, text in (("children", cmd_children, "the attachments and notes of items"),
-                             ("pdf", cmd_pdf, "where items' PDFs are on disk, the paper's PDF first")):
+                             ("pdf", cmd_pdf, "where items' PDFs are on disk, with their versions, best first")):
         s = sub.add_parser(name, help=text)
         cli.add_targets(s)
         s.set_defaults(func=func, need_targets=True)

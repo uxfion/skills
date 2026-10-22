@@ -67,11 +67,11 @@ class Attach(unittest.TestCase):
     def test_a_new_attachment_is_created_uploaded_and_read_back(self):
         res = self.zot.attach(PARENT, self.file(), url=URL)
         key = res["attachment"]
-        self.assertEqual(res, {"code": "ok", "attachment": key, "md5": MD5, "filename": FILENAME, "title": "PDF",
-                               "kind": "published", "reused": False, "file_existed": False})
+        self.assertEqual(res, {"code": "ok", "attachment": key, "md5": MD5, "filename": FILENAME, "title": "Unknown",
+                               "reused": False, "file_existed": False}, "no title given: the version word the bytes give")
         att = self.fake.data(key)
         self.assertEqual({f: att.get(f) for f in ("parentItem", "linkMode", "contentType", "title", "url", "md5", "filename")},
-                         {"parentItem": PARENT, "linkMode": "imported_url", "contentType": "application/pdf", "title": "PDF",
+                         {"parentItem": PARENT, "linkMode": "imported_url", "contentType": "application/pdf", "title": "Unknown",
                           "url": URL, "md5": MD5, "filename": FILENAME})
         self.assertNotIn("charset", att)
         self.assertEqual(list(self.fake.uploads.values()), [PDF])
@@ -79,9 +79,9 @@ class Attach(unittest.TestCase):
         authorize = self.posts(f"{LIB}/items/{key}/file")[0][3]
         self.assertIn(b"filename=Liu%20and%20Zhang", authorize, "spaces go as %20: Zotero keeps a '+' as it is")
         writes = len(self.fake.writes())
-        again = self.zot.attach(PARENT, self.file(), url=URL)
+        again = self.zot.attach(PARENT, self.file(), title="Published-IEEE", url=URL)
         self.assertEqual(again, {"code": "skipped", "reason": "already_attached", "attachment": key, "md5": MD5,
-                                 "filename": FILENAME, "title": "PDF", "kind": "published"})
+                                 "filename": FILENAME, "title": "Unknown"}, "the title it has stays")
         self.assertEqual(len(self.fake.writes()), writes, "never uploaded twice")
 
     def test_a_child_holding_the_same_md5_settles_it_without_verify(self):
@@ -89,7 +89,7 @@ class Attach(unittest.TestCase):
         verify = mock.Mock(side_effect=AssertionError("verify must not run"))
         res = self.zot.attach(PARENT, self.file(), url=URL, verify=verify)
         self.assertEqual(res, {"code": "skipped", "reason": "already_attached", "attachment": "OLDATT01", "md5": MD5,
-                               "filename": "old name.pdf", "title": "Full Text PDF", "kind": "published"})
+                               "filename": "old name.pdf", "title": "Full Text PDF"})
         self.assertEqual(self.fake.writes(), [])
 
     def test_a_child_in_the_trash_counts_for_nothing(self):
@@ -101,11 +101,13 @@ class Attach(unittest.TestCase):
 
     def test_an_empty_child_left_by_an_interrupted_run_is_reused(self):
         self.child("OTHER001", title="PDF", filename="another name.pdf")
-        self.child("HALF0001", title="PDF", filename=FILENAME)
-        res = self.zot.attach(PARENT, self.file(), url=URL)
-        self.assertEqual((res["code"], res["attachment"], res["reused"], res["file_existed"]), ("ok", "HALF0001", True, False))
+        self.child("HALF0001", title="Unknown-IEEE", filename=FILENAME)
+        res = self.zot.attach(PARENT, self.file(), title="Published-IEEE", url=URL)
+        self.assertEqual((res["code"], res["attachment"], res["reused"], res["file_existed"], res["title"]),
+                         ("ok", "HALF0001", True, False, "Published-IEEE"))
         self.assertEqual(self.posts(), [], "no new attachment item")
-        self.assertEqual(self.fake.data("HALF0001")["md5"], MD5)
+        self.assertEqual((self.fake.data("HALF0001")["md5"], self.fake.data("HALF0001")["title"]), (MD5, "Published-IEEE"),
+                         "the caller's title wins over the half-made one's")
         self.assertNotIn("md5", self.fake.data("OTHER001"))
 
     def test_zotero_already_having_the_file_skips_the_transfer(self):
@@ -119,8 +121,7 @@ class Attach(unittest.TestCase):
     def test_an_html_snapshot_carries_its_charset(self):
         res = self.zot.attach(PARENT, self.file("page.html", HTML), url=URL)
         att = self.fake.data(res["attachment"])
-        self.assertEqual((att["contentType"], att["charset"], att["title"], res["kind"]),
-                         ("text/html", "utf-8", "Snapshot", "snapshot"))
+        self.assertEqual((att["contentType"], att["charset"], att["title"]), ("text/html", "utf-8", "Snapshot"))
         self.assertEqual(res["filename"], "Liu and Zhang - 2022 - A Paper With Colon.html")
         gbk = '<html><head><meta charset="GBK"><title>文章</title></head><body>摘要</body></html>'.encode("gbk")
         res = self.zot.attach(PARENT, self.file("cn.htm", gbk), url=URL, filename="cn.html")
@@ -152,23 +153,12 @@ class Attach(unittest.TestCase):
         self.assertEqual(self.fake.data(res["attachment"])["filename"], "a b c .pdf")
         self.assertEqual(self.stop(self.zot.attach, PARENT, self.file(), url=URL, filename=":/?").code, "invalid_filename")
 
-    def test_title_and_kind(self):
-        cases = (("v.preprint.pdf", "journalArticle", {}, "Preprint (arXiv)", "preprint"),
-                 ("v.preprint.pdf", "preprint", {}, "PDF", "preprint"),
-                 ("v.accepted.pdf", "journalArticle", {}, "Accepted manuscript", "accepted"),
-                 ("v.supplement.pdf", "journalArticle", {}, "Supplementary material", "supplement"),
-                 ("v.pdf", "journalArticle", {"kind": "supplement"}, "Supplementary material", "supplement"),
-                 ("v.pdf", "journalArticle", {"title": "Preprint (bioRxiv)", "kind": "preprint"}, "Preprint (bioRxiv)", "preprint"),
-                 ("download", "journalArticle", {}, "PDF", "published"),
-                 ("v.html", "journalArticle", {}, "PDF", "published"))   # the bytes are a PDF, whatever the name says
-        for name, parent_type, extra, title, kind in cases:
-            with self.subTest(name=name, parent_type=parent_type, extra=extra):
-                self.fake.reset()
-                self.fake.add_item(PARENT, itemType=parent_type, title="T")
-                res = self.zot.attach(PARENT, self.file(name), url=URL, **extra)
-                self.assertEqual((res["title"], res["kind"], self.fake.data(res["attachment"])["title"]), (title, kind, title))
-        with self.assertRaises(ValueError):
-            self.zot.attach(PARENT, self.file(), url=URL, kind="package-of-sorts")
+    def test_the_title_is_the_callers(self):
+        res = self.zot.attach(PARENT, self.file("v.preprint.pdf"), title="Preprint-arXiv-v7", url=URL)
+        self.assertEqual((res["title"], self.fake.data(res["attachment"])["title"]), ("Preprint-arXiv-v7", "Preprint-arXiv-v7"))
+        self.assertTrue(self.zot.retitle(res["attachment"], "Accepted-arXiv-v7"))
+        self.assertFalse(self.zot.retitle(res["attachment"], "Accepted-arXiv-v7"), "nothing sent when it has the title")
+        self.assertEqual(self.fake.data(res["attachment"])["title"], "Accepted-arXiv-v7")
 
     def test_no_url_makes_a_stored_file_without_a_source(self):
         res = self.zot.attach(PARENT, self.file(), url=None)
@@ -194,7 +184,7 @@ class Attach(unittest.TestCase):
         with mock.patch.dict("os.environ", {"PAPER_TO_ZOTERO_CONFIG": str(config_file(key=None))}):
             res = self.zot.attach(PARENT, self.file(), url=URL, dry_run=True)
             self.assertEqual(res, {"code": "ok", "dry_run": True, "attachment": None, "md5": MD5, "filename": FILENAME,
-                                   "title": "PDF", "kind": "published", "reused": False, "contentType": "application/pdf",
+                                   "title": "Unknown", "reused": False, "contentType": "application/pdf",
                                    "url": URL, "size": len(PDF)})
             self.child("HALF0001", title="PDF", filename=FILENAME)
             res = self.zot.attach(PARENT, self.file(), url=URL, dry_run=True)

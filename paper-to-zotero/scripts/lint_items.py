@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Check existing Zotero items for problems worth tidying, read-only: duplicates, citation keys, stray webpages, extra PDFs, bad fields.
+"""Check existing Zotero items for problems worth tidying, read-only: duplicates, citation keys, stray webpages, attachment titles, bad fields.
 
 The whole library is read once (every page of /items: items, attachments and notes; trashed ones dropped), so
 duplicates and citation-key clashes are found across the library whatever the scope. The scope only chooses which
@@ -18,7 +18,16 @@ Problem codes (each problem is {"code", ...}):
                           citationKey; {"problem": "tex_special", "suggested"}: a character TeX treats specially
                           (renaming a key breaks the user's \\cite{}: ask first)
   unfiled_webpage         a webpage item in no collection
-  multiple_pdfs           more than one PDF attachment ({"attachments": [{key, title, md5}]})
+  nonstandard_title       a PDF or HTML snapshot whose title is outside the scheme <Version>-<Source>-<detail>
+                          (paper.py; Zotero's "Full Text PDF", an older run's "Preprint (arXiv)"), or in it without a
+                          source while its url's site has a name ({"why": "outside_scheme" | "no_source"}). The
+                          evidence to name it from, no name: {attachment, title, contentType, url, host, source (the
+                          site's name in paper.SOURCES, else null), filename, md5, doi (the item's), excerpt (the first
+                          300 characters of page 1, read from the file on this machine; null when it cannot be read)}
+  label_clash             two or more PDFs or snapshots of the item with one title ({"title", "attachments": [keys]}):
+                          most likely the same file twice
+  superseded              a file another one from the same source replaces (paper.superseded: an older arXiv vN, an
+                          in_press copy beside the final one, an older snapshot): {"attachment", "title", "by", "by_title"}
   date_unparseable        a date Zotero cannot parse (no meta.parsedDate), e.g. "十一月 23, 2021"
   abbreviation_misplaced  journalAbbreviation longer than publicationTitle (they are swapped: "patch" swaps them
                           back), or publicationTitle looks abbreviated with no journalAbbreviation
@@ -57,7 +66,7 @@ import json
 import os
 import re
 
-from p2zlib import cli, paper, web, zotero
+from p2zlib import cli, paper, verify, web, zotero
 from p2zlib.zotero import LIB
 
 RESEARCH_TYPES = {"journalArticle", "conferencePaper", "preprint", "bookSection", "thesis", "report"}
@@ -165,7 +174,43 @@ class Crossref:
         return None
 
 
-def problems_of(item, lib, crossref, proxy):
+def title_problems(data, children, zot, proxy):
+    """nonstandard_title, label_clash and superseded among an item's PDFs and HTML snapshots."""
+    files, out = [], []
+    for c in children:
+        d = zotero.data(c)
+        if d.get("itemType") != "attachment":
+            continue
+        label = paper.attachment_label(d)
+        if label["version"] is None:  # a link, a note's attachment, a file of another type
+            continue
+        files.append({"key": c["key"], "title": d.get("title"), "dateAdded": d.get("dateAdded"), **label})
+        url = web.unproxy(d.get("url") or "", proxy) or None
+        source = paper.source_of(url)
+        why = "outside_scheme" if not label["standard"] else "no_source" if not label["source"] and source else None
+        if why:
+            out.append({"code": "nonstandard_title", "why": why, "attachment": c["key"], "title": d.get("title"),
+                        "contentType": d.get("contentType"), "url": url, "host": paper.host_of(url) or None,
+                        "source": source, "filename": d.get("filename"), "md5": d.get("md5"),
+                        "doi": paper.doi_of(data) or None, "excerpt": first_page(zot, c["key"], d)})
+    by_title = {}
+    for f in files:
+        by_title.setdefault(f["title"], []).append(f["key"])
+    out += [{"code": "label_clash", "title": t, "attachments": keys} for t, keys in by_title.items() if len(keys) > 1]
+    out += [{"code": "superseded", "attachment": a["key"], "title": a["title"], "by": b["key"], "by_title": b["title"]}
+            for a, b in paper.superseded(files) if a["title"] != b["title"]]
+    return out
+
+
+def first_page(zot, key, d):
+    """The first 300 characters of a stored PDF's page 1, from the file on this machine; None when it cannot be read."""
+    if d.get("contentType") != "application/pdf" or not d.get("md5"):
+        return None
+    path = zot.file_path(key)
+    return verify.first_page(path, 300) if path else None
+
+
+def problems_of(item, lib, crossref, proxy, zot):
     key, data, meta = item["key"], zotero.data(item), item.get("meta") or {}
     out = []
     doi, aid = paper.identifiers(data)
@@ -184,10 +229,7 @@ def problems_of(item, lib, crossref, proxy):
     out += lib.cites.get(key, [])
     if data.get("itemType") == "webpage" and not data.get("collections"):
         out.append({"code": "unfiled_webpage", "url": data.get("url")})
-    pdfs = [c for c in lib.children.get(key, []) if paper.is_pdf(zotero.data(c))]
-    if len(pdfs) > 1:
-        out.append({"code": "multiple_pdfs", "attachments": [{"key": c["key"], "title": zotero.data(c).get("title"),
-                                                              "md5": zotero.data(c).get("md5")} for c in pdfs]})
+    out += title_problems(data, lib.children.get(key, []), zot, proxy)
     if (data.get("date") or "").strip() and not meta.get("parsedDate"):
         out.append({"code": "date_unparseable", "date": data["date"]})
     full, abbr = (data.get("publicationTitle") or "").strip(), (data.get("journalAbbreviation") or "").strip()
@@ -245,7 +287,7 @@ def lint(zot, args):
     proxy = web.proxy_domain() or ""
     counts, reported = {}, 0
     for r in scope:
-        found = problems_of(r, lib, crossref, proxy)
+        found = problems_of(r, lib, crossref, proxy, zot)
         if not found:
             continue
         reported += 1

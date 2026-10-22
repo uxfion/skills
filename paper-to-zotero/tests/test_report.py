@@ -32,13 +32,22 @@ class Report(unittest.TestCase):
         z.add_collection("BBBBBBBB", "Diffusion", "AAAAAAAA")
         z.add_item("ITEM0001", itemType="journalArticle", title="A Paper", date="2022-03", citationKey="liu2022paper",
                    collections=["BBBBBBBB"], tags=[{"tag": "method/BrandNew", "type": 0}, {"tag": "method/Diffusion", "type": 0}])
-        z.add_item("ATTPDF01", itemType="attachment", parentItem="ITEM0001", title="PDF", contentType="application/pdf", md5="m1")
-        z.add_item("SNAP0001", itemType="attachment", parentItem="ITEM0001", title="Snapshot", contentType="text/html",
-                   linkMode="imported_url")
-        z.add_item("TWICE001", itemType="attachment", parentItem="ITEM0001", title="Full Text PDF", contentType="application/pdf", md5="m1")
+        # ITEM0001: this run attached Published-IEEE; the item had a snapshot standing in for it, the same file under
+        # an old title, an in-press copy from the same site, and a preprint from another site, which stays.
+        att = lambda key, title, ctype="application/pdf", **kw: z.add_item(  # noqa: E731
+            key, itemType="attachment", parentItem="ITEM0001", title=title, contentType=ctype, linkMode="imported_url", **kw)
+        att("ATTPDF01", "Published-IEEE", md5="m1", dateAdded="2026-03-01")
+        att("SNAP0001", "Snapshot-IEEE", "text/html", dateAdded="2025-01-01")
+        att("TWICE001", "Full Text PDF", md5="m1", dateAdded="2025-02-01")
+        att("PRESS001", "Accepted-IEEE-in_press", md5="m3", dateAdded="2025-03-01")
+        att("ARXIV001", "Preprint-arXiv-v2", md5="m4", dateAdded="2025-04-01")
         z.add_item("OTHER001", itemType="journalArticle", title="Other", tags=[{"tag": "method/Diffusion", "type": 0}])
         z.add_item("PRE00001", itemType="preprint", title="Kept Preprint", date="2023", citationKey="kim2023kept")
-        z.add_item("ATTPRE01", itemType="attachment", parentItem="PRE00001", title="Preprint (arXiv)", contentType="application/pdf")
+        z.add_item("ATTPRE01", itemType="attachment", parentItem="PRE00001", title="Preprint-arXiv-v1", contentType="application/pdf")
+        z.add_item("UNSURE01", itemType="journalArticle", title="Unsure", date="2024", citationKey="roe2024unsure")
+        z.add_item("ATTUNK01", itemType="attachment", parentItem="UNSURE01", title="Unknown-Elsevier", contentType="application/pdf")
+        z.add_item("HAD00001", itemType="journalArticle", title="Had It", date="2021", citationKey="doe2021had")
+        z.add_item("ATTOLD01", itemType="attachment", parentItem="HAD00001", title="PDF", contentType="application/pdf", md5="m9")
         self.work = run.Work(Path(tempfile.mkdtemp(prefix="p2z-report-")))
         self.work.records.mkdir()
         self.work.unverified.mkdir()
@@ -55,9 +64,14 @@ class Report(unittest.TestCase):
 
     def test_rows_and_sections(self):
         self.record("liu", citationKey="liu2022", saved={"key": "ITEM0001", "version": 1, "citationKey": "liu2022paper", "created_at": "x"},
-                    attach={"attachment": "ATTPDF01", "md5": "m1", "kind": "published", "title": "PDF"})
+                    attach={"attachment": "ATTPDF01", "md5": "m1", "title": "Published-IEEE"})
         self.record("kim", saved={"key": "PRE00001"}, keep_preprint="the user wants the preprint",
-                    attach={"attachment": "ATTPRE01", "md5": "m2", "kind": "preprint", "title": "Preprint (arXiv)"})
+                    attach={"attachment": "ATTPRE01", "md5": "m2", "title": "Preprint-arXiv-v1"})
+        self.record("roe", saved={"key": "UNSURE01"}, attach={"attachment": "ATTUNK01", "md5": "m5", "title": "Unknown-Elsevier"})
+        doe = run.read(self.record("doe", label={"title": "Published-Springer", "by": "agent", "why": "x"},
+                                   attach={"attachment": "ATTOLD01", "md5": "m9", "title": "PDF", "existing": True}))
+        run.stamp(doe, "found", {"code": "found", "key": "HAD00001"})  # the item was in the library: it had this file
+        doe.save()
         self.record("lost", blocker="the last pass with the user")
         (self.work.records / "lost.html").write_text("<html></html>")
         (self.work.unverified / "lost.file.pdf").write_bytes(b"%PDF")
@@ -77,20 +91,27 @@ class Report(unittest.TestCase):
         rows = {row["slug"]: row for row in out["rows"]}
         self.assertEqual((rows["liu"]["citationKey"], rows["liu"]["cite_mismatch"], rows["liu"]["collections"], rows["liu"]["year"],
                           rows["liu"]["file"]), ("liu2022paper", True, ["自然图像/Diffusion"], "2022", "PDF"), "the library as it is now")
-        self.assertEqual((rows["kim"]["file"], rows["lost"]["key"], rows["lost"]["file"]), ("PDF", None, None))
-        self.assertEqual(out["summary"], {"total": 3, "in_library": 2, "with_pdf": 2, "with_snapshot": 0, "missing": 1, "blocked": 1})
+        self.assertEqual(rows["liu"]["attachments"], ["Published-IEEE", "Accepted-IEEE-in_press", "Preprint-arXiv-v2", "Full Text PDF",
+                                                      "Snapshot-IEEE"], "best first")
+        self.assertEqual((rows["kim"]["file"], rows["roe"]["file"], rows["lost"]["key"], rows["lost"]["file"]), ("PDF", "PDF", None, None))
+        self.assertEqual(out["summary"], {"total": 5, "in_library": 4, "with_pdf": 4, "with_snapshot": 0, "missing": 1, "blocked": 1})
         s = out["sections"]
         self.assertEqual(s["not_obtained"], [{"slug": "lost", "snapshot": True, "passes": {"1": [
             "open repo.example: wrong_file", "publisher doi.org: verdict no_access"]}}])
-        self.assertEqual([(a["slug"], a["kind"]) for a in s["alternate_versions"]], [("kim", "preprint")])
+        self.assertEqual([(a["slug"], a["title"]) for a in s["alternate_versions"]], [("kim", "Preprint-arXiv-v1")])
+        self.assertEqual([(a["slug"], a["title"]) for a in s["unknown_versions"]], [("roe", "Unknown-Elsevier")])
         self.assertEqual(s["preprint_kept"], [{"slug": "kim", "reason": "the user wants the preprint"}])
         self.assertEqual(s["accepted"], [{"slug": "kim", "file": "kim.preprint.pdf", "reason": "a scan"}])
-        self.assertEqual([(c["attachment"], c["reason"].split(" ")[0]) for c in s["attachments_to_clean"]], [("TWICE001", "the"), ("SNAP0001", "snapshot")])
+        self.assertEqual(sorted((c["attachment"], c["reason"].split(" ")[0]) for c in s["attachments_to_clean"]),
+                         [("PRESS001", "'Accepted-IEEE-in_press',"), ("SNAP0001", "snapshot"), ("TWICE001", "the")],
+                         "the arXiv preprint, another source, stays")
+        self.assertEqual(s["renames"], [{"slug": "doe", "attachment": "ATTOLD01", "title": "PDF", "suggested": "Published-Springer"}])
         self.assertEqual(s["new_tags"], [{"tag": "method/BrandNew", "items": ["liu2022paper"]}])
         self.assertEqual([x["file"] for x in s["leftovers"]], ["Downloads/invoice.pdf", "unverified/lost.file.pdf"])
         self.assertEqual([(x["slug"], x["verdict"]) for x in s["stops"]], [("lost", "no_access")])
         md = self.run_().out
-        for heading in ("| citationKey |", "liu2022paper (record: liu2022)", "### 无法获取", "### 待清理附件", "trash_item.py --dry-run --key TWICE001 SNAP0001"):
+        for heading in ("| citationKey |", "liu2022paper (record: liu2022)", "### 无法获取", "### 待清理附件", "### 版本未定",
+                        "### 建议改名", "trash_item.py --dry-run --key ", "Published-IEEE; Accepted-IEEE-in_press"):
             self.assertIn(heading, md)
 
     def test_cannot_read(self):

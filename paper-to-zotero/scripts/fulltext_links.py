@@ -79,7 +79,7 @@ NEEDS_BROWSER = {
     "openaccess.thecvf.com": False,
     "papers.miccai.org": False,
 }
-FIXED_VERSION = {"arxiv.org": "preprint", "biorxiv.org": "preprint", "medrxiv.org": "preprint"}
+FIXED_VERSION = {host: version.lower() for host, version in paper.SITE_VERSIONS.items()}
 PMC_HOSTS = ("ncbi.nlm.nih.gov", "europepmc.org")
 EPMC_OPEN = {"OA", "F"}  # open access, free to read; S (subscription), R (registration) are not full-text links
 EPMC_STYLE_RANK = {"pdf": 0, "html": 1, "doi": 2}
@@ -90,12 +90,6 @@ PMC_URL = re.compile(r"^https?://(?:www\.ncbi\.nlm\.nih\.gov/pmc|pmc\.ncbi\.nlm\
 
 
 # ---- links --------------------------------------------------------------------------------------------------
-
-def lookup(host, table):
-    """The table's value for the host or its closest listed parent domain; None when none is listed."""
-    parts = host.split(".")
-    return next((table[".".join(parts[i:])] for i in range(len(parts) - 1) if ".".join(parts[i:]) in table), None)
-
 
 def under(host, domains):
     return any(host == d or host.endswith("." + d) for d in domains)
@@ -123,7 +117,7 @@ def raw_link(url, source, claim=None, repository=False):
 
 
 def link_version(host, claim, repository, pmc_version):
-    fixed = lookup(host, FIXED_VERSION)
+    fixed = paper.by_host(host, FIXED_VERSION)
     if fixed:
         return fixed
     if under(host, PMC_HOSTS):
@@ -147,7 +141,7 @@ def finalize(raws, pmc_version, in_pmc, proxy):
             continue
         version = r["version"] if r.get("version") in VERSION_RANK else link_version(host, r.get("claim"), r.get("repository"),
                                                                                      pmc_version)
-        browser = True if proxy and under(host, [proxy]) else lookup(host, NEEDS_BROWSER)
+        browser = True if proxy and under(host, [proxy]) else paper.by_host(host, NEEDS_BROWSER)
         link = {"url": url, "source": r["source"], "version": version, "needs_browser": browser}
         key = dedupe_key(url)
         if key not in kept:

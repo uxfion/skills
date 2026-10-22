@@ -3,10 +3,13 @@
 # dependencies = []
 # ///
 """Tests for scripts/lint_items.py against the fake Zotero, and the fake web's Crossref for --crossref."""
+import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
-from helpers import call, closed_port, config_file, load, smoke
+from helpers import call, closed_port, config_file, fake_pdf, load, poppler_stubs, smoke
 from fake_web import FakeWeb
 from fake_zotero import FakeZotero, LIB
 
@@ -68,8 +71,10 @@ class LintItems(unittest.TestCase):
             date="2021", url="https://pub.example/k")
         add(z, "TTTTTTTT", itemType="journalArticle", title="Paper about segmentation networks", DOI="10.1000/a",
             deleted=True)
-        z.add_item("PDF00001", itemType="attachment", parentItem=A, contentType="application/pdf", md5="m1", title="PDF")
-        z.add_item("PDF00002", itemType="attachment", parentItem=A, contentType="application/pdf", md5="m2", title="PDF")
+        z.add_item("PDF00001", itemType="attachment", parentItem=A, contentType="application/pdf", md5="m1",
+                   title="Published-Example", url="https://x/a")
+        z.add_item("PDF00002", itemType="attachment", parentItem=A, contentType="application/pdf", md5="m2",
+                   title="Preprint-arXiv-v2", url="https://arxiv.org/pdf/2101.00001v2")
         z.add_item("NOTE0001", itemType="note", parentItem=A, note="<p>n</p>")
         z.add_collection("COLL0001", "Medical")
         z.add_collection("COLL0002", "Sub", "COLL0001")
@@ -81,13 +86,45 @@ class LintItems(unittest.TestCase):
     def run_(self, *argv, base_url=None, config=None, env=None):
         return call(lint, *argv, "--base-url", base_url or self.zot.base_url, config=config or self.config, env=env)
 
+    def test_attachment_titles(self):
+        z, T = self.zot, "TTTTTTT2"
+        tmp = Path(tempfile.mkdtemp(prefix="p2z-lint-"))
+        self.enterContext(mock.patch.dict(os.environ, {"PATH": f"{poppler_stubs(tmp / 'bin')}:{os.environ['PATH']}"}))
+        add(z, T, itemType="journalArticle", title="A paper with many files", DOI="10.1000/t", abstractNote="x",
+            date="2021", url="https://pub.example/t")
+        att = lambda key, title, ctype="application/pdf", **kw: z.add_item(  # noqa: E731
+            key, itemType="attachment", parentItem=T, title=title, contentType=ctype, **{"linkMode": "imported_url", **kw})
+        att("FINAL001", "Published-IEEE", md5="f1", dateAdded="2024-05-01")
+        att("ARXIV001", "Preprint-arXiv-v1", md5="a1", dateAdded="2024-01-01")
+        att("ARXIV003", "Preprint-arXiv-v3", md5="a3", dateAdded="2023-01-01")
+        att("OLDPDF01", "Full Text PDF", md5="o1", url="https://ieeexplore-ieee-org.proxy.example.edu/stamp/x")
+        z.files["OLDPDF01"] = fake_pdf(tmp / "old.pdf", ["IEEE TRANSACTIONS ON X\nA paper with many files\nWei Liu"])
+        att("SNAP0001", "Snapshot", "text/html", url="https://www.sciencedirect.com/science/article/pii/S1")
+        att("SNAP0002", "Snapshot-Elsevier", "text/html", dateAdded="2024-01-01")
+        att("SNAP0003", "Snapshot-Elsevier", "text/html", dateAdded="2024-02-01")
+        att("LINK0001", "PubMed entry", "text/html", linkMode="linked_url")
+        r = self.run_("--key", T, config=config_file(institution={"proxy": "proxy.example.edu"}))
+        got = [p for p in reported(r)[T]["problems"] if p["code"] in ("nonstandard_title", "label_clash", "superseded")]
+        self.assertEqual(got, [
+            {"code": "nonstandard_title", "why": "outside_scheme", "attachment": "OLDPDF01", "title": "Full Text PDF",
+             "contentType": "application/pdf", "url": "https://ieeexplore.ieee.org/stamp/x", "host": "ieeexplore.ieee.org",
+             "source": "IEEE", "filename": None, "md5": "o1", "doi": "10.1000/t",
+             "excerpt": "IEEE TRANSACTIONS ON X\nA paper with many files\nWei Liu"},
+            {"code": "nonstandard_title", "why": "no_source", "attachment": "SNAP0001", "title": "Snapshot",
+             "contentType": "text/html", "url": "https://www.sciencedirect.com/science/article/pii/S1",
+             "host": "www.sciencedirect.com", "source": "Elsevier", "filename": None, "md5": None, "doi": "10.1000/t",
+             "excerpt": None},
+            {"code": "label_clash", "title": "Snapshot-Elsevier", "attachments": ["SNAP0002", "SNAP0003"]},
+            {"code": "superseded", "attachment": "ARXIV001", "title": "Preprint-arXiv-v1", "by": "ARXIV003",
+             "by_title": "Preprint-arXiv-v3"}], "evidence and no proposed name; a link is no file")
+
     def test_the_whole_library(self):
         r = self.run_()
         self.assertEqual(r.code, 1, r)
         found, lines, summary = problems(r), reported(r), r.lines[-1]["summary"]
         self.assertEqual(found[A]["duplicate_of"], {"code": "duplicate_of", "by": "doi", "keys": [B]},
                          "a trashed copy is not a duplicate")
-        self.assertEqual(found[A]["multiple_pdfs"]["attachments"][1]["key"], "PDF00002")
+        self.assertNotIn("superseded", found[A], "two sources side by side: no problem")
         self.assertEqual(found[A]["name_not_tagged"]["name"], "FooNet")
         self.assertNotIn("name_not_tagged", found[B], "the tag is there")
         self.assertIn("unfiled_webpage", found["WWWWWWWW"])

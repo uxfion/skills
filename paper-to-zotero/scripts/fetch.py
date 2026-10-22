@@ -20,7 +20,15 @@ background window, --window foreground for the last pass). On a page the browser
 inside the page with its cookies (through the institution's proxy: the same path on the proxied host), else opened as
 a click would — a download, a pdf.js viewer, or an HTML page that is looked through once more (IEEE's stamp.jsp). The
 discovery route takes the result links whose text is the title (0.9 alike, arXiv records last) and works each page.
-Each candidate's version goes along to the check and the file's name (an unknown version is set there by the file).
+Each candidate's version goes along to the check and the file's name: the version it was wanted as. An arXiv link is
+fetched as its latest version (https://arxiv.org/pdf/<id>v<N>: the vN prepare recorded, else one request to arXiv's
+API for all of the pass's arXiv links).
+
+What the file is, the agent settles (SKILL.md, step 3): each claim event carries the title proposed from how the file
+came (paper.proposal: the route's version, the site's name, the arXiv vN) and the evidence seen on the way: the url,
+the page (title, its citation_* and dc.* tags) and the link clicked (its text and the text around it). When a pass
+goes through, a `to_label` line for each record with a file and no `label` lists them: {slug, code: to_label, file,
+proposal, route, url, link, page, meta, stamp, dates, head (page 1's first lines)}.
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, wrong_file (the
 check refused it: unverified/), stray, not_in_discovery, error — or the agent's verdict. A page the browser cannot get
@@ -38,7 +46,8 @@ not_public, skipped_by_user. Before each candidate the record's file is looked f
 while no watcher runs, this command scans Downloads itself). Requests to one host keep their gap (web.GAPS; full text
 through the institution 15 s).
 
-stdout: the try, stop and skip lines as they happen, then {"summary": {records, with_file, routes, stopped?}}.
+stdout: the try, stop and skip lines as they happen, the to_label lines, then {"summary": {records, with_file,
+to_label, routes, stopped?}}.
 Exit 0 = the pass went through (papers may still lack a file); 1 = stopped on a page; 2 = cannot run (no opencli,
 records of two work directories, no pdftotext).
 
@@ -95,6 +104,7 @@ class Pass:
             raise cli.Stop("mixed_work_dirs", exit=cli.CANNOT, hint="Pass the records of one work directory.",
                            work_dirs=sorted(map(str, works)))
         self.args, self.records, self.work, self.route, self.stopped = args, records, run.Work(works.pop()), None, None
+        self.arxiv = None  # arXiv id -> its latest vN, read once a command (arxiv_url)
         self.pacer = web.Pacer(self.work)
         inst, settings = config.institution(), self.work.settings()
         self.proxy, self.discovery = inst["proxy"], inst["discovery"]
@@ -112,13 +122,17 @@ class Pass:
             self.scanner.scan()
         return self.work.file_of(slug) is not None
 
-    def claim(self, rec, data, url, version, html=False):
-        """Bytes -> inbox -> checked and filed -> (the try's result, {check: the check's code})."""
+    def claim(self, rec, data, url, version, html=False, page=None, link=None):
+        """Bytes -> inbox -> checked and filed -> (the try's result, {check: the check's code}). `page` is the page
+        the file came from (find()'s answer), `link` the candidate taken on it: evidence for the file's label."""
         self.work.inbox.mkdir(exist_ok=True)
         path = self.work.inbox / f"{rec.slug}.{self.route}.{'html' if html else 'pdf'}"
         path.write_bytes(data)
+        came = {"route": self.route, "url": url, "given": self.args.version if self.route == "start" else None,
+                "page": {k: page[k] for k in ("href", "title", "meta") if page.get(k)} if page else None,
+                "link": {k: link[k] for k in ("url", "why", "text", "near") if link.get(k)} if link else None}
         event = run.claim(self.work, path, rec.slug, kind=version if version in paper.KINDS else None, source=url,
-                          via=self.route)
+                          via=self.route, came=came)
         return {"claimed": "ok", "unverified": "wrong_file"}.get(event["result"], event["result"]), {"check": event.get("code")}
 
     def pace(self, url):
@@ -176,7 +190,7 @@ class Pass:
         if info.get("viewer"):
             data = b.viewer()
             if data:
-                result, extra = self.claim(rec, data, info.get("href"), version)
+                result, extra = self.claim(rec, data, info.get("href"), version, page=info, link={"why": "viewer"})
                 return result, {**extra, "note": "the page's pdf.js viewer"}
         tried, page = 0, info.get("href") or ""
         for cand in (info.get("candidates") or [])[:PAGE_CANDIDATES]:
@@ -185,7 +199,7 @@ class Pass:
             if tried and page and (b.find().get("href") or "") != page:
                 b.open(page)  # back on the page that offered the candidates: its origin, its cookies
             tried += 1
-            got = self.click(rec, cand["url"], info.get("href") or "", version, depth)
+            got = self.click(rec, cand, info, version, depth)
             if got:
                 return got
         if self.has_file(rec.slug):
@@ -194,13 +208,14 @@ class Pass:
         raise Stopped("refused" if tried else "no_pdf_link", after.get("href") or info.get("href"), after.get("title"),
                       "; ".join(x for x in (note, f"{tried} PDF links tried" if tried else None) if x) or None)
 
-    def click(self, rec, link, page_href, version, depth):
-        """One PDF link: requested inside the page, else opened as a click would -> (result, extra), or None."""
-        b, req = self.browser, request_url(link, page_href, self.proxy)
+    def click(self, rec, cand, page, version, depth):
+        """One PDF link of a page: requested inside the page, else opened as a click would -> (result, extra), or None."""
+        b, link = self.browser, cand["url"]
+        req = request_url(link, page.get("href") or "", self.proxy)
         self.pace(req)
         data, why = b.fetch(req)
         if data:
-            return self.claim(rec, data, link, version)
+            return self.claim(rec, data, link, version, page=page, link=cand)
         before = b.document()
         b.open(req)
         if self.downloaded(rec, before):
@@ -213,7 +228,7 @@ class Pass:
             if now.get("viewer"):
                 data = b.viewer()
                 if data:
-                    result, extra = self.claim(rec, data, link, version)
+                    result, extra = self.claim(rec, data, link, version, page=page, link=cand)
                     return result, {**extra, "note": "read from the pdf.js viewer"}
             elif depth == 0 and now.get("candidates"):
                 try:
@@ -233,13 +248,57 @@ class Pass:
                 return []
             wanted = ("published", "unknown") if route == "open" else (route,)
             links = rec["links"].get("items") or []
-            return sorted((dict(l) for l in links if isinstance(l, dict) and l.get("url") and l.get("version") in wanted),
-                          key=lambda l: wanted.index(l["version"]))
+            chosen = sorted((dict(l) for l in links if isinstance(l, dict) and l.get("url") and l.get("version") in wanted),
+                            key=lambda l: wanted.index(l["version"]))
+            return [{**l, "url": self.arxiv_url(l["url"])} for l in chosen]
         if route in ("publisher", "snapshot"):
             url = landing(rec)
             return [{"url": url, "version": None, "needs_browser": True}] if url else []
         title = rec.item.get("title")
         return [{"url": with_query(self.discovery, title), "version": None, "needs_browser": True}] if title else []
+
+    def arxiv_url(self, url):
+        """An arXiv link as its latest version's PDF (https://arxiv.org/pdf/<id>v<N>), so the file's title can name
+        its vN: the version prepare recorded for the record's own arXiv id, else arXiv's answer to one request for every
+        arXiv link of this command's records. Any other url, one naming a version, or an id arXiv does not answer for:
+        as it is."""
+        aid, vn = paper.arxiv_link(url)
+        if not aid or vn:
+            return url
+        if self.arxiv is None:
+            self.arxiv = {}
+            for rec in self.records:
+                block = rec.get("published_candidates") if isinstance(rec.get("published_candidates"), dict) else {}
+                own = paper.identifiers(rec.item)[1]
+                if own and block.get("arxiv_version") and run.due(rec, "published_candidates") is None:
+                    self.arxiv[own] = block["arxiv_version"]
+            links = [l.get("url") for r in self.records if not self.work.file_of(r.slug)
+                     for l in ((r.get("links") or {}).get("items") or []) if isinstance(l, dict)]
+            ids = list(dict.fromkeys(i for i in (paper.arxiv_link(u)[0] for u in links + [url]) if i and i not in self.arxiv))
+            for i, (entry, _) in web.arxiv_entries(ids, self.pacer).items() if ids else ():
+                if entry.get("version"):
+                    self.arxiv[i] = entry["version"]
+        return f"https://arxiv.org/pdf/{aid}{self.arxiv[aid]}" if aid in self.arxiv else url
+
+    def to_label(self):
+        """A to_label line for each record with a file and no label: what its label is settled from -> how many."""
+        n = 0
+        for rec in self.records:
+            f = self.work.file_of(rec.slug)
+            if f is None or rec.get("label"):
+                continue
+            n += 1
+            e = run.arrived(self.work, rec.slug, run.md5_of(f)) or {}
+            ev = e.get("evidence") or {}
+            page, link, file = ev.get("page") or {}, ev.get("link") or {}, ev.get("file") or {}
+            head = " / ".join(line for line in (file.get("excerpt") or "").splitlines()[:6] if line.strip())[:300]
+            cli.emit({"slug": rec.slug, "code": "to_label", "file": f.name, "proposal": (e.get("proposal") or {}).get("title"),
+                      "route": e.get("route"), "url": ev.get("url"),
+                      "link": " | ".join(filter(None, (link.get("text"), link.get("near")))) or link.get("why"),
+                      "page": page.get("title"), "meta": page.get("meta"), "stamp": file.get("arxiv_stamp"),
+                      "dates": file.get("pdf_dates"), "head": head or None,
+                      "hint": "Settle what the file is: write the record's label {title, by, why} (SKILL.md, step 3)."})
+        return n
 
     def discover(self, rec, cand):
         """The paper's records among the discovery system's results, each page worked in turn."""
@@ -280,7 +339,7 @@ class Pass:
         data, href = self.browser.html()
         if not data:
             return "error", {"note": "the page gave no HTML"}
-        return self.claim(rec, data, href, "snapshot", html=True)
+        return self.claim(rec, data, href, "snapshot", html=True, page={"href": href})
 
     def stop(self, rec, url, s):
         """Stop the pass here. A page that looks like a gate is opened again in a foreground window, in front of the
@@ -408,15 +467,18 @@ def main(argv=None):
         verify.require_pdftotext()
         if args.start:
             walk.route, rec = "start", records[0]
+            url = walk.arxiv_url(args.start)
             try:
-                result, extra = walk.get(rec, {"url": args.start, "version": args.version, "needs_browser": None})
+                result, extra = walk.get(rec, {"url": url, "version": args.version, "needs_browser": None})
             except Stopped as s:
-                return walk.stop(rec, args.start, s)
-            walk.log("try", slug=rec.slug, route="start", url=args.start, version=args.version, result=result, **extra)
+                return walk.stop(rec, url, s)
+            walk.log("try", slug=rec.slug, route="start", url=url, version=args.version, result=result, **extra)
             return cli.OK
         routes = [args.route] if args.route else list(ROUTES)
         code = walk.walk(routes)
+        unlabelled = walk.to_label() if code == cli.OK else None
         cli.emit({"summary": {"records": len(records), "with_file": sum(1 for r in records if walk.work.file_of(r.slug)),
+                              **({"to_label": unlabelled} if unlabelled is not None else {}),
                               "routes": routes, **({"stopped": walk.stopped} if walk.stopped else {}),
                               **({"invalid": invalid} if invalid else {})}})
         return code if code or not invalid else cli.ACT

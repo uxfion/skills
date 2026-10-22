@@ -182,7 +182,7 @@ class Base(unittest.TestCase):
                    title="Swin-Unet: Unet-Like Pure Transformer for Medical Image Segmentation",
                    container_title=["Lecture Notes in Computer Science", "Computer Vision – ECCV 2022 Workshops"],
                    issued={"date-parts": [[2023]]})
-        w.arxiv(REFLEXION, "Reflexion: Language Agents with Verbal Reinforcement Learning",
+        w.arxiv(REFLEXION, "Reflexion: Language Agents with Verbal Reinforcement Learning", version=4,
                 comment="v4 contains a few additional experiments")
         w.arxiv("2105.05537", "Swin-Unet: Unet-like Pure Transformer for Medical Image Segmentation",
                 journal_ref="ECCV 2022 Workshops", doi="10.1007/978-3-031-25066-8_9")
@@ -343,6 +343,7 @@ class Candidates(Base):
             "sources": ["crossref"], "title_differs": False, "type": "proceedings-article"}],
             "posted-content, arXiv's own DOI and a dissimilar title are left out")
         self.assertEqual(rec["item"]["itemType"], "preprint", "the item is never changed")
+        self.assertEqual(rec["published_candidates"]["arxiv_version"], "v4", "the latest version, for the file's title")
         self.assertEqual(run.read(swin)["published_candidates"]["items"], [{
             "doi": "10.1007/978-3-031-25066-8_9", "venue": "Computer Vision – ECCV 2022 Workshops", "year": 2023,
             "title": "Swin-Unet: Unet-Like Pure Transformer for Medical Image Segmentation",

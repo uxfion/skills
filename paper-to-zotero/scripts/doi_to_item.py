@@ -43,7 +43,8 @@ written).
 
 Published versions. A record whose item is still the preprint (itemType preprint, or the arXiv DOI) gets
 `published_candidates`: {items: [{doi, venue, year, title, url?, sources: [arxiv | crossref], title_differs, type?,
-journal_ref?}], comment?: arXiv's comment ("Accepted at ICLR 2024"), incomplete?}, one item per published version:
+journal_ref?}], comment?: arXiv's comment ("Accepted at ICLR 2024"), arxiv_version?: the latest vN (the title of an
+arXiv file fetched later names it), incomplete?}, one item per published version:
   arxiv     the journal_ref and DOI the authors gave arXiv (one API call per 100 records); a DOI is completed from
             Crossref, a journal_ref alone is an item without a DOI
   crossref  a title (+ first author) search: works whose title is at least 0.9 alike, arXiv DOIs and posted content
@@ -82,14 +83,13 @@ import json
 import re
 import unicodedata
 import urllib.parse
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from p2zlib import cli, paper, run, web, zotero
 
 CSL_ACCEPT = "application/vnd.citationstyles.csl+json"
 # The hosts requests are paced and stopped under: the real services', also when a test points the urls elsewhere.
-HOST_DOI, HOST_CROSSREF, HOST_ARXIV = "doi.org", "api.crossref.org", "export.arxiv.org"
+HOST_DOI, HOST_CROSSREF = "doi.org", "api.crossref.org"
 ANSWERED = ("ok", "no_title")
 CANDIDATE_SIMILARITY = 0.9
 # NeurIPS 2022-2025 DOIs, registered for the printed proceedings: they lead to its sales page, not to the paper.
@@ -118,7 +118,6 @@ ARXIV_ARCHIVES = {
     "q-fin": "Quantitative Finance", "stat": "Statistics", "astro-ph": "Astrophysics", "cond-mat": "Condensed Matter",
 }
 ARXIV_CATEGORY = re.compile(r"(.+?)\s*\(([a-z][a-z-]*)(?:\.([A-Za-z][A-Za-z-]*))?\)")
-ATOM = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
 
 # Item types where a one-page notice can pass for the paper; titles are checked for every type.
 ERRATUM_TYPES = {"journalArticle", "conferencePaper", "bookSection"}
@@ -151,7 +150,7 @@ class Session:
 
     def arxiv_entry(self, aid):
         if aid not in self.arxiv:
-            self.arxiv.update(arxiv_entries(self, [aid]))
+            self.arxiv.update(web.arxiv_entries([aid], self.pacer))
         return self.arxiv[aid]
 
 
@@ -724,30 +723,6 @@ def draft_records(args):
 
 # ---- published versions -------------------------------------------------------------------------------------
 
-def arxiv_entries(s, ids):
-    """{arXiv id: ({journal_ref, doi, comment}, the source's code)}, one API call per 100 ids."""
-    out = {}
-    for start in range(0, len(ids), 100):
-        chunk = ids[start:start + 100]
-        try:
-            body = web.read(web.endpoint("ARXIV_API_URL", "https://export.arxiv.org/api/query"), host=HOST_ARXIV,
-                            pacer=s.pacer, params={"id_list": ",".join(chunk), "max_results": len(chunk)},
-                            headers={"Accept": "application/atom+xml"}, timeout=60)
-            got = {}
-            for entry in ET.fromstring(body).findall("a:entry", ATOM):
-                m = re.search(rf"arxiv\.org/abs/({paper.ARXIV_ID})(?:v\d+)?$", (entry.findtext("a:id", "", ATOM) or "").strip(), re.I)
-                if m:
-                    got[m.group(1)] = {tag: web.clean(entry.findtext(f"arxiv:{tag}", None, ATOM)) for tag in ("journal_ref", "doi", "comment")}
-        except web.NoData as e:
-            out.update({aid: ({}, e.code) for aid in chunk})
-            continue
-        except ET.ParseError:
-            out.update({aid: ({}, "bad_response") for aid in chunk})
-            continue
-        out.update({aid: (got.get(aid, {}), "ok") for aid in chunk})
-    return out
-
-
 def year_in(text):
     m = re.search(r"\b(19|20)\d{2}\b", text or "")
     return int(m.group(0)) if m else None
@@ -848,7 +823,7 @@ def setup(args, records):
     s.redraft = args.redraft
     if not args.redraft:  # every arXiv id that is due, in one call
         due = [aid for r in records for aid in [preprint_id(r.item)] if aid and run.due(r, "published_candidates")]
-        s.arxiv.update(arxiv_entries(s, list(dict.fromkeys(due))))
+        s.arxiv.update(web.arxiv_entries(list(dict.fromkeys(due)), s.pacer))
     return s
 
 
@@ -880,8 +855,10 @@ def candidates(rec, s):
                                if isinstance(c, dict) and source in (c.get("sources") or [])]
     complete(s, answers["arxiv"], answers["crossref"])
     items = merge_candidates(answers["arxiv"] + answers["crossref"], titles)
-    comment = old.get("comment") if "arxiv" in unanswered else entry.get("comment")
-    run.stamp(rec, "published_candidates", {"items": items, **({"comment": comment} if comment else {})}, incomplete=unanswered)
+    comment, latest = ((old.get("comment"), old.get("arxiv_version")) if "arxiv" in unanswered
+                       else (entry.get("comment"), entry.get("version")))
+    run.stamp(rec, "published_candidates", {"items": items, **({"comment": comment} if comment else {}),
+                                            **({"arxiv_version": latest} if latest else {})}, incomplete=unanswered)
     line = {"reason": due, "candidates": len(items), **({"comment": comment} if comment else {}), "sources": codes}
     if len(unanswered) == sum(1 for code in codes.values() if code != "no_title"):
         return {"code": "no_answer", **line, "hint": "No source answered; run this (or p2z.py prepare) again later."}

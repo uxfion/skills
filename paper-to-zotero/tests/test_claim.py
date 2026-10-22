@@ -60,9 +60,17 @@ class Claim(unittest.TestCase):
         again = fake_pdf(self.work.inbox / "c.pdf", [f"{TITLE}\nWei Liu"])
         self.assertEqual(self.run_("--file", again, "--slug", "paper").lines[0]["result"], "stray", "first come, first served")
         self.assertEqual([e["result"] for e in self.work.events()], ["claimed", "unverified", "claimed", "stray"])
+        self.assertEqual([e["proposal"]["title"] for e in self.work.events()], ["Unknown", "Accepted", "Accepted", "Unknown"],
+                         "a file the agent hands over is what it names, else not settled")
         self.assertEqual(self.run_("--accept", again, "--slug", "paper").code, 2, "--accept needs --reason")
 
     def test_downloads_scan_and_sweep(self):
+        # Another record of the same paper whose library item has a PDF already, its version unknown (a title outside
+        # the scheme): it is the paper's file all the same, so no download is checked against that record.
+        held = run.Record(self.work.records / "held.json", {"item": {"title": TITLE, "creators": [{"lastName": "Liu"}]}})
+        run.stamp(held, "found", {"code": "found", "key": "HELD0001", "attachments": [
+            {"key": "OLDPDF01", "title": "Full Text PDF", "version": "unknown", "standard": False, "contentType": "application/pdf"}]})
+        held.save()
         mine = fake_pdf(self.dl / "download.pdf", [f"{TITLE}\nWei Liu"])
         users = fake_pdf(self.dl / "users-own.pdf", ["Something the user reads"])
         old = fake_pdf(self.dl / "old.pdf", [f"{OTHER}\nWei Liu"])

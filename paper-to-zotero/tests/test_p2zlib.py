@@ -100,12 +100,15 @@ class Client(unittest.TestCase):
 
     def test_attachments_rank_the_paper_first_and_carry_md5(self):
         self.fake.add_item("PARENT01", itemType="journalArticle", title="p")
-        for key, title, ctype in (("A1", "Snapshot", "text/html"), ("A2", "Preprint (arXiv)", "application/pdf"),
-                                  ("A3", "Full Text PDF", "application/pdf"), ("A4", "Accepted Version", "application/pdf")):
+        for key, title, ctype, added in (("A1", "Snapshot-IEEE", "text/html", "2024-01-01T00:00:00Z"),
+                                         ("A2", "Preprint-arXiv-v2", "application/pdf", "2024-01-02T00:00:00Z"),
+                                         ("A3", "Full Text PDF", "application/pdf", "2024-01-03T00:00:00Z"),
+                                         ("A4", "Published-IEEE", "application/pdf", "2024-01-04T00:00:00Z")):
             self.fake.add_item(key, itemType="attachment", parentItem="PARENT01", title=title, contentType=ctype,
-                               linkMode="imported_url", md5=key.lower())
-        self.assertEqual([(a["key"], a["kind"], a["md5"]) for a in self.zot.attachments("PARENT01")],
-                         [("A3", "published", "a3"), ("A4", "accepted", "a4"), ("A2", "preprint", "a2"), ("A1", "snapshot", "a1")])
+                               linkMode="imported_url", md5=key.lower(), dateAdded=added)
+        self.assertEqual([(a["key"], a["version"], a["source"], a["standard"], a["md5"]) for a in self.zot.attachments("PARENT01")],
+                         [("A4", "published", "IEEE", True, "a4"), ("A2", "preprint", "arXiv", True, "a2"),
+                          ("A3", "unknown", None, False, "a3"), ("A1", "snapshot", "IEEE", True, "a1")])
 
     # ---- how replies become codes ----
 
@@ -243,8 +246,8 @@ class Lookup(unittest.TestCase):
         found, near = self.look(DOI="https://doi.org/10.1109/JBHI.2022.3142076", title="x")
         self.assertEqual((found["code"], found["key"], found["matched_by"], near), ("found", self.A, "doi", []))
         self.assertEqual((found["citationKey"], found["collections"], found["date"]), ("liu2022progressive", ["C1AAAAAA"], "2022-09"))
-        self.assertEqual([(a["key"], a["kind"], a["md5"], a["title"]) for a in found["attachments"]],
-                         [(self.ATT, "published", "abc123", "PDF")])
+        self.assertEqual([(a["key"], a["version"], a["standard"], a["md5"], a["title"]) for a in found["attachments"]],
+                         [(self.ATT, "unknown", False, "abc123", "PDF")])
 
     def test_an_arxiv_id_confirms_unless_the_item_has_its_own_doi(self):
         for item in ({"archiveID": "arXiv:2401.00001"}, {"DOI": "10.48550/arXiv.2401.00001v2"}):
@@ -349,10 +352,68 @@ class Rules(unittest.TestCase):
         self.assertEqual([paper.kind_of_file(n) for n in ("a.pdf", "a.accepted.pdf", "a.preprint.pdf", "a.supplement.pdf",
                                                           "a.html", "a.txt")],
                          ["published", "accepted", "preprint", "supplement", "snapshot", None])
-        self.assertEqual(paper.attachment_title("preprint", "bioRxiv"), "Preprint (bioRxiv)")
-        self.assertEqual(paper.attachment_title("preprint", parent_type="preprint"), "PDF")
-        self.assertEqual(paper.kind_of_attachment({"title": "arXiv Fulltext PDF", "contentType": "application/pdf"}), "preprint")
-        self.assertIsNone(paper.kind_of_attachment({"title": "Link", "linkMode": "linked_url"}))
+
+    def test_attachment_titles_round_trip(self):
+        for version, source, detail, title in (("Preprint", "arXiv", ["v7"], "Preprint-arXiv-v7"),
+                                               ("accepted", "Europe PMC", [], "Accepted-Europe_PMC"),
+                                               ("Published", "T-CAIREM", ["abstract booklet p66"],
+                                                "Published-T_CAIREM-abstract_booklet_p66"),
+                                               ("Preprint", "OpenReview", ["ICLR 2027 submission"],
+                                                "Preprint-OpenReview-ICLR_2027_submission"),
+                                               ("Unknown", None, ["v2"], "Unknown")):  # detail only after a source
+            self.assertEqual(paper.label_title(version, source, detail), title)
+            parsed = paper.parse_title(title)
+            self.assertEqual(paper.label_title(parsed["version"], parsed["source"], parsed["detail"]), title)
+        self.assertEqual(paper.parse_title("Published-Elsevier-in_press"),
+                         {"version": "published", "source": "Elsevier", "detail": ["in_press"]})
+        for other in ("PDF", "Full Text PDF", "Preprint (arXiv)", "Accepted manuscript", "published-IEEE", "Published-",
+                      "Published--IEEE", "Snapshot (Nature)"):
+            self.assertIsNone(paper.parse_title(other), other)
+        with self.assertRaises(ValueError):
+            paper.label_title("Proof", "IEEE")
+
+    def test_attachment_label_reads_only_the_scheme(self):
+        pdf, html = "application/pdf", "text/html"
+        cases = (({"title": "Accepted-CVF", "contentType": pdf}, ("accepted", "CVF", True)),
+                 ({"title": "Snapshot", "contentType": html, "linkMode": "imported_url"}, ("snapshot", None, True)),
+                 ({"title": "Supplement-Nature-source_data", "contentType": "application/zip"}, ("supplement", "Nature", True)),
+                 ({"title": "Accepted Version", "contentType": pdf}, ("unknown", None, False)),   # Zotero's words: no evidence
+                 ({"title": "arXiv Fulltext PDF", "contentType": pdf}, ("unknown", None, False)),
+                 ({"title": "ScienceDirect Snapshot", "contentType": html}, ("snapshot", None, False)),
+                 ({"title": "Published-IEEE", "linkMode": "linked_url"}, (None, None, None)),
+                 ({"title": "data.xlsx", "contentType": "application/vnd.ms-excel"}, (None, None, None)))
+        for data, want in cases:
+            got = paper.attachment_label(data)
+            self.assertEqual((got["version"], got["source"], got["standard"]), want, data)
+
+    def test_proposals_go_by_the_route_and_the_site(self):
+        cases = (("publisher", "https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=1", None, "Published-IEEE"),
+                 ("open", "https://arxiv.org/pdf/2303.11366v4", None, "Preprint-arXiv-v4"),
+                 ("open", "https://www.biorxiv.org/content/10.1101/1v2.full.pdf", None, "Preprint-bioRxiv"),
+                 ("open", "https://openaccess.thecvf.com/content/x.pdf", None, "Unknown-CVF"),  # not by the link's label
+                 ("accepted", "https://pmc.ncbi.nlm.nih.gov/articles/PMC1/pdf/a.pdf", None, "Accepted-PMC"),
+                 ("preprint", "https://arxiv.org/pdf/hep-th/9901001v1", None, "Preprint-arXiv-v1"),
+                 ("discovery", "https://www.sciencedirect.com/science/article/pii/S1/pdfft", None, "Unknown-Elsevier"),
+                 ("start", "https://repository.example.edu/a.pdf", "accepted", "Accepted"),
+                 ("snapshot", "https://www.nature.com/articles/x", None, "Snapshot-Nature"),
+                 (None, None, None, "Unknown"))
+        for route, url, given, title in cases:
+            self.assertEqual(paper.proposal(route, url, given)["title"], title, (route, url))
+        self.assertEqual(paper.proposal("open", "https://arxiv.org/pdf/2303.11366v12")["detail"], ["v12"])
+
+    def test_order_and_replacement(self):
+        def att(key, title, added, ctype="application/pdf"):
+            return {"key": key, "dateAdded": added, **paper.attachment_label({"title": title, "contentType": ctype})}
+        atts = [att("V1", "Preprint-arXiv-v1", "2024-01-01"), att("V10", "Preprint-arXiv-v10", "2023-01-01"),
+                att("CVF", "Accepted-CVF", "2024-02-01"), att("PRESS", "Accepted-Nature-in_press", "2024-03-01"),
+                att("FINAL", "Published-Nature", "2024-01-15"), att("OLD", "PDF", "2020-01-01"),
+                att("OLD2", "Full Text PDF", "2021-01-01"), att("S1", "Snapshot-Elsevier", "2024-01-01", "text/html"),
+                att("S2", "Snapshot-Elsevier", "2024-05-01", "text/html"), att("SUP", "Supplement-Nature", "2024-01-01"),
+                att("SUPD", "Supplement-Nature-source_data", "2024-01-02"), att("U", "Unknown", "2024-06-01")]
+        self.assertEqual([a["key"] for a in paper.ordered(atts)],
+                         ["FINAL", "CVF", "PRESS", "V10", "V1", "U", "OLD2", "OLD", "SUPD", "SUP", "S2", "S1"])
+        self.assertEqual(sorted((a["key"], b["key"]) for a, b in paper.superseded(atts)),
+                         [("PRESS", "FINAL"), ("S1", "S2"), ("V1", "V10")])  # v10 beats v1 as a number
 
     def test_tags_dedupe_keeping_the_last(self):
         tags, problems, warnings = paper.normalize_tags(["a", {"tag": "a", "type": 1}, {"tag": "b", "type": True}, ""])

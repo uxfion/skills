@@ -113,9 +113,11 @@ PDFTOTEXT_STUB = """#!/bin/sh
 exec /bin/cat "$7.txt"
 """
 PDFINFO_STUB = """#!/bin/sh
-[ -f "$1.pages" ] || exit 1
+for f; do :; done
+[ -f "$f.pages" ] || exit 1
+[ -f "$f.dates" ] && /bin/cat "$f.dates"
 printf 'Producer:       stub\\nPages:          '
-exec /bin/cat "$1.pages"
+exec /bin/cat "$f.pages"
 """
 
 

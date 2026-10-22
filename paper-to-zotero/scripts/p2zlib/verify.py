@@ -23,14 +23,15 @@ and followed by a colon or the end of the line, or by a space and a dash or to /
                         Methods / Online Content. Not checked when the file's kind is supplement or the record's
                         title says supplement
   doi_mismatch          page 1 prints at least one DOI, none is the item's, and the item's DOI occurs nowhere in
-                        pages 1-3. Checked only when the file's kind is published (accepted manuscripts and preprints
-                        print their own DOI). HTML: the page's citation_doi / dc.identifier / prism.doi meta tags
-                        stand for page 1.
+                        pages 1-3. Checked only when the file's kind is published and page 1 has no arXiv margin
+                        stamp (accepted manuscripts and preprints print their own DOI). HTML: the page's citation_doi
+                        / dc.identifier / prism.doi meta tags stand for page 1.
 
-The file's kind (paper.KINDS) is the one the caller gives, else the one its name carries (<slug>.pdf published,
-<slug>.accepted.pdf, <slug>.preprint.pdf, <slug>.supplement.pdf, <slug>.html snapshot), else published. A file
-published by name or by default whose page 1 carries arXiv's margin stamp ("arXiv:2303.11366v4 [cs.AI] ...") is a
-preprint; `evidence.arxiv_stamp` holds the stamp. A given kind wins over the stamp.
+The file's kind (paper.KINDS: the version it was wanted as) is the one the caller gives, else the one its name
+carries (<slug>.pdf published, <slug>.accepted.pdf, <slug>.preprint.pdf, <slug>.supplement.pdf, <slug>.html
+snapshot), else published. What the file actually is, the agent settles from the evidence (the record's `label`):
+arXiv's margin stamp on page 1 ("arXiv:2303.11366v4 [cs.AI] ...") is `evidence.arxiv_stamp`, the PDF's own dates
+`evidence.pdf_dates`.
 
 HTML snapshots: a file whose name does not end in .pdf and whose first 4 KB look like HTML (a .pdf holding HTML is a
 failed download: not_a_pdf). Script, style, noscript, template and svg are dropped, tags removed, entities unescaped;
@@ -50,7 +51,8 @@ matched_title, title_words ({share, found, total, missing} of the best title), d
 DOI), first_author_found (bool | null), first_author_in_byline (in the first 1500 characters of page 1),
 dois_on_page_1, erratum_marker, supplement_marker (str | null), doi_mismatch (bool | null: not checked), kind,
 arxiv_stamp, cover_page_suspected, collection_suspected, supplementary, encrypted, text_chars, size_bytes,
-pdf_version, excerpt (page 1), excerpt_title_page (when the title is on a later page); HTML also html_title,
+pdf_version, pdf_dates ({created, modified} as pdfinfo -isodates prints them, each when the PDF has it), excerpt
+(page 1), excerpt_page_2, excerpt_title_page (when the title is on a later page); HTML also html_title,
 denial_marker.
 
 Use: check(path, record) -> {code, evidence, md5, kind}; with a cache, one file met by several records is read once.
@@ -212,12 +214,31 @@ def pdftotext_pages(pdf):
     return pages if any(pages) else []
 
 
-def pdfinfo_count(pdf):
-    p = tool("pdfinfo", [str(pdf.absolute())])
-    if isinstance(p, str):
+def first_page(pdf, chars):
+    """The first `chars` characters of a PDF's page 1 as pdftotext gives them; None when it cannot be read (no such
+    file, no pdftotext, no text layer)."""
+    pdf = Path(pdf)
+    if not pdf.is_file():
         return None
+    p = tool("pdftotext", ["-f", "1", "-l", "1", "-enc", "UTF-8", str(pdf.absolute()), "-"])
+    if isinstance(p, str) or p.returncode != 0:
+        return None
+    text = clean(p.stdout.decode("utf-8", errors="replace").split("\f")[0])
+    return text[:chars] or None
+
+
+def pdfinfo(pdf):
+    """The page count (None when pdfinfo cannot tell) and the PDF's own dates {created, modified} ({} without them)."""
+    p = tool("pdfinfo", ["-isodates", str(pdf.absolute())])
+    if isinstance(p, str):
+        return None, {}
     m = re.search(rb"^Pages:\s+(\d+)", p.stdout, re.M)
-    return int(m.group(1)) if m else None
+    dates = {}
+    for name, key in ((b"CreationDate", "created"), (b"ModDate", "modified")):
+        d = re.search(rb"^" + name + rb":\s+(\S.*?)\s*$", p.stdout, re.M)
+        if d:
+            dates[key] = d.group(1).decode("latin-1")
+    return (int(m.group(1)) if m else None), dates
 
 
 # ---- HTML snapshots -----------------------------------------------------------------------------------------
@@ -306,6 +327,7 @@ class Extraction:
         self.path, self.size, self.md5 = path, len(data), hashlib.md5(data).hexdigest()
         self.format, self.pdf_version, self.encrypted, self.head_bytes = "other", None, False, data[:40].decode("latin-1")
         self.pages, self.count, self.extractor, self.text, self.head_len = [], None, None, "", HEAD_CHARS
+        self.dates = {}
         self.html_title = self.meta_dois = self.denial = None
 
     def prepare(self):
@@ -342,19 +364,17 @@ def extract(path):
     ex.encrypted = ENCRYPT_RE.search(data) is not None
     ex.pages = pdftotext_pages(path)
     ex.text = "\n".join(ex.pages)
-    ex.count = pdfinfo_count(path)
+    ex.count, ex.dates = pdfinfo(path)
     return ex.prepare()
 
 
-def kind_of(path, ex, given=None):
-    """The file's kind: `given` (a link's "unknown" counts as none), else its name's, else published; published
-    with arXiv's margin stamp on page 1 is a preprint."""
+def kind_of(path, given=None):
+    """The file's kind: `given` (a link's "unknown" counts as none), else its name's, else published."""
     if given in paper.KINDS:
         return given
     if given not in (None, "unknown"):
         raise ValueError(f"not a file kind: {given!r}")
-    kind = paper.kind_of_file(Path(path).name) or "published"
-    return "preprint" if kind == "published" and ex is not None and ex.arxiv_stamp else kind
+    return paper.kind_of_file(Path(path).name) or "published"
 
 
 # ---- the verdict --------------------------------------------------------------------------------------------
@@ -397,7 +417,8 @@ def evidence_base(ex, kind):
           "cover_page_suspected": False, "collection_suspected": False,
           "supplementary": paper.SUPPLEMENT_WORDS.search(page1[:EXCERPT_CHARS]) is not None,
           "encrypted": ex.encrypted, "text_chars": len(ex.text), "size_bytes": ex.size, "pdf_version": ex.pdf_version,
-          "excerpt": page1[:EXCERPT_CHARS] if ex.format != "other" else ex.head_bytes, "excerpt_title_page": None}
+          "pdf_dates": ex.dates, "excerpt": page1[:EXCERPT_CHARS] if ex.format != "other" else ex.head_bytes,
+          "excerpt_page_2": ex.pages[1][:EXCERPT_CHARS // 2] if len(ex.pages) > 1 else None, "excerpt_title_page": None}
     if ex.format == "html":
         ev.update(html_title=ex.html_title, denial_marker=ex.denial)
     return ev
@@ -448,7 +469,7 @@ def judge(ex, title, alt_titles=(), doi=None, surname=None, kind="published"):
     m = None if kind == "supplement" or "supplement" in title_fold else paper.SUPPLEMENT_HEAD.search(head)
     supplement = m.group(1) if m else None
     mismatch = None
-    if kind == "published" and rdoi:
+    if kind == "published" and rdoi and not ex.arxiv_stamp:
         printed = ex.page1_dois
         mismatch = bool(printed) and not any(rdoi in d or d in rdoi for d in printed) and doi_found is False
 
@@ -494,7 +515,7 @@ def check(path, rec, kind=None, cache=None):
         ex = cache[key]
     if ex is None:
         raise Stop("file_not_found", hint=HINTS["file_not_found"], file=str(path))
-    kind = kind_of(path, ex, kind)
+    kind = kind_of(path, kind)
     code, evidence = judge(ex, **subject(rec), kind=kind)
     return {"code": code, "evidence": evidence, "md5": ex.md5, "kind": kind}
 

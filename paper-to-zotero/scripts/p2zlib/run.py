@@ -1,8 +1,9 @@
 """One import run's work directory: its layout and settings, the records and when a block of theirs is done, the log.
 
 Layout (ready.py makes it):
-  records/<slug>.json     one record per paper; its file beside it, named by kind: <slug>.pdf, <slug>.accepted.pdf,
-                          <slug>.preprint.pdf, <slug>.supplement.pdf, <slug>.html (paper.KINDS)
+  records/<slug>.json     one record per paper; its file beside it, named by the version it was wanted as (its kind):
+                          <slug>.pdf, <slug>.accepted.pdf, <slug>.preprint.pdf, <slug>.supplement.pdf, <slug>.html
+                          (paper.KINDS); what the file actually is goes into the record's `label`
   inbox/ stray/ unverified/ scratch/    bytes a script fetched / second copies / files the check refused / one-off files
   .started                the run's start: Downloads files newer than it are this run's
   run.json                the run's settings: downloads, session, the watcher's pid
@@ -19,27 +20,35 @@ them and never change them; doi_to_item writes their first values when it drafts
   same_as         KEY: the library item the agent judged to be this paper (a near match settled)
   keep_preprint   str: why the preprint stays the item although published_candidates has entries
   blocker         str: what the record waits for (the last pass with the user, ...)
+  label           {title, by: agent | subagent | browser_agent, why}: what the record's file is, as its attachment
+                  title (paper.label_title: Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE ...), settled from the
+                  proposal and evidence its claim event carries; without one the file is attached as Unknown-<Source>
 Blocks, each written by one script and nothing else:
   published_candidates  doi_to_item, for a preprint item only:
                   {from, items: [{doi, venue, year, title, url?, sources: [arxiv | crossref], title_differs, type?,
-                  journal_ref?}], comment?: arXiv's comment, incomplete?}
+                  journal_ref?}], comment?: arXiv's comment, arxiv_version?: arXiv's latest vN, incomplete?}
   checks          check_item: {from, code: ok | needs_attention | unknown_item_type, itemType, ok_fields, mapped,
                   to_extra, dropped_or_rewritten, empty_fields, missing_minimum, suggestions?}
   found           zotero.Zotero.lookup (find_in_library; create_item's look before it posts): {from, code: found,
-                  key, version, citationKey, title, date, collections, tags, attachments: [{key, title, kind,
-                  contentType, linkMode, filename, md5}], matched_by: doi | arxiv | same_as, duplicates?: [KEYS]} or
+                  key, version, citationKey, title, date, collections, tags, attachments: [{key, title, version,
+                  source, detail, standard, contentType, linkMode, filename, md5, url}], matched_by: doi | arxiv |
+                  same_as, duplicates?: [KEYS]} or
                   {from, code: not_found, searched: [{q, qmode, hits}]}; a near match is never here
   near_matches    written with found, under its `from`: [{key, title, itemType, reason, matched_by?}]
   links           fulltext_links: {from, items: [{url, source, version: published | accepted | preprint | unknown,
                   needs_browser: true | false | null}], incomplete?: [sources]}
   saved           create_item: {pending: true, at} right before the POST, then {key, version, citationKey, created_at}
-  attach          attach_file: {attachment, md5, kind, title, filename, url, at} for the file it attached; another
-                  file (another md5) is attached afresh
+  attach          attach_file: {attachment, md5, title, filename, url, at, existing?} for the file it attached
+                  (existing: the item had this file already, under its own title); another file (another md5) is
+                  attached afresh
 The four blocks prepare fills carry `from`, a short hash of the inputs they were computed from (inputs() names
 them), and `incomplete: [sources]` when a source did not answer. Such a block is due again when it is absent (or has
 no `from`: an older run's, not trusted), incomplete, or stale; due() says which. `saved` and `attach` record writes
 to the library and are trusted as they are. The facts about files are not in the record: the file's name is its
-kind, and fetch.jsonl has how it came (events claim, accept, try, stop).
+kind, and fetch.jsonl has how it came (events claim, accept, try, stop). A claim or accept event carries what its
+file's label is settled from: {route?, proposal: {title, version, source, detail} (paper.proposal), evidence: {url?,
+page?: {href, title, meta}, link?: {url, why, text, near}, file: {excerpt, excerpt_page_2, pdf_dates, arxiv_stamp,
+html_title}}}; the watcher and the agent never write the same file.
 """
 import hashlib
 import json
@@ -51,11 +60,11 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import paper, verify
+from . import paper, verify, web
 from .cli import ACT, CANNOT, Stop
 
 PREPARED = ("published_candidates", "checks", "found", "links")
-FILE_SUFFIXES = tuple(paper.KINDS[k]["suffix"] for k in ("published", "accepted", "preprint", "supplement", "snapshot"))
+FILE_SUFFIXES = tuple(paper.KINDS.values())
 
 
 def now_iso():
@@ -270,7 +279,7 @@ def place(work, slug, src, kind):
     """File src as the record's file of that kind -> ("claimed" | "stray", its new path); src is consumed either way.
     First come, first served: the copy is linked to its final name, so a record that already has its file (the paper
     came another way meanwhile) sends this one to stray/."""
-    target = work.records / (slug + paper.KINDS[kind]["suffix"])
+    target = work.records / (slug + paper.KINDS[kind])
     if work.file_of(slug) is not None:
         return "stray", move(src, work.stray, target.name)
     tmp = work.records / f".{slug}.{uuid.uuid4().hex[:8]}.tmp"
@@ -296,10 +305,28 @@ def move(src, directory, name):
     return dest
 
 
-def claim(work, src, slug, *, kind=None, source=None, via=None, cache=None):
+def arrival(evidence, came=None):
+    """What a claim or accept event says of its file's arrival, for its label: {route?, proposal, evidence}. `came`
+    is how it came: {route, url (where it was downloaded), given (a version the agent named), page: {href, title,
+    meta}, link: {url, why, text, near}}; a file from Downloads or from the agent comes without route or url. A url
+    through the institution's proxy is turned back into the publisher's first."""
+    came = came or {}
+    url = web.unproxy(came["url"]) if came.get("url") else None
+    page, link = dict(came.get("page") or {}), dict(came.get("link") or {})
+    for part, key in ((page, "href"), (link, "url")):
+        if part.get(key):
+            part[key] = web.unproxy(part[key])
+    file = {k: evidence[k] for k in ("excerpt", "excerpt_page_2", "pdf_dates", "arxiv_stamp", "html_title") if evidence.get(k)}
+    ev = {"url": url, "page": page, "link": link, "file": file}
+    return {"route": came.get("route"), "proposal": paper.proposal(came.get("route"), url, came.get("given")),
+            "evidence": {k: v for k, v in ev.items() if v}}
+
+
+def claim(work, src, slug, *, kind=None, source=None, via=None, cache=None, came=None):
     """Check a file against one record and file it: passing -> beside the record under its kind's name (stray/ when
     the record has its file already), failing -> unverified/<slug>.<via>.<ext> for the agent to look at. -> the claim
-    event, logged. `kind` as verify.kind_of takes it (a link's version, or None: the file's name and page 1 say)."""
+    event, logged, with arrival(came). `kind` as verify.kind_of takes it (a link's version, or None: the file's name
+    says)."""
     src = Path(src)
     rec = read(work.records / f"{slug}.json")
     verdict = verify.check(src, rec, kind, cache)
@@ -309,27 +336,51 @@ def claim(work, src, slug, *, kind=None, source=None, via=None, cache=None):
         ext = ".html" if verdict["kind"] == "snapshot" else ".pdf"
         result, path = "unverified", move(src, work.unverified, f"{slug}.{via or 'file'}{ext}")
     return work.append({"event": "claim", "file": path.name, "slug": slug, "result": result, "kind": verdict["kind"],
-                        "code": verdict["code"], "md5": verdict["md5"], "source": source})
+                        "code": verdict["code"], "md5": verdict["md5"], "source": source,
+                        **arrival(verdict["evidence"], came)})
 
 
 def accept(work, src, slug, reason, kind=None):
     """File a file the check refused, on the agent's reading of it -> the accept event (claim's shape plus the
-    reason), logged; attach_file attaches a file with this md5 unchecked."""
+    reason), logged; attach_file attaches a file with this md5 unchecked. `kind` is the version the agent named."""
     src = Path(src)
     if not src.is_file():
         raise Stop("file_not_found", hint="No such file; give the path of the file to accept.", file=str(src))
     read(work.records / f"{slug}.json")
     ex = verify.extract(src)
-    kind = verify.kind_of(src, ex, kind)
+    named, kind = kind, verify.kind_of(src, kind)
     md5 = ex.md5 if ex else md5_of(src)
+    evidence = verify.evidence_base(ex, kind) if ex else {}
     result, path = place(work, slug, src, kind)
     return work.append({"event": "accept", "file": path.name, "slug": slug, "result": result, "kind": kind, "md5": md5,
-                        "reason": reason, "source": str(src)})
+                        "reason": reason, "source": str(src), **arrival(evidence, {"given": named})})
 
 
 def accepted(work, slug, md5):
     """The accept event for this record's file with this md5, or None."""
     return next((e for e in reversed(work.events("accept")) if e.get("slug") == slug and e.get("md5") == md5), None)
+
+
+def arrived(work, slug, md5):
+    """The claim or accept event that filed this record's file with this md5 (the latest), or None."""
+    return next((e for e in reversed(work.events()) if e.get("event") in ("claim", "accept") and e.get("slug") == slug
+                 and e.get("md5") == md5 and e.get("result") == "claimed"), None)
+
+
+def title_for(rec, md5):
+    """The title the record's file is attached under -> (title, None), or (None, why not): its `label`'s, which has
+    to be in the scheme; without a label the version the bytes alone give, Unknown (a page: Snapshot), with the
+    source of the url it came from (Unknown-IEEE): a file is attached whether or not its version is settled."""
+    label = rec.get("label")
+    if label is not None:
+        title = label.get("title") if isinstance(label, dict) else None
+        if not paper.parse_title(title):
+            return None, (f"label.title {title!r} is not an attachment title: <Version>-<Source>-<detail>, a version "
+                          f"word of {', '.join(paper.VERSIONS)} (paper.py)")
+        return title.strip(), None
+    came = arrived(rec.work, rec.slug, md5) or {}
+    version = "Snapshot" if paper.kind_of_file(rec.file().name) == "snapshot" else "Unknown"
+    return paper.label_title(version, (came.get("proposal") or {}).get("source")), None
 
 
 # ---- the browser's Downloads ---------------------------------------------------------------------------------
@@ -371,9 +422,11 @@ def records_of(work):
 
 
 def has_pdf(rec):
-    """The library item the record found holds a PDF already."""
+    """The library item the record found holds a PDF of the paper already, of any version (Unknown too: a version not
+    checked is still the paper's file)."""
     found = rec.get("found") if item_key(rec) and isinstance(rec.get("found"), dict) else {}
-    return any(a.get("kind") in paper.PDF_KINDS for a in found.get("attachments") or [] if isinstance(a, dict))
+    return any(a.get("version") in paper.PAPER_VERSIONS and a.get("contentType") == "application/pdf"
+               for a in found.get("attachments") or [] if isinstance(a, dict))
 
 
 class Scanner:

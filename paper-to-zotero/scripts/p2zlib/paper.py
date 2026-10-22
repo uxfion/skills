@@ -1,16 +1,24 @@
-"""What a paper is, as rules only: identifiers, titles, the file kinds, tags, creators, citation keys. No I/O here.
+"""What a paper is, as rules only: identifiers, titles, file kinds, attachment titles, tags, creators, citation keys.
+No I/O here.
 
-The file kinds (one table for file names, attachment titles and which file is "the paper's PDF"):
+A file in an import run's work directory is named by the version it was wanted as (its kind):
 
-  kind        version of the paper  file name               attachment title          rank as the paper's PDF
-  published   published             <slug>.pdf              PDF                       1
-  accepted    accepted manuscript   <slug>.accepted.pdf     Accepted manuscript       2
-  preprint    preprint              <slug>.preprint.pdf     Preprint (<server>)       3
-  supplement  -                     <slug>.supplement.pdf   Supplementary material    -
-  snapshot    -                     <slug>.html             Snapshot                  -
+  kind        file name
+  published   <slug>.pdf
+  accepted    <slug>.accepted.pdf
+  preprint    <slug>.preprint.pdf
+  supplement  <slug>.supplement.pdf
+  snapshot    <slug>.html
 
-Reading a kind back from an attachment title also knows the titles Zotero and older runs wrote ("Full Text PDF",
-"Accepted Version", "Submitted Version", "arXiv Fulltext PDF", "Preprint PDF", ...).
+What the file actually is goes into its attachment title, which says which version of the paper it is and where it
+came from: <Version>-<Source>-<detail>..., such as Preprint-arXiv-v7, Accepted-CVF, Published-Elsevier-in_press,
+Snapshot-IEEE, Unknown. Fields are separated by "-"; inside a field, spaces and hyphens become "_" (Europe_PMC,
+ICLR_2027_submission). The version word is one of VERSIONS, capitalized; the source is a short brand name in its own
+spelling; detail fields come only after a source, so without one the title is the version word alone. A version
+the agent could not settle is Unknown: the file is attached all the same. SOURCES and the detail words (vN,
+in_press, ICLR_2023, ICLR_2027_submission, source_data, abstract_booklet_p66) are a starting set the agent extends
+on the same pattern. A title outside this scheme (Zotero's "Full Text PDF", an older run's "Preprint (arXiv)") says
+nothing about the version.
 """
 import difflib
 import re
@@ -22,19 +30,9 @@ ARXIV_ID = r"(?:\d{4}\.\d{4,5}|[a-z\-]+(?:\.[A-Z]{2})?/\d{7})"
 DOI_FORM = re.compile(r"^10\.\d{4,9}/\S+$")
 TEX_SPECIAL = re.compile(r"[\\^_&%$#{}~]")
 
-KINDS = {
-    "published": {"version": "published", "suffix": ".pdf", "title": "PDF", "rank": 1},
-    "accepted": {"version": "accepted", "suffix": ".accepted.pdf", "title": "Accepted manuscript", "rank": 2},
-    "preprint": {"version": "preprint", "suffix": ".preprint.pdf", "title": "Preprint ({server})", "rank": 3},
-    "supplement": {"version": None, "suffix": ".supplement.pdf", "title": "Supplementary material", "rank": None},
-    "snapshot": {"version": None, "suffix": ".html", "title": "Snapshot", "rank": None},
-}
-# The kinds that are the paper itself, as against a supplement or a snapshot.
-PDF_KINDS = tuple(k for k, v in KINDS.items() if v["rank"])
-# Title prefixes (casefolded) that name a kind, the ones this skill writes and the ones Zotero and older runs wrote.
-TITLE_PREFIXES = (("preprint", "preprint"), ("submitted version", "preprint"), ("arxiv fulltext pdf", "preprint"),
-                  ("accepted manuscript", "accepted"), ("accepted version", "accepted"),
-                  ("supplement", "supplement"), ("snapshot", "snapshot"))
+# The file kinds: the version a file was wanted as, and the file name that says so (<slug> + suffix).
+KINDS = {"published": ".pdf", "accepted": ".accepted.pdf", "preprint": ".preprint.pdf",
+         "supplement": ".supplement.pdf", "snapshot": ".html"}
 
 
 def is_top(data):
@@ -136,22 +134,9 @@ def kind_of_file(name):
     if low.endswith((".html", ".htm")):
         return "snapshot"
     for kind in ("accepted", "preprint", "supplement"):
-        if low.endswith(KINDS[kind]["suffix"]):
+        if low.endswith(KINDS[kind]):
             return kind
     return "published" if low.endswith(".pdf") else None
-
-
-def kind_of_attachment(data):
-    """The kind of a library attachment, from its title and content type; None for one that is none of them (a link)."""
-    title = (data.get("title") or "").strip().casefold()
-    for prefix, kind in TITLE_PREFIXES:
-        if title.startswith(prefix):
-            return kind
-    if data.get("contentType") == "application/pdf":
-        return "published"
-    if data.get("contentType") == "text/html" and data.get("linkMode") in ("imported_url", "imported_file"):
-        return "snapshot"
-    return None
 
 
 HTML_SNIFF = re.compile(rb"<(?:!doctype\s+html|html|head|body|title|meta)\b", re.I)
@@ -170,22 +155,156 @@ def file_format(body, name):
     return None
 
 
+def host_of(url):
+    """The url's host, lowercased, without port; "" when it has none."""
+    return re.sub(r"^[a-z][a-z0-9+.-]*://", "", (url or "").strip().lower()).split("/", 1)[0].split(":", 1)[0]
+
+
+def by_host(host, table):
+    """The table's value for the host or its closest listed parent domain; None when none is listed."""
+    parts = (host or "").split(".")
+    return next((table[".".join(parts[i:])] for i in range(len(parts) - 1) if ".".join(parts[i:]) in table), None)
+
+
 def preprint_server(url):
     """The preprint server a url belongs to, by host ("arXiv", "bioRxiv", ...); None for any other host."""
-    host = re.sub(r"^[a-z]+://", "", (url or "").strip().lower()).split("/", 1)[0].split(":", 1)[0]
-    return next((name for domain, name in PREPRINT_SERVERS.items() if host == domain or host.endswith("." + domain)), None)
+    return by_host(host_of(url), PREPRINT_SERVERS)
 
 
-def kind_rank(kind):
-    """Order as "the paper's PDF": published, accepted, preprint, then the rest."""
-    return (KINDS.get(kind) or {}).get("rank") or 9
+# ---- attachment titles --------------------------------------------------------------------------------------
+
+VERSIONS = ("Published", "Accepted", "Preprint", "Unknown", "Supplement", "Snapshot")
+# The versions of the paper itself, best first, as read back (lowercase); a supplement and a snapshot are not one.
+PAPER_VERSIONS = ("published", "accepted", "preprint", "unknown")
+ORDER = {v.lower(): n for n, v in enumerate(VERSIONS)}
+TITLE_RE = re.compile(r"^(" + "|".join(VERSIONS) + r")((?:-[\w.]+)*)$")
+# Where a file came from, by host (a parent domain covers its subdomains) -> its source in the title. A starting
+# table: a site not here gets its name from the agent, on the same pattern.
+SOURCES = {
+    "arxiv.org": "arXiv", "biorxiv.org": "bioRxiv", "medrxiv.org": "medRxiv", "ssrn.com": "SSRN",
+    "researchsquare.com": "Research_Square", "openreview.net": "OpenReview", "thecvf.com": "CVF", "ecva.net": "ECVA",
+    "papers.miccai.org": "MICCAI", "neurips.cc": "NeurIPS", "nips.cc": "NeurIPS", "mlr.press": "PMLR",
+    "iclr.cc": "ICLR", "aclanthology.org": "ACL", "aaai.org": "AAAI", "jmlr.org": "JMLR", "ieee.org": "IEEE",
+    "sciencedirect.com": "Elsevier", "sciencedirectassets.com": "Elsevier", "elsevier.com": "Elsevier",
+    "springer.com": "Springer", "nature.com": "Nature", "acm.org": "ACM", "wiley.com": "Wiley", "rsna.org": "RSNA",
+    "bmj.com": "BMJ", "nejm.org": "NEJM", "science.org": "Science", "mdpi.com": "MDPI", "jmir.org": "JMIR",
+    "academic.oup.com": "OUP", "pmc.ncbi.nlm.nih.gov": "PMC", "ncbi.nlm.nih.gov": "PMC", "europepmc.org": "Europe_PMC",
+    "hal.science": "HAL", "archives-ouvertes.fr": "HAL", "escholarship.org": "eScholarship",
+    "researchgate.net": "ResearchGate", "easychair.org": "EasyChair",
+}
+# Sites whose every file is one version unless shown otherwise (a preprint server's are preprints): the version the
+# open route proposes for their files, and the version of their links (fulltext_links).
+SITE_VERSIONS = {"arxiv.org": "Preprint", "biorxiv.org": "Preprint", "medrxiv.org": "Preprint"}
+# The version a route proposes for what it fetched; the open route goes by the site (SITE_VERSIONS), and a file that
+# came another way (Downloads, a file the agent gave) proposes nothing.
+ROUTE_VERSIONS = {"publisher": "Published", "accepted": "Accepted", "preprint": "Preprint", "snapshot": "Snapshot"}
+ARXIV_LINK = re.compile(rf"arxiv\.org/(?:pdf|abs)/({ARXIV_ID})(v\d+)?(?:\.pdf)?/?(?:$|[?#])", re.I)
 
 
-def attachment_title(kind, server="arXiv", parent_type=None):
-    """The title an attachment of this kind gets; a preprint item's own PDF is its version of record: "PDF"."""
-    if kind == "preprint" and parent_type == "preprint":
-        return KINDS["published"]["title"]
-    return KINDS[kind]["title"].format(server=server)
+def title_field(text):
+    """One field of an attachment title: spaces and hyphens become "_", characters other than letters, digits, "_"
+    and "." are dropped ("Europe PMC" -> "Europe_PMC", "T-CAIREM" -> "T_CAIREM")."""
+    s = re.sub(r"[^\w.]", "", re.sub(r"[\s\-]+", "_", str(text or "").strip()))
+    return re.sub(r"_+", "_", s).strip("_.")
+
+
+def label_title(version, source=None, detail=()):
+    """The title of a file of this version (a word of VERSIONS, any case) from this source with this detail:
+    "Preprint-arXiv-v7"; without a source, the version word alone."""
+    word = next((v for v in VERSIONS if v.lower() == str(version).lower()), None)
+    if word is None:
+        raise ValueError(f"not a version: {version!r}; one of {', '.join(VERSIONS)}")
+    source = title_field(source)
+    return "-".join([word, source, *filter(None, map(title_field, detail))]) if source else word
+
+
+def parse_title(title):
+    """A title in the scheme -> {version (lowercase), source, detail: [fields]}; None for any other title."""
+    m = TITLE_RE.match((title or "").strip())
+    if not m:
+        return None
+    fields = m.group(2).split("-")[1:]
+    return {"version": m.group(1).lower(), "source": fields[0] if fields else None, "detail": fields[1:]}
+
+
+def attachment_label(data):
+    """What an attachment's title says -> {version, source, detail, standard}. A title in the scheme: as written,
+    standard True. Any other title: standard False, source None, and the version the content type alone gives —
+    "unknown" for a PDF, "snapshot" for an HTML page; a link, or a file of another type, has version and standard
+    None (a supplement in another format is read from a title in the scheme only)."""
+    parsed = None if data.get("linkMode") == "linked_url" else parse_title(data.get("title"))
+    if parsed:
+        return {**parsed, "standard": True}
+    version = None
+    if data.get("linkMode") != "linked_url":
+        version = {"application/pdf": "unknown", "text/html": "snapshot"}.get(data.get("contentType"))
+    return {"version": version, "source": None, "detail": [], "standard": False if version else None}
+
+
+def source_of(url):
+    """The source a file's url names, by its host (SOURCES); None for a site not in the table. A proxied url is
+    turned back into the publisher's before it comes here."""
+    return by_host(host_of(url), SOURCES)
+
+
+def arxiv_link(url):
+    """The arXiv id and vN an arxiv.org abs or pdf url names ("https://arxiv.org/pdf/2303.11366v4" -> ("2303.11366",
+    "v4")); (id, None) without a version, (None, None) for any other url."""
+    m = ARXIV_LINK.search(url or "")
+    return (normalize_arxiv(m.group(1)), (m.group(2) or "").lower() or None) if m else (None, None)
+
+
+def proposal(route, url=None, given=None):
+    """The title a file is proposed under, from how it came (the agent confirms it or writes another):
+    {title, version, source, detail}. The version: the one the agent gave (`given`, a kind), else the route's
+    (ROUTE_VERSIONS; the open route and a start page by the site, SITE_VERSIONS), else Unknown. The source is the
+    url's site (SOURCES), the detail the url's arXiv vN."""
+    host = host_of(url)
+    if given:
+        version = given.capitalize()
+    elif route in ROUTE_VERSIONS:
+        version = ROUTE_VERSIONS[route]
+    else:
+        version = (route in ("open", "start") and by_host(host, SITE_VERSIONS)) or "Unknown"
+    source, vn = source_of(url), arxiv_link(url)[1]
+    detail = [vn] if vn else []
+    return {"title": label_title(version, source, detail), "version": version.lower(), "source": source, "detail": detail}
+
+
+def version_number(detail):
+    """The largest vN among the detail fields (v7 -> 7); 0 without one."""
+    return max((int(d[1:]) for d in detail or () if re.fullmatch(r"v\d+", d)), default=0)
+
+
+def ordered(attachments):
+    """Attachments as read back (attachment_label's fields, with dateAdded) best first: the paper's versions —
+    Published, Accepted, Preprint, Unknown; within one, final before in_press, the larger vN first, the later added
+    first — then supplements, snapshots, and the rest."""
+    newest = sorted(attachments, key=lambda a: a.get("dateAdded") or "", reverse=True)
+    return sorted(newest, key=lambda a: (ORDER.get(a.get("version"), len(ORDER)), "in_press" in (a.get("detail") or ()),
+                                         -version_number(a.get("detail"))))
+
+
+def superseded(attachments):
+    """Which of one item's attachments another one replaces -> [(attachment, the one that replaces it)]. Only titles
+    in the scheme that name a source count: among the paper's versions one per source stays, the first in ordered();
+    among supplements one per source and detail; among snapshots one per source, the later added. Different sources
+    stand side by side."""
+    groups = {}
+    for a in ordered(attachments):
+        if not a.get("standard") or not a.get("source"):
+            continue
+        version = a.get("version")
+        if version in PAPER_VERSIONS:
+            key = ("paper", a["source"])
+        elif version == "supplement":
+            key = ("supplement", a["source"], tuple(a.get("detail") or ()))
+        elif version == "snapshot":
+            key = ("snapshot", a["source"])
+        else:
+            continue
+        groups.setdefault(key, []).append(a)
+    return [(loser, group[0]) for group in groups.values() for loser in group[1:]]
 
 
 # ---- tags, creators, citation keys --------------------------------------------------------------------------

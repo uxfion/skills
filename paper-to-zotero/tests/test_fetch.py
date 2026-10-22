@@ -84,7 +84,7 @@ if js == "performance.timeOrigin":
     out(state.get("doc", 0))
 if "p2z:find" in js:
     out({"href": href, "title": page.get("title", ""), "doc": state.get("doc", 0), "viewer": bool(page.get("viewer")),
-         "candidates": [{"url": u, "why": "stub"} for u in page.get("pdf", [])]})
+         "meta": page.get("meta", {}), "candidates": [u if isinstance(u, dict) else {"url": u, "why": "stub"} for u in page.get("pdf", [])]})
 if "p2z:fetch" in js:
     url = json.loads(re.search(r"fetch\((\"[^\"]*\")", js).group(1))
     ans = scen.get("fetch", {}).get(url)
@@ -110,6 +110,15 @@ class Http(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path.startswith("/arxiv/api/query"):  # arXiv's API, for the ids asked: the latest version is v4
+            self.server.arxiv_asked.append(self.path)
+            ids = self.path.split("id_list=", 1)[1].split("&", 1)[0].replace("%2C", ",").split(",")
+            entries = "".join(f"<entry><id>http://arxiv.org/abs/{i}v4</id></entry>" for i in ids)
+            body = f'<feed xmlns="http://www.w3.org/2005/Atom">{entries}</feed>'.encode()
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(body)
+            return
         body = {"/paper.pdf": pdf(f"{TITLE}\nWei Liu"), "/wrong.pdf": pdf(f"{OTHER}\nSomeone Else"),
                 "/landing": b"<html>a landing page</html>"}.get(self.path.split("?", 1)[0])
         self.send_response(200 if body else 404)
@@ -122,6 +131,7 @@ class Fetch(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Http)
+        cls.server.arxiv_asked = []
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
@@ -151,16 +161,17 @@ class Fetch(unittest.TestCase):
                     "PATH": f"{bin_}{os.pathsep}{os.environ['PATH']}", "STUB_SCENARIO": str(self.scenario),
                     "STUB_STATE": str(self.tmp / "state.json"), "PAPER_TO_ZOTERO_CONFIG": str(self.config),
                     "PAPER_TO_ZOTERO_INSTITUTION_GAP": "0", "PAPER_TO_ZOTERO_CLICK_WAIT": "3", "PAPER_TO_ZOTERO_DOWNLOAD_WAIT": "3",
-                    "PAPER_TO_ZOTERO_DISCOVERY_WAIT": "0"}
+                    "PAPER_TO_ZOTERO_DISCOVERY_WAIT": "0", "ARXIV_API_URL": f"{self.base}/arxiv/api/query"}
+        self.server.arxiv_asked.clear()
         self.scene({})
 
     def scene(self, scenario):
         self.scenario.write_text(json.dumps(scenario))
 
-    def record(self, slug, title=TITLE, doi="10.1000/x.1", links=()):
+    def record(self, slug, title=TITLE, doi="10.1000/x.1", links=(), **fields):
         item = {"itemType": "journalArticle", "title": title, **({"DOI": doi} if doi else {}),
                 "creators": [{"creatorType": "author", "lastName": "Liu", "firstName": "Wei"}]}
-        rec = run.Record(self.work.records / f"{slug}.json", {"item": item})
+        rec = run.Record(self.work.records / f"{slug}.json", {"item": item, **fields})
         run.stamp(rec, "links", {"items": list(links)})  # as prepare writes them
         rec.save()
         return str(rec.path)
@@ -197,6 +208,40 @@ class Fetch(unittest.TestCase):
                          (3, ["no_discovery"]))
         self.assertEqual(self.fetch("--pass", "1", *recs)[0], 0)
         self.assertEqual(len(self.work.events("try")), 4, "nothing is tried twice")
+        # what each file is proposed as: the route's version and the site's name, never the link's label
+        self.assertEqual([(e["slug"], e["route"], e["proposal"]["title"]) for e in self.work.events("claim") if e["result"] == "claimed"],
+                         [("a", "open", "Unknown"), ("b", "publisher", "Published"), ("e", "preprint", "Preprint")])
+        b = next(e for e in self.work.events("claim") if e["slug"] == "b")
+        self.assertEqual((b["evidence"]["url"], b["evidence"]["link"]["url"], b["evidence"]["page"]["href"], b["evidence"]["file"]["excerpt"]),
+                         ("https://pub.example/b.pdf", "https://pub.example/b.pdf", "https://pub.example/b", f"{OTHER}\nWei Liu"))
+        labels = [x for x in lines if x.get("code") == "to_label"]
+        self.assertEqual([(x["slug"], x["proposal"], x["route"]) for x in labels],
+                         [("a", "Unknown", "open"), ("b", "Published", "publisher"), ("e", "Preprint", "preprint")])
+        self.assertEqual(lines[-1]["summary"]["to_label"], 3)
+        rec = run.read(recs[0])
+        rec["label"] = {"title": "Published-Example", "by": "agent", "why": "the publisher's page"}
+        rec.save()
+        self.assertEqual([x["slug"] for x in self.fetch("--pass", "1", *recs)[1] if x.get("code") == "to_label"], ["b", "e"])
+
+    def test_an_arxiv_link_is_fetched_at_its_latest_version(self):
+        known = "https://arxiv.org/pdf/2303.11366v2"
+        self.scene({"pages": {u: {"viewer": b64(pdf(f"{TITLE}\nWei Liu\narXiv:{u[22:]} [cs.AI]"))}
+                              for u in ("https://arxiv.org/pdf/2201.00001v4", known)}})
+        arxiv = lambda aid: {"url": f"https://arxiv.org/pdf/{aid}", "source": "arxiv", "version": "preprint", "needs_browser": True}  # noqa: E731
+        asked = self.record("asked", doi=None, links=[arxiv("2201.00001")])
+        rec = run.Record(self.work.records / "known.json", {"item": {"itemType": "preprint", "title": TITLE, "archiveID": "arXiv:2303.11366",
+                                                                      "creators": [{"creatorType": "author", "lastName": "Liu"}]}})
+        run.stamp(rec, "links", {"items": [arxiv("2303.11366")]})
+        run.stamp(rec, "published_candidates", {"items": [], "arxiv_version": "v2"})  # prepare's answer
+        rec.save()
+        code, lines, err = self.fetch("--pass", "1", "--route", "preprint", asked, str(rec.path))
+        self.assertEqual(code, 0, err + json.dumps(lines))
+        self.assertEqual(len(self.server.arxiv_asked), 1, "one request for the ids prepare did not answer")
+        self.assertIn("id_list=2201.00001&", self.server.arxiv_asked[0])
+        self.assertEqual([(e["slug"], e["url"]) for e in self.work.events("try")],
+                         [("asked", "https://arxiv.org/pdf/2201.00001v4"), ("known", known)])
+        self.assertEqual([(x["slug"], x["proposal"], x["stamp"]) for x in lines if x.get("code") == "to_label"],
+                         [("asked", "Preprint-arXiv-v4", "arXiv:2201.00001v4 [cs.AI]"), ("known", "Preprint-arXiv-v2", "arXiv:2303.11366v2 [cs.AI]")])
 
     def test_a_page_the_browser_cannot_pass_stops_until_the_agent_decides(self):
         self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://pub.example/x", "title": "Sign in"}}})
@@ -240,6 +285,10 @@ class Fetch(unittest.TestCase):
         code, lines, err = self.fetch("--pass", "1", "--route", "publisher", *recs)
         self.assertEqual(code, 0, err + json.dumps(lines))
         self.assertEqual(self.files(), ["c.pdf", "d.pdf", "f.pdf", "g.pdf"])
+        g_claim = next(e for e in self.work.events("claim") if e["slug"] == "g")
+        self.assertEqual((g_claim["proposal"]["title"], g_claim["evidence"]["url"], g_claim["evidence"]["page"]["href"]),
+                         ("Published-IEEE", "https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?arnumber=5",
+                          "https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=5"), "the proxy taken off before the site is named")
         request_url = load("fetch").request_url
         self.assertEqual(request_url("https://ieeexplore.ieee.org/x.pdf", f"{proxied}/d/1", "proxy.example.edu"), f"{proxied}/x.pdf")
         self.assertEqual(request_url("http://pub.example/x.pdf", "https://pub.example/a", None), "https://pub.example/x.pdf")
@@ -269,6 +318,8 @@ class Fetch(unittest.TestCase):
                                     self.record("t", OTHER, "10.1000/t.9"))[0], 0)
         self.assertEqual(self.files(), ["s.html", "t.accepted.pdf"])
         self.assertEqual(self.events("try")[-1], ("t", "start", "ok"), "a start page is never a route's try")
+        self.assertEqual([e["proposal"]["title"] for e in self.work.events("claim")], ["Snapshot", "Accepted"],
+                         "a start page's version is the one the agent named")
 
     def test_wait(self):
         self.scene({"pages": {"https://gate.example/login": {"title": "Sign in", "text": "Sign in"}}})

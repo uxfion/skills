@@ -6,18 +6,25 @@
 """Attach each record's file to its Zotero item: the record's `attach`.
 
 The item is the one this run created (saved.key), else the one the lookup confirmed (found.key); never a near match.
-The file is the record's own: <work>/records/<slug>.pdf, .accepted.pdf, .preprint.pdf, .supplement.pdf or .html;
-its name gives its kind and the attachment's title (PDF, Accepted manuscript, Preprint (<server>: where the file came
-from, by fetch.jsonl), Supplementary material, Snapshot). Before the upload the file is checked against the record (verify, as claim does), unless the
-agent accepted this very file (claim.py --accept: its md5 in fetch.jsonl). A child of the item already holding the
-file (same md5) settles it without an upload, and an empty attachment left by a cut-off run is reused. The source url
-is the item's url (a proxied url turned back into the publisher's), else its DOI link. Then `attach: {attachment,
-md5, kind, title, filename, url, at}`; another file later (another md5) is attached afresh.
+The file is the record's own: <work>/records/<slug>.pdf, .accepted.pdf, .preprint.pdf, .supplement.pdf or .html.
+Its attachment title is the record's `label` title (paper.label_title: Preprint-arXiv-v7, Accepted-CVF, ...); a
+record without a label is attached all the same, as the version its bytes alone give with the site it came from
+(Unknown-IEEE, Snapshot-Nature; just Unknown when the site is not known): the file is archived whether or not its
+version is settled. A label written after that renames the attachment this run made, on the next run of this script.
+Before the upload the file is checked against the record (verify, as claim does), unless the agent accepted this
+very file (claim.py --accept: its md5 in fetch.jsonl). A child of the item already holding the file (same md5)
+settles it without an upload and keeps its own title (`existing`: a title that differs from the label is the
+report's to suggest, the user's to approve); an empty attachment left by a cut-off run is reused. The source url is
+the item's url (a proxied url turned back into the publisher's), else its DOI link. Then `attach: {attachment, md5,
+title, filename, url, at, existing?}`; another file later (another md5) is attached afresh.
 
-stdout: one line per record {slug, code, key?, attachment?, kind?, title?}, then {"summary"}.
-  ok          attached (with --dry-run: would be; nothing written)
+stdout: one line per record {slug, code, key?, attachment?, title?, renamed?: {from, to}, suggested_title?}, then
+{"summary"}.
+  ok          attached, or this run's attachment renamed after its label (with --dry-run: would be; nothing written)
   skipped     reason no_file_yet (fetch it first: not a failure, so save can run after every pass) | attached (this
-              file is the record's `attach`) | already_attached (the item had it)
+              file is the record's `attach`, under its title) | already_attached (the item had it: suggested_title
+              when its title differs from the label's)
+  bad_label   the record's label.title is not an attachment title: write one in the scheme (paper.py)
   no_item_key the record has no item in Zotero yet (create_item; a possible duplicate is the agent's to settle)
   not_verified the file does not pass the check against the record (`verdict`): fetch the right file, or accept
               this one with claim.py --accept
@@ -44,8 +51,18 @@ def process(rec, ctx):
     if path is None:
         return cli.skipped("no_file_yet")
     md5 = run.md5_of(path)
-    if (rec.get("attach") or {}).get("md5") == md5:
-        return cli.skipped("attached", attachment=rec["attach"]["attachment"])
+    title, problem = run.title_for(rec, md5)
+    if problem:
+        return {"code": "bad_label", "hint": problem + "; correct the record's label, then rerun."}
+    attach = rec.get("attach") if isinstance(rec.get("attach"), dict) else {}
+    if attach.get("md5") == md5:
+        if attach.get("existing") or attach.get("title") == title:
+            return cli.skipped("attached", attachment=attach["attachment"], title=attach.get("title"))
+        if not ctx["args"].dry_run:  # this run's own attachment, labelled since: renamed without asking
+            ctx["zot"].retitle(attach["attachment"], title)
+            rec["attach"] = {**attach, "title": title, "at": run.now_iso()}
+        return {"code": "ok", "key": run.item_key(rec), "attachment": attach["attachment"], "title": title,
+                "renamed": {"from": attach.get("title"), "to": title}}
     key = run.item_key(rec)
     if key is None:
         return {"code": "no_item_key", "hint": "The record has no item in Zotero yet: create_item.py (p2z.py save) makes it; "
@@ -62,15 +79,14 @@ def process(rec, ctx):
 
     url = rec.item.get("url") or (f"https://doi.org/{paper.doi_of(rec.item)}" if paper.doi_of(rec.item) else None)
     url = web.unproxy(url, ctx["proxy"]) if url else None
-    came = next((e for e in reversed(work.events()) if e.get("event") in ("claim", "accept") and e.get("slug") == rec.slug
-                 and e.get("md5") == md5), {})
-    server = paper.preprint_server(came.get("source") or "")  # a preprint's title names where the file came from
-    res = ctx["zot"].attach(key, path, url=url, server=server, verify=check, dry_run=ctx["args"].dry_run)
-    line = {"key": key, **{k: res.get(k) for k in ("attachment", "kind", "title")}}
-    if res["code"] == "skipped" or not res.get("dry_run"):
-        rec["attach"] = {"attachment": res["attachment"], "md5": md5, "kind": res["kind"], "title": res["title"],
-                         "filename": res["filename"], "url": url, "at": run.now_iso()}
-    return {"code": res["code"], **({"reason": res["reason"]} if res.get("reason") else {}), **line}
+    res = ctx["zot"].attach(key, path, title=title, url=url, verify=check, dry_run=ctx["args"].dry_run)
+    existing = res["code"] == "skipped"
+    if existing or not res.get("dry_run"):
+        rec["attach"] = {"attachment": res["attachment"], "md5": md5, "title": res["title"], "filename": res["filename"],
+                         "url": url, "at": run.now_iso(), **({"existing": True} if existing else {})}
+    return {"code": res["code"], **({"reason": res["reason"]} if res.get("reason") else {}), "key": key,
+            "attachment": res.get("attachment"), "title": res.get("title"),
+            **({"suggested_title": title} if existing and res.get("title") != title else {})}
 
 
 def main(argv=None):

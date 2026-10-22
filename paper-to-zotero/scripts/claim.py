@@ -18,14 +18,16 @@
                              it in the background while the browser is in use (its pid is kept in run.json)
   --sweep                    end of run: what this run left in Downloads, each with whether the library holds it
 
-The file's name says its kind (paper.KINDS): <slug>.pdf published, .accepted.pdf, .preprint.pdf, .supplement.pdf,
-.html snapshot. --version names it; without, a published-looking file with arXiv's margin stamp on page 1 is a
-preprint. Filing is first come, first served: a record that has its file already sends the copy to <work>/stray/.
-Downloads is the folder ready.py found (run.json), or --downloads DIR.
+The file's name says its kind, the version it was wanted as (paper.KINDS): <slug>.pdf published, .accepted.pdf,
+.preprint.pdf, .supplement.pdf, .html snapshot; --version names it, and is the version proposed for its attachment
+title. What the file actually is goes into the record's `label` (SKILL.md, step 3). Filing is first come, first
+served: a record that has its file already sends the copy to <work>/stray/. Downloads is the folder ready.py found
+(run.json), or --downloads DIR.
 
 Every outcome is an event appended to <work>/fetch.jsonl and printed: {event: claim | accept, file, slug?,
-result: claimed | stray | unverified | left, kind?, code? (the check's verdict), md5, source?, at}; a left file also
-{why: unmatched | ambiguous | sweep, against?, matched?}; --sweep adds {in_library, attachment?, citationKey?}.
+result: claimed | stray | unverified | left, kind?, code? (the check's verdict), md5, source?, route?, proposal?,
+evidence?, at} (proposal and evidence: p2zlib/run.py); a left file also {why: unmatched | ambiguous | sweep,
+against?, matched?}; --sweep adds {in_library, attachment?, citationKey?}.
 Exit 0 = done (--file / --accept: filed); 1 = --file / --accept not filed (unverified, stray); 2 = cannot go on
 (no work directory, no .started, no Downloads folder, no pdftotext, Zotero unreachable for --sweep).
 
@@ -92,7 +94,8 @@ def main(argv=None):
                 verify.require_pdftotext()
                 if not Path(args.file).is_file():
                     raise cli.Stop("file_not_found", hint="No such file.", file=args.file)
-                event = run.claim(work, args.file, args.slug, kind=args.version, source=str(Path(args.file).absolute()))
+                event = run.claim(work, args.file, args.slug, kind=args.version, source=str(Path(args.file).absolute()),
+                                  came={"given": args.version})
             else:
                 event = run.accept(work, args.accept, args.slug, args.reason, kind=args.version)
             cli.emit(event)

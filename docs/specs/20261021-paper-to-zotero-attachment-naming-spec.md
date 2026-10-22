@@ -1,6 +1,7 @@
 # paper-to-zotero：附件按版本规范命名
 
 > **定稿**（2026-10-21）：advisor 审过两轮，按用户意见改过两处，又自审了两轮（§10 记了改了什么）。用户让我自审没问题就开始实现。实现过程中如有修正，直接改本文。
+> **已实现**（2026-10-21，未推送）：实现时改了几处，正文已改，§12 记了改了什么、为什么。
 > 来源：[20261020-paper-to-zotero-pdf-version-by-title.md](../issues/20261020-paper-to-zotero-pdf-version-by-title.md)。设计过程、用户原话、调研和全库试命名都在那张 issue 和它的参考材料目录里。
 > 文中的数量都是 2026-10-21 全库试命名（只读）的结果。
 
@@ -123,13 +124,13 @@
   - 每一遍结束时输出待确认表。
   - 链接上的版本（`fulltext_links`）仍然只用来决定先试哪个候选。
 - **claim**：
-  - 把 §2 的证据和默认版本写进记录的 `label_proposal`：`{title, version, source, detail, route, evidence}`；
+  - 把 §2 的证据和默认版本写进这份文件的 claim 事件（`fetch.jsonl`）：`route`、`proposal: {title, version, source, detail}`、`evidence: {url, page, link, file}`。不写进记录（§12）；
   - 工作目录里的文件名后缀（`<slug>.accepted.pdf` 之类）照旧，表示"想要的版本"；`label` 表示"实际是什么"。
   - `verify.kind_of` 现在"有 arXiv 页边戳就算预印本"的规则，改成只把页边戳记进证据，不再单独定版本，免得两套机制并存。
 - **`label`** 是记录里一个归 agent 管的字段，和 `same_as`、`distinct_from`、`keep_preprint` 一样，不另加命令：`{title, by: agent | subagent | browser_agent, why}`。
 - **第 3 步的完成条件**改为：每个记录都有文件**和它的 `label`**（或者已经明确写成 `Unknown`）。`save` 在这之后跑。
 - **save / attach**：
-  - 有 `label` 就用它的标题；没有就以 `Unknown-<Source>` 挂上，并在报告里列出。存档不等版本。
+  - 有 `label` 就用它的标题；没有就以 `Unknown-<Source>` 挂上（网页快照是 `Snapshot-<Source>`），并在报告里列出。存档不等版本。
   - 这一轮挂上的 `Unknown`，同一轮里定下版本后可以直接改标题（原则 6 的例外）。这样 `Unknown` 只是这一轮里的过渡状态，不会每一份都变成要用户确认的改名。
   - 文件已经挂在条目上（md5 相同），但标题不合规范时，不顺手改名。把它列进报告的"建议改名"，归 §5 的流程，等用户确认。
 - **report**：
@@ -150,8 +151,9 @@
 ## 5. 整理和一次性改名
 
 - **lint** 新增两个检查，只看 PDF 和 HTML 快照，不看笔记、链接以及以后结构化包的 zip：
-  - `nonstandard_title`：标题不合规范的附件，带上判断用的证据：附件 url 和网站、条目 DOI、首页开头几行。不带提议名，名字由 agent 定（原则 3、4）；
+  - `nonstandard_title`：标题不合规范的附件，带上判断用的证据：附件 url 和网站、条目 DOI、首页开头几行。不带提议名，名字由 agent 定（原则 3、4）。合规范但没写来源、而附件 url 的网站有名字的（比如只写 `Snapshot` 的 ScienceDirect 快照），也列出来；
   - `label_clash`：同一条目里两份附件标题相同，多半是重复。例如 4 个条目各有两份 ScienceDirect 快照。
+  - `superseded`：同一来源里按 §1 该让位的那份，例如 `Preprint-arXiv-v1` 旁边有 `Preprint-arXiv-v3`。原来的 `multiple_pdfs` 去掉了：多个版本并存是本规范的本意（§12）。
 - **organize.md 加一节"附件改名"**：
   1. lint 列出不合规范的附件和证据；
   2. 分批交给 sonnet subagent，只读本地证据，每批几十份，提出新标题；
@@ -245,6 +247,18 @@
   - 第 4 步：没定的以 `Unknown` 挂上；
   - subagent 的派发规矩；
   - 改写 `read_library` 那一句。
+- `references/attachment-titles.md`（新）：命名规范、版本定义、证据，导入和改名两处共用。
 - `references/organize.md`：改名一节。
 - `references/publishers.md`：2026-10 的探查线索，带日期。
 - 测试：按 §9。
+
+## 12. 实现时的修正（2026-10-21）
+
+- **证据和默认版本写进 claim 事件，不写进记录的 `label_proposal`**：后台的 watcher 进程也会调 claim，它写记录时 agent 可能正在写 `label`，会互相覆盖。`fetch.jsonl` 只追加，没有这个问题，也合 run.py 原来"文件的事实在 fetch.jsonl"的设计。记录里只有 agent 写的 `label`。fetch 一遍跑完输出的 `to_label` 行就从这些事件里取。
+- **lint 去掉 `multiple_pdfs`，加 `superseded`**：多份 PDF 并存是规范的本意，再报它就是噪音；该清理的是同一来源里让位的那份。替换规则只看合规范、写了来源的标题，免得改名前把两份旧标题的 PDF 误判成一份取代另一份。
+- **`nonstandard_title` 也列"合规范但没写来源"的**：库里约 96 份快照的标题就是 `Snapshot`，按语法是合规范的，不这样就进不了改名清单。只在附件 url 的网站有名字时才列，`Unknown` 这类确实不知道来源的不列。
+- **没有 `label` 的网页快照挂成 `Snapshot-<Source>`**：快照是什么，看字节就知道，不需要确认。
+- **读回附件时**：每份附件的 `version`（小写）、`source`、`detail`、`standard` 来自标题；`kind` 仍只表示工作目录里文件名带的"想要的版本"。回收站里的附件不再算。
+- **arXiv 版本号的请求挪到 `web.arxiv_entries`**，prepare 和 fetch 共用一份。fetch 只在第一次碰到不带 vN 的 arXiv 链接时，为这一遍所有缺版本号的 arXiv 链接发一次请求。
+- **`SITE_VERSIONS`（arXiv、bioRxiv、medRxiv → Preprint）** 放在 `paper.py`，open 路线的默认版本和 `fulltext_links` 的链接版本共用。
+- **测试**：全部 27 个测试文件通过；新增的覆盖 §9 列的五条。fetch 的测试里 arXiv API 指向本地假服务，不碰真网站。

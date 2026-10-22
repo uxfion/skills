@@ -56,9 +56,9 @@ class AttachFile(unittest.TestCase):
         r = self.run_(self.rec, "--dry-run")
         self.assertEqual((r.lines[0]["code"], self.attachments()), ("ok", []))
         r = self.run_(self.rec)
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["kind"], r.lines[0]["title"]), (0, "ok", "preprint", "Preprint (arXiv)"), r)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["title"]), (0, "ok", "Unknown"), "no label, no site known")
         block = run.read(self.rec)["attach"]
-        self.assertEqual((block["url"], block["kind"]), ("https://www.publisher.org/a/1", "preprint"), "the proxy is taken off")
+        self.assertEqual((block["url"], block["title"]), ("https://www.publisher.org/a/1", "Unknown"), "the proxy is taken off")
         [att] = self.attachments()
         self.assertEqual((att["md5"], att["url"]), (block["md5"], "https://www.publisher.org/a/1"))
         self.zot.requests.clear()
@@ -66,9 +66,34 @@ class AttachFile(unittest.TestCase):
         self.assertEqual([p for _, p, _, _ in self.zot.requests], ["/api/"], "only the server check: the record says it is attached")
         rec = run.read(self.rec)
         rec.pop("attach")
+        rec["label"] = {"title": "Preprint-arXiv-v2", "by": "agent", "why": "the arXiv stamp"}
         rec.save()
-        self.assertEqual(self.run_(self.rec).lines[0]["reason"], "already_attached", "the item's child holds it: no upload")
-        self.assertEqual(len(self.attachments()), 1)
+        r = self.run_(self.rec)
+        self.assertEqual((r.lines[0]["reason"], r.lines[0]["title"], r.lines[0]["suggested_title"]),
+                         ("already_attached", "Unknown", "Preprint-arXiv-v2"), "the item's child holds it: no upload, no rename")
+        self.assertEqual((len(self.attachments()), run.read(self.rec)["attach"]["existing"]), (1, True))
+        self.assertEqual(self.run_(self.rec).lines[0]["reason"], "attached", "an attachment the item had is never renamed here")
+
+    def test_unsettled_is_attached_as_unknown_then_renamed_once_labelled(self):
+        f = fake_pdf(self.work.scratch / "in.pdf", [f"{TITLE}\nWei Liu"])
+        shutil.copy(f"{f}.txt", self.work.records / "liu.pdf.txt")
+        shutil.copy(f.with_name("in.pdf.pages"), self.work.records / "liu.pdf.pages")
+        with mock.patch.dict(os.environ, {"PAPER_TO_ZOTERO_CONFIG": str(self.config)}):  # the proxy comes off first
+            run.claim(self.work, f, "liu", came={"route": "publisher", "url": "https://ieeexplore-ieee-org.proxy.example.edu/stamp/x.pdf"})
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["title"]), (0, "Unknown-IEEE"), "archived although its version is not settled")
+        rec = run.read(self.rec)
+        rec["label"] = {"title": "Accepted IEEE", "by": "agent", "why": "typo"}
+        rec.save()
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["code"]), (1, "bad_label"))
+        rec["label"] = {"title": "Published-IEEE-in_press", "by": "browser_agent", "why": "Early Access banner"}
+        rec.save()
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["renamed"]),
+                         (0, "ok", {"from": "Unknown-IEEE", "to": "Published-IEEE-in_press"}), "this run's own attachment")
+        self.assertEqual([a["title"] for a in self.attachments()], ["Published-IEEE-in_press"])
+        self.assertEqual(self.run_(self.rec).lines[0]["reason"], "attached")
 
     def test_a_file_that_fails_the_check_waits_for_the_agent(self):
         wrong = fake_pdf(self.work.records / "liu.pdf", ["Erratum\nA notice about another paper"])

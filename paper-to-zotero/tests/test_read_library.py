@@ -39,10 +39,12 @@ class ReadLibrary(unittest.TestCase):
         z.add_item("ATT00001", version=300, itemType="attachment", parentItem="K0000000", title="PDF",
                    contentType="application/pdf", md5="abc")
         z.add_item("NOTE0001", version=301, itemType="note", parentItem="K0000000", note="<p>hi</p>")
-        # K0000004: a preprint attached first, the published version later; K0000005: only a snapshot.
-        z.add_item("ATT00003", version=302, itemType="attachment", parentItem="K0000004", title="Preprint (arXiv)",
+        # K0000004: a title outside the scheme first, a preprint, then the published version; K0000005: only a snapshot.
+        z.add_item("ATT00005", version=305, itemType="attachment", parentItem="K0000004", title="Full Text PDF",
+                   contentType="application/pdf", linkMode="imported_file", dateAdded="2025-12-01T00:00:00Z", md5="old")
+        z.add_item("ATT00003", version=302, itemType="attachment", parentItem="K0000004", title="Preprint-arXiv-v3",
                    contentType="application/pdf", linkMode="imported_file", dateAdded="2026-01-01T00:00:00Z", md5="pre")
-        z.add_item("ATT00002", version=303, itemType="attachment", parentItem="K0000004", title="Full Text PDF",
+        z.add_item("ATT00002", version=303, itemType="attachment", parentItem="K0000004", title="Published-IEEE-in_press",
                    contentType="application/pdf", linkMode="imported_file", dateAdded="2026-02-01T00:00:00Z", md5="pub")
         z.add_item("ATT00004", version=304, itemType="attachment", parentItem="K0000005", title="Snapshot",
                    contentType="text/html", linkMode="imported_url")
@@ -79,7 +81,7 @@ class ReadLibrary(unittest.TestCase):
 
     def test_all_includes_children(self):
         rows = self.run_("items", "--all").lines
-        self.assertEqual(len(rows), 255)
+        self.assertEqual(len(rows), 256)
         self.assertIn("ATT00001", {row["key"] for row in rows})
 
     def test_top_is_gone(self):
@@ -147,12 +149,15 @@ class ReadLibrary(unittest.TestCase):
         rows = self.run_("schema").lines
         self.assertEqual((len(rows), rows[0]["version"]), (1, 44))
 
-    def test_pdf_published_first_with_path_and_md5(self):
+    def test_pdf_by_version_with_path_and_md5(self):
         r = self.run_("pdf", "--cite", "auth4")
         self.assertEqual(r.code, 0, r)
         rows = r.lines
-        self.assertEqual([(row["attachment"], row["kind"], row["md5"], row["exists"]) for row in rows],
-                         [("ATT00002", "published", "pub", True), ("ATT00003", "preprint", "pre", False)])
+        self.assertEqual([(row["attachment"], row["version"], row["source"], row["detail"], row["standard"], row["md5"], row["exists"])
+                          for row in rows],
+                         [("ATT00002", "published", "IEEE", ["in_press"], True, "pub", True),
+                          ("ATT00003", "preprint", "arXiv", ["v3"], True, "pre", False),
+                          ("ATT00005", "unknown", None, [], False, "old", False)], "a title outside the scheme: unknown")
         self.assertEqual((rows[0]["path"], rows[0]["citationKey"], rows[0]["title"]), (str(PUBLISHED), "auth4", "Paper number 4"))
         self.assertIsNone(rows[1]["path"])
 

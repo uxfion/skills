@@ -6,7 +6,7 @@ The second entry: the user asks for tags or collections to be tidied, a field fi
 
 A request to tidy a collection (整理) runs these five steps; a single fix the user names starts at step 2.
 
-1. **Check.** `uv run scripts/p2z.py lint_items --collection <key> [--recursive]` reads the whole library once and lists each item of the collection that has a problem — duplicates anywhere in the library, stray webpages, extra PDFs, bad fields, a url that is not the version of record, a citation key that is missing, shared or holds a TeX-special character, a model name no tag carries (`--help` lists the codes). `--crossref` adds a DOI candidate to each `missing_doi`, one request a second. Done when the summary line is in hand.
+1. **Check.** `uv run scripts/p2z.py lint_items --collection <key> [--recursive]` reads the whole library once and lists each item of the collection that has a problem — duplicates anywhere in the library, stray webpages, attachment titles outside the scheme or clashing, a file another from the same source replaces, bad fields, a url that is not the version of record, a citation key that is missing, shared or holds a TeX-special character, a model name no tag carries (`--help` lists the codes). `--crossref` adds a DOI candidate to each `missing_doi`, one request a second. Done when the summary line is in hand.
 2. **List.** Turn the findings into one change list for the user: per item what you propose and why — the merge of a duplicate pair (below), the field fixes, the tags to add (references/tagging.md), what goes to the trash. A `patch` in a finding is mechanical and can go in as it is; every other code is yours to judge first — a venue that issues no DOI (ICML, ICLR) is expected under `missing_doi`, and a `duplicate_of` by title alone may be two papers. Done when every finding is in the list as a change or as left alone, with the reason.
 3. **Confirm.** Show the list (the `--dry-run` outputs of the commands that will write it) and wait for the user's word on it; scope they grant holds for the rest of the task.
 4. **Write.** Each change with its command: fields `update_item` (a `patch` goes in a file: `--patch FILE`), tags and collections `file_and_tag`, duplicates `merge_items`, the trash `trash_item`.
@@ -22,7 +22,7 @@ uv run scripts/p2z.py read_library tags --min-count 2            # the existing 
 uv run scripts/p2z.py read_library items --collection <key>      # every top-level item in a collection
 uv run scripts/p2z.py read_library items --cite <citation key>   # one item, as the API returns it
 uv run scripts/p2z.py read_library children --cite <citation key> # its attachments (content type, md5) and notes
-uv run scripts/p2z.py read_library pdf --cite <citation key>     # where its PDFs are on disk, the published version first
+uv run scripts/p2z.py read_library pdf --cite <citation key>     # where its PDFs are on disk, with their versions, best first
 ```
 
 ## Tidying tags and collections
@@ -43,9 +43,20 @@ uv run scripts/p2z.py update_item --cite <key> --set itemType=conferencePaper --
 
 A paper without a DOI gets the identifier SKILL.md step 2 asks for — often the DOI exists (a CVF copy of a CVPR paper, a Springer chapter), and Crossref finds it by title and first author. Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Zotero moves an Extra line it has a field for (`PMID: 38262200`) into that field when the field is empty: the result shows it under `normalized.extra.moved_to_fields`, which is a success — set such a field directly next time. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag`; the trash has its own section below.
 
+## Attachment titles
+
+Every PDF and snapshot is titled `<Version>-<Source>-<detail>` (references/attachment-titles.md: the scheme, the versions, the evidence). Files that came in another way — the Zotero Connector, Zotero's "Find Available PDF", an older run of this skill — carry titles outside it ("PDF", "Full Text PDF", "Preprint (arXiv)"), and those say nothing about the version. Renaming them:
+
+1. **List.** `lint_items` over the scope: each `nonstandard_title` comes with its evidence (the attachment's url and site, the item's DOI, page 1's first lines), `label_clash` names two files under one title, `superseded` a file another from the same source replaces.
+2. **Name from the evidence.** Hand the `nonstandard_title` findings in batches of a few dozen to subagents on a cheap model (Claude Code: `model: "sonnet"`), each with references/attachment-titles.md; they read only the findings and propose a title per attachment with its reason, or say they cannot. Up to 10 at once.
+3. **Look closer** at what step 2 could not name: a subagent opens the file (`read_library pdf` gives its path) and reads its first pages; one that has to check the publisher's or the host's page goes per site, one site at a time, briefed with *Agents you send* (SKILL.md, Rules).
+4. **Unknown** for what is still undecided, with the source when that is known.
+5. **Show the list** to the user: per attachment the item's citation key, the old title, the new one and the reason; beside it the `label_clash` and `superseded` findings, each with the file you would trash.
+6. **Write** on the user's word: `update_item --key <attachment> --set title=<new>` (a `--dry-run` first), the trash per the next section. This touches only the local API, no website. Then run step 1 again on the same scope: done when every title the user approved is in place and the findings left are the ones the user chose to keep.
+
 ## The trash
 
-Superseded attachments (a snapshot or a preprint PDF once the published PDF is attached), duplicate items the user agreed to drop, stray attachments: list them first — `trash_item --cite <key> --dry-run` (or `--key` for an attachment) shows item type, title and parent — and move them only after the user has confirmed the list. The trash is a 30-day undo: `--restore` brings an item back, and Zotero deletes for good what has sat in the trash longer (its `trashAutoEmptyDays` setting, 30 by default; unchanged on this user's Zotero, 2026-10-18). Nothing here empties the trash. So what goes there is what the user would not miss: for a duplicate, `merge_items` first carries over everything it holds.
+Superseded attachments (a file another from the same source replaces, a snapshot standing in for a PDF that is now attached), duplicate items the user agreed to drop, stray attachments: list them first — `trash_item --cite <key> --dry-run` (or `--key` for an attachment) shows item type, title and parent — and move them only after the user has confirmed the list. The trash is a 30-day undo: `--restore` brings an item back, and Zotero deletes for good what has sat in the trash longer (its `trashAutoEmptyDays` setting, 30 by default; unchanged on this user's Zotero, 2026-10-18). Nothing here empties the trash. So what goes there is what the user would not miss: for a duplicate, `merge_items` first carries over everything it holds.
 
 ## Duplicate items
 

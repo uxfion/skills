@@ -36,6 +36,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
@@ -297,6 +298,39 @@ def read_json(url, **kwargs):
         return json.loads(read(url, **kwargs).decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
         raise NoData("bad_response") from None
+
+
+# ---- arXiv's API ------------------------------------------------------------------------------------------------
+
+ARXIV_HOST = "export.arxiv.org"  # paced and stopped under the real service's host, also when a test points elsewhere
+ATOM = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
+
+
+def arxiv_entries(ids, pacer=None):
+    """{arXiv id: ({journal_ref, doi, comment, version: the latest vN}, the source's code)}, one request per 100 ids
+    (env ARXIV_API_URL points it elsewhere); an id arXiv does not know gets ({}, "ok"), every id of a request that
+    failed ({}, NoData's code)."""
+    out = {}
+    for start in range(0, len(ids), 100):
+        chunk = ids[start:start + 100]
+        try:
+            body = read(endpoint("ARXIV_API_URL", "https://export.arxiv.org/api/query"), host=ARXIV_HOST, pacer=pacer,
+                        params={"id_list": ",".join(chunk), "max_results": len(chunk)},
+                        headers={"Accept": "application/atom+xml"}, timeout=60)
+            got = {}
+            for entry in ET.fromstring(body).findall("a:entry", ATOM):
+                m = re.search(rf"arxiv\.org/abs/({paper.ARXIV_ID})(v\d+)?$", (entry.findtext("a:id", "", ATOM) or "").strip(), re.I)
+                if m:
+                    got[m.group(1)] = {**{tag: clean(entry.findtext(f"arxiv:{tag}", None, ATOM)) for tag in ("journal_ref", "doi", "comment")},
+                                       "version": (m.group(2) or "").lower() or None}
+        except NoData as e:
+            out.update({aid: ({}, e.code) for aid in chunk})
+            continue
+        except ET.ParseError:
+            out.update({aid: ({}, "bad_response") for aid in chunk})
+            continue
+        out.update({aid: (got.get(aid, {}), "ok") for aid in chunk})
+    return out
 
 
 # ---- paper pages ----------------------------------------------------------------------------------------------

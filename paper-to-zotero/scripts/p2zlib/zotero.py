@@ -375,8 +375,7 @@ class Zotero:
         return {"key": row["key"], "version": row.get("version"), "citationKey": d.get("citationKey") or "",
                 "title": d.get("title") or "", "date": d.get("date") or "", "collections": list(d.get("collections") or []),
                 "tags": list(d.get("tags") or []),
-                "attachments": [{k: a.get(k) for k in ("key", "title", "kind", "contentType", "linkMode", "filename", "md5")}
-                                for a in self.attachments(row["key"])]}
+                "attachments": [{k: v for k, v in a.items() if k != "dateAdded"} for a in self.attachments(row["key"])]}
 
     def files_by_md5(self, md5s):
         """{md5: {attachment, parent, citationKey, title}} for those of the md5s an attachment in the library holds
@@ -411,17 +410,16 @@ class Zotero:
         return local_path(location) if location and location.startswith("file:") else None
 
     def attachments(self, key):
-        """The item's attachments, the paper's PDFs first (published, accepted, preprint, then by date added):
-        [{key, title, kind, contentType, linkMode, filename, md5, dateAdded}]; file_path() says where one is."""
+        """The item's attachments, best first (paper.ordered: the paper's versions, then supplements, snapshots, the
+        rest): [{key, title, version, source, detail, standard (paper.attachment_label), contentType, linkMode,
+        filename, md5, url, dateAdded}]; file_path() says where one is."""
         out = []
         for c in self.children(key):
             d = data(c)
-            if d.get("itemType") != "attachment":
-                continue
-            entry = {"key": c["key"], "title": d.get("title"), "kind": paper.kind_of_attachment(d),
-                     **{f: d.get(f) for f in ("contentType", "linkMode", "filename", "md5", "dateAdded")}}
-            out.append(entry)
-        return sorted(out, key=lambda a: (paper.kind_rank(a["kind"]), a.get("dateAdded") or ""))
+            if d.get("itemType") == "attachment" and not in_trash(c):
+                out.append({"key": c["key"], "title": d.get("title"), **paper.attachment_label(d),
+                            **{f: d.get(f) for f in ("contentType", "linkMode", "filename", "md5", "url", "dateAdded")}})
+        return paper.ordered(out)
 
     # ---- writes ---------------------------------------------------------------------------------------------
 
@@ -580,19 +578,19 @@ class Zotero:
 
     # ---- attaching a file -----------------------------------------------------------------------------------
 
-    def attach(self, parent_key, path, *, title=None, url, filename=None, kind=None, server=None, verify=None,
-               dry_run=False):
+    def attach(self, parent_key, path, *, title=None, url, filename=None, verify=None, dry_run=False):
         """Attach one file, a PDF or an HTML page saved as .html, to one regular item, whatever made the item.
 
-        A child already holding this file (same md5) settles it: skipped, already_attached, nothing uploaded. An empty
-        stored-file child with the same filename (left by an interrupted run) is reused. verify(parent data) runs only
-        when the file is not attached yet; a Stop from it refuses. The kind is given, else read from the file name; the
-        title is given, else the kind's (a preprint's names its server: given, else the url's, else arXiv); the filename is given, else Zotero's default "<firstCreator> - <year> -
+        A child already holding this file (same md5) settles it: skipped, already_attached, nothing uploaded, its
+        title left as it is. An empty stored-file child with the same filename (left by an interrupted run) is
+        reused, and takes this title. verify(parent data) runs only when the file is not attached yet; a Stop from it
+        refuses. The title is the caller's (paper.label_title), else the version word the bytes alone give: Unknown
+        for a PDF, Snapshot for HTML. The filename is given, else Zotero's default "<firstCreator> - <year> -
         <title>.<ext>". `url` is stored as given (None: a stored file without a source). Then the attachment item, the
         three-step upload and the md5 read back. Children in the trash count for nothing.
-        -> {code ok, attachment (its key), md5, filename, title, kind, reused, file_existed}
-         | {code skipped, reason already_attached, attachment, md5, filename, title, kind}: the attachment already there
-         | dry_run: {code ok, dry_run, attachment (the child it would reuse, else None), md5, filename, title, kind, reused,
+        -> {code ok, attachment (its key), md5, filename, title, reused, file_existed}
+         | {code skipped, reason already_attached, attachment, md5, filename, title}: the attachment already there
+         | dry_run: {code ok, dry_run, attachment (the child it would reuse, else None), md5, filename, title, reused,
                      contentType, url, size}."""
         path = Path(path).expanduser()
         if not path.is_file():
@@ -604,12 +602,7 @@ class Zotero:
                        "a \"PDF\" that is really HTML means the download returned a web page.",
                        file=str(path), size=len(body), head=body[:16].decode("latin-1"))
         content_type, ext, charset = sniffed
-        if kind is None:
-            kind = paper.kind_of_file(path.name)
-            if kind is None or (kind == "snapshot") != (content_type == "text/html"):
-                kind = "snapshot" if content_type == "text/html" else "published"
-        elif kind not in paper.KINDS:
-            raise ValueError(f"unknown file kind {kind!r}; one of {', '.join(paper.KINDS)}")
+        title = title or paper.label_title("Snapshot" if content_type == "text/html" else "Unknown")
         md5 = hashlib.md5(body).hexdigest()
 
         parent = self.item(parent_key)
@@ -630,25 +623,21 @@ class Zotero:
                 continue
             if (cd.get("md5") or "").lower() == md5:
                 return skipped("already_attached", attachment=child["key"], md5=md5, filename=cd.get("filename"),
-                               title=cd.get("title"), kind=paper.kind_of_attachment(cd) or kind)
+                               title=cd.get("title"))
             if (reuse is None and cd.get("linkMode") in ("imported_url", "imported_file") and not cd.get("md5")
                     and cd.get("filename") == filename):
                 reuse = child
         if verify is not None:
             verify(pdata)
-        if title is None:
-            title = paper.attachment_title(kind, server or paper.preprint_server(url) or "arXiv",
-                                           parent_type=pdata.get("itemType"))
-        if reuse is not None:
-            title = data(reuse).get("title") or title
         if dry_run:
             return {"code": "ok", "dry_run": True, "attachment": reuse["key"] if reuse else None, "md5": md5, "filename": filename,
-                    "title": title, "kind": kind, "reused": reuse is not None, "contentType": content_type, "url": url,
+                    "title": title, "reused": reuse is not None, "contentType": content_type, "url": url,
                     "size": len(body)}
 
         if reuse is not None:
             key = reuse["key"]
             log(f"{parent_key}: reusing the empty attachment {key} (same filename, no file)")
+            self.retitle(key, title, reuse)
         else:
             attachment = {"itemType": "attachment", "linkMode": "imported_url" if url else "imported_file",
                           "parentItem": parent_key, "title": title, "contentType": content_type, "filename": filename,
@@ -669,7 +658,12 @@ class Zotero:
             raise Stop("readback_mismatch", hint="Zotero holds another file (or none) on the attachment; rerun to upload "
                        "again, or look at it in Zotero.", attachment=key, md5_sent=md5, md5_read_back=read_back or None)
         return {"code": "ok", "attachment": key, "md5": md5, "filename": after.get("filename") or filename,
-                "title": after.get("title") or title, "kind": kind, "reused": reuse is not None, "file_existed": existed}
+                "title": after.get("title") or title, "reused": reuse is not None, "file_existed": existed}
+
+    def retitle(self, key, title, item=None):
+        """Give an attachment this title (nothing sent when it has it) -> whether a write was sent."""
+        _, sent, _ = self.update(key, lambda it: None if data(it).get("title") == title else {"title": title}, item)
+        return sent is not None
 
     def _upload(self, key, body, md5, filename, mtime, content_type):
         """Authorize, send the bytes, register -> True when Zotero already had this file (nothing sent)."""

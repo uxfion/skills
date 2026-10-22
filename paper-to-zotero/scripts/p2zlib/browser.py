@@ -10,7 +10,10 @@ window.__p2z_b64, read in chunks. find() lists what on any page may lead to the 
      a pdf.js viewer in any frame is flagged: `viewer`
   3. links whose text or aria-label says PDF ("PDF", "Download PDF", "View PDF", "Get PDF", "Full text PDF"), or
      whose path ends in .pdf or has a /pdf/ segment; the page's own site first; purchase links left out
-Whatever a candidate yields is only the paper once claim has checked it: the finder finds, the check judges.
+Whatever a candidate yields is only the paper once claim has checked it: the finder finds, the check judges. Each
+candidate carries what the page said of it, for the file's label (never read here): a link its text and the text
+around it (`near`: its enclosing block's, as "View Open Manuscript" or "Early Access" sit beside a PDF button);
+find() also gives the page's own description of the paper (`meta`: META_NAMES, the first value of each).
 """
 import base64
 import json
@@ -24,16 +27,21 @@ CHUNK = 1_000_000  # base64 characters per read
 
 VIEWER_FIND = r"""const W=[window];for(const f of document.querySelectorAll('iframe,frame')){try{if(f.contentWindow&&f.contentWindow.document)W.push(f.contentWindow)}catch(e){}}
 let A=null;for(const w of W){try{if(w.PDFViewerApplication){A=w.PDFViewerApplication;break}}catch(e){}}"""
-FIND_JS = ("/*p2z:find*/(()=>{" + VIEWER_FIND + r"""const out=[],seen=new Set(),here=location.hostname;
-const add=(u,why)=>{try{const a=new URL(u,document.baseURI).href;if(!/^https?:/.test(a)||seen.has(a))return;seen.add(a);out.push({url:a,why:why})}catch(e){}};
+# The meta tags whose content find() reports: what the page says the paper is (title, venue, dates, volume, type).
+META_NAMES = r"^(citation_(title|publisher|journal_title|conference_title|date|publication_date|online_date|cover_date|volume|issue|firstpage|doi|article_type)|dc\.(type|publisher|date)|prism\.(publicationdate|volume|number)|og:site_name)$"
+FIND_JS = ("/*p2z:find*/(()=>{" + VIEWER_FIND + r"""const out=[],seen=new Set(),here=location.hostname,meta={};
+const sq=s=>(s||'').replace(/\s+/g,' ').trim();
+for(const m of document.querySelectorAll('meta[name],meta[property]')){const n=(m.getAttribute('name')||m.getAttribute('property')||'').toLowerCase();if(new RegExp(__META__).test(n)&&m.content&&!(n in meta))meta[n]=sq(m.content).slice(0,200)}
+const add=(u,why,text,near)=>{try{const a=new URL(u,document.baseURI).href;if(!/^https?:/.test(a)||seen.has(a))return;seen.add(a);out.push(Object.assign({url:a,why:why},text?{text:text}:{},near?{near:near}:{}))}catch(e){}};
 const m=document.querySelector('meta[name="citation_pdf_url"]');if(m&&m.content)add(m.content,'citation_pdf_url');
 for(const l of document.querySelectorAll('link[rel~="alternate"][type^="application/pdf"]'))add(l.href,'alternate');
 for(const f of document.querySelectorAll('iframe[src],embed[src],object[data]')){const u=f.src||f.data||'';if(/pdf/i.test(u)||/pdf/i.test(f.type||''))add(u,'frame')}
 const buy=/\b(buy|purchase|rent|price|cart)\b/i,links=[];
 for(const a of document.querySelectorAll('a[href]')){const t=((a.innerText||'')+' '+(a.getAttribute('aria-label')||'')).trim(),p=a.pathname||'';
-if(buy.test(t)||buy.test(a.href))continue;if(/\bpdf\b/i.test(t)||/\.pdf$/i.test(p)||/\/pdf\//i.test(p))links.push({h:a.href,same:a.hostname===here})}
-links.sort((x,y)=>(y.same?1:0)-(x.same?1:0));for(const l of links)add(l.h,'link');
-return {href:location.href,title:document.title||'',doc:performance.timeOrigin,viewer:!!(A&&A.pdfDocument),candidates:out}})()""")
+if(buy.test(t)||buy.test(a.href))continue;if(/\bpdf\b/i.test(t)||/\.pdf$/i.test(p)||/\/pdf\//i.test(p)){const b=a.parentElement&&a.parentElement.closest('li,p,div,section,td,dd,header,nav')||a.parentElement;
+links.push({h:a.href,same:a.hostname===here,t:sq(t).slice(0,80),n:sq(b&&b.innerText).slice(0,160)})}}
+links.sort((x,y)=>(y.same?1:0)-(x.same?1:0));for(const l of links)add(l.h,'link',l.t,l.n);
+return {href:location.href,title:document.title||'',doc:performance.timeOrigin,viewer:!!(A&&A.pdfDocument),meta:meta,candidates:out}})()""").replace("__META__", json.dumps(META_NAMES))
 FETCH_JS = r"""/*p2z:fetch*/(async()=>{try{const r=await fetch(__URL__,{credentials:'include'});
 const ct=r.headers.get('content-type')||'';const b=new Uint8Array(await r.arrayBuffer());
 const h=String.fromCharCode.apply(null,b.subarray(0,1024));const pdf=h.indexOf('%PDF-')>=0;let n=0;
@@ -118,7 +126,8 @@ class Browser:
         return got if isinstance(got, (int, float)) else None
 
     def find(self):
-        """The current page: {href, title, doc (as document()), viewer, candidates: [{url, why}]}, best first."""
+        """The current page: {href, title, doc (as document()), viewer, meta: {name: content}, candidates: [{url, why,
+        text?, near?}]}, best first."""
         return self.value(FIND_JS)
 
     def fetch(self, url):
