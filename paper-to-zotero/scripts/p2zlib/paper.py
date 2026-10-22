@@ -256,12 +256,14 @@ def arxiv_link(url):
 
 def proposal(route, url=None, given=None):
     """The title a file is proposed under, from how it came (the agent confirms it or writes another):
-    {title, version, source, detail}. The version: the one the agent gave (`given`, a kind), else the site's
-    (SITE_VERSIONS: a preprint server's file, whichever route reached it, as a preprint item's own DOI leads the
-    publisher route to arXiv), else the route's (ROUTE_VERSIONS), else Unknown. The source is the url's site
-    (SOURCES), the detail the url's arXiv vN."""
-    version = (given.capitalize() if given else by_host(host_of(url), SITE_VERSIONS) or ROUTE_VERSIONS.get(route)
-               or "Unknown")
+    {title, version, source, detail}. The version: the one the agent gave (`given`, a kind); a page the snapshot
+    route saved is a Snapshot; else the site's (SITE_VERSIONS: a preprint server's file, whichever route reached it,
+    as a preprint item's own DOI leads the publisher route to arXiv), else the route's (ROUTE_VERSIONS), else
+    Unknown. The source is the url's site (SOURCES), the detail the url's arXiv vN."""
+    if given or route == "snapshot":
+        version = (given or route).capitalize()
+    else:
+        version = by_host(host_of(url), SITE_VERSIONS) or ROUTE_VERSIONS.get(route) or "Unknown"
     source, vn = source_of(url), arxiv_link(url)[1]
     detail = [vn] if vn else []
     return {"title": label_title(version, source, detail), "version": version.lower(), "source": source, "detail": detail}

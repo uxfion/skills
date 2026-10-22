@@ -152,7 +152,7 @@
 ## 5. 整理和一次性改名
 
 - **lint** 新增两个检查，只看 PDF 和 HTML 快照，不看笔记、链接以及以后结构化包的 zip：
-  - `nonstandard_title`：标题不合规范的附件，带上判断用的证据：附件 url 和网站、条目 DOI、首页开头几行。不带提议名，名字由 agent 定（原则 3、4）。合规范但没写来源、而附件 url 的网站有名字的（比如只写 `Snapshot` 的 ScienceDirect 快照），也列出来；
+  - `nonstandard_title`：标题不合规范的附件，带上判断用的证据：附件 url 和网站、条目 DOI、首页开头几行。不带提议名，名字由 agent 定（原则 3、4）。合规范但没写来源、而附件 url 的网站有名字的快照（比如只写 `Snapshot` 的 ScienceDirect 快照），也列出来；
   - `label_clash`：同一条目里两份附件标题相同，多半是重复。例如 4 个条目各有两份 ScienceDirect 快照。
   - `superseded`：同一来源里按 §1 该让位的那份，例如 `Preprint-arXiv-v1` 旁边有 `Preprint-arXiv-v3`。原来的 `multiple_pdfs` 去掉了：多个版本并存是本规范的本意（§12）。
 - **organize.md 加一节"附件改名"**：
@@ -257,7 +257,7 @@
 
 - **证据和默认版本写进 claim 事件，不写进记录的 `label_proposal`**：后台的 watcher 进程也会调 claim，它写记录时 agent 可能正在写 `label`，会互相覆盖。`fetch.jsonl` 只追加，没有这个问题，也合 run.py 原来"文件的事实在 fetch.jsonl"的设计。记录里只有 agent 写的 `label`。fetch 一遍跑完输出的 `to_label` 行就从这些事件里取。
 - **lint 去掉 `multiple_pdfs`，加 `superseded`**：多份 PDF 并存是规范的本意，再报它就是噪音；该清理的是同一来源里让位的那份。替换规则只看合规范、写了来源的标题，免得改名前把两份旧标题的 PDF 误判成一份取代另一份。
-- **`nonstandard_title` 也列"合规范但没写来源"的**：库里约 96 份快照的标题就是 `Snapshot`，按语法是合规范的，不这样就进不了改名清单。只在附件 url 的网站有名字时才列，`Unknown` 这类确实不知道来源的不列。
+- **`nonstandard_title` 也列"合规范但没写来源"的快照**：库里约 96 份快照的标题就是 `Snapshot`，按语法是合规范的，不这样就进不了改名清单。只在附件 url 的网站有名字时才列，而且只看快照：快照的 url 就是它存下的网页；PDF 的 url 多半抄的是条目的，说明不了从哪下载，改名时故意不写来源的 PDF 不该每次都被列出来。
 - **没有 `label` 的网页快照挂成 `Snapshot-<Source>`**：快照是什么，看字节就知道，不需要确认。
 - **读回附件时**：每份附件的 `version`（小写）、`source`、`detail`、`standard` 来自标题；`kind` 仍只表示工作目录里文件名带的"想要的版本"。回收站里的附件不再算。
 - **arXiv 版本号的请求挪到 `web.arxiv_entries`**，prepare 和 fetch 共用一份。fetch 只在第一次碰到不带 vN 的 arXiv 链接时，为这一遍所有缺版本号的 arXiv 链接发一次请求。
@@ -268,3 +268,4 @@
   - 预印本服务器的文件，不管走哪条路线都默认 Preprint。原来 publisher 路线一律默认 Published，可预印本条目自己的 DOI（`10.48550/arXiv.…`）会把 publisher 路线带到 arXiv，库里约 110 个预印本条目都会被默认成 `Published-arXiv`。从不带版本号的 arXiv 地址取到的文件，也补上 arXiv 当时给的最新 vN。
   - Chrome 在 fetch 打开的链接上直接下载、再由 watcher 从 Downloads 认领的文件，原来丢了 fetch 手上的路线、地址、页面和链接文字。PMC、OUP、ACM 都是这样下载的。现在 fetch 补一条 `arrival` 事件记下这些。
   - agent 用 `claim --accept` 收下被检查拒掉的文件时，沿用那份文件先前 claim 事件里的路线和证据，不再从零开始。
+  - 复查这三处时又发现并改了：网页快照一律默认 `Snapshot`（不跟着网站成了 Preprint），快照的地址不改写成 arXiv PDF 地址；待确认表只列 PDF；watcher 的 claim 事件和 fetch 的 arrival 事件合起来读，不会互相盖掉。

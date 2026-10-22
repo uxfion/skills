@@ -28,7 +28,7 @@ What the file is, the agent settles (SKILL.md, step 3): each claim event carries
 came (paper.proposal: the site's or the route's version, the site's name, the arXiv vN) and the evidence seen on the
 way: the url, the page (title, its citation_* and dc.* tags) and the link clicked (its text and the text around it);
 a file Chrome downloaded on a link this command opened gets the same as an arrival event. When a pass
-goes through, a `to_label` line for each record with a file and no `label` lists them: {slug, code: to_label, file,
+goes through, a `to_label` line for each record with a PDF and no `label` lists them: {slug, code: to_label, file,
 proposal, route, url, link, page, meta, stamp, dates, head (page 1's first lines)}.
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, wrong_file (the
@@ -137,7 +137,7 @@ class Pass:
         """How a file came, for its claim or arrival event: the route, the url (an arXiv one without a version as the
         latest version's, the one arXiv serves there), the version the agent named for a start page, the page and
         the link taken on it."""
-        return {"route": self.route, "url": self.arxiv_url(url) if url else None,
+        return {"route": self.route, "url": self.arxiv_url(url) if url and self.route != "snapshot" else url,
                 "given": self.args.version if self.route == "start" else None,
                 "page": {k: page[k] for k in ("href", "title", "meta") if page.get(k)} if page else None,
                 "link": {k: link[k] for k in ("url", "why", "text", "near") if link.get(k)} if link else None}
@@ -293,11 +293,12 @@ class Pass:
         return f"https://arxiv.org/pdf/{aid}{self.arxiv[aid]}" if aid in self.arxiv else url
 
     def to_label(self):
-        """A to_label line for each record with a file and no label: what its label is settled from -> how many."""
+        """A to_label line for each record with a PDF and no label: what its label is settled from -> how many. A
+        snapshot needs none: its bytes say what it is."""
         n = 0
         for rec in self.records:
             f = self.work.file_of(rec.slug)
-            if f is None or rec.get("label"):
+            if f is None or rec.get("label") or paper.kind_of_file(f.name) == "snapshot":
                 continue
             n += 1
             e = run.arrived(self.work, rec.slug, run.md5_of(f)) or {}

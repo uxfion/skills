@@ -368,11 +368,21 @@ def accepted(work, slug, md5):
 
 
 def arrived(work, slug, md5):
-    """How this record's file with this md5 came: the latest of the claim or accept event that filed it and an
-    arrival event about it, or None."""
-    return next((e for e in reversed(work.events()) if e.get("slug") == slug and e.get("md5") == md5
-                 and (e.get("event") == "arrival" or e.get("event") in ("claim", "accept") and e.get("result") == "claimed")),
-                None)
+    """How this record's file with this md5 came: the claim or accept event that filed it, with what an arrival event
+    about it adds (route, proposal, url, page, link; the claim's file evidence stays), or None."""
+    filed = extra = None
+    for e in work.events():
+        if e.get("slug") != slug or e.get("md5") != md5:
+            continue
+        if e.get("event") == "arrival":
+            extra = e
+        elif e.get("event") in ("claim", "accept") and e.get("result") == "claimed":
+            filed = e
+    if not (filed and extra):
+        return filed or extra
+    seen = {k: v for k, v in (extra.get("evidence") or {}).items() if k != "file"}
+    return {**filed, "route": extra.get("route"), "proposal": extra.get("proposal"),
+            "evidence": {**(filed.get("evidence") or {}), **seen}}
 
 
 def note_arrival(work, slug, came):

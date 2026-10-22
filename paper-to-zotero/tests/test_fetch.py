@@ -287,10 +287,11 @@ class Fetch(unittest.TestCase):
         self.assertEqual(self.files(), ["c.pdf", "d.pdf", "f.pdf", "g.pdf"])
         # c and d came through Downloads, whose claim saw no page: fetch adds how they came
         came = {s: run.arrived(self.work, s, run.md5_of(self.work.records / f"{s}.pdf")) for s in ("c", "d")}
-        self.assertEqual([(s, e["event"], e["route"], e["evidence"]["url"], e["evidence"].get("page", {}).get("href"))
+        self.assertEqual([(s, e["route"], e["evidence"]["url"], e["evidence"].get("page", {}).get("href"))
                           for s, e in came.items()],
-                         [("c", "arrival", "publisher", "https://pub.example/c.pdf", "https://pub.example/c"),
-                          ("d", "arrival", "publisher", "https://doi.org/10.1000/d.6", None)])
+                         [("c", "publisher", "https://pub.example/c.pdf", "https://pub.example/c"),
+                          ("d", "publisher", "https://doi.org/10.1000/d.6", None)])
+        self.assertEqual([e["slug"] for e in self.work.events("arrival")], ["c", "d"])
         self.assertEqual(came["c"]["evidence"]["file"]["excerpt"], f"{c}\nWei Liu", "the file's evidence kept")
         self.assertEqual({x["slug"]: x["route"] for x in lines if x.get("code") == "to_label"},
                          {"c": "publisher", "d": "publisher", "f": "publisher", "g": "publisher"})
@@ -329,6 +330,8 @@ class Fetch(unittest.TestCase):
         self.assertEqual(self.events("try")[-1], ("t", "start", "ok"), "a start page is never a route's try")
         self.assertEqual([e["proposal"]["title"] for e in self.work.events("claim")], ["Snapshot", "Accepted"],
                          "a start page's version is the one the agent named")
+        lines = self.fetch("--pass", "3", "--route", "snapshot", self.record("s"))[1]
+        self.assertNotIn("s", [x["slug"] for x in lines if x.get("code") == "to_label"], "a snapshot needs no label")
 
     def test_wait(self):
         self.scene({"pages": {"https://gate.example/login": {"title": "Sign in", "text": "Sign in"}}})

@@ -103,6 +103,7 @@ class LintItems(unittest.TestCase):
         att("SNAP0002", "Snapshot-Elsevier", "text/html", dateAdded="2024-01-01")
         att("SNAP0003", "Snapshot-Elsevier", "text/html", dateAdded="2024-02-01")
         att("LINK0001", "PubMed entry", "text/html", linkMode="linked_url")
+        att("UNKN0001", "Unknown", md5="u1", url="https://ieeexplore.ieee.org/document/1")  # left without a source on purpose
         r = self.run_("--key", T, config=config_file(institution={"proxy": "proxy.example.edu"}))
         got = [p for p in reported(r)[T]["problems"] if p["code"] in ("nonstandard_title", "label_clash", "superseded")]
         self.assertEqual(got, [

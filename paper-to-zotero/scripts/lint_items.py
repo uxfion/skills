@@ -19,8 +19,8 @@ Problem codes (each problem is {"code", ...}):
                           (renaming a key breaks the user's \\cite{}: ask first)
   unfiled_webpage         a webpage item in no collection
   nonstandard_title       a PDF or HTML snapshot whose title is outside the scheme <Version>-<Source>-<detail>
-                          (paper.py; Zotero's "Full Text PDF", an older run's "Preprint (arXiv)"), or in it without a
-                          source while its url's site has a name ({"why": "outside_scheme" | "no_source"}). The
+                          (paper.py; Zotero's "Full Text PDF", an older run's "Preprint (arXiv)"), or a snapshot in it
+                          without a source while its url's site has a name ({"why": "outside_scheme" | "no_source"}). The
                           evidence to name it from, no name: {attachment, title, contentType, url, host, source (the
                           site's name in paper.SOURCES, else null), filename, md5, doi (the item's), excerpt (the first
                           300 characters of page 1, read from the file on this machine; null when it cannot be read)}
@@ -187,7 +187,9 @@ def title_problems(data, children, zot, proxy):
         files.append({"key": c["key"], "title": d.get("title"), "dateAdded": d.get("dateAdded"), **label})
         url = web.unproxy(d.get("url") or "", proxy) or None
         source = paper.source_of(url)
-        why = "outside_scheme" if not label["standard"] else "no_source" if not label["source"] and source else None
+        # A snapshot's url is the page it saved; a PDF's is often the item's, which names no download site.
+        no_source = not label["source"] and source and d.get("contentType") == "text/html"
+        why = "outside_scheme" if not label["standard"] else "no_source" if no_source else None
         if why:
             out.append({"code": "nonstandard_title", "why": why, "attachment": c["key"], "title": d.get("title"),
                         "contentType": d.get("contentType"), "url": url, "host": paper.host_of(url) or None,

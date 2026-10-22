@@ -397,6 +397,7 @@ class Rules(unittest.TestCase):
                  ("discovery", "https://www.sciencedirect.com/science/article/pii/S1/pdfft", None, "Unknown-Elsevier"),
                  ("start", "https://repository.example.edu/a.pdf", "accepted", "Accepted"),
                  ("snapshot", "https://www.nature.com/articles/x", None, "Snapshot-Nature"),
+                 ("snapshot", "https://www.biorxiv.org/content/10.1101/1v2", None, "Snapshot-bioRxiv"),
                  (None, None, None, "Unknown"))
         for route, url, given, title in cases:
             self.assertEqual(paper.proposal(route, url, given)["title"], title, (route, url))
