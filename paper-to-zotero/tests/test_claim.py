@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from helpers import call, fake_pdf, load, poppler_stubs, smoke
+from helpers import call, config_file, fake_pdf, load, poppler_stubs, smoke
 from fake_zotero import FakeZotero
 
 from p2zlib import run
@@ -34,7 +34,8 @@ class Claim(unittest.TestCase):
         self.dl.mkdir()
         self.work.set(downloads=str(self.dl))
         bin_ = poppler_stubs(root / "bin")
-        self.enterContext(mock.patch.dict(os.environ, {"PATH": f"{bin_}:{os.environ['PATH']}"}))
+        self.enterContext(mock.patch.dict(os.environ, {"PATH": f"{bin_}:{os.environ['PATH']}",
+                                                       "PAPER_TO_ZOTERO_CONFIG": str(config_file())}))
         self.record("paper", TITLE)
         self.record("other", OTHER)
 
@@ -63,6 +64,15 @@ class Claim(unittest.TestCase):
         self.assertEqual([e["proposal"]["title"] for e in self.work.events()], ["Unknown", "Accepted", "Accepted", "Unknown"],
                          "a file the agent hands over is what it names, else not settled")
         self.assertEqual(self.run_("--accept", again, "--slug", "paper").code, 2, "--accept needs --reason")
+
+    def test_an_accepted_file_keeps_how_it_came(self):
+        self.work.inbox.mkdir()
+        scan = fake_pdf(self.work.inbox / "s.pdf", ["A scanned first page the check cannot read"])
+        came = {"route": "publisher", "url": "https://ieeexplore.ieee.org/stamp/x.pdf", "page": {"title": "Xplore"}}
+        self.assertEqual(run.claim(self.work, scan, "paper", came=came)["result"], "unverified")
+        event = run.accept(self.work, self.work.unverified / "paper.file.pdf", "paper", "the title page is a scan")
+        self.assertEqual((event["route"], event["proposal"]["title"], event["evidence"]["page"]),
+                         ("publisher", "Published-IEEE", {"title": "Xplore"}))
 
     def test_downloads_scan_and_sweep(self):
         # Another record of the same paper whose library item has a PDF already, its version unknown (a title outside

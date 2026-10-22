@@ -25,8 +25,9 @@ fetched as its latest version (https://arxiv.org/pdf/<id>v<N>: the vN prepare re
 API for all of the pass's arXiv links).
 
 What the file is, the agent settles (SKILL.md, step 3): each claim event carries the title proposed from how the file
-came (paper.proposal: the route's version, the site's name, the arXiv vN) and the evidence seen on the way: the url,
-the page (title, its citation_* and dc.* tags) and the link clicked (its text and the text around it). When a pass
+came (paper.proposal: the site's or the route's version, the site's name, the arXiv vN) and the evidence seen on the
+way: the url, the page (title, its citation_* and dc.* tags) and the link clicked (its text and the text around it);
+a file Chrome downloaded on a link this command opened gets the same as an arrival event. When a pass
 goes through, a `to_label` line for each record with a file and no `label` lists them: {slug, code: to_label, file,
 proposal, route, url, link, page, meta, stamp, dates, head (page 1's first lines)}.
 
@@ -128,12 +129,23 @@ class Pass:
         self.work.inbox.mkdir(exist_ok=True)
         path = self.work.inbox / f"{rec.slug}.{self.route}.{'html' if html else 'pdf'}"
         path.write_bytes(data)
-        came = {"route": self.route, "url": url, "given": self.args.version if self.route == "start" else None,
+        event = run.claim(self.work, path, rec.slug, kind=version if version in paper.KINDS else None, source=url,
+                          via=self.route, came=self.came(url, page, link))
+        return {"claimed": "ok", "unverified": "wrong_file"}.get(event["result"], event["result"]), {"check": event.get("code")}
+
+    def came(self, url, page=None, link=None):
+        """How a file came, for its claim or arrival event: the route, the url (an arXiv one without a version as the
+        latest version's, the one arXiv serves there), the version the agent named for a start page, the page and
+        the link taken on it."""
+        return {"route": self.route, "url": self.arxiv_url(url) if url else None,
+                "given": self.args.version if self.route == "start" else None,
                 "page": {k: page[k] for k in ("href", "title", "meta") if page.get(k)} if page else None,
                 "link": {k: link[k] for k in ("url", "why", "text", "near") if link.get(k)} if link else None}
-        event = run.claim(self.work, path, rec.slug, kind=version if version in paper.KINDS else None, source=url,
-                          via=self.route, came=came)
-        return {"claimed": "ok", "unverified": "wrong_file"}.get(event["result"], event["result"]), {"check": event.get("code")}
+
+    def downloaded_here(self, rec, url, page=None, link=None):
+        """A file Chrome downloaded on a link this command opened: its arrival noted -> the try's result."""
+        run.note_arrival(self.work, rec.slug, self.came(url, page, link))
+        return "ok", {"note": "downloaded by Chrome, filed from Downloads"}
 
     def pace(self, url):
         """The gap before a request for full text: the institution's for anything through its proxy or its discovery
@@ -167,7 +179,7 @@ class Pass:
         if err:
             return "error", {"note": f"open: {err}"}
         if self.downloaded(rec, before):
-            return "ok", {"note": "downloaded by Chrome, filed from Downloads"}
+            return self.downloaded_here(rec, url)
         return self.on_page(rec, version, note)
 
     def downloaded(self, rec, before):
@@ -219,7 +231,7 @@ class Pass:
         before = b.document()
         b.open(req)
         if self.downloaded(rec, before):
-            return "ok", {"note": "downloaded by Chrome, filed from Downloads"}
+            return self.downloaded_here(rec, link, page, cand)
         deadline = time.monotonic() + CLICK_WAIT
         while time.monotonic() < deadline:  # another document: a viewer, or a page to look through
             now = b.find()  # {}: the page did not answer this time (a redirect under way)
@@ -236,7 +248,7 @@ class Pass:
                 except Stopped:
                     return None
             if self.has_file(rec.slug):  # a page that downloads in the end
-                return "ok", {"note": "downloaded by Chrome, filed from Downloads"}
+                return self.downloaded_here(rec, link, page, cand)
             time.sleep(1.0)
         return None
 

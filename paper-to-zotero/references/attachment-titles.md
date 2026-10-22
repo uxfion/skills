@@ -43,7 +43,7 @@ Both lists are starting sets: name a new site or case on the same pattern, and s
 
 The scripts record facts and propose; the version is yours to settle.
 
-- **The proposal** in a claim event (and a `to_label` line) comes from the route and the site alone: `publisher` → Published, `accepted` → Accepted, `preprint` → Preprint, an `open` file from arXiv, bioRxiv or medRxiv → Preprint, everything else Unknown; the source from the download url's site, `vN` from an arXiv url. It is a starting point and is often wrong: an arXiv copy of the final text is Accepted, an Early Access PDF from the publisher route may be the unedited manuscript.
+- **The proposal** in a claim event (and a `to_label` line) comes from the route and the site alone: a file from arXiv, bioRxiv or medRxiv → Preprint, whichever route reached it; otherwise `publisher` → Published, `accepted` → Accepted, `preprint` → Preprint, everything else Unknown; the source from the download url's site, `vN` from an arXiv url. It is a starting point and is often wrong: an arXiv copy of the final text is Accepted, an Early Access PDF from the publisher route may be the unedited manuscript.
 - **What settles it**, strongest first:
   - the same bytes (md5) as a file whose version is known;
   - the hosting site's own word on the file: the label beside the PDF button, the link text clicked ("View Open Manuscript"), a conference's open-access page, a repository's file label, the page's volume and issue (none yet: in press);

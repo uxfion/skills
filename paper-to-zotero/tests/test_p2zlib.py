@@ -389,6 +389,7 @@ class Rules(unittest.TestCase):
     def test_proposals_go_by_the_route_and_the_site(self):
         cases = (("publisher", "https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=1", None, "Published-IEEE"),
                  ("open", "https://arxiv.org/pdf/2303.11366v4", None, "Preprint-arXiv-v4"),
+                 ("publisher", "https://arxiv.org/pdf/2303.11366v4", None, "Preprint-arXiv-v4"),  # a preprint item's DOI
                  ("open", "https://www.biorxiv.org/content/10.1101/1v2.full.pdf", None, "Preprint-bioRxiv"),
                  ("open", "https://openaccess.thecvf.com/content/x.pdf", None, "Unknown-CVF"),  # not by the link's label
                  ("accepted", "https://pmc.ncbi.nlm.nih.gov/articles/PMC1/pdf/a.pdf", None, "Accepted-PMC"),

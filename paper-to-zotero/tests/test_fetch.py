@@ -285,6 +285,15 @@ class Fetch(unittest.TestCase):
         code, lines, err = self.fetch("--pass", "1", "--route", "publisher", *recs)
         self.assertEqual(code, 0, err + json.dumps(lines))
         self.assertEqual(self.files(), ["c.pdf", "d.pdf", "f.pdf", "g.pdf"])
+        # c and d came through Downloads, whose claim saw no page: fetch adds how they came
+        came = {s: run.arrived(self.work, s, run.md5_of(self.work.records / f"{s}.pdf")) for s in ("c", "d")}
+        self.assertEqual([(s, e["event"], e["route"], e["evidence"]["url"], e["evidence"].get("page", {}).get("href"))
+                          for s, e in came.items()],
+                         [("c", "arrival", "publisher", "https://pub.example/c.pdf", "https://pub.example/c"),
+                          ("d", "arrival", "publisher", "https://doi.org/10.1000/d.6", None)])
+        self.assertEqual(came["c"]["evidence"]["file"]["excerpt"], f"{c}\nWei Liu", "the file's evidence kept")
+        self.assertEqual({x["slug"]: x["route"] for x in lines if x.get("code") == "to_label"},
+                         {"c": "publisher", "d": "publisher", "f": "publisher", "g": "publisher"})
         g_claim = next(e for e in self.work.events("claim") if e["slug"] == "g")
         self.assertEqual((g_claim["proposal"]["title"], g_claim["evidence"]["url"], g_claim["evidence"]["page"]["href"]),
                          ("Published-IEEE", "https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?arnumber=5",

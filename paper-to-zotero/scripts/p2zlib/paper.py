@@ -192,11 +192,11 @@ SOURCES = {
     "hal.science": "HAL", "archives-ouvertes.fr": "HAL", "escholarship.org": "eScholarship",
     "researchgate.net": "ResearchGate", "easychair.org": "EasyChair",
 }
-# Sites whose every file is one version unless shown otherwise (a preprint server's are preprints): the version the
-# open route proposes for their files, and the version of their links (fulltext_links).
+# Sites whose every file is one version unless shown otherwise (a preprint server's are preprints): the version
+# proposed for their files whichever route reached them, and the version of their links (fulltext_links).
 SITE_VERSIONS = {"arxiv.org": "Preprint", "biorxiv.org": "Preprint", "medrxiv.org": "Preprint"}
-# The version a route proposes for what it fetched; the open route goes by the site (SITE_VERSIONS), and a file that
-# came another way (Downloads, a file the agent gave) proposes nothing.
+# The version a route proposes for what it fetched on any other site; the open route, a start page and a file that
+# came another way (Downloads, a file the agent gave) propose nothing.
 ROUTE_VERSIONS = {"publisher": "Published", "accepted": "Accepted", "preprint": "Preprint", "snapshot": "Snapshot"}
 ARXIV_LINK = re.compile(rf"arxiv\.org/(?:pdf|abs)/({ARXIV_ID})(v\d+)?(?:\.pdf)?/?(?:$|[?#])", re.I)
 
@@ -256,16 +256,12 @@ def arxiv_link(url):
 
 def proposal(route, url=None, given=None):
     """The title a file is proposed under, from how it came (the agent confirms it or writes another):
-    {title, version, source, detail}. The version: the one the agent gave (`given`, a kind), else the route's
-    (ROUTE_VERSIONS; the open route and a start page by the site, SITE_VERSIONS), else Unknown. The source is the
-    url's site (SOURCES), the detail the url's arXiv vN."""
-    host = host_of(url)
-    if given:
-        version = given.capitalize()
-    elif route in ROUTE_VERSIONS:
-        version = ROUTE_VERSIONS[route]
-    else:
-        version = (route in ("open", "start") and by_host(host, SITE_VERSIONS)) or "Unknown"
+    {title, version, source, detail}. The version: the one the agent gave (`given`, a kind), else the site's
+    (SITE_VERSIONS: a preprint server's file, whichever route reached it, as a preprint item's own DOI leads the
+    publisher route to arXiv), else the route's (ROUTE_VERSIONS), else Unknown. The source is the url's site
+    (SOURCES), the detail the url's arXiv vN."""
+    version = (given.capitalize() if given else by_host(host_of(url), SITE_VERSIONS) or ROUTE_VERSIONS.get(route)
+               or "Unknown")
     source, vn = source_of(url), arxiv_link(url)[1]
     detail = [vn] if vn else []
     return {"title": label_title(version, source, detail), "version": version.lower(), "source": source, "detail": detail}

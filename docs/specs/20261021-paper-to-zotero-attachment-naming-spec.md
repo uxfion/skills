@@ -94,8 +94,8 @@
 
 **提议**：
 - 脚本按路线和网站给一个默认版本：
-  - publisher 路线是 Published；accepted 路线是 Accepted；preprint 路线是 Preprint；
-  - open 路线只看网站本身：arXiv、bioRxiv、medRxiv 是 Preprint，其余是 Unknown。
+  - arXiv、bioRxiv、medRxiv 的文件是 Preprint，不管走的哪条路线（预印本条目自己的 DOI 会把 publisher 路线带到 arXiv）；
+  - 其余网站：publisher 路线是 Published；accepted 路线是 Accepted；preprint 路线是 Preprint；open 路线是 Unknown。
   - `fulltext_links` 给链接标的版本有一部分来自 OpenAlex，下面已经说了不能当证据，所以只用来排候选的先后，不用作默认版本。
 - 这个默认只是起点，可能不对。例如从 arXiv 拿到的终稿副本，按路线默认是 Preprint，其实是 Accepted。所以默认版本必须经过下面的确认。
 - 脚本不靠关键词去猜"这是不是 in press、是不是接收稿"。
@@ -264,3 +264,7 @@
 - **`SITE_VERSIONS`（arXiv、bioRxiv、medRxiv → Preprint）** 放在 `paper.py`，open 路线的默认版本和 `fulltext_links` 的链接版本共用。
 - **测试**：全部 27 个测试文件通过；新增的覆盖 §9 列的五条。fetch 的测试里 arXiv API 指向本地假服务，不碰真网站。
 - **缺 `vN` 的不判定让位**（2026-10-22，用户同意）：原来缺 `vN` 当 v0，一份取不到版本号的 arXiv 文件会自动让位给有版本号的，可它可能更新。"缺一方就按添加时间比"排不出一致的先后（会绕成一圈），所以改成不判定、两份都留。列出顺序不变：没写版本号的排在有版本号的后面。
+- **全面复查后又改了三处**（2026-10-22，用户让我全部过一遍）：
+  - 预印本服务器的文件，不管走哪条路线都默认 Preprint。原来 publisher 路线一律默认 Published，可预印本条目自己的 DOI（`10.48550/arXiv.…`）会把 publisher 路线带到 arXiv，库里约 110 个预印本条目都会被默认成 `Published-arXiv`。从不带版本号的 arXiv 地址取到的文件，也补上 arXiv 当时给的最新 vN。
+  - Chrome 在 fetch 打开的链接上直接下载、再由 watcher 从 Downloads 认领的文件，原来丢了 fetch 手上的路线、地址、页面和链接文字。PMC、OUP、ACM 都是这样下载的。现在 fetch 补一条 `arrival` 事件记下这些。
+  - agent 用 `claim --accept` 收下被检查拒掉的文件时，沿用那份文件先前 claim 事件里的路线和证据，不再从零开始。

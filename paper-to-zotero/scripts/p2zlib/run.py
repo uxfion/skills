@@ -45,10 +45,12 @@ The four blocks prepare fills carry `from`, a short hash of the inputs they were
 them), and `incomplete: [sources]` when a source did not answer. Such a block is due again when it is absent (or has
 no `from`: an older run's, not trusted), incomplete, or stale; due() says which. `saved` and `attach` record writes
 to the library and are trusted as they are. The facts about files are not in the record: the file's name is its
-kind, and fetch.jsonl has how it came (events claim, accept, try, stop). A claim or accept event carries what its
-file's label is settled from: {route?, proposal: {title, version, source, detail} (paper.proposal), evidence: {url?,
-page?: {href, title, meta}, link?: {url, why, text, near}, file: {excerpt, excerpt_page_2, pdf_dates, arxiv_stamp,
-html_title}}}; the watcher and the agent never write the same file.
+kind, and fetch.jsonl has how it came (events claim, accept, arrival, try, stop). A claim or accept event carries
+what its file's label is settled from: {route?, proposal: {title, version, source, detail} (paper.proposal),
+evidence: {url?, page?: {href, title, meta}, link?: {url, why, text, near}, file: {excerpt, excerpt_page_2,
+pdf_dates, arxiv_stamp, html_title}}}; an arrival event {slug, md5, route, proposal, evidence} adds how a file came
+that its claim could not see (Chrome downloaded it on a link fetch opened, and the watcher filed it from Downloads).
+The watcher and the agent never write the same file.
 """
 import hashlib
 import json
@@ -351,9 +353,13 @@ def accept(work, src, slug, reason, kind=None):
     named, kind = kind, verify.kind_of(src, kind)
     md5 = ex.md5 if ex else md5_of(src)
     evidence = verify.evidence_base(ex, kind) if ex else {}
+    refused = next((e for e in reversed(work.events("claim")) if e.get("slug") == slug and e.get("md5") == md5), {})
+    seen = refused.get("evidence") or {}  # how the file came, when it came through claim before the check refused it
+    came = {"route": refused.get("route"), "url": seen.get("url"), "page": seen.get("page"), "link": seen.get("link"),
+            "given": named}
     result, path = place(work, slug, src, kind)
     return work.append({"event": "accept", "file": path.name, "slug": slug, "result": result, "kind": kind, "md5": md5,
-                        "reason": reason, "source": str(src), **arrival(evidence, {"given": named})})
+                        "reason": reason, "source": str(src), **arrival(evidence, came)})
 
 
 def accepted(work, slug, md5):
@@ -362,9 +368,25 @@ def accepted(work, slug, md5):
 
 
 def arrived(work, slug, md5):
-    """The claim or accept event that filed this record's file with this md5 (the latest), or None."""
-    return next((e for e in reversed(work.events()) if e.get("event") in ("claim", "accept") and e.get("slug") == slug
-                 and e.get("md5") == md5 and e.get("result") == "claimed"), None)
+    """How this record's file with this md5 came: the latest of the claim or accept event that filed it and an
+    arrival event about it, or None."""
+    return next((e for e in reversed(work.events()) if e.get("slug") == slug and e.get("md5") == md5
+                 and (e.get("event") == "arrival" or e.get("event") in ("claim", "accept") and e.get("result") == "claimed")),
+                None)
+
+
+def note_arrival(work, slug, came):
+    """Record how the record's file came when its claim could not see it (Chrome downloaded it on a link fetch opened,
+    and the watcher filed it from Downloads) -> the arrival event; None when there is no file, or its claim knew."""
+    f = work.file_of(slug)
+    if f is None:
+        return None
+    md5 = md5_of(f)
+    known = arrived(work, slug, md5) or {}
+    if known.get("route"):
+        return None
+    return work.append({"event": "arrival", "slug": slug, "md5": md5,
+                        **arrival((known.get("evidence") or {}).get("file") or {}, came)})
 
 
 def title_for(rec, md5):
