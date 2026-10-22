@@ -278,8 +278,8 @@ def version_number(detail):
 
 def ordered(attachments):
     """Attachments as read back (attachment_label's fields, with dateAdded) best first: the paper's versions —
-    Published, Accepted, Preprint, Unknown; within one, final before in_press, the larger vN first, the later added
-    first — then supplements, snapshots, and the rest."""
+    Published, Accepted, Preprint, Unknown; within one, final before in_press, the larger vN first (a file without
+    one after those with one), the later added first — then supplements, snapshots, and the rest."""
     newest = sorted(attachments, key=lambda a: a.get("dateAdded") or "", reverse=True)
     return sorted(newest, key=lambda a: (ORDER.get(a.get("version"), len(ORDER)), "in_press" in (a.get("detail") or ()),
                                          -version_number(a.get("detail"))))
@@ -289,7 +289,8 @@ def superseded(attachments):
     """Which of one item's attachments another one replaces -> [(attachment, the one that replaces it)]. Only titles
     in the scheme that name a source count: among the paper's versions one per source stays, the first in ordered();
     among supplements one per source and detail; among snapshots one per source, the later added. Different sources
-    stand side by side."""
+    stand side by side. A file without a vN beside one with a vN, the two alike otherwise, is no one's to replace:
+    its version number is not known, so both stay."""
     groups = {}
     for a in ordered(attachments):
         if not a.get("standard") or not a.get("source"):
@@ -304,7 +305,14 @@ def superseded(attachments):
         else:
             continue
         groups.setdefault(key, []).append(a)
-    return [(loser, group[0]) for group in groups.values() for loser in group[1:]]
+    return [(loser, group[0]) for group in groups.values() for loser in group[1:] if not undecided(loser, group[0])]
+
+
+def undecided(a, b):
+    """Two files alike but for a vN only one of them names: which is newer is not known."""
+    def rank(x):
+        return ORDER.get(x.get("version")), "in_press" in (x.get("detail") or ())
+    return rank(a) == rank(b) and bool(version_number(a.get("detail"))) != bool(version_number(b.get("detail")))
 
 
 # ---- tags, creators, citation keys --------------------------------------------------------------------------

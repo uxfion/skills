@@ -35,7 +35,7 @@ Both lists are starting sets: name a new site or case on the same pattern, and s
 ## Several files of one paper
 
 - Different sources stand side by side: CycleGAN's `Preprint-arXiv-v7` and `Accepted-CVF`, and later `Published-IEEE`.
-- One source keeps one file of the paper, the best and newest: the higher version first (Published, Accepted, Preprint, Unknown), then final over `in_press`, then the larger `vN`, then the later added. `Preprint-arXiv-v1` gives way to `Preprint-arXiv-v3`; `Accepted-Nature-in_press` to `Published-Nature`. Supplements: one per source and detail. Snapshots: one per source; a snapshot that stood in for a missing PDF goes once a PDF of the paper is attached.
+- One source keeps one file of the paper, the best and newest: the higher version first (Published, Accepted, Preprint, Unknown), then final over `in_press`, then the larger `vN`, then the later added. `Preprint-arXiv-v1` gives way to `Preprint-arXiv-v3`; `Accepted-Nature-in_press` to `Published-Nature`. A file without a `vN` beside one with a `vN`, alike otherwise, gives way to neither: both stay until its version is known. Supplements: one per source and detail. Snapshots: one per source; a snapshot that stood in for a missing PDF goes once a PDF of the paper is attached.
 - What gives way is listed for cleaning (the report's 待清理附件, lint's `superseded` and `label_clash`) and goes to the trash only on the user's word.
 - `read_library pdf` lists the files in that order; take the row of the version the task wants.
 

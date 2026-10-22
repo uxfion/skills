@@ -409,11 +409,15 @@ class Rules(unittest.TestCase):
                 att("FINAL", "Published-Nature", "2024-01-15"), att("OLD", "PDF", "2020-01-01"),
                 att("OLD2", "Full Text PDF", "2021-01-01"), att("S1", "Snapshot-Elsevier", "2024-01-01", "text/html"),
                 att("S2", "Snapshot-Elsevier", "2024-05-01", "text/html"), att("SUP", "Supplement-Nature", "2024-01-01"),
-                att("SUPD", "Supplement-Nature-source_data", "2024-01-02"), att("U", "Unknown", "2024-06-01")]
+                att("SUPD", "Supplement-Nature-source_data", "2024-01-02"), att("U", "Unknown", "2024-06-01"),
+                att("NOV", "Preprint-arXiv", "2024-07-01")]  # its vN not known
         self.assertEqual([a["key"] for a in paper.ordered(atts)],
-                         ["FINAL", "CVF", "PRESS", "V10", "V1", "U", "OLD2", "OLD", "SUPD", "SUP", "S2", "S1"])
+                         ["FINAL", "CVF", "PRESS", "V10", "V1", "NOV", "U", "OLD2", "OLD", "SUPD", "SUP", "S2", "S1"])
         self.assertEqual(sorted((a["key"], b["key"]) for a, b in paper.superseded(atts)),
-                         [("PRESS", "FINAL"), ("S1", "S2"), ("V1", "V10")])  # v10 beats v1 as a number
+                         [("PRESS", "FINAL"), ("S1", "S2"), ("V1", "V10")],
+                         "v10 beats v1 as a number; a file without a vN beside v10 is undecided: both stay")
+        published = att("PUB", "Published-arXiv", "2023-01-01")  # a higher version still decides without a vN
+        self.assertIn(("V10", "PUB"), [(a["key"], b["key"]) for a, b in paper.superseded(atts + [published])])
 
     def test_tags_dedupe_keeping_the_last(self):
         tags, problems, warnings = paper.normalize_tags(["a", {"tag": "a", "type": 1}, {"tag": "b", "type": True}, ""])

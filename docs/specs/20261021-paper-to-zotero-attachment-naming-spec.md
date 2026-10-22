@@ -74,6 +74,7 @@
 - **论文本身的版本**（Published、Accepted、Preprint、Unknown）：
   - 不同来源的并存，例如 CycleGAN 的 `Preprint-arXiv-v7`、`Accepted-CVF`，以后补上的 `Published-IEEE`。
   - 同一来源只留最好、最新的一份。比较顺序：先比版本高低，再看有没有 `in_press`（不带的胜出），再比 `vN`（大的胜出），都一样就留后加的。例子：`Preprint-arXiv-v1` 让位给 `Preprint-arXiv-v3`；`Accepted-Nature-in_press` 让位给 `Published-Nature`。
+  - 只有一份写了 `vN`、其余都一样时，不判定谁让位，两份都留着：没写的那份版本号不知道，可能更新，也可能更旧。
 - **补充材料**：detail 不同的并存；同一来源、detail 相同的，新的取代旧的。
 - **快照**：每个来源一份，新的取代旧的。找不到 PDF 时挂上去顶替的快照，等论文的 PDF 到了，照旧列进"待清理附件"（沿用现在的行为）。
 - 被取代的那份列进报告的"待清理附件"，用户确认后进回收站。
@@ -262,3 +263,4 @@
 - **arXiv 版本号的请求挪到 `web.arxiv_entries`**，prepare 和 fetch 共用一份。fetch 只在第一次碰到不带 vN 的 arXiv 链接时，为这一遍所有缺版本号的 arXiv 链接发一次请求。
 - **`SITE_VERSIONS`（arXiv、bioRxiv、medRxiv → Preprint）** 放在 `paper.py`，open 路线的默认版本和 `fulltext_links` 的链接版本共用。
 - **测试**：全部 27 个测试文件通过；新增的覆盖 §9 列的五条。fetch 的测试里 arXiv API 指向本地假服务，不碰真网站。
+- **缺 `vN` 的不判定让位**（2026-10-22，用户同意）：原来缺 `vN` 当 v0，一份取不到版本号的 arXiv 文件会自动让位给有版本号的，可它可能更新。"缺一方就按添加时间比"排不出一致的先后（会绕成一圈），所以改成不判定、两份都留。列出顺序不变：没写版本号的排在有版本号的后面。
