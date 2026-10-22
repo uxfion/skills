@@ -1,7 +1,7 @@
 # paper-to-zotero：附件的版本只靠标题前缀认，8 个条目分不出哪份是论文的 PDF
 
 - 来源：2026-10-20，讨论 [20261020-paper-to-zotero-structured-package.md](20261020-paper-to-zotero-structured-package.md) 的"多个 PDF 怎么办"时，只读统计发现。用户：「取 PDF 那个是 paper to zotero 的一个问题，你提一张 issue」
-- 状态：open。方向已定，见"已定的方向"：保存时规范命名。正在调研有哪些版本。
+- 状态：open。代码已按 spec 实现（`6e1ae65`，2026-10-21，未推送；实现时的修正见 spec §12）。还差一次性改名：库里的旧标题现在都读成 `unknown`，`read_library pdf` 在改名前按添加时间排，所以改名要排在结构化包之前。2026-10-21 只读跑了一遍 lint：`nonstandard_title` 923 个（832 份 PDF、42 份其他标题的快照、49 份只写 `Snapshot` 的快照），`label_clash` 4 个，`superseded` 0 个。
 - 经过：2026-10-20 用户说先解决这张，我没先给方案就改了代码（没提交，Zotero 没写，只跑了 dry-run）。用户叫停：「去解决这个 issue，应该是你先给我预览方案，你啥都没给我看，然后就直接去解决它」。之后两次重述方向，第二次才对。
 
 ## 现场
