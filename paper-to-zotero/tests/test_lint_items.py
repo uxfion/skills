@@ -110,11 +110,11 @@ class LintItems(unittest.TestCase):
         self.assertEqual(got, [
             {"code": "nonstandard_title", "why": "outside_scheme", "attachment": "OLDPDF01", "title": "Full Text PDF",
              "contentType": "application/pdf", "url": "https://ieeexplore.ieee.org/stamp/x", "host": "ieeexplore.ieee.org",
-             "source": "IEEE", "filename": None, "md5": "o1", "doi": "10.1000/t",
+             "url_site": "IEEE", "filename": None, "md5": "o1", "doi": "10.1000/t",
              "excerpt": "IEEE TRANSACTIONS ON X\nA paper with many files\nWei Liu", "excerpt_page_2": "Radiology 2022; 000:1-8"},
             {"code": "nonstandard_title", "why": "no_source", "attachment": "SNAP0001", "title": "Snapshot",
              "contentType": "text/html", "url": "https://www.sciencedirect.com/science/article/pii/S1",
-             "host": "www.sciencedirect.com", "source": "Elsevier", "filename": None, "md5": None, "doi": "10.1000/t",
+             "host": "www.sciencedirect.com", "url_site": "Elsevier", "filename": None, "md5": None, "doi": "10.1000/t",
              "excerpt": None, "excerpt_page_2": None},
             {"code": "label_clash", "title": "Snapshot-Elsevier", "attachments": ["SNAP0002", "SNAP0003"]},
             {"code": "superseded", "attachment": "ARXIV001", "title": "Preprint-arXiv-v1", "by": "ARXIV003",

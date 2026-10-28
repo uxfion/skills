@@ -21,8 +21,9 @@ Problem codes (each problem is {"code", ...}):
   nonstandard_title       a PDF or HTML snapshot whose title is outside the scheme <Version>-<Source>-<detail>
                           (paper.py; Zotero's "Full Text PDF", an older run's "Preprint (arXiv)"), or a snapshot in it
                           without a source while its url's site has a name ({"why": "outside_scheme" | "no_source"}). The
-                          evidence to name it from, no name: {attachment, title, contentType, url, host, source (the
-                          site's name in paper.SOURCES, else null), filename, md5, doi (the item's), excerpt and
+                          evidence to name it from, no name: {attachment, title, contentType, url, host, url_site (the
+                          url's site by paper.SOURCES, else null: where the item lives or the page was saved from, not
+                          proof of the file's source), filename, md5, doi (the item's), excerpt and
                           excerpt_page_2 (the start of pages 1 and 2, read from the file on this machine; null when it
                           cannot be read: a version's mark may also be an image, so the pages are looked at too)}
   label_clash             two or more PDFs or snapshots of the item with one title ({"title", "attachments": [keys]}):
@@ -195,7 +196,7 @@ def title_problems(data, children, zot, proxy):
             page_1, page_2 = first_pages(zot, c["key"], d)
             out.append({"code": "nonstandard_title", "why": why, "attachment": c["key"], "title": d.get("title"),
                         "contentType": d.get("contentType"), "url": url, "host": paper.host_of(url) or None,
-                        "source": source, "filename": d.get("filename"), "md5": d.get("md5"),
+                        "url_site": source, "filename": d.get("filename"), "md5": d.get("md5"),
                         "doi": paper.doi_of(data) or None, "excerpt": page_1, "excerpt_page_2": page_2})
     by_title = {}
     for f in files:
