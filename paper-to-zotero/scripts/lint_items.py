@@ -178,12 +178,12 @@ class Crossref:
 
 def title_problems(data, children, zot, proxy):
     """nonstandard_title, label_clash and superseded among an item's PDFs and HTML snapshots."""
-    files, out = [], []
+    files, out, titles = [], [], zotero.pdf_titles(children)
     for c in children:
         d = zotero.data(c)
         if d.get("itemType") != "attachment":
             continue
-        label = paper.attachment_label(d)
+        label = paper.attachment_label(d, titles)
         if label["version"] is None:  # a link, a note's attachment, a file of another type
             continue
         files.append({"key": c["key"], "title": d.get("title"), "dateAdded": d.get("dateAdded"), **label})

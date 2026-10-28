@@ -45,6 +45,16 @@ def is_pdf(data):
     return data.get("itemType") == "attachment" and data.get("contentType") == "application/pdf"
 
 
+PACKAGE = "application/zip"
+
+
+def is_package(data, pdf_titles):
+    """A PDF's structured package (structured.py): a zip attachment under the title of one of the item's PDFs. A zip
+    under a title of its own is an ordinary file, such as a supplement's source data."""
+    return (data.get("itemType") == "attachment" and data.get("contentType") == PACKAGE
+            and data.get("title") in pdf_titles)
+
+
 def first_surname(creators):
     """The first author's surname (else the first creator's), for matching a byline or a search; None without one."""
     creators = [c for c in creators or [] if isinstance(c, dict)]
@@ -230,11 +240,15 @@ def parse_title(title):
     return {"version": m.group(1).lower(), "source": fields[0] if fields else None, "detail": fields[1:]}
 
 
-def attachment_label(data):
+def attachment_label(data, pdf_titles=()):
     """What an attachment's title says -> {version, source, detail, standard}. A title in the scheme: as written,
     standard True. Any other title: standard False, source None, and the version the content type alone gives —
     "unknown" for a PDF, "snapshot" for an HTML page; a link, or a file of another type, has version and standard
-    None (a supplement in another format is read from a title in the scheme only)."""
+    None (a supplement in another format is read from a title in the scheme only). A structured package (is_package,
+    given the titles of the item's PDFs) carries its PDF's title but is no version of the paper: version and
+    standard None."""
+    if is_package(data, pdf_titles):
+        return {"version": None, "source": None, "detail": [], "standard": None}
     parsed = None if data.get("linkMode") == "linked_url" else parse_title(data.get("title"))
     if parsed:
         return {**parsed, "standard": True}

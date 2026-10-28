@@ -25,6 +25,10 @@ uv run scripts/p2z.py read_library children --cite <citation key> # its attachme
 uv run scripts/p2z.py read_library pdf --cite <citation key>     # where its PDFs are on disk, with their versions, best first
 ```
 
+## Structured packages
+
+Every PDF has its package (SKILL.md, *Reading a library paper*); `read_library pdf` shows it as `package`. To make the missing ones, or to bring them all up to date after the paddleocr skill changed: `structured take --missing --to <dir>` (or `--every`), with no item named for the whole library; parse the links with the paddleocr skill, `-o <dir>`, in background calls of about a hundred; then `structured put <dir>/*/`, which skips a folder the parse left unchanged. `trash_item` and `merge_items` carry a PDF's package along with it.
+
 ## Tidying tags and collections
 
 Take one collection at a time. Draft per item what [tagging.md](tagging.md) prescribes — source keywords kept, curated tags to add, tags proposed for removal, pre-scheme manual tags to rename when the user has released them, a collection change if any — into `changes.json` and show the change list:

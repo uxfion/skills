@@ -410,16 +410,8 @@ class Zotero:
         return local_path(location) if location and location.startswith("file:") else None
 
     def attachments(self, key):
-        """The item's attachments, best first (paper.ordered: the paper's versions, then supplements, snapshots, the
-        rest): [{key, title, version, source, detail, standard (paper.attachment_label), contentType, linkMode,
-        filename, md5, url, dateAdded}]; file_path() says where one is."""
-        out = []
-        for c in self.children(key):
-            d = data(c)
-            if d.get("itemType") == "attachment" and not in_trash(c):
-                out.append({"key": c["key"], "title": d.get("title"), **paper.attachment_label(d),
-                            **{f: d.get(f) for f in ("contentType", "linkMode", "filename", "md5", "url", "dateAdded")}})
-        return paper.ordered(out)
+        """The item's attachments, best first: attachment_rows(its children); file_path() says where one is."""
+        return attachment_rows(self.children(key))
 
     # ---- writes ---------------------------------------------------------------------------------------------
 
@@ -579,7 +571,8 @@ class Zotero:
     # ---- attaching a file -----------------------------------------------------------------------------------
 
     def attach(self, parent_key, path, *, title=None, url, filename=None, verify=None, dry_run=False):
-        """Attach one file, a PDF or an HTML page saved as .html, to one regular item, whatever made the item.
+        """Attach one file, a PDF, an HTML page saved as .html or a structured package (.zip), to one regular item,
+        whatever made the item.
 
         A child already holding this file (same md5) settles it: skipped, already_attached, nothing uploaded, its
         title left as it is. An empty stored-file child with the same filename (left by an interrupted run) is
@@ -598,7 +591,7 @@ class Zotero:
         body = path.read_bytes()
         sniffed = file_type(body, path.name)
         if sniffed is None:
-            raise Stop("unsupported_file", hint="Only a PDF (%PDF- header) or an HTML page saved as .html is attached; "
+            raise Stop("unsupported_file", hint="Only a PDF (%PDF- header), an HTML page saved as .html or a .zip is attached; "
                        "a \"PDF\" that is really HTML means the download returned a web page.",
                        file=str(path), size=len(body), head=body[:16].decode("latin-1"))
         content_type, ext, charset = sniffed
@@ -706,6 +699,25 @@ class Zotero:
         return failure
 
 
+def attachment_rows(children):
+    """The attachments among an item's children, those in the trash left out, best first (paper.ordered: the paper's
+    versions, then supplements, snapshots, the rest): [{key, title, version, source, detail, standard
+    (paper.attachment_label), contentType, linkMode, filename, md5, url, dateAdded}]."""
+    out, titles = [], pdf_titles(children)
+    for c in children:
+        d = data(c)
+        if d.get("itemType") == "attachment" and not in_trash(c):
+            out.append({"key": c["key"], "title": d.get("title"), **paper.attachment_label(d, titles),
+                        **{f: d.get(f) for f in ("contentType", "linkMode", "filename", "md5", "url", "dateAdded")}})
+    return paper.ordered(out)
+
+
+def pdf_titles(children):
+    """The titles of the PDFs among an item's children outside the trash: what tells a structured package
+    (paper.is_package) from any other zip."""
+    return {data(c).get("title") for c in children if paper.is_pdf(data(c)) and not in_trash(c)}
+
+
 def in_trash(item):
     # The local API sends `deleted: true` on a trashed item; after a restore the property may be absent.
     return bool(data(item).get("deleted"))
@@ -728,7 +740,10 @@ def local_path(url):
 
 def file_type(body, name):
     """(content type, extension, charset) of a file attach takes: a PDF, or an HTML page saved as .html (charset:
-    utf-8 under a BOM, else its <meta>'s, else utf-8), as paper.file_format reads them; None for anything else."""
+    utf-8 under a BOM, else its <meta>'s, else utf-8), as paper.file_format reads them; a .zip (a PDF's structured
+    package); None for anything else."""
+    if body.startswith(b"PK\x03\x04") and name.lower().endswith(".zip"):
+        return paper.PACKAGE, ".zip", None
     fmt = paper.file_format(body, name)
     if fmt == "pdf":
         return "application/pdf", ".pdf", None

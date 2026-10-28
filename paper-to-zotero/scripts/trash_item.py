@@ -12,9 +12,11 @@ good what has sat there longer (its trashAutoEmptyDays setting, 30 by default). 
 Items: --key (a top-level item, or an attachment or note by its own key) and --cite (the top-level item carrying
 that citationKey). For each: read it; already where it should be -> skipped; else PATCH {"deleted": 1} (--restore:
 0) with its version and read it back. Trashing a parent takes its attachments and notes along, as in Zotero;
-`children` says how many.
+`children` says how many. Trashing a PDF takes its structured package along (the zip beside it under its title;
+`packages`); restoring the PDF leaves the package in the trash: restore it by the key that line gave.
 
-stdout: one line per item {key, cite?, code, itemType, title, parent, parent_title?, children?, version, retried},
+stdout: one line per item {key, cite?, code, itemType, title, parent, parent_title?, children?, packages?: [{key,
+code}], version, retried},
 then {"summary": {total, ok, skipped, failed}}.
   ok                 moved to the trash (--restore: restored) and read back so
   skipped            reason already_trashed, or not_in_trash with --restore
@@ -33,7 +35,7 @@ Examples:
   uv run scripts/trash_item.py --cite liu2022progressive --dry-run
   uv run scripts/trash_item.py --key ABCD1234 --restore            # undo
 """
-from p2zlib import cli, zotero
+from p2zlib import cli, paper, zotero
 
 
 def describe(zot, item):
@@ -52,7 +54,14 @@ def process(zot, key, args):
     item = zot.item(key)
     if item is None:
         raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND)
-    return {**describe(zot, item), **zot.trash(key, restore=args.restore, item=item, dry_run=args.dry_run)}
+    line = {**describe(zot, item), **zot.trash(key, restore=args.restore, item=item, dry_run=args.dry_run)}
+    d = zotero.data(item)
+    if not args.restore and paper.is_pdf(d) and d.get("parentItem"):
+        packages = [c for c in zot.children(d["parentItem"]) if paper.is_package(zotero.data(c), {d.get("title")})
+                    and not zotero.in_trash(c)]
+        if packages:
+            line["packages"] = [{"key": c["key"], **zot.trash(c["key"], item=c, dry_run=args.dry_run)} for c in packages]
+    return line
 
 
 def configure(p):

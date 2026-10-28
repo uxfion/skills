@@ -11,13 +11,15 @@ Read-only; the local API answers GETs without a key. One JSON object per stdout 
                --q search text; changed --since a library version; with a --tag ('a || b' for either)
   children     the attachments and notes of the items named by --key / --cite
   pdf          one line per PDF attachment of each named item, best first: {key, citationKey, title, attachment,
-               attachment_title, version, source, detail, standard, md5, link_mode, path, exists}. Version, source and
+               attachment_title, version, source, detail, standard, md5, link_mode, path, exists, package}. Version, source and
                detail come from the attachment title (Published-IEEE, Accepted-arXiv-v3: version published | accepted
                | preprint | unknown | supplement); a title outside that scheme reads as version unknown with standard
                false — the paper's file all the same, its version not checked. Order: published, accepted, preprint,
                unknown; within one, final before in_press, the larger vN, the later added; supplements last. `path` is
                the file as this machine opens it (a Windows path from Zotero on Windows goes through wslpath in WSL).
-               How another skill gets a library paper's PDF to read or parse: take the row of the version it wants.
+               `package`: the key of the PDF's structured package (the zip beside it under its title; structured.py
+               take unzips it to read), or null. How another skill gets a library paper's PDF to read or parse: take
+               the row of the version it wants.
                {key, citationKey, title, code: no_pdf, attachments: [content types]} for an item without one
   collections  the collection's data; --tree adds `path` (names from the root joined by "/") and leaves out the
                collections in the trash and those under one
@@ -41,7 +43,7 @@ Examples:
 """
 import os
 
-from p2zlib import cli, zotero
+from p2zlib import cli, paper, zotero
 from p2zlib.zotero import LIB
 
 
@@ -108,6 +110,7 @@ def cmd_pdf(zot, args):
         head = {"key": key, "citationKey": d.get("citationKey"), "title": d.get("title")}
         attachments = zot.attachments(key)
         pdfs = [a for a in attachments if a["contentType"] == "application/pdf"]
+        packages = {a["title"]: a["key"] for a in attachments if a["contentType"] == paper.PACKAGE}
         if not pdfs:
             cli.emit({**head, "code": "no_pdf", "attachments": [a["contentType"] for a in attachments],
                       "hint": "The item has no PDF attachment; paper-to-zotero's import steps can fetch one."})
@@ -120,7 +123,7 @@ def cmd_pdf(zot, args):
             on_disk |= exists
             cli.emit({**head, "attachment": a["key"], "attachment_title": a["title"],
                       **{k: a[k] for k in ("version", "source", "detail", "standard", "md5")},
-                      "link_mode": a["linkMode"], "path": path, "exists": exists})
+                      "link_mode": a["linkMode"], "path": path, "exists": exists, "package": packages.get(a["title"])})
         if not on_disk:
             cli.log(f"{key}: no PDF of this item is on disk (not synced, or a linked file that moved)")
             failed = True

@@ -14,8 +14,8 @@ carried out without it:
                 and left as the kept item has it; a dropped value with no field in the kept type, `not_carried`
   collections   the union, without `tmp` (unless `tmp` is all there is)
   tags          the union
-  attachments   the dropped item's PDFs whose md5 the kept item lacks, and its notes, move under the kept item
-                (parentItem); its other attachments (snapshots, links, a PDF the kept item already has) stay and
+  attachments   the dropped item's PDFs whose md5 the kept item lacks, each with its structured package (the zip
+                under its title), and its notes, move under the kept item (parentItem); its other attachments (snapshots, links, a PDF the kept item already has) stay and
                 are listed under `left_with_drop`; children in the trash are left alone
 The kept item is written in one PATCH with its version (changed meanwhile: read again, planned again and tried
 once more), each moved child in its own; then everything is read back. The dropped item is left in place: the
@@ -96,11 +96,14 @@ def plan_merge(keep, drop, keep_children, drop_children, tmp_keys, maps):
             tags.append(t)
             seen.add(t.get("tag"))
     keep_md5 = {zotero.data(c).get("md5") for c in keep_children if paper.is_pdf(zotero.data(c))}
+    moving = {zotero.data(c).get("title") for c in drop_children
+              if paper.is_pdf(zotero.data(c)) and zotero.data(c).get("md5") not in keep_md5}
     move, left = [], []
     for c in drop_children:
         cd = zotero.data(c)
         entry = {"key": c["key"], "itemType": cd.get("itemType"), "title": cd.get("title") or short(cd.get("note") or "")}
-        if cd.get("itemType") == "note" or (paper.is_pdf(cd) and cd.get("md5") not in keep_md5):
+        if (cd.get("itemType") == "note" or (paper.is_pdf(cd) and cd.get("md5") not in keep_md5)
+                or paper.is_package(cd, moving)):
             move.append(entry)
         else:
             left.append({**entry, "why": "the kept item has this PDF" if paper.is_pdf(cd) else "not a PDF or a note"})
