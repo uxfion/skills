@@ -1,7 +1,7 @@
 # paper-to-zotero：附件按版本规范命名
 
 > **定稿**（2026-10-21）：advisor 审过两轮，按用户意见改过两处，又自审了两轮（§10 记了改了什么）。用户让我自审没问题就开始实现。实现过程中如有修正，直接改本文。
-> **已实现**（2026-10-21，未推送）：实现时改了几处，正文已改，§12 记了改了什么、为什么。
+> **已实现**（2026-10-21 起，2026-10-27 推送到 `edac142`）：实现时改了几处，正文已改，§12 记了改了什么、为什么。还差 §5 的一次性改名。
 > 来源：[20261020-paper-to-zotero-pdf-version-by-title.md](../issues/20261020-paper-to-zotero-pdf-version-by-title.md)。设计过程、用户原话、调研和全库试命名都在那张 issue 和它的参考材料目录里。
 > 文中的数量都是 2026-10-21 全库试命名（只读）的结果。
 
@@ -173,7 +173,7 @@
 
 ## 6. 派出去的 subagent 守访问节奏
 
-- 起因：2026-10-21 的调研里，一个 agent 在用户的 Chrome 里循环打开 dblp.org，详见 [20261021-paper-to-zotero-request-pacing.md](../issues/20261021-paper-to-zotero-request-pacing.md)。所有 agent 用的都是用户的 IP、Chrome 和学校登录，网站看来就是同一个人。
+- 起因：2026-10-21 的调研里，一个 agent 在用户的 Chrome 里循环打开 dblp.org，详见 [20261021-paper-to-zotero-request-pacing-fixed.md](../issues/archive/20261021-paper-to-zotero-request-pacing-fixed.md)。所有 agent 用的都是用户的 IP、Chrome 和学校登录，网站看来就是同一个人。
 - 脚本自己的请求已有 `p2zlib/web.py` 的按网站限速（`GAPS`），这一条照旧。
 - SKILL.md 里每一份给 subagent 的说明（第 3 步的浏览器 agent、§2 和 §5 的核对 agent）都写进这几条：
   - 不对网站写循环，也不批量扫描。`Browser: yes` 的 OpenCLI adapter 绝不放进循环；

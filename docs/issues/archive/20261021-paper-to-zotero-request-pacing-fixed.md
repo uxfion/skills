@@ -1,7 +1,15 @@
 # paper-to-zotero：派出去的 agent 没有访问节奏的约束，循环访问会让用户被网站封
 
-- 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)），后台同时跑了 10 个 agent。
-- 状态：open
+> 已解决（2026-10-27）：并入 [附件命名 spec](../../specs/20261021-paper-to-zotero-attachment-naming-spec.md) §6，实现于 `6e1ae65`，2026-10-27 推送并从 GitHub 重装。SKILL.md 的 Rules 下新增 *Agents you send*，"要做的"四条都写进去了：
+> - 不对网站写循环，`Browser: yes` 的 OpenCLI adapter 不放进循环；
+> - 同一网站同一时间只有一个 agent，请求之间隔几秒；不同网站可以并行，最多 10 个；
+> - 碰到第一个机器人验证、403、429 或 Cloudflare 页，这一轮就不再碰这个网站；
+> - 不再派下级 agent。
+>
+> 第 3 步的浏览器 agent，以及定标签、改名时派去核对的 agent，说明里都带这四条；只读本地文件的 agent 不受限。Unpaywall 邮箱那条不用处理：p2z 不直接调 Unpaywall，它的仓储副本经 OpenAlex 拿到。
+
+- 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title.md](../20261020-paper-to-zotero-pdf-version-by-title.md)），后台同时跑了 10 个 agent。
+- 状态：fixed
 
 ## 现场
 

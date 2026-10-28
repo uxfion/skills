@@ -1,7 +1,11 @@
 # paper-to-zotero：附件的版本只靠标题前缀认，8 个条目分不出哪份是论文的 PDF
 
 - 来源：2026-10-20，讨论 [20261020-paper-to-zotero-structured-package.md](20261020-paper-to-zotero-structured-package.md) 的"多个 PDF 怎么办"时，只读统计发现。用户：「取 PDF 那个是 paper to zotero 的一个问题，你提一张 issue」
-- 状态：open。代码已按 spec 实现（`6e1ae65` 起，到 2026-10-27 的几轮复查修正，未推送；修正见 spec §12：证据按"来源方的话、文件的话"组织，CVF 按水印定版本，判断版本要看第 1、2 页的图片，脚本只定有十足把握的）。还差一次性改名：库里的旧标题现在都读成 `unknown`，`read_library pdf` 在改名前按添加时间排，所以改名要排在结构化包之前。2026-10-21 只读跑了一遍 lint：`nonstandard_title` 923 个（832 份 PDF、42 份其他标题的快照、49 份只写 `Snapshot` 的快照），`label_clash` 4 个，`superseded` 0 个。
+- 状态：open。代码已按 spec 实现（`6e1ae65`…`edac142`，包括到 2026-10-27 的几轮复查修正），2026-10-27 已推送并从 GitHub 重装。修正见 spec §12：证据按"来源方的话、文件的话"组织，CVF 按水印定版本，判断版本要看第 1、2 页的图片，脚本只定有十足把握的。
+  - 还没解决的是库里已有的附件：一次性改名还没做。旧标题现在都读成 `unknown`，`read_library pdf` 按添加时间排，上面那 8 个条目照样分不出。
+  - 改名按 spec §5 和 organize.md 的 *Attachment titles* 做：清单经用户确认后才写库，排在结构化包之前。参考材料目录里的 `rename-dryrun.json`、`doubtful-resolved.json`、`publisher-check-*.json` 是第一轮的依据，所以目录要留到那时。
+  - 改完回读，确认这 8 个条目排对了，再关这张 issue。
+  - 2026-10-21 只读跑了一遍 lint：`nonstandard_title` 923 个（832 份 PDF、42 份其他标题的快照、49 份只写 `Snapshot` 的快照），`label_clash` 4 个，`superseded` 0 个。
 - 经过：2026-10-20 用户说先解决这张，我没先给方案就改了代码（没提交，Zotero 没写，只跑了 dry-run）。用户叫停：「去解决这个 issue，应该是你先给我预览方案，你啥都没给我看，然后就直接去解决它」。之后两次重述方向，第二次才对。
 
 ## 现场
@@ -346,7 +350,7 @@
   - 规范只定版本的定义和名称，不定"在某家出版商怎么认"。
   - 各家探查到的标识，写进 publishers.md 当带日期的线索（"2026-10 见到"），不当成识别规则。线索和页面实际对不上时，以页面为准。
   - 保存时，脚本只收集证据：页面元数据、首页文字、各个日期、和已知版本的哈希比对。由 agent 按定义判断；把握不大的交给后台 sonnet subagent 看；真定不了的写 Unknown。
-- **2026-10-21 循环访问事故**：查版本升级的 agent 在用户的 Chrome 里循环打开 dblp.org（33 次，约 90 秒）。已停掉它和另一个反复轮询的下级 agent，所有浏览器会话都已关闭。经过和防范措施见 [20261021-paper-to-zotero-request-pacing.md](20261021-paper-to-zotero-request-pacing.md)。
+- **2026-10-21 循环访问事故**：查版本升级的 agent 在用户的 Chrome 里循环打开 dblp.org（33 次，约 90 秒）。已停掉它和另一个反复轮询的下级 agent，所有浏览器会话都已关闭。经过和防范措施见 [20261021-paper-to-zotero-request-pacing-fixed.md](archive/20261021-paper-to-zotero-request-pacing-fixed.md)。
   - 版本升级这部分调研没做完。草稿目录 `probe-upgrades/` 里有半成品：arXiv、OpenAlex、PubMed 的批量结果，以及 33 条 dblp 结果。之后按新规矩重做。
 - **开放网站探查**（`source-signals.md`，270 行）：
   - arXiv：
