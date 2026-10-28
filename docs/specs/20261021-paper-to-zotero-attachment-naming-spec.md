@@ -1,8 +1,8 @@
 # paper-to-zotero：附件按版本规范命名
 
 > **定稿**（2026-10-21）：advisor 审过两轮，按用户意见改过两处，又自审了两轮（§10 记了改了什么）。用户让我自审没问题就开始实现。实现过程中如有修正，直接改本文。
-> **已实现**（2026-10-21 起，2026-10-27 推送到 `edac142`）：实现时改了几处，正文已改，§12 记了改了什么、为什么。还差 §5 的一次性改名。
-> 来源：[20261020-paper-to-zotero-pdf-version-by-title.md](../issues/20261020-paper-to-zotero-pdf-version-by-title.md)。设计过程、用户原话、调研和全库试命名都在那张 issue 和它的参考材料目录里。
+> **已实现，已冻结**（2026-10-21 起；2026-10-27 推送到 `edac142`，同日按 §5 完成一次性改名）：实现时改了几处，正文已改，§12 记了改了什么、为什么。
+> 来源：[20261020-paper-to-zotero-pdf-version-by-title-fixed.md](../issues/archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。设计过程、用户原话和调研的结论都在那张 issue 里。
 > 文中的数量都是 2026-10-21 全库试命名（只读）的结果。
 
 ## 0. 目的和范围
@@ -282,3 +282,9 @@
 - **证据按"来源方的话、文件的话"统一组织**（2026-10-27，用户：导入时网页信息更全，应先看网页；给库里文件改名时手里只有 PDF）：
   - 导入时先看来源方的话：fetch 取文件时，记下页面上标题附近的文字（标签、日期、卷期，不只是 PDF 按钮旁的字）；arXiv 文件记下该版本的留言和期刊信息，不管字节是怎么取到的。待确认行先列来源方的话，再列文件的话。
   - 库里已有的文件先看文件的话：网站显示的是今天的状态，只有确认它给的就是同一份文件，才能拿来定名。改名流程去网站核对那一步写明了这一点。
+- **一次性改名时的修正**（2026-10-27，按 §5 给 922 个附件改名的过程中发现）：
+  - CVF 上 ECCV 2018、ACCV 的副本，水印写"作者制作的版本，内容与 LNCS 版相同"，按定义算 Accepted。attachment-titles.md 里 CycleGAN 的例子跟着改成 `Published-CVF`，与上面按水印定版本的规则一致。
+  - arXiv 的某一版，留言写明已接收，即使文件首页还印着 NeurIPS 模板默认的 "Preprint." 也算 Accepted。给 subagent 的说明起初写成"两者矛盾时以文件为准"，判错了 2 份，已纠正。
+  - subagent 不会自己去看图：说明里写"要看图"不够，要把"每份文件的两页图片都看过"写成完成条件。organize.md 和 SKILL.md 已补上。
+  - 来源列表补上这次见到的名字（PNAS、PLOS、IOP、SPIE、Thieme、BMC、Frontiers、Lirias、ProQuest、EBSCO 等），`SOURCES` 也补了对应的网站。从数据库（ProQuest、EBSCO）下载的文件，来源写数据库，不写排版的出版社。
+  - HAL 只把存档文件标成"作者提供的文件"，分不出接收稿和投稿稿；Pure 系的机构库（如 Edge Hill）会写明 "Accepted author manuscript"。都写进了 publishers.md。

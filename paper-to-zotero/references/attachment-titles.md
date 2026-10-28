@@ -15,13 +15,13 @@ Read this before settling the first label of an import run (SKILL.md, step 3), a
 | Version | What the file is | Examples |
 |---|---|---|
 | `Published` | the publisher's final form: the journal's, the proceedings', the final OpenReview version of an ICLR or TMLR paper, a CVF copy whose watermark says it is "identical to the version available on IEEE Xplore" (CVPR and ICCV up to 2018). Typeset but not yet in an issue: add `in_press` | `Published-RSNA`, `Published-OpenReview-ICLR_2023`, `Published-CVF`, `Published-Elsevier-in_press` |
-| `Accepted` | the reviewed, accepted text, not in the publisher's final form: a PMC author manuscript, a CVF copy whose watermark says "identical to the accepted version" (2019 on), the MICCAI and ECVA open-access copies, an arXiv version that says it was accepted, an unedited early-online version | `Accepted-CVF`, `Accepted-arXiv-v3`, `Accepted-IEEE-in_press`, `Accepted-Europe_PMC` |
+| `Accepted` | the reviewed, accepted text, not in the publisher's final form: a PMC author manuscript, a CVF copy whose watermark says "identical to the accepted version" (2019 on) or calls it "the author-created version" (ECCV 2018, ACCV), the MICCAI and ECVA open-access copies, an arXiv version that says it was accepted, an unedited early-online version | `Accepted-CVF`, `Accepted-arXiv-v3`, `Accepted-IEEE-in_press`, `Accepted-Europe_PMC` |
 | `Preprint` | an author's own release that does not say it was accepted: before acceptance (an arXiv preprint, an OpenReview submission), or extended or revised after it without saying so (CycleGAN's arXiv v7 of 2020, the ICCV 2017 text with an appendix). A preprint item's own PDF too | `Preprint-arXiv-v7`, `Preprint-OpenReview-ICLR_2027_submission` |
 | `Unknown` | still undecided after looking; the file is attached all the same | `Unknown`, `Unknown-ResearchGate` |
 | `Supplement` | supplementary material, not a version of the paper | `Supplement-Nature`, `Supplement-Nature-source_data` |
 | `Snapshot` | a saved web page, not a version of the paper | `Snapshot-Elsevier` |
 
-**Source**: the site the file was actually downloaded from, by a short brand name: arXiv, OpenReview, CVF, ECVA, MICCAI, NeurIPS, PMLR, ICLR, ACL, AAAI, JMLR, IEEE, Elsevier, Springer, Nature, ACM, Wiley, RSNA, BMJ, NEJM, Science, MDPI, JMIR, OUP, PMC, Europe_PMC, HAL, eScholarship, ResearchGate, Research_Square, EasyChair, author_page. A proxied address counts as the publisher's own (`ieeexplore-ieee-org.<proxy-domain>` is IEEE).
+**Source**: the site the file was actually downloaded from, by a short brand name: arXiv, OpenReview, CVF, ECVA, MICCAI, NeurIPS, PMLR, ICLR, ACL, AAAI, JMLR, IEEE, Elsevier, Springer, Nature, BMC, ACM, Wiley, RSNA, BMJ, NEJM, Science, PNAS, PLOS, IOP, SPIE, Thieme, Frontiers, MDPI, JMIR, OUP, medRxiv, SSRN, PMC, Europe_PMC, HAL, eScholarship, Lirias, ResearchGate, Research_Square, EasyChair, ProQuest, EBSCO, author_page. A proxied address counts as the publisher's own (`ieeexplore-ieee-org.<proxy-domain>` is IEEE); a database's download (ProQuest, EBSCO) is the database's, whoever typeset the file.
 
 **Detail**, only where it tells files apart:
 - `vN`: the preprint server's version. Always for arXiv, whose unversioned address follows the authors' updates.
@@ -34,7 +34,7 @@ Both lists are starting sets: name a new site or case on the same pattern, and s
 
 ## Several files of one paper
 
-- Different sources stand side by side: CycleGAN's `Preprint-arXiv-v7` and `Accepted-CVF`, and later `Published-IEEE`.
+- Different sources stand side by side: CycleGAN's `Preprint-arXiv-v7` and `Published-CVF` (ICCV 2017's watermark: identical to the IEEE Xplore version), and later `Published-IEEE`.
 - One source keeps one file of the paper, the best and newest: the higher version first (Published, Accepted, Preprint, Unknown), then final over `in_press`, then the larger `vN`, then the later added. `Preprint-arXiv-v1` gives way to `Preprint-arXiv-v3`; `Accepted-Nature-in_press` to `Published-Nature`. A file without a `vN` beside one with a `vN`, alike otherwise, gives way to neither: both stay until its version is known. Supplements: one per source and detail. Snapshots: one per source; a snapshot that stood in for a missing PDF goes once a PDF of the paper is attached.
 - What gives way is listed for cleaning (the report's 待清理附件, lint's `superseded` and `label_clash`) and goes to the trash only on the user's word.
 - `read_library pdf` lists the files in that order; take the row of the version the task wants.
@@ -49,7 +49,7 @@ A version is settled from two words: **the host's word** — what the site that 
 
 Reading the file's word:
 - Look at pages 1 and 2 as images (`pdftoppm -f 1 -l 2 -r 120 -png <file> <prefix>`, or the `pdf` skill), beside their text. A mark is often an image or sits where the text layer misses it: the CVF and MICCAI watermarks, Elsevier's grey ARTICLE IN PRESS bar. A file arXiv compiled keeps its marks in its text.
-- Template text misleads: elsarticle prints "Preprint submitted to <journal>" on accepted manuscripts too. An attachment's url is where the item lives or the page it was saved from, not proof of the file: a file under a CVF url may carry no CVF watermark at all.
+- Template text misleads: elsarticle prints "Preprint submitted to <journal>" on accepted manuscripts too, and the NeurIPS template's "Preprint." line stays until the authors switch to the final option: a version whose arXiv comment says it was accepted is Accepted all the same. An attachment's url is where the item lives or the page it was saved from, not proof of the file: a file under a CVF url may carry no CVF watermark at all.
 
 What settles a version, strongest first:
 - the same bytes (md5) as a file whose version is known;

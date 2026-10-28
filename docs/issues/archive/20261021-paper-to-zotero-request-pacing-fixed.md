@@ -8,7 +8,7 @@
 >
 > 第 3 步的浏览器 agent，以及定标签、改名时派去核对的 agent，说明里都带这四条；只读本地文件的 agent 不受限。Unpaywall 邮箱那条不用处理：p2z 不直接调 Unpaywall，它的仓储副本经 OpenAlex 拿到。
 
-- 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title.md](../20261020-paper-to-zotero-pdf-version-by-title.md)），后台同时跑了 10 个 agent。
+- 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title-fixed.md](20261020-paper-to-zotero-pdf-version-by-title-fixed.md)），后台同时跑了 10 个 agent。
 - 状态：fixed
 
 ## 现场

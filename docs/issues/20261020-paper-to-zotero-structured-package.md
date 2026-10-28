@@ -2,7 +2,7 @@
 
 - 来源：用户 · 2026-10-19 提出，2026-10-20 立项
 - 前置：[20261020-paper-to-zotero-top-down-restructure-fixed.md](archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)，2026-10-20 已关闭，这张可以开始设计。
-- 暂缓（2026-10-20）：用户「这边先暂缓一下，先去解决那个issue，解决完后你再重新恢复现在的现场」，先解决 [20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)。恢复时的现场：下面"10-20 的提议"里的文件夹结构已经给用户看过预览（用 `savageLargeLanguageModel2024` 举例：zip 37 KB，里面 md 42 KB、json 93 KB；项目里裁出 5 张图共约 8 MB），还在等用户回应。恢复时先重新给出这份预览，再一条一条定。
+- 暂缓（2026-10-20）：用户「这边先暂缓一下，先去解决那个issue，解决完后你再重新恢复现在的现场」，先解决 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。那张 issue 已于 2026-10-27 解决：库里附件都按版本改了名，`read_library pdf` 排第一的就是正式版，这张可以恢复。恢复时的现场：下面"10-20 的提议"里的文件夹结构已经给用户看过预览（用 `savageLargeLanguageModel2024` 举例：zip 37 KB，里面 md 42 KB、json 93 KB；项目里裁出 5 张图共约 8 MB），还在等用户回应。恢复时先重新给出这份预览，再一条一条定。
 - 状态：open，讨论阶段（2026-10-20 起）。除这张 issue 外一切只读：不改代码、不写 Zotero、不动各项目；这张 issue 随时记录讨论中得到的事实、用户的补充和方向。以下分成"已定"、"10-19 的倾向（没拍板）"、"10-20 的提议（没拍板）"、"待定"四部分，不要把倾向和提议当成定论。
 
 ## 目标
@@ -36,7 +36,7 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
    2. 没有包，或者 PDF 已经换了（比如预印本换成了正式版）：`read_library.py pdf` 拿到 PDF → paddleocr 解析（这次要读就顺便核对）→ 打包挂回 Zotero。
    3. 在项目里核对、改了内容：重新打包挂回。
 
-4. **多个版本都可以结构化**（2026-10-20）。用户原话：「如果有多个版本，你想打开哪个就打开哪个，结构化也可以全部结构化。」区分版本靠保存时的规范命名，见 [20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)。"10-20 的提议"里"默认只解析排第一的那份"按这一条改。
+4. **多个版本都可以结构化**（2026-10-20）。用户原话：「如果有多个版本，你想打开哪个就打开哪个，结构化也可以全部结构化。」区分版本靠保存时的规范命名，见 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。"10-20 的提议"里"默认只解析排第一的那份"按这一条改。
 
 已有的地基：
 
@@ -93,7 +93,7 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
   - 10 个是同一篇的不同版本（正式版加预印本、接收稿或投稿版）；
   - 2 个是正文加补充材料；
   - 5 个看标题分不出（两份都叫 "Full Text PDF"，或 "PDF" 加 "全文" 之类），可能是重复下载。
-  - `read_library pdf` 的排序靠附件标题认版本（`paper.py` 的 `TITLE_PREFIXES`），认不出的 PDF 一律当正式版。那 10 对版本里有 3 对两份都被当成正式版，因为标题是 "Author manuscript (eScholarship, UCSF)"、"Related preprint v1 — …"、"已提交版本"（Zotero 中文界面下的 Submitted Version）。加上那 5 个，共 8 个条目的"排第一的 PDF"是并列的；并列时按添加时间排，跟版本无关。用户 10-20 定：这是 paper-to-zotero 本身的问题，单独一张 issue：[20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)。
+  - `read_library pdf` 的排序靠附件标题认版本（`paper.py` 的 `TITLE_PREFIXES`），认不出的 PDF 一律当正式版。那 10 对版本里有 3 对两份都被当成正式版，因为标题是 "Author manuscript (eScholarship, UCSF)"、"Related preprint v1 — …"、"已提交版本"（Zotero 中文界面下的 Submitted Version）。加上那 5 个，共 8 个条目的"排第一的 PDF"是并列的；并列时按添加时间排，跟版本无关。用户 10-20 定：这是 paper-to-zotero 本身的问题，单独一张 issue：[20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。
 
 ## 10-20 的提议（没拍板）
 
@@ -115,7 +115,7 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
 - **正式版后来才到**：哈希对不上排第一的 PDF，就解析正式版，`<key>/` 换成它。
 - **旧版本的包**：预印本的包跟预印本 PDF 同去同留；PDF 已经不在了的包，列进报告等用户确认清理。
 - **同一版本两份**：是库里的重复，读排第一的那份，把条目报给用户，按 organize 去重。
-- **并列的情况**（上面那 8 个）：交给 [20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)。这张只依赖"`read_library pdf` 排第一的就是论文的 PDF"。
+- **并列的情况**（上面那 8 个）：交给 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。这张只依赖"`read_library pdf` 排第一的就是论文的 PDF"。
 
 ## 待定（一件一件定）
 

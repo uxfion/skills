@@ -1,11 +1,18 @@
 # paper-to-zotero：附件的版本只靠标题前缀认，8 个条目分不出哪份是论文的 PDF
 
-- 来源：2026-10-20，讨论 [20261020-paper-to-zotero-structured-package.md](20261020-paper-to-zotero-structured-package.md) 的"多个 PDF 怎么办"时，只读统计发现。用户：「取 PDF 那个是 paper to zotero 的一个问题，你提一张 issue」
-- 状态：open。代码已按 spec 实现（`6e1ae65`…`edac142`，包括到 2026-10-27 的几轮复查修正），2026-10-27 已推送并从 GitHub 重装。修正见 spec §12：证据按"来源方的话、文件的话"组织，CVF 按水印定版本，判断版本要看第 1、2 页的图片，脚本只定有十足把握的。
-  - 还没解决的是库里已有的附件：一次性改名还没做。旧标题现在都读成 `unknown`，`read_library pdf` 按添加时间排，上面那 8 个条目照样分不出。
-  - 改名按 spec §5 和 organize.md 的 *Attachment titles* 做：清单经用户确认后才写库，排在结构化包之前。参考材料目录里的 `rename-dryrun.json`、`doubtful-resolved.json`、`publisher-check-*.json` 是第一轮的依据，所以目录要留到那时。
-  - 改完回读，确认这 8 个条目排对了，再关这张 issue。
-  - 2026-10-21 只读跑了一遍 lint：`nonstandard_title` 923 个（832 份 PDF、42 份其他标题的快照、49 份只写 `Snapshot` 的快照），`label_clash` 4 个，`superseded` 0 个。
+> 已解决（2026-10-27）：按[附件命名 spec](../../specs/20261021-paper-to-zotero-attachment-naming-spec.md)实现（`6e1ae65`…`edac142`，2026-10-27 推送并重装），同日按 spec §5 给库里 922 个附件改名，并回读核对：上面 8 个条目现在都是正式版排第一，比如 chung 是 `Published-RSNA-in_press` > `Accepted-eScholarship`，CycleGAN 是 `Published-CVF` > `Preprint-arXiv-v7`；lint 的 `nonstandard_title` 从 923 降到 1。改名中发现的问题已经补进 skill（和关闭本 issue 是同一个提交），记在 spec §12 最后一条。还剩两件事：8 份待清理附件（4 份重复的 ScienceDirect 快照、1 份代理报错页、3 份条目已有 PDF 的纯文字替代快照）等用户点头，记在 Zotero 整理待办里；以后怎么发现版本升级还没做（spec §7），要按访问规矩重新调研后另写 spec。参考材料目录已删除，用得上的结论都在下文。
+
+- 来源：2026-10-20，讨论 [20261020-paper-to-zotero-structured-package.md](../20261020-paper-to-zotero-structured-package.md) 的"多个 PDF 怎么办"时，只读统计发现。用户：「取 PDF 那个是 paper to zotero 的一个问题，你提一张 issue」
+- 状态：fixed。改名经过（2026-10-27）：
+  - lint 列出 923 份标题不合规范的附件。
+  - 分工：
+    - 脚本定 204 份：CVF 文字水印、IEEE 下载戳加卷期或横幅、网页快照。
+    - sonnet subagent 看图定 692 份。其中 arXiv 编译的 216 份还对照了每一版的作者留言：arXiv API 先回了 429，等一小时后按批取到。
+    - 网站核对 21 份：沿用 10-21 的核对结果，加上 medRxiv、arXiv 的 API，以及用浏览器查 Edge Hill 和 HAL。
+    - 我自己判 5 份。
+  - 盲审抽 20 份，全对。
+  - 结果：Published 438、Accepted 232、Preprint 156、Snapshot 90、Supplement 2、Unknown 4。Unknown 是两份 HAL 作者文件、一份 ACM（PDF 回 403，没法比对）、一份查不到出处的 jeong。
+  - 用户：「你确定不了的话我也不知道的」「1 可以」。922 个标题经 `update_item` 写入，并回读核对。
 - 经过：2026-10-20 用户说先解决这张，我没先给方案就改了代码（没提交，Zotero 没写，只跑了 dry-run）。用户叫停：「去解决这个 issue，应该是你先给我预览方案，你啥都没给我看，然后就直接去解决它」。之后两次重述方向，第二次才对。
 
 ## 现场
@@ -148,7 +155,7 @@
   - 例子：`Published-Elsevier-in_press`、`Accepted-IEEE-in_press`、`Accepted-Europe_PMC`、`Preprint-arXiv-v7`、`Preprint-OpenReview-ICLR_2027_submission`、`Supplement-Nature-source_data`、`Published-T_CAIREM-abstract_booklet_p66`、`Unknown`。
   - 上面所有 `_` 分字段的例子都按这条改写。
 - 命名书写到此定完。下一步是写 spec 并审查，然后给用户看实施方案，等用户同意再改代码。
-- spec 草稿：[20261021-paper-to-zotero-attachment-naming-spec.md](../specs/20261021-paper-to-zotero-attachment-naming-spec.md)（2026-10-21，advisor 审过一轮，已按意见改）。等用户看。
+- spec 草稿：[20261021-paper-to-zotero-attachment-naming-spec.md](../../specs/20261021-paper-to-zotero-attachment-naming-spec.md)（2026-10-21，advisor 审过一轮，已按意见改）。等用户看。
 - 用户（2026-10-21）：「注意pdf version是在出版商网页或者下载pdf以及初步检查的时候就能大致确定的，不要事后再去做，事后再做就缺了很多信息了」。
   - 草稿原来把判定放到了保存时，已改成：
     - 取文件时当场记下页面证据（元数据、版本标签、链接文字）；
@@ -314,7 +321,7 @@
     - 接收稿走单独的路径 `/science/article/am/pii/<PII>`（"View Open Manuscript"）。
   - 文章页已经是最终版时，库里的 PDF 仍可能是校样（liReview 就是），所以要读 PDF 自己的首页。
   - 库里的 huangStabilityenhancedCycleGAN2022 被标成正式版，其实是作者稿：标题大写、没有 Elsevier 页眉、创建日期早于上线日期。
-  - PDF 地址另有一道验证，单独记了 issue：[20261021-paper-to-zotero-sciencedirect-pdf-host-captcha.md](20261021-paper-to-zotero-sciencedirect-pdf-host-captcha.md)。
+  - PDF 地址另有一道验证，单独记了 issue：[20261021-paper-to-zotero-sciencedirect-pdf-host-captcha.md](../20261021-paper-to-zotero-sciencedirect-pdf-host-captcha.md)。
 - **Nature 探查**（`source-signals-nature.md`）：
   - 页面的 `dataLayer` 里有 `articleInPress` 和 `uneditedManuscript`。预览版是 `AcceleratedArticlePreview` / `true`，没有卷号和起始页，正文写着 "will be replaced automatically by the final Version of Record"。
   - PDF 首页：
@@ -345,12 +352,12 @@
     - Xplore 版有会议页眉、©、DOI，每页都有 "Authorized licensed use limited to: <机构>"；
     - ICCV 两版页码不同，CVPR 两版相同。
   - 会议论文没有 Early Access。"Corrections to …" 是单独的 DOI，一页，标题是 "COMMENTS AND CORRECTIONS"。
-  - 限流页单独记了 issue：[20261021-paper-to-zotero-ieee-akamai-rate-limit.md](20261021-paper-to-zotero-ieee-akamai-rate-limit.md)。
+  - 限流页单独记了 issue：[20261021-paper-to-zotero-ieee-akamai-rate-limit.md](../20261021-paper-to-zotero-ieee-akamai-rate-limit.md)。
 - 用户（2026-10-21）：「不同的出版商，甚至不同的文章，可能都会不一样，你不要认为库里这几篇就把某个流程定死，而且出版商也有可能去更新标识之类的，你把握不是很大就交给subagent去判断」。对方案的影响：
   - 规范只定版本的定义和名称，不定"在某家出版商怎么认"。
   - 各家探查到的标识，写进 publishers.md 当带日期的线索（"2026-10 见到"），不当成识别规则。线索和页面实际对不上时，以页面为准。
   - 保存时，脚本只收集证据：页面元数据、首页文字、各个日期、和已知版本的哈希比对。由 agent 按定义判断；把握不大的交给后台 sonnet subagent 看；真定不了的写 Unknown。
-- **2026-10-21 循环访问事故**：查版本升级的 agent 在用户的 Chrome 里循环打开 dblp.org（33 次，约 90 秒）。已停掉它和另一个反复轮询的下级 agent，所有浏览器会话都已关闭。经过和防范措施见 [20261021-paper-to-zotero-request-pacing-fixed.md](archive/20261021-paper-to-zotero-request-pacing-fixed.md)。
+- **2026-10-21 循环访问事故**：查版本升级的 agent 在用户的 Chrome 里循环打开 dblp.org（33 次，约 90 秒）。已停掉它和另一个反复轮询的下级 agent，所有浏览器会话都已关闭。经过和防范措施见 [20261021-paper-to-zotero-request-pacing-fixed.md](20261021-paper-to-zotero-request-pacing-fixed.md)。
   - 版本升级这部分调研没做完。草稿目录 `probe-upgrades/` 里有半成品：arXiv、OpenAlex、PubMed 的批量结果，以及 33 条 dblp 结果。之后按新规矩重做。
 - **开放网站探查**（`source-signals.md`，270 行）：
   - arXiv：

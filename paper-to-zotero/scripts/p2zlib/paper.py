@@ -190,7 +190,10 @@ SOURCES = {
     "bmj.com": "BMJ", "nejm.org": "NEJM", "science.org": "Science", "mdpi.com": "MDPI", "jmir.org": "JMIR",
     "academic.oup.com": "OUP", "pmc.ncbi.nlm.nih.gov": "PMC", "ncbi.nlm.nih.gov": "PMC", "europepmc.org": "Europe_PMC",
     "hal.science": "HAL", "archives-ouvertes.fr": "HAL", "escholarship.org": "eScholarship",
-    "researchgate.net": "ResearchGate", "easychair.org": "EasyChair",
+    "researchgate.net": "ResearchGate", "easychair.org": "EasyChair", "cell.com": "Elsevier", "thelancet.com": "Elsevier",
+    "pnas.org": "PNAS", "plos.org": "PLOS", "iop.org": "IOP", "spiedigitallibrary.org": "SPIE", "thieme-connect.com": "Thieme",
+    "thieme-connect.de": "Thieme", "biomedcentral.com": "BMC", "frontiersin.org": "Frontiers", "lirias.kuleuven.be": "Lirias",
+    "proquest.com": "ProQuest", "ebscohost.com": "EBSCO", "ovid.com": "Ovid",
 }
 # Sites whose every file is one version unless shown otherwise (a preprint server's are preprints): the version
 # proposed for their files whichever route reached them, and the version of their links (fulltext_links).

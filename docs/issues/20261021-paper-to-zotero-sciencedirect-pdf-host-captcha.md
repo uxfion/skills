@@ -1,6 +1,6 @@
 # paper-to-zotero：ScienceDirect 的 PDF 地址另有一道 Cloudflare 验证，publishers.md 没写
 
-- 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)），一个 sonnet 探查 agent 按 p2z 的流程去 ScienceDirect 下载 PDF 时遇到。用户没有说过这件事；下面的观察来自那个 agent 的报告（参考材料目录里的 `source-signals-elsevier.md`）。
+- 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)），一个 sonnet 探查 agent 按 p2z 的流程去 ScienceDirect 下载 PDF 时遇到。用户没有说过这件事；下面的观察来自那个 agent 的报告（结论在那张 issue 的"ScienceDirect 探查"一条）。
 - 状态：open
 
 ## 现场

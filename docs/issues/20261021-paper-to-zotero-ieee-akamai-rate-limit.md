@@ -1,6 +1,6 @@
 # paper-to-zotero：IEEE 连续取 PDF 后返回 Akamai 限流页，会被当成"没有 PDF"
 
-- 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title.md](20261020-paper-to-zotero-pdf-version-by-title.md)），一个 sonnet 探查 agent 在用户的 Chrome 里连续打开 IEEE Xplore 的 PDF 时遇到。用户没有说过这件事；下面的观察来自那个 agent 的报告（参考材料目录里的 `source-signals-ieee.md`）。
+- 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)），一个 sonnet 探查 agent 在用户的 Chrome 里连续打开 IEEE Xplore 的 PDF 时遇到。用户没有说过这件事；下面的观察来自那个 agent 的报告（结论在那张 issue 的"IEEE 探查"一条）。
 - 状态：open
 
 ## 现场
