@@ -15,8 +15,9 @@ carried out without it:
   collections   the union, without `tmp` (unless `tmp` is all there is)
   tags          the union
   attachments   the dropped item's PDFs whose md5 the kept item lacks, each with its structured package (the zip
-                under its title), and its notes, move under the kept item (parentItem); its other attachments (snapshots, links, a PDF the kept item already has) stay and
-                are listed under `left_with_drop`; children in the trash are left alone
+                under its title, renamed in place after the kept item's citation key: `packages_renamed`), and its
+                notes, move under the kept item (parentItem); its other attachments (snapshots, links, a PDF the kept
+                item already has) stay and are listed under `left_with_drop`; children in the trash are left alone
 The kept item is written in one PATCH with its version (changed meanwhile: read again, planned again and tried
 once more), each moved child in its own; then everything is read back. The dropped item is left in place: the
 output ends with the trash_item.py line to run once the user confirms.
@@ -161,6 +162,7 @@ def merge(zot, args):
     shown = plan(item)[0]
     for c in shown["move"]:
         write(zot, c["key"], lambda it: None if zotero.data(it).get("parentItem") == keep["key"] else {"parentItem": keep["key"]})
+    renamed = zot.name_packages(keep["key"]) if shown["move"] else []
 
     after = zot.item(keep["key"]) or {}
     a, sent = zotero.data(after), sent or {}
@@ -171,7 +173,8 @@ def merge(zot, args):
         wrong.append("tags")
     under = {c["key"] for c in zot.children(keep["key"])}
     unmoved = [c["key"] for c in shown["move"] if c["key"] not in under]
-    line = {**head, **shown, "version": after.get("version"), "retried": retried, "next": nxt}
+    line = {**head, **shown, "version": after.get("version"), "retried": retried, "next": nxt,
+            **({"packages_renamed": renamed} if renamed else {})}
     if wrong or unmoved:
         raise cli.Stop("readback_mismatch", hint="The writes were accepted, but the kept item does not show them all; look at it in Zotero.",
                        **line, **({"wrong": wrong} if wrong else {}), **({"unmoved": unmoved} if unmoved else {}))

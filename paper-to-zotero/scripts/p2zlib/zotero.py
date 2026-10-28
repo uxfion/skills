@@ -570,13 +570,12 @@ class Zotero:
 
     # ---- attaching a file -----------------------------------------------------------------------------------
 
-    def attach(self, parent_key, path, *, title=None, url, filename=None, verify=None, replacing=(), dry_run=False):
+    def attach(self, parent_key, path, *, title=None, url, filename=None, verify=None, dry_run=False):
         """Attach one file, a PDF, an HTML page saved as .html or a structured package (.zip), to one regular item,
         whatever made the item.
 
         A child already holding this file (same md5) settles it: skipped, already_attached, nothing uploaded, its
-        title left as it is; the children in `replacing` (a file put back under a new name) count for nothing here,
-        as children in the trash do. An empty stored-file child with the same filename (left by an interrupted run) is
+        title left as it is. An empty stored-file child with the same filename (left by an interrupted run) is
         reused, and takes this title. verify(parent data) runs only when the file is not attached yet; a Stop from it
         refuses. The title is the caller's (paper.label_title), else the version word the bytes alone give: Unknown
         for a PDF, Snapshot for HTML. The filename is given, else Zotero's default "<firstCreator> - <year> -
@@ -613,7 +612,7 @@ class Zotero:
         reuse = None
         for child in self.children(parent_key):
             cd = data(child)
-            if cd.get("itemType") != "attachment" or in_trash(child) or child["key"] in replacing:
+            if cd.get("itemType") != "attachment" or in_trash(child):
                 continue
             if (cd.get("md5") or "").lower() == md5:
                 return skipped("already_attached", attachment=child["key"], md5=md5, filename=cd.get("filename"),
@@ -658,6 +657,47 @@ class Zotero:
         """Give an attachment this title (nothing sent when it has it) -> whether a write was sent."""
         _, sent, _ = self.update(key, lambda it: None if data(it).get("title") == title else {"title": title}, item)
         return sent is not None
+
+    def rename_file(self, key, name):
+        """Rename a stored attachment's file the way Zotero's own "Rename File from Parent Metadata" does: the file in
+        its storage folder, then the attachment's filename (Zotero then points at storage:<name>). Nothing is uploaded:
+        the attachment, its key and its annotations stay. -> whether it was renamed."""
+        path = self.file_path(key)
+        if not path or not Path(path).is_file():
+            raise Stop("not_on_disk", hint="The file is not on this machine (not synced yet); sync Zotero, then run again.",
+                       attachment=key)
+        old, new = Path(path), Path(path).with_name(name)
+        if old.name == name:
+            return False
+        if new.exists():
+            raise Stop("name_taken", hint="Another file in that storage folder has this name; look at it in Zotero.",
+                       attachment=key, name=name)
+        old.rename(new)
+        try:
+            self.update(key, lambda it: None if data(it).get("filename") == name else {"filename": name})
+        except BaseException:
+            new.rename(old)
+            raise
+        return True
+
+    def packages(self, parent_key, title=None):
+        """The item's structured packages outside the trash (paper.is_package), those under one PDF title when given."""
+        children = self.children(parent_key)
+        titles = pdf_titles(children)
+        return [c for c in children if paper.is_package(data(c), titles) and not in_trash(c)
+                and (title is None or data(c).get("title") == title)]
+
+    def name_packages(self, parent_key):
+        """Each structured package of the item renamed in place to <citation key>.<its title>.zip (package_stem), as
+        after its PDF was retitled or moved to another item, or the item's citation key changed -> [{key, from, to}]."""
+        cite = data(self.item(parent_key) or {}).get("citationKey") or parent_key
+        out = []
+        for c in self.packages(parent_key):
+            d = data(c)
+            name = package_stem(cite, d.get("title")) + ".zip"
+            if d.get("filename") != name and self.rename_file(c["key"], name):
+                out.append({"key": c["key"], "from": d.get("filename"), "to": name})
+        return out
 
     def _upload(self, key, body, md5, filename, mtime, content_type):
         """Authorize, send the bytes, register -> True when Zotero already had this file (nothing sent)."""
@@ -711,6 +751,12 @@ def attachment_rows(children):
             out.append({"key": c["key"], "title": d.get("title"), **paper.attachment_label(d, titles),
                         **{f: d.get(f) for f in ("contentType", "linkMode", "filename", "md5", "url", "dateAdded")}})
     return paper.ordered(out)
+
+
+def package_stem(cite, title):
+    """A PDF's structured package outside Zotero, where no item tells which paper it is: <citation key>.<PDF title>,
+    the name of its file (.zip), of the folder inside and of that folder's md and json."""
+    return f"{cite}.{clean_filename(title or '') or 'Unknown'}"
 
 
 def pdf_titles(children):

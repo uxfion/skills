@@ -353,8 +353,10 @@ class _Handler(BaseHTTPRequestHandler):
                             if key in z.items else list(z.items.values()))
                     return self.page(rows, query)
                 if parts[2:] == ["file"]:
-                    if key in z.files:
-                        return self.send(302, None, {"Location": "file://" + urllib.parse.quote(str(z.files[key]))})
+                    if key in z.files:  # as Zotero: the storage folder and the attachment's filename
+                        name = z.items[key]["data"].get("filename") if key in z.items else None
+                        path = z.files[key].with_name(name) if name and z.files[key].with_name(name).exists() else z.files[key]
+                        return self.send(302, None, {"Location": "file://" + urllib.parse.quote(str(path))})
                     return self.send(404, "Not found")
             return self.send(404, "Not found")
 

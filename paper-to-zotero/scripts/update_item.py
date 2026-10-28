@@ -10,7 +10,8 @@ Items: --key and --cite (the top-level item carrying that citationKey). For each
 publicationTitle goes to the type's own field, proceedingsTitle on a conferencePaper, as Zotero does); PATCH only
 what differs, with its version; read it back. On an item-type change Zotero keeps each field the new type has under
 its own or its base field's name and moves the rest to Extra: `fields_to_extra` says which. Tags and collections
-are file_and_tag.py's, the trash is trash_item.py's: both are refused here.
+are file_and_tag.py's, the trash is trash_item.py's: both are refused here. A PDF's new title goes to its
+structured package too, and a new citationKey or title renames the packages' files in place (`packages`).
 
 stdout: one line per item, then {"summary": {total, ok, skipped, failed}}. A written item: {key, cite?, code,
 changes {field: {from, to}}, mapped_fields, fields_to_extra, applied, normalized, version_before, version_after,
@@ -194,15 +195,22 @@ def process(zot, key, args):
         if not body_of(item):
             return cli.skipped("unchanged", version=item.get("version"))
         return cli.ok(**planned["info"], version=item.get("version"), dry_run=True)
+    d = zotero.data(item)
+    parent = d.get("parentItem") if paper.is_pdf(d) else key
+    following = zot.packages(parent, d.get("title")) if paper.is_pdf(d) and parent else []
     item, sent, retried = zot.update(key, body_of, item)
     if sent is None:
         return cli.skipped("unchanged", version=item.get("version"), retried=retried)
+    if "title" in sent:
+        for c in following:
+            zot.retitle(c["key"], sent["title"])
+    renamed = zot.name_packages(parent) if "citationKey" in sent or (following and "title" in sent) else []
     after = zot.item(key)
     if after is None:
         raise cli.Stop("not_found", hint="The item disappeared after the write.")
     applied, normalized, mismatch = readback(sent, planned["info"]["changes"], zotero.data(after))
     line = {**planned["info"], "applied": applied, "normalized": normalized, "version_before": item.get("version"),
-            "version_after": after.get("version"), "retried": retried}
+            "version_after": after.get("version"), "retried": retried, **({"packages": renamed} if renamed else {})}
     extra_before, extra_after = zotero.data(item).get("extra") or "", zotero.data(after).get("extra") or ""
     if "extra" not in sent and extra_after != extra_before:
         line["extra"] = {"from": extra_before, "to": extra_after}

@@ -13,7 +13,8 @@ from pathlib import Path
 from helpers import call, config_file, load
 from fake_zotero import FakeZotero
 
-structured, read_library, trash_item = load("structured"), load("read_library"), load("trash_item")
+structured, read_library = load("structured"), load("read_library")
+trash_item, update_item = load("trash_item"), load("update_item")
 ITEM, PUB, PRE = "ITEM0001", "ATTPUB01", "ATTPRE01"
 CITE = "smithPaper2024"
 PUB_PDF, PRE_PDF = b"%PDF-1.4 published\n%%EOF\n", b"%PDF-1.4 preprint\n%%EOF\n"
@@ -44,7 +45,8 @@ class Structured(unittest.TestCase):
 
     def run_(self, module, *argv):
         url = ["--base-url", self.zot.base_url]
-        return call(module, *(url + list(argv) if module is not trash_item else list(argv) + url), config=self.config)
+        subcommands = module in (structured, read_library)
+        return call(module, *(url + list(argv) if subcommands else list(argv) + url), config=self.config)
 
     def take(self, name, *argv):
         return self.run_(structured, "take", "--cite", CITE, "--to", self.tmp / name, *argv)
@@ -73,11 +75,11 @@ class Structured(unittest.TestCase):
         r = self.run_(structured, "put", folder)
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
         [pkg] = self.packages()
-        self.assertEqual((pkg["title"], pkg["filename"], pkg["parentItem"]),
-                         ("Published-IEEE", "Smith 等 - 2024 - Paper.zip", ITEM), "same title and name as the PDF")
+        self.assertEqual((pkg["title"], pkg["filename"], pkg["parentItem"]), ("Published-IEEE", f"{stem}.zip", ITEM),
+                         "the PDF's title in Zotero; outside it, <cite>.<title>")
         with zipfile.ZipFile(self.zot.files[pkg["key"]]) as zf:
-            self.assertEqual(sorted(zf.namelist()), ["Published-IEEE/Published-IEEE.json", "Published-IEEE/Published-IEEE.md",
-                                                     "Published-IEEE/imgs/p1-2.png"], "no lock file; named after the title")
+            self.assertEqual(sorted(zf.namelist()), sorted([f"{stem}/{stem}.json", f"{stem}/{stem}.md", f"{stem}/imgs/p1-2.png"]),
+                             "no lock file")
         self.assertEqual(self.run_(structured, "put", folder).lines[0]["reason"], "already_current")
 
         rows = {row["attachment_title"]: row["package"] for row in self.run_(read_library, "pdf", "--cite", CITE).lines}
@@ -97,14 +99,18 @@ class Structured(unittest.TestCase):
         (late / f"{stem}.md").write_text("<!-- page 1 -->\n# Paper, other edit\n", encoding="utf-8")
         self.assertEqual(self.run_(structured, "put", late).lines[0]["code"], "changed_since_take")
 
-        renamed = self.zot.data(PUB)["filename"] = "Smith et al. - 2024 - Paper.pdf"
         latest = self.packages()[0]
-        self.take("e")
-        r = self.run_(structured, "put", self.tmp / "e" / stem)
-        self.assertEqual((r.lines[0]["code"], r.lines[0]["replaced"]), ("ok", [latest["key"]]), r)
+        r = self.run_(update_item, "--key", PUB, "--set", "title=Published-IEEE-in_press")
+        self.assertEqual(r.code, 0, r)
         [pkg] = self.packages()
-        self.assertEqual((pkg["filename"], pkg["md5"]), (renamed.replace(".pdf", ".zip"), latest["md5"]),
-                         "a renamed PDF: the same zip again, under its new name")
+        self.assertEqual((pkg["key"], pkg["md5"], pkg["title"], pkg["filename"]),
+                         (latest["key"], latest["md5"], "Published-IEEE-in_press", f"{CITE}.Published-IEEE-in_press.zip"),
+                         "a retitled PDF: its package retitled, its file renamed in place")
+        self.zot.data(ITEM)["citationKey"] = "smith2024"
+        r = self.run_(structured, "names")
+        self.assertEqual([x["to"] for x in r.lines[0]["renamed"]], ["smith2024.Published-IEEE-in_press.zip"], r)
+        self.assertEqual(self.run_(structured, "names").lines[0]["reason"], "all_named")
+        self.zot.data(ITEM)["citationKey"] = CITE
 
         r = self.run_(structured, "take", "--missing", "--to", self.tmp / "d")
         self.assertEqual([(x["title"], x["package"]) for x in r.lines[:-1]], [("Preprint-arXiv-v1", None)])

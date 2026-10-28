@@ -15,7 +15,7 @@ From what the user gives to Zotero items with their PDFs, filed and tagged, and 
 
 ## Reading a library paper
 
-Every PDF in the library has a **structured package** beside it: a zip under the PDF's title, holding the paddleocr skill's parse of that PDF (the Markdown, its record, the figures). Read a paper from its package:
+Every PDF in the library has a **structured package** beside it: a zip under the PDF's title, holding the paddleocr skill's parse of that PDF (the Markdown, its record, the figures). Outside Zotero it is named `<citation key>.<title>` (`zhuUnpairedImagetoImageTranslation2017.Published-CVF.zip`), so the file alone says which paper it is. Read a paper from its package:
 
 ```bash
 uv run scripts/p2z.py structured take --cite <citation key> --to <your scratch directory>
@@ -225,6 +225,6 @@ An agent that reads only local files (`to_label` lines, a file on disk) needs no
 
 ## Limits
 
-- `attach_file` names the file itself (Zotero does not rename API uploads); the user can "Rename File from Parent Metadata" in Zotero at any time.
+- `attach_file` names the file itself (Zotero does not rename API uploads), as Zotero's default template would in English: `<first creator, et al. / and> - <year> - <title cut at 100>`. Zotero renames it later when the item's details change.
 - Zotero's PDF recognizer runs only for files sent through the connector, never for local-API uploads.
 - Out of scope, handed citation keys instead: finding papers by topic (`papers-cool-search`, OpenCLI adapters), reading a paper's body, editing a manuscript.

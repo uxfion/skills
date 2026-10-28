@@ -54,13 +54,11 @@ def process(zot, key, args):
     item = zot.item(key)
     if item is None:
         raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND)
-    line = {**describe(zot, item), **zot.trash(key, restore=args.restore, item=item, dry_run=args.dry_run)}
     d = zotero.data(item)
-    if not args.restore and paper.is_pdf(d) and d.get("parentItem"):
-        packages = [c for c in zot.children(d["parentItem"]) if paper.is_package(zotero.data(c), {d.get("title")})
-                    and not zotero.in_trash(c)]
-        if packages:
-            line["packages"] = [{"key": c["key"], **zot.trash(c["key"], item=c, dry_run=args.dry_run)} for c in packages]
+    following = zot.packages(d["parentItem"], d.get("title")) if not args.restore and paper.is_pdf(d) and d.get("parentItem") else []
+    line = {**describe(zot, item), **zot.trash(key, restore=args.restore, item=item, dry_run=args.dry_run)}
+    if following:
+        line["packages"] = [{"key": c["key"], **zot.trash(c["key"], item=c, dry_run=args.dry_run)} for c in following]
     return line
 
 
