@@ -201,15 +201,20 @@ class Pass:
             time.sleep(1.0)
         return self.has_file(rec.slug)
 
-    def on_page(self, rec, version, note=None, depth=0):
-        """The PDF the current page offers -> (result, extra); Stopped when it offers none that works."""
+    def on_page(self, rec, version, note=None, depth=0, outer=None):
+        """The PDF the current page offers -> (result, extra); Stopped when it offers none that works. `outer` is the
+        page a reading page was reached from (IEEE's article page before its stamp.jsp): the page a file's evidence
+        names is the first of the chain, the one that speaks of the paper."""
         b = self.browser
         info = b.find()
-        info["words"] = self.page_words(rec)
+        if outer is None:
+            info["words"] = self.page_words(rec)
+        shown = outer or info
         if info.get("viewer"):
             data = b.viewer()
             if data:
-                result, extra = self.claim(rec, data, info.get("href"), version, page=info, link={"why": "viewer"})
+                result, extra = self.claim(rec, data, info.get("href"), version, page=shown,
+                                           link={"url": info.get("href"), "why": "viewer"})
                 return result, {**extra, "note": "the page's pdf.js viewer"}
         tried, page = 0, info.get("href") or ""
         for cand in (info.get("candidates") or [])[:PAGE_CANDIDATES]:
@@ -218,7 +223,7 @@ class Pass:
             if tried and page and (b.find().get("href") or "") != page:
                 b.open(page)  # back on the page that offered the candidates: its origin, its cookies
             tried += 1
-            got = self.click(rec, cand, info, version, depth)
+            got = self.click(rec, cand, info, version, depth, shown)
             if got:
                 return got
         if self.has_file(rec.slug):
@@ -227,10 +232,12 @@ class Pass:
         raise Stopped("refused" if tried else "no_pdf_link", after.get("href") or info.get("href"), after.get("title"),
                       "; ".join(x for x in (note, f"{tried} PDF links tried" if tried else None) if x) or None)
 
-    def click(self, rec, cand, page, version, depth):
-        """One PDF link of a page: requested inside the page, else opened as a click would -> (result, extra), or None."""
-        b, link = self.browser, cand["url"]
-        req = request_url(link, page.get("href") or "", self.proxy)
+    def click(self, rec, cand, page, version, depth, shown=None):
+        """One PDF link of a page: requested inside the page, else opened as a click would -> (result, extra), or None.
+        `page` is the page the link is on; `shown`, the page the file's evidence names (on_page's)."""
+        b, link, here = self.browser, cand["url"], page
+        page = shown or page
+        req = request_url(link, here.get("href") or "", self.proxy)
         self.pace(req)
         data, why = b.fetch(req)
         if data:
@@ -251,7 +258,7 @@ class Pass:
                     return result, {**extra, "note": "read from the pdf.js viewer"}
             elif depth == 0 and now.get("candidates"):
                 try:
-                    return self.on_page(rec, version, f"in-page: {why}", depth=1)
+                    return self.on_page(rec, version, f"in-page: {why}", depth=1, outer=page)
                 except Stopped:
                     return None
             if self.has_file(rec.slug):  # a page that downloads in the end

@@ -284,7 +284,8 @@ class Fetch(unittest.TestCase):
             "https://doi.org/10.1000/f.4": {"href": "https://pub.example/f", "pdf": ["https://pub.example/f.pdf"]},
             "https://pub.example/f.pdf": {"viewer": b64(pdf(f"{f}\nWei Liu"))},
             # refused, then the opened link is an HTML reading page whose own candidate is the PDF (IEEE's stamp.jsp)
-            "https://doi.org/10.1109/g.5": {"href": f"{proxied}/document/5", "pdf": ["https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=5"]},
+            "https://doi.org/10.1109/g.5": {"href": f"{proxied}/document/5", "pdf": ["https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=5"],
+                                            "text": f"Early Access Article\n{g}\nPublisher: IEEE"},
             f"{proxied}/stamp/stamp.jsp?arnumber=5": {"pdf": [f"{proxied}/stampPDF/getPDF.jsp?arnumber=5"]}},
             # the DOI's own link downloads: the tab stays where it was, and the file is waited for
             "downloads": {"https://pub.example/c.pdf": {"dir": str(self.dl), "name": "c.pdf", "bytes": b64(pdf(f"{c}\nWei Liu"))},
@@ -306,9 +307,11 @@ class Fetch(unittest.TestCase):
         self.assertEqual({x["slug"]: x["route"] for x in lines if x.get("code") == "to_label"},
                          {"c": "publisher", "d": "publisher", "f": "publisher", "g": "publisher"})
         g_claim = next(e for e in self.work.events("claim") if e["slug"] == "g")
-        self.assertEqual((g_claim["proposal"]["title"], g_claim["evidence"]["url"], g_claim["evidence"]["page"]["href"]),
+        self.assertEqual((g_claim["proposal"]["title"], g_claim["evidence"]["url"], g_claim["evidence"]["page"]["href"],
+                          g_claim["evidence"]["page"]["words"]),
                          ("Published-IEEE", "https://ieeexplore.ieee.org/stampPDF/getPDF.jsp?arnumber=5",
-                          "https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=5"), "the proxy taken off before the site is named")
+                          "https://ieeexplore.ieee.org/document/5", f"Early Access Article {g} Publisher: IEEE"),
+                         "the proxy taken off before the site is named; the article page speaks, not the reading page")
         request_url = load("fetch").request_url
         self.assertEqual(request_url("https://ieeexplore.ieee.org/x.pdf", f"{proxied}/d/1", "proxy.example.edu"), f"{proxied}/x.pdf")
         self.assertEqual(request_url("http://pub.example/x.pdf", "https://pub.example/a", None), "https://pub.example/x.pdf")

@@ -49,8 +49,9 @@ kind, and fetch.jsonl has how it came (events claim, accept, arrival, try, stop)
 what its file's label is settled from: {route?, proposal: {title, version, source, detail} (paper.proposal),
 evidence: {url?, page?: {href, title?, meta?, words?: the page's own words about the paper; for an arXiv file,
 arXiv's comment on that version}, link?: {url, why, text, near}, file: {excerpt, excerpt_page_2, pdf_dates,
-arxiv_stamp, html_title}}}: the host's word, then the file's. An arrival event {slug, md5, route, proposal, evidence} adds how a file came
-that its claim could not see (Chrome downloaded it on a link fetch opened, and the watcher filed it from Downloads).
+arxiv_stamp, html_title}}}: the host's word, then the file's. An arrival event {slug, md5, route, proposal,
+evidence} adds how a file came that its claim could not see (Chrome downloaded it on a link fetch opened, and the
+watcher filed it from Downloads).
 The watcher and the agent never write the same file.
 """
 import hashlib
