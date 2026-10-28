@@ -24,12 +24,15 @@ Each candidate's version goes along to the check and the file's name: the versio
 fetched as its latest version (https://arxiv.org/pdf/<id>v<N>: the vN prepare recorded, else one request to arXiv's
 API for all of the pass's arXiv links).
 
-What the file is, the agent settles (SKILL.md, step 3): each claim event carries the title proposed from how the file
-came (paper.proposal: the site's or the route's version, the site's name, the arXiv vN) and the evidence seen on the
-way: the url, the page (title, its citation_* and dc.* tags) and the link clicked (its text and the text around it);
-a file Chrome downloaded on a link this command opened gets the same as an arrival event. When a pass
-goes through, a `to_label` line for each record with a PDF and no `label` lists them: {slug, code: to_label, file,
-proposal, route, url, link, page, meta, stamp, dates, head (page 1's first 1000 characters)}.
+What the file is, the agent settles (SKILL.md, step 3), from the host's word first and the file's second. Each
+claim event carries the title proposed from how the file came (paper.proposal: the site's or the route's version,
+the site's name, the arXiv vN) and the host's word, recorded while it describes this very file: the url; the page
+the file came from, with its title, its citation_* and dc.* tags and its words around the paper's title (where a
+page puts its labels, dates, volume and issue); the link taken on it (its text and the text around it). An arXiv
+file's host word is arXiv's for that version: its comment and journal reference. A file Chrome downloaded on a link
+this command opened gets the same as an arrival event. When a pass goes through, a `to_label` line for each record
+with a PDF and no `label` lists the host's word, then the file's: {slug, code: to_label, file, proposal, route, url,
+page, meta, words, link, stamp, dates, head (page 1's first 1000 characters)}.
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, wrong_file (the
 check refused it: unverified/), stray, not_in_discovery, error — or the agent's verdict. A page the browser cannot get
@@ -86,6 +89,7 @@ SIGNED_OUT = re.compile(r"sign in to (?:get|see|view) (?:the )?(?:complete|full|
 GATE_TITLE = re.compile(r"sign.?on|sign ?in|log ?in|登录|请稍候|請稍候|just a moment|robot|captcha|verif", re.I)
 GATE_TEXT = re.compile(r"verify you are (?:a )?human|checking if the site connection is secure|正在进行安全验证", re.I)
 PAGE_CANDIDATES = 3   # tried on one page at most
+WORDS_BEFORE, WORDS_AFTER = 600, 900  # a page's words kept around the paper's title
 CLICK_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_CLICK_WAIT", "20"))        # an opened page: to show a viewer or its PDF link
 DOWNLOAD_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_DOWNLOAD_WAIT", "60"))  # the tab stayed, Chrome downloads: PMC took 45-60 s
 DISCOVERY_WAIT = float(os.environ.get("PAPER_TO_ZOTERO_DISCOVERY_WAIT", "30"))  # the results to render
@@ -105,7 +109,7 @@ class Pass:
             raise cli.Stop("mixed_work_dirs", exit=cli.CANNOT, hint="Pass the records of one work directory.",
                            work_dirs=sorted(map(str, works)))
         self.args, self.records, self.work, self.route, self.stopped = args, records, run.Work(works.pop()), None, None
-        self.arxiv = None  # arXiv id -> its latest vN, read once a command (arxiv_url)
+        self.arxiv = None  # arXiv id -> arXiv's word on its latest version (arxiv_entry)
         self.pacer = web.Pacer(self.work)
         inst, settings = config.institution(), self.work.settings()
         self.proxy, self.discovery = inst["proxy"], inst["discovery"]
@@ -136,10 +140,12 @@ class Pass:
     def came(self, url, page=None, link=None):
         """How a file came, for its claim or arrival event: the route, the url (an arXiv one without a version as the
         latest version's, the one arXiv serves there), the version the agent named for a start page, the page and
-        the link taken on it."""
-        return {"route": self.route, "url": self.arxiv_url(url) if url and self.route != "snapshot" else url,
-                "given": self.args.version if self.route == "start" else None,
-                "page": {k: page[k] for k in ("href", "title", "meta") if page.get(k)} if page else None,
+        the link taken on it. An arXiv file's page is arXiv's word on its version, however its bytes came."""
+        url = self.arxiv_url(url) if url and self.route != "snapshot" else url
+        seen = {k: page[k] for k in ("href", "title", "meta", "words") if page.get(k)} if page else None
+        page = self.arxiv_page(url) or seen
+        return {"route": self.route, "url": url, "given": self.args.version if self.route == "start" else None,
+                "page": page or None,
                 "link": {k: link[k] for k in ("url", "why", "text", "near") if link.get(k)} if link else None}
 
     def downloaded_here(self, rec, url, page=None, link=None):
@@ -199,6 +205,7 @@ class Pass:
         """The PDF the current page offers -> (result, extra); Stopped when it offers none that works."""
         b = self.browser
         info = b.find()
+        info["words"] = self.page_words(rec)
         if info.get("viewer"):
             data = b.viewer()
             if data:
@@ -269,28 +276,54 @@ class Pass:
         title = rec.item.get("title")
         return [{"url": with_query(self.discovery, title), "version": None, "needs_browser": True}] if title else []
 
-    def arxiv_url(self, url):
-        """An arXiv link as its latest version's PDF (https://arxiv.org/pdf/<id>v<N>), so the file's title can name
-        its vN: the version prepare recorded for the record's own arXiv id, else arXiv's answer to one request for every
-        arXiv link of this command's records. Any other url, one naming a version, or an id arXiv does not answer for:
-        as it is."""
-        aid, vn = paper.arxiv_link(url)
-        if not aid or vn:
-            return url
+    def page_words(self, rec):
+        """The current page's words about the paper: its text around the paper's title, where a page puts its labels,
+        dates, volume and issue (else its start), whitespace collapsed; None when the page gives no text."""
+        text = self.browser.text().get("text") or ""
+        if not text.strip():
+            return None
+        title = verify.normalize(rec.item.get("title") or "")
+        found = len(title) >= verify.MIN_TITLE_CHARS and title in verify.normalize(text)
+        start = verify.title_span(text, title)[0] if found else 0
+        return " ".join(text[max(0, start - WORDS_BEFORE):start + WORDS_AFTER].split()) or None
+
+    def arxiv_entry(self, aid):
+        """arXiv's word on its latest version of an id: {version, comment?, journal_ref?}, {} when arXiv gave none.
+        The version and comment prepare recorded for a record's own arXiv id; for the rest, one request to arXiv's API
+        for every arXiv link of this command's records (and this id), the first time one is asked for."""
         if self.arxiv is None:
             self.arxiv = {}
             for rec in self.records:
                 block = rec.get("published_candidates") if isinstance(rec.get("published_candidates"), dict) else {}
                 own = paper.identifiers(rec.item)[1]
                 if own and block.get("arxiv_version") and run.due(rec, "published_candidates") is None:
-                    self.arxiv[own] = block["arxiv_version"]
+                    self.arxiv[own] = {"version": block["arxiv_version"], "comment": block.get("comment")}
             links = [l.get("url") for r in self.records if not self.work.file_of(r.slug)
                      for l in ((r.get("links") or {}).get("items") or []) if isinstance(l, dict)]
-            ids = list(dict.fromkeys(i for i in (paper.arxiv_link(u)[0] for u in links + [url]) if i and i not in self.arxiv))
+            ids = [paper.arxiv_link(u)[0] for u in links] + [aid]
+            ids = list(dict.fromkeys(i for i in ids if i and i not in self.arxiv))
             for i, (entry, _) in web.arxiv_entries(ids, self.pacer).items() if ids else ():
                 if entry.get("version"):
-                    self.arxiv[i] = entry["version"]
-        return f"https://arxiv.org/pdf/{aid}{self.arxiv[aid]}" if aid in self.arxiv else url
+                    self.arxiv[i] = entry
+        return self.arxiv.get(aid) or {}
+
+    def arxiv_url(self, url):
+        """An arXiv link as its latest version's PDF (https://arxiv.org/pdf/<id>v<N>), so the file's title can name
+        its vN; any other url, one naming a version, or an id arXiv does not answer for: as it is."""
+        aid, vn = paper.arxiv_link(url)
+        version = self.arxiv_entry(aid).get("version") if aid and not vn else None
+        return f"https://arxiv.org/pdf/{aid}{version}" if version else url
+
+    def arxiv_page(self, url):
+        """arXiv's page for the version an arXiv url names, as arXiv's API gives it: {href, words: its comment and
+        journal reference}; None for any other url, or a version other than the latest (its comment is not known)."""
+        aid, vn = paper.arxiv_link(url)
+        entry = self.arxiv_entry(aid) if aid and vn else {}
+        if not entry or entry.get("version") != vn:
+            return None
+        words = "; ".join(f"{name}: {entry[key]}" for key, name in (("comment", "Comments"), ("journal_ref", "Journal-ref"))
+                          if entry.get(key))
+        return {"href": f"https://arxiv.org/abs/{aid}{vn}", **({"words": words} if words else {})}
 
     def to_label(self):
         """A to_label line for each record with a PDF and no label: what its label is settled from -> how many. A
@@ -306,10 +339,10 @@ class Pass:
             page, link, file = ev.get("page") or {}, ev.get("link") or {}, ev.get("file") or {}
             head = " / ".join(line for line in (file.get("excerpt") or "").splitlines() if line.strip())[:1000]
             cli.emit({"slug": rec.slug, "code": "to_label", "file": f.name, "proposal": (e.get("proposal") or {}).get("title"),
-                      "route": e.get("route"), "url": ev.get("url"),
+                      "route": e.get("route"), "url": ev.get("url"), "page": page.get("title") or page.get("href"),
+                      "meta": page.get("meta"), "words": page.get("words"),
                       "link": " | ".join(filter(None, (link.get("text"), link.get("near")))) or link.get("why"),
-                      "page": page.get("title"), "meta": page.get("meta"), "stamp": file.get("arxiv_stamp"),
-                      "dates": file.get("pdf_dates"), "head": head or None,
+                      "stamp": file.get("arxiv_stamp"), "dates": file.get("pdf_dates"), "head": head or None,
                       "hint": "Settle what the file is: write the record's label {title, by, why} (SKILL.md, step 3)."})
         return n
 

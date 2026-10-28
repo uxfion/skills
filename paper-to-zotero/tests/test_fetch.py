@@ -113,8 +113,9 @@ class Http(http.server.BaseHTTPRequestHandler):
         if self.path.startswith("/arxiv/api/query"):  # arXiv's API, for the ids asked: the latest version is v4
             self.server.arxiv_asked.append(self.path)
             ids = self.path.split("id_list=", 1)[1].split("&", 1)[0].replace("%2C", ",").split(",")
-            entries = "".join(f"<entry><id>http://arxiv.org/abs/{i}v4</id></entry>" for i in ids)
-            body = f'<feed xmlns="http://www.w3.org/2005/Atom">{entries}</feed>'.encode()
+            entries = "".join(f"<entry><id>http://arxiv.org/abs/{i}v4</id><arxiv:comment>Accepted at CVPR 2025</arxiv:comment></entry>"
+                              for i in ids)
+            body = f'<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">{entries}</feed>'.encode()
             self.send_response(200)
             self.end_headers()
             self.wfile.write(body)
@@ -194,7 +195,9 @@ class Fetch(unittest.TestCase):
         return sorted(p.name for p in self.work.records.iterdir() if not p.name.endswith(".json"))
 
     def test_one_pass_walks_the_routes_in_order(self):
-        self.scene({"pages": {"https://doi.org/10.1000/b.2": {"href": "https://pub.example/b", "pdf": ["https://pub.example/b.pdf"]}},
+        nav = "Journals Books Help Search My account " * 40  # a page's start is its navigation
+        self.scene({"pages": {"https://doi.org/10.1000/b.2": {"href": "https://pub.example/b", "pdf": ["https://pub.example/b.pdf"],
+                                                              "text": f"{nav}\nEarly Access\n{OTHER}\nWei Liu\nVolume: PP"}},
                     "fetch": {"https://pub.example/b.pdf": b64(pdf(f"{OTHER}\nWei Liu"))}})
         recs = [self.record("a", links=[self.link("/paper.pdf"), self.link("/landing", "accepted")]),
                 self.record("b", OTHER, "10.1000/b.2"),
@@ -214,9 +217,13 @@ class Fetch(unittest.TestCase):
         b = next(e for e in self.work.events("claim") if e["slug"] == "b")
         self.assertEqual((b["evidence"]["url"], b["evidence"]["link"]["url"], b["evidence"]["page"]["href"], b["evidence"]["file"]["excerpt"]),
                          ("https://pub.example/b.pdf", "https://pub.example/b.pdf", "https://pub.example/b", f"{OTHER}\nWei Liu"))
+        words = b["evidence"]["page"]["words"]
+        self.assertTrue(words.endswith(f"Early Access {OTHER} Wei Liu Volume: PP"), "the page's words around the title")
+        self.assertLess(len(words), 1600, words)
         labels = [x for x in lines if x.get("code") == "to_label"]
         self.assertEqual([(x["slug"], x["proposal"], x["route"]) for x in labels],
                          [("a", "Unknown", "open"), ("b", "Published", "publisher"), ("e", "Preprint", "preprint")])
+        self.assertIn("Early Access", labels[1]["words"], "the host's word on the line")
         self.assertEqual(lines[-1]["summary"]["to_label"], 3)
         rec = run.read(recs[0])
         rec["label"] = {"title": "Published-Example", "by": "agent", "why": "the publisher's page"}
@@ -232,7 +239,7 @@ class Fetch(unittest.TestCase):
         rec = run.Record(self.work.records / "known.json", {"item": {"itemType": "preprint", "title": TITLE, "archiveID": "arXiv:2303.11366",
                                                                       "creators": [{"creatorType": "author", "lastName": "Liu"}]}})
         run.stamp(rec, "links", {"items": [arxiv("2303.11366")]})
-        run.stamp(rec, "published_candidates", {"items": [], "arxiv_version": "v2"})  # prepare's answer
+        run.stamp(rec, "published_candidates", {"items": [], "arxiv_version": "v2", "comment": "Preprint. Under review."})  # prepare's answer
         rec.save()
         code, lines, err = self.fetch("--pass", "1", "--route", "preprint", asked, str(rec.path))
         self.assertEqual(code, 0, err + json.dumps(lines))
@@ -240,8 +247,11 @@ class Fetch(unittest.TestCase):
         self.assertIn("id_list=2201.00001&", self.server.arxiv_asked[0])
         self.assertEqual([(e["slug"], e["url"]) for e in self.work.events("try")],
                          [("asked", "https://arxiv.org/pdf/2201.00001v4"), ("known", known)])
-        self.assertEqual([(x["slug"], x["proposal"], x["stamp"]) for x in lines if x.get("code") == "to_label"],
-                         [("asked", "Preprint-arXiv-v4", "arXiv:2201.00001v4 [cs.AI]"), ("known", "Preprint-arXiv-v2", "arXiv:2303.11366v2 [cs.AI]")])
+        self.assertEqual([(x["slug"], x["proposal"], x["stamp"], x["page"], x["words"]) for x in lines if x.get("code") == "to_label"],
+                         [("asked", "Preprint-arXiv-v4", "arXiv:2201.00001v4 [cs.AI]", "https://arxiv.org/abs/2201.00001v4",
+                           "Comments: Accepted at CVPR 2025"),
+                          ("known", "Preprint-arXiv-v2", "arXiv:2303.11366v2 [cs.AI]", "https://arxiv.org/abs/2303.11366v2",
+                           "Comments: Preprint. Under review.")], "arXiv's word on the version: its comment")
 
     def test_a_page_the_browser_cannot_pass_stops_until_the_agent_decides(self):
         self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://pub.example/x", "title": "Sign in"}}})
