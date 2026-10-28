@@ -1,9 +1,16 @@
 # paper-to-zotero：Zotero 里每篇 PDF 一份结构化包，任何项目都能直接取来读
 
+> 已解决（2026-10-28），写进了 paper-to-zotero：
+> - **脚本**：`scripts/structured.py` 的 `take`、`put`、`names`；
+> - **SKILL.md**：新加"Reading a library paper"一节，第 4 步存好 PDF 后接着做包；
+> - **organize.md**：新加"Structured packages"一节。
+>
+> 库里 832 份 PDF 都有结构化包，名字是 `<引用键>.<标题>`。文件名的事另见 [20261028-paper-to-zotero-english-filenames-fixed.md](20261028-paper-to-zotero-english-filenames-fixed.md)。留给用户的：hc_deduction、diffusion 两个项目里约 295 份旧解析稿没动，旧目录怎么处理由用户决定。
+
 - 来源：用户 · 2026-10-19 提出，2026-10-20 立项
-- 前置：[20261020-paper-to-zotero-top-down-restructure-fixed.md](archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)，2026-10-20 已关闭，这张可以开始设计。
-- 暂缓（2026-10-20）：用户「这边先暂缓一下，先去解决那个issue，解决完后你再重新恢复现在的现场」，先解决 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。那张 issue 2026-10-27 解决（库里附件都按版本改了名，`read_library pdf` 排第一的就是正式版），这张同日恢复。
-- 状态：open。设计已定、已实现（`5d3df60`、`99915ec`、`06672ca`）。2026-10-28 全库 832 份 PDF 都挂上了结构化包，包按 `<引用键>.<标题>` 命名。推送、重装 skill 后关闭。
+- 前置：[20261020-paper-to-zotero-top-down-restructure-fixed.md](20261020-paper-to-zotero-top-down-restructure-fixed.md)，2026-10-20 已关闭，这张可以开始设计。
+- 暂缓（2026-10-20）：用户「这边先暂缓一下，先去解决那个issue，解决完后你再重新恢复现在的现场」，先解决 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。那张 issue 2026-10-27 解决（库里附件都按版本改了名，`read_library pdf` 排第一的就是正式版），这张同日恢复。
+- 状态：已解决（2026-10-28）。实现见 `5d3df60`、`99915ec`、`06672ca`。
 
 ## 目标
 
@@ -36,7 +43,7 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
    2. 没有包，或者 PDF 已经换了（比如预印本换成了正式版）：`read_library.py pdf` 拿到 PDF → paddleocr 解析（这次要读就顺便核对）→ 打包挂回 Zotero。
    3. 在项目里核对、改了内容：重新打包挂回。
 
-4. **多个版本都可以结构化**（2026-10-20）。用户原话：「如果有多个版本，你想打开哪个就打开哪个，结构化也可以全部结构化。」区分版本靠保存时的规范命名，见 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。
+4. **多个版本都可以结构化**（2026-10-20）。用户原话：「如果有多个版本，你想打开哪个就打开哪个，结构化也可以全部结构化。」区分版本靠保存时的规范命名，见 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。
 5. **包里放图片**（2026-10-28）。用户原话：「zip里我是希望放图片的，存储完全没有负担，而且你拿到压缩包就能看到，没必要再做一步。」
 6. **包和 PDF 同名，不在前面加条目的 citation key**（2026-10-28）。用户原话：「结构化包命名和pdf名称一样就行了吧，有必要还在前面加一个条目吗？」
 7. **从全局重新设计**（2026-10-28）。用户原话：「之前那个结构化包设计的不是很好，你重新设计一遍，从全局的角度」。
@@ -92,7 +99,7 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
   - 10 个是同一篇的不同版本（正式版加预印本、接收稿或投稿版）；
   - 2 个是正文加补充材料；
   - 5 个看标题分不出（两份都叫 "Full Text PDF"，或 "PDF" 加 "全文" 之类），可能是重复下载。
-  - `read_library pdf` 的排序靠附件标题认版本（`paper.py` 的 `TITLE_PREFIXES`），认不出的 PDF 一律当正式版。那 10 对版本里有 3 对两份都被当成正式版，因为标题是 "Author manuscript (eScholarship, UCSF)"、"Related preprint v1 — …"、"已提交版本"（Zotero 中文界面下的 Submitted Version）。加上那 5 个，共 8 个条目的"排第一的 PDF"是并列的；并列时按添加时间排，跟版本无关。用户 10-20 定：这是 paper-to-zotero 本身的问题，单独一张 issue：[20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。
+  - `read_library pdf` 的排序靠附件标题认版本（`paper.py` 的 `TITLE_PREFIXES`），认不出的 PDF 一律当正式版。那 10 对版本里有 3 对两份都被当成正式版，因为标题是 "Author manuscript (eScholarship, UCSF)"、"Related preprint v1 — …"、"已提交版本"（Zotero 中文界面下的 Submitted Version）。加上那 5 个，共 8 个条目的"排第一的 PDF"是并列的；并列时按添加时间排，跟版本无关。用户 10-20 定：这是 paper-to-zotero 本身的问题，单独一张 issue：[20261020-paper-to-zotero-pdf-version-by-title-fixed.md](20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。
 
 ## 10-28 重新设计（当天定稿）
 
@@ -109,7 +116,7 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
 
 **Zotero 里**
 
-- **名字**：zip 和它的 PDF 在同一个条目下，标题相同（都是 `Published-OUP`）。找 zip 按"同条目、同标题、类型是 zip"，不看文件名。zip 的文件名后来改成 `<引用键>.<标题>.zip`（见文末"实现"和 [english-filenames](archive/20261028-paper-to-zotero-english-filenames-fixed.md)），不再照抄 PDF 的文件名。
+- **名字**：zip 和它的 PDF 在同一个条目下，标题相同（都是 `Published-OUP`）。找 zip 按"同条目、同标题、类型是 zip"，不看文件名。zip 的文件名后来改成 `<引用键>.<标题>.zip`（见文末"实现"和 [english-filenames](20261028-paper-to-zotero-english-filenames-fixed.md)），不再照抄 PDF 的文件名。
 - **内容**：zip 里是 paddleocr 的输出文件夹原样：`<标题>/` 下是 `<标题>.md`、`<标题>.json`、`imgs/`。
 - **跟着 PDF 走**：PDF 改标题，zip 跟着改；PDF 进回收站（被同来源的新版本替代、去重），zip 一起进；合并条目时，zip 跟着它的 PDF 搬（`merge_items` 现在只搬 PDF）。
 - **哪些有**：每份 PDF 都有，补充材料也有；网页快照没有，因为 paddleocr 不收 HTML。
@@ -185,4 +192,4 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
 - **跟着 PDF 走**：`trash_item`、`merge_items`、`update_item` 共用 `Zotero.packages` 和 `name_packages`。PDF 进回收站，包一起进；PDF 搬到别的条目，包跟着搬并改名；PDF 改标题，包的标题跟着改，文件名在原地改。在 Zotero 里直接改了引用键时，用 `structured names` 补改名字。
 - **SKILL.md**：新加"Reading a library paper"一节；第 4 步存好 PDF 之后，接着给这批 PDF 做包。organize.md 加"Structured packages"一节，写补全库和 paddleocr 更新后的整库更新。
 - **补全结果**（2026-10-28）：先试 5 份，再在后台补 827 份，每批 100 份，用 vLLM 约 1 秒一页，共约 3 小时。第一轮挂上 774 份。没挂上的 53 份里：51 份是写回时 Zotero 一度没响应（用户正在 Zotero 里批量重命名文件），2 份是改名后，`take` 先前做的软链接指向旧文件名，解析失败。重跑一遍补齐，`take --missing` 再查全库为 0。832 份里 52 份没有待核对的标记；其余共 5674 处待核对，第一次被读时再核对。
-- **文件名里的中文**：另见 [20261028-paper-to-zotero-english-filenames-fixed.md](archive/20261028-paper-to-zotero-english-filenames-fixed.md)。
+- **文件名里的中文**：另见 [20261028-paper-to-zotero-english-filenames-fixed.md](20261028-paper-to-zotero-english-filenames-fixed.md)。

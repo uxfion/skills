@@ -673,7 +673,7 @@ issue 里写"对外的命令、参数和输出形状尽量不变"。审查后我
 | [top-down-restructure](../issues/archive/20261020-paper-to-zotero-top-down-restructure-fixed.md) | 本稿；三期做完、验收通过后关闭 |
 | [ieee-pdf-link](../issues/archive/20261018-paper-to-zotero-ieee-pdf-link-fixed.md) | 并入 §6.2；验收时 IEEE 论文不停下就拿到，即可关闭 |
 | [manuscript-collections](../issues/20260923-paper-to-zotero-manuscript-collections.md) | 不在范围内，不动（你说过"先这样放着不要动"）。重构不对分类结构做任何新假设，`tmp` 仍是唯一会自己建的分类 |
-| [structured-package](../issues/20261020-paper-to-zotero-structured-package.md) | 下一份 spec；用到第一期的 `zotero.attach`、`resolve_cite`、回收站、附件列表，以及文件种类表里多出的一行 |
+| [structured-package](../issues/archive/20261020-paper-to-zotero-structured-package-fixed.md) | 下一份 spec；用到第一期的 `zotero.attach`、`resolve_cite`、回收站、附件列表，以及文件种类表里多出的一行 |
 
 ## 14. 待你定
 

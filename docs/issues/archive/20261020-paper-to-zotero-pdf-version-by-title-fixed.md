@@ -2,7 +2,7 @@
 
 > 已解决（2026-10-27）：按[附件命名 spec](../../specs/20261021-paper-to-zotero-attachment-naming-spec.md)实现（`6e1ae65`…`edac142`，2026-10-27 推送并重装），同日按 spec §5 给库里 922 个附件改名，并回读核对：上面 8 个条目现在都是正式版排第一，比如 chung 是 `Published-RSNA-in_press` > `Accepted-eScholarship`，CycleGAN 是 `Published-CVF` > `Preprint-arXiv-v7`；lint 的 `nonstandard_title` 从 923 降到 1。改名中发现的问题已经补进 skill（和关闭本 issue 是同一个提交），记在 spec §12 最后一条。还剩两件事：8 份待清理附件（4 份重复的 ScienceDirect 快照、1 份代理报错页、3 份条目已有 PDF 的纯文字替代快照）等用户点头，记在 Zotero 整理待办里；以后怎么发现版本升级还没做（spec §7），要按访问规矩重新调研后另写 spec。参考材料目录已删除，用得上的结论都在下文。
 
-- 来源：2026-10-20，讨论 [20261020-paper-to-zotero-structured-package.md](../20261020-paper-to-zotero-structured-package.md) 的"多个 PDF 怎么办"时，只读统计发现。用户：「取 PDF 那个是 paper to zotero 的一个问题，你提一张 issue」
+- 来源：2026-10-20，讨论 [20261020-paper-to-zotero-structured-package-fixed.md](20261020-paper-to-zotero-structured-package-fixed.md) 的"多个 PDF 怎么办"时，只读统计发现。用户：「取 PDF 那个是 paper to zotero 的一个问题，你提一张 issue」
 - 状态：fixed。改名经过（2026-10-27）：
   - lint 列出 923 份标题不合规范的附件。
   - 分工：

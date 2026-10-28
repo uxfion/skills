@@ -34,7 +34,7 @@
 
 **这次不做**：
 - 自动发现"某篇出了新版本"的机制。这次只把 `vN`、`in_press` 两个标记留好（§7）。
-- 结构化包的文件夹命名。回到 [20261020-paper-to-zotero-structured-package.md](../issues/20261020-paper-to-zotero-structured-package.md) 再定，会从本规范的标题派生。
+- 结构化包的文件夹命名。回到 [20261020-paper-to-zotero-structured-package-fixed.md](../issues/archive/20261020-paper-to-zotero-structured-package-fixed.md) 再定，会从本规范的标题派生。
 - 文件名不变，仍是 Zotero 的"作者 - 年份 - 标题"。
 - PDF 被替换、进回收站时，它的结构化包怎么处理，也回结构化包那张 issue 再定。
 
