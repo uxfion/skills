@@ -3,7 +3,7 @@
 - 来源：用户 · 2026-10-19 提出，2026-10-20 立项
 - 前置：[20261020-paper-to-zotero-top-down-restructure-fixed.md](archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)，2026-10-20 已关闭，这张可以开始设计。
 - 暂缓（2026-10-20）：用户「这边先暂缓一下，先去解决那个issue，解决完后你再重新恢复现在的现场」，先解决 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。那张 issue 2026-10-27 解决（库里附件都按版本改了名，`read_library pdf` 排第一的就是正式版），这张同日恢复。
-- 状态：open。设计已定、已实现（`5d3df60`）。2026-10-28 全库 832 份 PDF 都挂上了结构化包，待推送、重装 skill 后关闭。除这张 issue 外一切只读：不改代码、不写 Zotero、不动各项目；这张 issue 随时记录讨论中得到的事实、用户的补充和方向。"已定"是用户拍板的；"10-28 重新设计"当天定稿，按这张 issue 直接实现，不写 spec。
+- 状态：open。设计已定、已实现（`5d3df60`、`99915ec`、`06672ca`）。2026-10-28 全库 832 份 PDF 都挂上了结构化包，包按 `<引用键>.<标题>` 命名。推送、重装 skill 后关闭。
 
 ## 目标
 
@@ -109,7 +109,7 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
 
 **Zotero 里**
 
-- **同名**：zip 和它的 PDF 在同一个条目下，标题相同（都是 `Published-OUP`），文件名也相同，只是扩展名不同（`attach` 默认的"<作者> - <年份> - <标题>"）。找 zip 按"同条目、同标题、类型是 zip"，不看文件名，用户在 Zotero 里改文件名也不影响。
+- **名字**：zip 和它的 PDF 在同一个条目下，标题相同（都是 `Published-OUP`）。找 zip 按"同条目、同标题、类型是 zip"，不看文件名。zip 的文件名后来改成 `<引用键>.<标题>.zip`（见文末"实现"和 [english-filenames](archive/20261028-paper-to-zotero-english-filenames-fixed.md)），不再照抄 PDF 的文件名。
 - **内容**：zip 里是 paddleocr 的输出文件夹原样：`<标题>/` 下是 `<标题>.md`、`<标题>.json`、`imgs/`。
 - **跟着 PDF 走**：PDF 改标题，zip 跟着改；PDF 进回收站（被同来源的新版本替代、去重），zip 一起进；合并条目时，zip 跟着它的 PDF 搬（`merge_items` 现在只搬 PDF）。
 - **哪些有**：每份 PDF 都有，补充材料也有；网页快照没有，因为 paddleocr 不收 HTML。
@@ -179,10 +179,10 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
 
 实现（p2z 的 `structured.py`，加上几处小改动）和设计不同或补充的地方：
 - **哪个 zip 算结构化包**：标题等于同条目某份 PDF 标题的 zip。不能凡是 zip 都算：Nature 的源数据就是 zip 补充材料（`Supplement-Nature-source_data`），现有测试抓到了这个冲突。
-- **临时文件夹的布局**：`take` 在临时文件夹里放 `<cite>.<标题>.pdf`（指向 Zotero 存储的软链接，也就是 paddleocr 的输入）、`<cite>.<标题>.zotero.json`（这份来自哪个条目、哪份 PDF、取出的是哪个 zip；`put` 读它），有包就解压成 `<cite>.<标题>/`。用平铺的 `<cite>.<标题>`，是因为 paddleocr 一次调用只有一个 `-o`，全库一批解析时，名字得互不相同。zip 里面仍是 `<标题>/<标题>.md` 等。
+- **临时文件夹的布局**：`take` 在临时文件夹里放 `<cite>.<标题>.pdf`（指向 Zotero 存储的软链接，也就是 paddleocr 的输入）、`<cite>.<标题>.zotero.json`（这份来自哪个条目、哪份 PDF、取出的是哪个 zip；`put` 读它），有包就解压成 `<cite>.<标题>/`。用平铺的 `<cite>.<标题>`，是因为 paddleocr 一次调用只有一个 `-o`，全库一批解析时，名字得互不相同。zip 的文件名和 zip 里面的文件夹后来也统一成这个名字（`zotero.package_stem`）。
 - **读**：`take` 解压完直接读，不检查。没有包（`package: null`），或解析坏到没法就地修，就用 paddleocr 解析那个软链接，再 `put`。
 - **写回**：`put` 打包可复现，内容没变就跳过。替换时新挂一个，读回确认后，旧的进回收站，不逐次问（写在 `structured.py` 的说明里）。原地替换文件那项实测没做，先用这个已知可行的办法。
-- **跟着 PDF 走**：`trash_item` 把 PDF 移进回收站时，它的包一起进；`merge_items` 搬 PDF 时，它的包一起搬。PDF 改标题时包不跟着改，也没加 lint 检查：包对不上标题，读的时候就当没有，重新做。
+- **跟着 PDF 走**：`trash_item`、`merge_items`、`update_item` 共用 `Zotero.packages` 和 `name_packages`。PDF 进回收站，包一起进；PDF 搬到别的条目，包跟着搬并改名；PDF 改标题，包的标题跟着改，文件名在原地改。在 Zotero 里直接改了引用键时，用 `structured names` 补改名字。
 - **SKILL.md**：新加"Reading a library paper"一节；第 4 步存好 PDF 之后，接着给这批 PDF 做包。organize.md 加"Structured packages"一节，写补全库和 paddleocr 更新后的整库更新。
 - **补全结果**（2026-10-28）：先试 5 份，再在后台补 827 份，每批 100 份，用 vLLM 约 1 秒一页，共约 3 小时。第一轮挂上 774 份。没挂上的 53 份里：51 份是写回时 Zotero 一度没响应（用户正在 Zotero 里批量重命名文件），2 份是改名后，`take` 先前做的软链接指向旧文件名，解析失败。重跑一遍补齐，`take --missing` 再查全库为 0。832 份里 52 份没有待核对的标记；其余共 5674 处待核对，第一次被读时再核对。
-- **文件名里的中文**：另见 [20261028-paper-to-zotero-english-filenames.md](20261028-paper-to-zotero-english-filenames.md)。
+- **文件名里的中文**：另见 [20261028-paper-to-zotero-english-filenames-fixed.md](archive/20261028-paper-to-zotero-english-filenames-fixed.md)。
