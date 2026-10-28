@@ -48,9 +48,9 @@
 
 | Version | 定义（按 NISO RP-8-2026） | 例子 |
 |---|---|---|
-| `Published` | 出版方定稿的那份：期刊出版社版、会议论文集版、OpenReview 上 ICLR/TMLR 的终稿。排了版、还没进卷期的也算，加 `in_press` | `Published-RSNA`、`Published-OpenReview-ICLR_2023`、`Published-Elsevier-in_press` |
-| `Accepted` | 审稿通过的文字，但不是出版方定稿的那份：PMC 作者稿、CVF/ECVA/MICCAI 开放版、arXiv 上写明已接收的版本、未编辑的在线优先稿 | `Accepted-CVF`、`Accepted-arXiv-v3`、`Accepted-IEEE-in_press`、`Accepted-Europe_PMC` |
-| `Preprint` | 接收之前公开的：arXiv 预印本、OpenReview 投稿版。预印本条目自己的 PDF 也这样写 | `Preprint-arXiv-v7`、`Preprint-OpenReview-ICLR_2027_submission` |
+| `Published` | 出版方定稿的那份：期刊出版社版、会议论文集版、OpenReview 上 ICLR/TMLR 的终稿、水印写着"与 IEEE Xplore 上的版本相同"的 CVF 开放版（CVPR、ICCV 到 2018 年）。排了版、还没进卷期的也算，加 `in_press` | `Published-RSNA`、`Published-OpenReview-ICLR_2023`、`Published-CVF`、`Published-Elsevier-in_press` |
+| `Accepted` | 审稿通过的文字，但不是出版方定稿的那份：PMC 作者稿、水印写着"与接收版相同"的 CVF 开放版（2019 年起）、MICCAI 和 ECVA 开放版、arXiv 上写明已接收的版本、未编辑的在线优先稿 | `Accepted-CVF`、`Accepted-arXiv-v3`、`Accepted-IEEE-in_press`、`Accepted-Europe_PMC` |
+| `Preprint` | 作者自己发布、没写明已接收的版本：接收前的（arXiv 预印本、OpenReview 投稿版），或接收后自行扩充修改、也没写明接收的（CycleGAN 2020 年的 arXiv v7，ICCV 2017 正文加附录）。预印本条目自己的 PDF 也这样写 | `Preprint-arXiv-v7`、`Preprint-OpenReview-ICLR_2027_submission` |
 | `Unknown` | 看过证据仍定不了的，或保存时还没定下来的。文件照样挂上 | `Unknown`、`Unknown-ResearchGate` |
 | `Supplement` | 补充材料（不是论文本身的版本） | `Supplement-Nature`、`Supplement-Nature-source_data` |
 | `Snapshot` | 网页快照（不是论文本身的版本） | `Snapshot-Elsevier` |
@@ -108,6 +108,7 @@
 - **仍定不了**：写 `Unknown`（来源知道就带上），文件照样挂上。
 
 **判断时可以用的证据**：
+- 第 1、2 页要当图片看，不能只读文字层：版本标记常常是图片，或在文字层读不到的位置（CVF、MICCAI 的水印，Elsevier 灰色的 ARTICLE IN PRESS 横条）。模板文字会误导（elsarticle 在接收稿上也印 "Preprint submitted to <期刊>"）。附件网址也不能当证据：网址是 CVF 的文件，可能根本没有 CVF 水印。
 - 最可靠的通用证据有三样：
   - 和已知版本逐字节相同（2026-10 的核对靠它定了 9 份）；
   - 文件日期落在投稿、接收、上线之间的哪一段；
@@ -157,8 +158,8 @@
   - `superseded`：同一来源里按 §1 该让位的那份，例如 `Preprint-arXiv-v1` 旁边有 `Preprint-arXiv-v3`。原来的 `multiple_pdfs` 去掉了：多个版本并存是本规范的本意（§12）。
 - **organize.md 加一节"附件改名"**：
   1. lint 列出不合规范的附件和证据；
-  2. 分批交给 sonnet subagent，只读本地证据，每批几十份，提出新标题；
-  3. 看证据定不了的，再派 subagent 打开文件、渲染首页；要去出版方核对的，按网站分，每个网站一个、放慢；
+  2. 分批交给 sonnet subagent，每批约二十份：每份都把第 1、2 页渲染成图片看，再对照 lint 的文字摘录，提出新标题和决定它的那个标记；只读本地文件；
+  3. 看文件定不了、要去出版方核对的，按网站分，每个网站一个、放慢；
   4. 仍定不了的写 `Unknown`；
   5. 整理成一张"旧标题 → 新标题"清单给用户；
   6. 用户确认后，用 `update_item` 改标题。这一步只走本地 API，不访问任何网站；改完回读核对。
@@ -269,3 +270,9 @@
   - Chrome 在 fetch 打开的链接上直接下载、再由 watcher 从 Downloads 认领的文件，原来丢了 fetch 手上的路线、地址、页面和链接文字。PMC、OUP、ACM 都是这样下载的。现在 fetch 补一条 `arrival` 事件记下这些。
   - agent 用 `claim --accept` 收下被检查拒掉的文件时，沿用那份文件先前 claim 事件里的路线和证据，不再从零开始。
   - 复查这三处时又发现并改了：网页快照一律默认 `Snapshot`（不跟着网站成了 Preprint），快照的地址不改写成 arXiv PDF 地址；待确认表只列 PDF；watcher 的 claim 事件和 fetch 的 arrival 事件合起来读，不会互相盖掉。
+- **逐份看图核对示例后的修正**（2026-10-27，用户要我对照每份文件第 1、2 页确认新标题，并提醒标记可能在图片里）：渲染 16 份示例文件的第 1、2 页逐份看过，又看了 11 个年份的 CVF 水印和 3 份 MICCAI 水印。
+  - CVF 开放版按水印定版本：CVPR 2016 到 2018 写"与 IEEE Xplore 上的版本相同"，页上还有论文集页码，算 Published；2019 年起写"与接收版相同"，算 Accepted。原来一律算 Accepted，CycleGAN 的 CVF 版因此改成 `Published-CVF`。
+  - chung 的 Radiology 版首页印着 "Radiology 2022; 000:1–8"，卷号还是 000，是进卷期前的在线版，应为 `Published-RSNA-in_press`。试命名时漏了：这行字在首页约第 800 个字符处，原来的摘录只有 300（lint）和 600（claim）个字符。摘录改成首页 1500 个字符、第 2 页 600 个字符。
+  - Preprint 的定义放宽：作者自己发布、没写明已接收的版本，包括接收后自行扩充修改的（CycleGAN 的 arXiv v7）。写明已接收的仍算 Accepted（kim 的 arXiv v3 印着 "Published as a conference paper at ICLR 2024"）。
+  - 一份附件网址是 CVF、首页却没有 CVF 水印的文件（mao2017least），说明网址不能当证据。
+  - 改名流程：每份文件都要看第 1、2 页的图片，不只看文字摘录。

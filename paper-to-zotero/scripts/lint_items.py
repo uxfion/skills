@@ -22,8 +22,9 @@ Problem codes (each problem is {"code", ...}):
                           (paper.py; Zotero's "Full Text PDF", an older run's "Preprint (arXiv)"), or a snapshot in it
                           without a source while its url's site has a name ({"why": "outside_scheme" | "no_source"}). The
                           evidence to name it from, no name: {attachment, title, contentType, url, host, source (the
-                          site's name in paper.SOURCES, else null), filename, md5, doi (the item's), excerpt (the first
-                          300 characters of page 1, read from the file on this machine; null when it cannot be read)}
+                          site's name in paper.SOURCES, else null), filename, md5, doi (the item's), excerpt and
+                          excerpt_page_2 (the start of pages 1 and 2, read from the file on this machine; null when it
+                          cannot be read: a version's mark may also be an image, so the pages are looked at too)}
   label_clash             two or more PDFs or snapshots of the item with one title ({"title", "attachments": [keys]}):
                           most likely the same file twice
   superseded              a file another one from the same source replaces (paper.superseded: an older arXiv vN, an
@@ -191,10 +192,11 @@ def title_problems(data, children, zot, proxy):
         no_source = not label["source"] and source and d.get("contentType") == "text/html"
         why = "outside_scheme" if not label["standard"] else "no_source" if no_source else None
         if why:
+            page_1, page_2 = first_pages(zot, c["key"], d)
             out.append({"code": "nonstandard_title", "why": why, "attachment": c["key"], "title": d.get("title"),
                         "contentType": d.get("contentType"), "url": url, "host": paper.host_of(url) or None,
                         "source": source, "filename": d.get("filename"), "md5": d.get("md5"),
-                        "doi": paper.doi_of(data) or None, "excerpt": first_page(zot, c["key"], d)})
+                        "doi": paper.doi_of(data) or None, "excerpt": page_1, "excerpt_page_2": page_2})
     by_title = {}
     for f in files:
         by_title.setdefault(f["title"], []).append(f["key"])
@@ -204,12 +206,13 @@ def title_problems(data, children, zot, proxy):
     return out
 
 
-def first_page(zot, key, d):
-    """The first 300 characters of a stored PDF's page 1, from the file on this machine; None when it cannot be read."""
+def first_pages(zot, key, d):
+    """The start of a stored PDF's pages 1 and 2 (verify.first_pages), from the file on this machine; (None, None)
+    when it cannot be read."""
     if d.get("contentType") != "application/pdf" or not d.get("md5"):
-        return None
+        return None, None
     path = zot.file_path(key)
-    return verify.first_page(path, 300) if path else None
+    return verify.first_pages(path) if path else (None, None)
 
 
 def problems_of(item, lib, crossref, proxy, zot):

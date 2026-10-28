@@ -122,7 +122,7 @@ By its answer: the file arrived → rerun the command. A gate → *Gate*; once t
 **Every file gets its label** in the pass that got it, while its page and link are still at hand: the attachment title it goes into Zotero under, written into the record as `"label": {"title": "Accepted-arXiv-v3", "by": "agent" | "subagent" | "browser_agent", "why": "v3's comment: Accepted at CVPR 2024"}`. Read references/attachment-titles.md (the scheme, the versions, the evidence) before the first one.
 - A browser agent's file: the version it reported.
 - Every other PDF: the `to_label` lines `fetch` ends a pass with, one per record with a PDF and no label (a snapshot needs none). A line's `proposal` comes from the route and the site alone; settle the label from the line's evidence. Many lines go at once to one cheap-model subagent, which reads only them and that reference.
-- A file its line cannot settle: a subagent of its own reads the file's first pages and the page it came from, while that page is at hand — at most 10 at once, one per site, briefed with *Agents you send*.
+- A file its line cannot settle: a subagent of its own looks at the file's first two pages as images and at the page it came from, while that page is at hand — at most 10 at once, one per site, briefed with *Agents you send*.
 - Still undecided: `Unknown-<Source>`. The file is archived all the same.
 
 **Three passes at most.** Every pass is the same chain and may ask the user at a gate. Between passes run `save` (step 4), so the next pass comes later, when a login, a rate limit or a flaky site may have recovered. The **last pass needs the user**:

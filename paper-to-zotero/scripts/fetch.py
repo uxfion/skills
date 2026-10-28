@@ -29,7 +29,7 @@ came (paper.proposal: the site's or the route's version, the site's name, the ar
 way: the url, the page (title, its citation_* and dc.* tags) and the link clicked (its text and the text around it);
 a file Chrome downloaded on a link this command opened gets the same as an arrival event. When a pass
 goes through, a `to_label` line for each record with a PDF and no `label` lists them: {slug, code: to_label, file,
-proposal, route, url, link, page, meta, stamp, dates, head (page 1's first lines)}.
+proposal, route, url, link, page, meta, stamp, dates, head (page 1's first 1000 characters)}.
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, wrong_file (the
 check refused it: unverified/), stray, not_in_discovery, error — or the agent's verdict. A page the browser cannot get
@@ -304,7 +304,7 @@ class Pass:
             e = run.arrived(self.work, rec.slug, run.md5_of(f)) or {}
             ev = e.get("evidence") or {}
             page, link, file = ev.get("page") or {}, ev.get("link") or {}, ev.get("file") or {}
-            head = " / ".join(line for line in (file.get("excerpt") or "").splitlines()[:6] if line.strip())[:300]
+            head = " / ".join(line for line in (file.get("excerpt") or "").splitlines() if line.strip())[:1000]
             cli.emit({"slug": rec.slug, "code": "to_label", "file": f.name, "proposal": (e.get("proposal") or {}).get("title"),
                       "route": e.get("route"), "url": ev.get("url"),
                       "link": " | ".join(filter(None, (link.get("text"), link.get("near")))) or link.get("why"),

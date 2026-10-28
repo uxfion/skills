@@ -69,7 +69,9 @@ from pathlib import Path
 from . import paper
 from .cli import CANNOT, Stop, log
 
-EXCERPT_CHARS = 600
+EXCERPT_CHARS = 1500     # of page 1, as evidence: far enough for a journal's online-first line ("Radiology 2022; 000:1-8")
+EXCERPT_2_CHARS = 600    # of page 2, past a repository's cover sheet
+SUPPLEMENT_SCAN = 600    # where page 1 is searched for words of supplementary material
 MIN_TITLE_CHARS = 10
 MAX_PAGES = 3
 COVER_MAX_CHARS = 2500  # a cover sheet is short; a paper's first page is not
@@ -214,17 +216,17 @@ def pdftotext_pages(pdf):
     return pages if any(pages) else []
 
 
-def first_page(pdf, chars):
-    """The first `chars` characters of a PDF's page 1 as pdftotext gives them; None when it cannot be read (no such
-    file, no pdftotext, no text layer)."""
+def first_pages(pdf):
+    """The evidence excerpts of a PDF as pdftotext gives them: (page 1's first EXCERPT_CHARS characters, page 2's first
+    EXCERPT_2_CHARS), each None when it cannot be read (no such file, no pdftotext, no text layer, no page 2)."""
     pdf = Path(pdf)
     if not pdf.is_file():
-        return None
-    p = tool("pdftotext", ["-f", "1", "-l", "1", "-enc", "UTF-8", str(pdf.absolute()), "-"])
+        return None, None
+    p = tool("pdftotext", ["-f", "1", "-l", "2", "-enc", "UTF-8", str(pdf.absolute()), "-"])
     if isinstance(p, str) or p.returncode != 0:
-        return None
-    text = clean(p.stdout.decode("utf-8", errors="replace").split("\f")[0])
-    return text[:chars] or None
+        return None, None
+    pages = [clean(t) for t in p.stdout.decode("utf-8", errors="replace").split("\f")] + ["", ""]
+    return pages[0][:EXCERPT_CHARS] or None, pages[1][:EXCERPT_2_CHARS] or None
 
 
 def pdfinfo(pdf):
@@ -415,10 +417,10 @@ def evidence_base(ex, kind):
           "dois_on_page_1": ex.page1_dois[:10], "erratum_marker": None, "supplement_marker": None,
           "doi_mismatch": None, "kind": kind, "arxiv_stamp": ex.arxiv_stamp,
           "cover_page_suspected": False, "collection_suspected": False,
-          "supplementary": paper.SUPPLEMENT_WORDS.search(page1[:EXCERPT_CHARS]) is not None,
+          "supplementary": paper.SUPPLEMENT_WORDS.search(page1[:SUPPLEMENT_SCAN]) is not None,
           "encrypted": ex.encrypted, "text_chars": len(ex.text), "size_bytes": ex.size, "pdf_version": ex.pdf_version,
           "pdf_dates": ex.dates, "excerpt": page1[:EXCERPT_CHARS] if ex.format != "other" else ex.head_bytes,
-          "excerpt_page_2": ex.pages[1][:EXCERPT_CHARS // 2] if len(ex.pages) > 1 else None, "excerpt_title_page": None}
+          "excerpt_page_2": ex.pages[1][:EXCERPT_2_CHARS] if len(ex.pages) > 1 else None, "excerpt_title_page": None}
     if ex.format == "html":
         ev.update(html_title=ex.html_title, denial_marker=ex.denial)
     return ev
