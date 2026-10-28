@@ -62,7 +62,7 @@
 **detail**：只在需要区分时写。起始模板：
 - `vN`：预印本服务器的版本号。arXiv 一律写，因为不带版本号的地址会随作者更新而变。
 - `in_press`：还没进最终卷期、以后会被换掉的版本。IEEE Early Access、Elsevier Article in Press、Nature Article in Press、Wiley Early View、ACM Just Accepted 都用这一个词。
-- `ICLR_2023`：OpenReview 上的会议终稿；`ICLR_2027_submission`：投稿版。照抄 OpenReview 给的状态。
+- `ICLR_2023`：OpenReview 上的会议终稿；`ICLR_2027_submission`：投稿版。照抄 OpenReview 给的状态，从 OpenReview 取的文件一律写（TMLR 没有年份，写 `TMLR`）。
 - `source_data` 一类：同一来源有多份补充材料时区分。
 - `abstract_booklet_p66`：合集里的一篇。
 
@@ -278,3 +278,4 @@
   - 一份附件网址是 CVF、首页却没有 CVF 水印的文件（mao2017least），说明网址不能当证据。
   - 改名流程：每份文件都要看第 1、2 页的图片，不只看文字摘录。
 - **脚本有十足把握的才由脚本定，其余交给 sonnet subagent**（2026-10-27，用户重申的原则）：改名流程原来写成每份文件都由 subagent 看图，改为先用脚本定确定无疑的（全库约 97 份快照、6 份重复文件、IEEE 下载的大部分），其余按类交给 subagent。导入时也一样：证据确定无疑的待确认行，agent 自己定；有疑问的才交给 subagent。
+- **OpenReview 的文件一律带状态**（2026-10-27，用户让我考虑，我定的）：原文"照抄 OpenReview 给的状态"没说是否一律写，10-21 的试命名也没带，约 45 个条目受影响。定为一律写：同一个 OpenReview 地址会先后给投稿版、修订版和终稿，OpenReview 上又有许多会议，状态说明这是哪一份；规则一律化，agent 也不用每次判断要不要写。状态从首页读（ICLR、TMLR 的页眉，NeurIPS、ICML 首页的脚注），读不到再看 OpenReview 的 venue 字段。

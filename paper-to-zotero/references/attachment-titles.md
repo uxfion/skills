@@ -26,7 +26,7 @@ Read this before settling the first label of an import run (SKILL.md, step 3), a
 **Detail**, only where it tells files apart:
 - `vN`: the preprint server's version. Always for arXiv, whose unversioned address follows the authors' updates.
 - `in_press`: a version that will be replaced once the paper is in its issue (IEEE Early Access, Elsevier Article in Press, Nature Article in Press, Wiley Early View, ACM Just Accepted).
-- the OpenReview status as OpenReview gives it: `ICLR_2023` for the final version, `ICLR_2027_submission` for a submission.
+- the OpenReview status, on every file from OpenReview: the venue and year (`ICLR_2023`, `NeurIPS_2025`; TMLR has no year: `TMLR`) for a final version, `ICLR_2027_submission` for a submission. One OpenReview address serves the submission, its revisions and the final version in turn, and OpenReview hosts many venues, so the status says which file this is. Page 1 gives it ("Published as a conference paper at ICLR 2023", "Under review as a conference paper at ICLR 2027", NeurIPS's and ICML's first-page footnote, "Published in Transactions on Machine Learning Research"), else OpenReview's `venue` field.
 - `source_data` and the like: several supplements from one source.
 - `abstract_booklet_p66`: one paper inside a collection.
 
