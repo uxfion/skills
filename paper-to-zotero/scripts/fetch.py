@@ -37,7 +37,9 @@ page, meta, words, link, stamp, dates, head (page 1's first 1000 characters)}.
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, wrong_file (the
 check refused it: unverified/), stray, not_in_discovery, error — or the agent's verdict. A page the browser cannot get
 past stops the whole command (exit 1), the tab left on it: a `stop` event {slug, pass, route, url, gate?, why:
-no_pdf_link | refused | sign_in (a discovery system showing a guest part of its results), page, title}, no try, so a
+no_pdf_link | refused | sign_in (a discovery system showing a guest part of its results) | gate (a PDF link that
+opened a page only the user passes and was still on it after the click's wait: ScienceDirect's PDF host asks its own
+"Are you a robot?"; the link, not the article page, is what opens in front of the user), page, title}, no try, so a
 rerun asks that page again. A page that looks like a gate (GATE_TITLE, GATE_TEXT: a login, a challenge) is `gate: true`
 and opened again in a foreground window, in front of the user; any other stays in the background for the agent, who
 works it (sign_in: the system's own sign-in, clicked through to its login page, the gate). The agent looks, acts, and
@@ -97,9 +99,9 @@ MAX_BYTES = 200 * 1024 * 1024
 
 
 class Stopped(Exception):
-    def __init__(self, why, url, title=None, note=None):
+    def __init__(self, why, url, title=None, note=None, front=None):
         super().__init__(why)
-        self.why, self.url, self.title, self.note = why, url, title, note
+        self.why, self.url, self.title, self.note, self.front = why, url, title, note, front
 
 
 class Pass:
@@ -246,7 +248,7 @@ class Pass:
         b.open(req)
         if self.downloaded(rec, before):
             return self.downloaded_here(rec, link, page, cand)
-        deadline = time.monotonic() + CLICK_WAIT
+        deadline, now = time.monotonic() + CLICK_WAIT, {}
         while time.monotonic() < deadline:  # another document: a viewer, or a page to look through
             now = b.find()  # {}: the page did not answer this time (a redirect under way)
             if now and now.get("doc") == before:  # still the old document: nothing opened
@@ -259,11 +261,15 @@ class Pass:
             elif depth == 0 and now.get("candidates"):
                 try:
                     return self.on_page(rec, version, f"in-page: {why}", depth=1, outer=page)
-                except Stopped:
+                except Stopped as s:
+                    if s.why == "gate":
+                        raise
                     return None
             if self.has_file(rec.slug):  # a page that downloads in the end
                 return self.downloaded_here(rec, link, page, cand)
             time.sleep(1.0)
+        if now and now.get("doc") != before and GATE_TITLE.search(now.get("title") or ""):  # waited: no check passes by itself
+            raise Stopped("gate", now.get("href"), now.get("title"), "the PDF link opened a gate", front=req)
         return None
 
     # ---- routes -----------------------------------------------------------------------------------------------
@@ -382,6 +388,8 @@ class Pass:
             try:
                 return self.on_page(rec, None)
             except Stopped as s:
+                if s.why == "gate":
+                    raise
                 stopped = s
         raise stopped or Stopped("error", cand["url"], note="no result page opened")
 
@@ -401,7 +409,7 @@ class Pass:
         page = self.browser.text()
         gate = bool(GATE_TITLE.search(s.title or page.get("title") or "") or GATE_TEXT.search((page.get("text") or "")[:3000]))
         if gate:
-            self.browser.open(url, front=True)
+            self.browser.open(s.front or url, front=True)
         self.log("stop", slug=rec.slug, route=self.route, url=url, why=s.why, page=s.url, title=s.title, note=s.note,
                  gate=gate or None)
         hint = ("A gate, now in front of the user: say what to do there (sign in, tick the box), wait with p2z.py wait "

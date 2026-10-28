@@ -273,6 +273,19 @@ class Fetch(unittest.TestCase):
         code, lines, _ = self.fetch("--pass", "2", "--verdict", "no_access", rec)
         self.assertEqual((code, lines[0]["code"]), (1, "nothing_stopped"))
 
+    def test_a_pdf_link_that_opens_a_gate_stops_in_front_of_the_user(self):
+        # ScienceDirect: the article page is fine, its PDF link lands on another host's "Are you a robot?"
+        gate = "https://pdf.pub-assets.example/main.pdf?sig=1"
+        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": "https://pub.example/x", "pdf": ["https://pub.example/x/pdfft"]},
+                              "https://pub.example/x/pdfft": {"href": gate, "title": "请稍候…", "text": "Are you a robot?"}}})
+        rec = self.record("x")
+        code, lines, err = self.fetch("--pass", "1", "--route", "publisher", rec)
+        stop = next((x for x in lines if x.get("code") == "stopped"), None)
+        self.assertEqual((code, stop and stop["why"], stop and stop["gate"], stop and stop["url"]), (1, "gate", True, gate),
+                         err + json.dumps(lines))
+        state = json.loads((self.tmp / "state.json").read_text())
+        self.assertEqual(state["current"], "https://pub.example/x/pdfft", "the PDF link, not the article page, opens in front")
+
     def test_the_page_ladder(self):
         c, f, g = "Cardiac Segmentation With Diffusion Models", "Lung Nodule Detection in Low Dose CT", "Retinal Vessel Segmentation Using Transformers"
         d = "Brain Tumor Grading From Whole Slide Images"

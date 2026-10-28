@@ -321,7 +321,7 @@
     - 接收稿走单独的路径 `/science/article/am/pii/<PII>`（"View Open Manuscript"）。
   - 文章页已经是最终版时，库里的 PDF 仍可能是校样（liReview 就是），所以要读 PDF 自己的首页。
   - 库里的 huangStabilityenhancedCycleGAN2022 被标成正式版，其实是作者稿：标题大写、没有 Elsevier 页眉、创建日期早于上线日期。
-  - PDF 地址另有一道验证，单独记了 issue：[20261021-paper-to-zotero-sciencedirect-pdf-host-captcha.md](../20261021-paper-to-zotero-sciencedirect-pdf-host-captcha.md)。
+  - PDF 地址另有一道验证，单独记了 issue：[20261021-paper-to-zotero-sciencedirect-pdf-host-captcha-fixed.md](20261021-paper-to-zotero-sciencedirect-pdf-host-captcha-fixed.md)。
 - **Nature 探查**（`source-signals-nature.md`）：
   - 页面的 `dataLayer` 里有 `articleInPress` 和 `uneditedManuscript`。预览版是 `AcceleratedArticlePreview` / `true`，没有卷号和起始页，正文写着 "will be replaced automatically by the final Version of Record"。
   - PDF 首页：

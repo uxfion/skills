@@ -93,12 +93,13 @@ When the publisher says no access, the institution may still have the paper thro
 - CVPR / ICCV papers usually have a free copy on CVF Open Access: a route to the file, while the item stays the IEEE version.
 - Every download is stamped with the licensee and date, so two downloads of one paper never share an MD5: match a leftover in Downloads to its attachment by title and key, not by hash.
 
-### ScienceDirect / Elsevier (2026-09, partially)
+### ScienceDirect / Elsevier (2026-09; the PDF host 2026-10)
 
 - The first visit in a browser session hits a Cloudflare Turnstile page (title "请稍候…" / "Just a moment…", `#captcha-box`, `input[name=cf-turnstile-response]`); it usually passes by itself within ~20 s, but it is a gate: alert first, then watch.
 - Institutional access is shown by `#gh-inst-icon-btn` (aria-label "<institution> Institutional Access") or a logo `img` whose alt reads "You have institutional Access via <institution>". **No subscription** looks like: that logo present, `div[data-testid=no-access-banner]` saying "<institution> does not subscribe to this content on ScienceDirect", the URL rewritten from `/science/article/pii/<PII>` to `/science/article/abs/pii/<PII>`, only "Purchase PDF" and "Access through another organization" offered, no `a[href*='pdfft']`. That is not a gate: `--verdict no_access` for this paper and on to its next route (the discovery system finds it more often than not); other ScienceDirect papers are tried as usual.
 - An unsubscribed abstract page renders no keywords block at all; the authors' keywords and the abstract come from PubMed instead (`pubmed search "<title words>"` → the hit with the same DOI → `pubmed article <pmid> --full-abstract`), which also gives the PMID for `extra`.
-- With access (unverified): "View PDF" opens a reader under `/pdfft`. Article pages are addressed by PII; the DOI is in the page's `citation_doi` meta tag, or resolve PII → DOI through Crossref: `https://api.crossref.org/works?filter=alternative-id:<PII>`. Author keywords: `div.keywords-section .keyword` (they match PubMed's author keywords).
+- The PDF has a gate of its own (2026-10-27, two open-access articles): "View PDF" (`/science/article/pii/<PII>/pdfft?…`) answers an in-page request with an HTML page, and opened in the tab it moves to `pdf.sciencedirectassets.com`, which asks "Are you a robot?" (title "请稍候…") and does not pass by itself. `fetch` stops there with `why: gate` and opens the PDF link in front of the user. Once passed, a "Security verification" page stays in the tab while Chrome downloads the PDF (the watcher files it), and the pass holds for the browser: another paper's PDF minutes later downloaded with no check (the check's address carries `s=1800`, perhaps 30 minutes; not timed).
+- Article pages are addressed by PII; the DOI is in the page's `citation_doi` meta tag, or resolve PII → DOI through Crossref: `https://api.crossref.org/works?filter=alternative-id:<PII>`. Author keywords: `div.keywords-section .keyword` (they match PubMed's author keywords).
 
 ### Others (2026-10, one batch of about 35 papers, logged in)
 
