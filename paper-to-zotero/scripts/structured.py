@@ -20,7 +20,8 @@ unpacked or parsed lives in DIR, a scratch directory, never in a project.
          batch parse; every PDF, for reprocessing them all after the paddleocr skill changed.
   put    Each FOLDER take prepared, zipped back onto its item as that PDF's package: after a parse, after edits
          (settling a parse), after a new paddleocr processed it again. The zip is built the same way every time, so
-         an unchanged folder gives the bytes the item already holds: skipped. A package the PDF has is replaced only
+         an unchanged folder gives the bytes the item already holds: skipped, unless the PDF's file was renamed
+         since, when the same bytes go up again under the PDF's new name. A package the PDF has is replaced only
          when it is the one take unzipped: the new zip is attached and read back, then the old one goes to the trash
          (a derived copy, undoable for 30 days; no confirmation asked).
 
@@ -28,7 +29,7 @@ stdout: one line per PDF (take) or folder (put), then {"summary"}.
   take  {cite, key, title, code ok, pdf, input, folder, package: its key | null}
         skipped already_taken: DIR already holds that folder (read it, or delete it and take again)
   put   {folder, cite, key, title, code ok, package, md5, replaced?: [old package keys]}
-        skipped already_current: the item holds this very zip
+        skipped already_current: the item holds this very zip, under the PDF's file name
   no_pdf (take: the item has none), no_such_title, not_on_disk (the file is not on this machine: sync Zotero),
   not_taken (no <folder>.zotero.json beside the folder), not_parsed (no <stem>.json and .md in the folder),
   pdf_gone (the PDF left the library), source_mismatch (the folder was parsed from another file),
@@ -224,9 +225,10 @@ def put_one(zot, folder, args):
                        "and parse the link take made.", **head)
     body = build(folder, name_of(title))
     md5 = hashlib.md5(body).hexdigest()
+    filename = Path(pd.get("filename") or path).stem + ".zip"
     _, packages = files_of(zot.children(parent))
     current = packages.get(title, [])
-    same = next((a for a in current if a["md5"] == md5), None)
+    same = next((a for a in current if a["md5"] == md5 and a["filename"] == filename), None)
     if same:
         return cli.skipped("already_current", package=same["key"], md5=md5, **head)
     if {a["key"] for a in current} != ({side["package"]} - {None}):
@@ -235,12 +237,12 @@ def put_one(zot, folder, args):
                        packages=[a["key"] for a in current], **head)
     zpath = folder.with_name(folder.name + ".zip")
     zpath.write_bytes(body)
-    filename = Path(pd.get("filename") or path).stem + ".zip"
+    replaced = [a["key"] for a in current]
     try:
-        res = zot.attach(parent, zpath, title=title, url=None, filename=filename, dry_run=args.dry_run)
+        res = zot.attach(parent, zpath, title=title, url=None, filename=filename, replacing=replaced,
+                         dry_run=args.dry_run)
     finally:
         zpath.unlink()
-    replaced = [a["key"] for a in current]
     if args.dry_run:
         return cli.ok(dry_run=True, md5=md5, size=len(body), filename=filename, replaces=replaced, **head)
     for key in replaced:

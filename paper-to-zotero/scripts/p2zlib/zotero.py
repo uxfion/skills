@@ -30,7 +30,7 @@ PAGE = 100
 CHUNK = 50
 TIMEOUT = 120
 FILENAME_ILLEGAL = re.compile(r'[\\/:*?"<>|\x00-\x1f\x7f]')
-FILENAME_TITLE_MAX = 120
+FILENAME_TITLE_MAX = 100  # as Zotero's filename template: {{ title truncate="100" }}
 HTML_CHARSET = re.compile(rb"<meta[^>]*?charset\s*=\s*[\"']?\s*([a-z0-9_.:-]+)", re.I)
 
 HINT_UNREACHABLE = ("Zotero does not answer: ask the user to start it (never restart it from here), then rerun; "
@@ -570,12 +570,13 @@ class Zotero:
 
     # ---- attaching a file -----------------------------------------------------------------------------------
 
-    def attach(self, parent_key, path, *, title=None, url, filename=None, verify=None, dry_run=False):
+    def attach(self, parent_key, path, *, title=None, url, filename=None, verify=None, replacing=(), dry_run=False):
         """Attach one file, a PDF, an HTML page saved as .html or a structured package (.zip), to one regular item,
         whatever made the item.
 
         A child already holding this file (same md5) settles it: skipped, already_attached, nothing uploaded, its
-        title left as it is. An empty stored-file child with the same filename (left by an interrupted run) is
+        title left as it is; the children in `replacing` (a file put back under a new name) count for nothing here,
+        as children in the trash do. An empty stored-file child with the same filename (left by an interrupted run) is
         reused, and takes this title. verify(parent data) runs only when the file is not attached yet; a Stop from it
         refuses. The title is the caller's (paper.label_title), else the version word the bytes alone give: Unknown
         for a PDF, Snapshot for HTML. The filename is given, else Zotero's default "<firstCreator> - <year> -
@@ -612,7 +613,7 @@ class Zotero:
         reuse = None
         for child in self.children(parent_key):
             cd = data(child)
-            if cd.get("itemType") != "attachment" or in_trash(child):
+            if cd.get("itemType") != "attachment" or in_trash(child) or child["key"] in replacing:
                 continue
             if (cd.get("md5") or "").lower() == md5:
                 return skipped("already_attached", attachment=child["key"], md5=md5, filename=cd.get("filename"),

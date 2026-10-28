@@ -97,6 +97,15 @@ class Structured(unittest.TestCase):
         (late / f"{stem}.md").write_text("<!-- page 1 -->\n# Paper, other edit\n", encoding="utf-8")
         self.assertEqual(self.run_(structured, "put", late).lines[0]["code"], "changed_since_take")
 
+        renamed = self.zot.data(PUB)["filename"] = "Smith et al. - 2024 - Paper.pdf"
+        latest = self.packages()[0]
+        self.take("e")
+        r = self.run_(structured, "put", self.tmp / "e" / stem)
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["replaced"]), ("ok", [latest["key"]]), r)
+        [pkg] = self.packages()
+        self.assertEqual((pkg["filename"], pkg["md5"]), (renamed.replace(".pdf", ".zip"), latest["md5"]),
+                         "a renamed PDF: the same zip again, under its new name")
+
         r = self.run_(structured, "take", "--missing", "--to", self.tmp / "d")
         self.assertEqual([(x["title"], x["package"]) for x in r.lines[:-1]], [("Preprint-arXiv-v1", None)])
         pre = self.tmp / "d" / f"{CITE}.Preprint-arXiv-v1"

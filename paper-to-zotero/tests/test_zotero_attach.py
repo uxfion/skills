@@ -148,7 +148,7 @@ class Attach(unittest.TestCase):
                          "A et al. - T.html")
         self.assertEqual(name({"creators": [{"creatorType": "author", "name": "WHO"}], "date": "May 2019"}), "WHO - 2019.pdf")
         self.assertEqual(name({}), "attachment.pdf")
-        self.assertEqual(len(name({"title": "x" * 300})), 120 + len(".pdf"))
+        self.assertEqual(len(name({"title": "x" * 300})), 100 + len(".pdf"))
         res = self.zot.attach(PARENT, self.file(), url=URL, filename='a/b: "c".pdf')
         self.assertEqual(self.fake.data(res["attachment"])["filename"], "a b c .pdf")
         self.assertEqual(self.stop(self.zot.attach, PARENT, self.file(), url=URL, filename=":/?").code, "invalid_filename")

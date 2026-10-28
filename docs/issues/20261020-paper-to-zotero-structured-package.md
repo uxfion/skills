@@ -3,7 +3,7 @@
 - 来源：用户 · 2026-10-19 提出，2026-10-20 立项
 - 前置：[20261020-paper-to-zotero-top-down-restructure-fixed.md](archive/20261020-paper-to-zotero-top-down-restructure-fixed.md)，2026-10-20 已关闭，这张可以开始设计。
 - 暂缓（2026-10-20）：用户「这边先暂缓一下，先去解决那个issue，解决完后你再重新恢复现在的现场」，先解决 [20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)。那张 issue 2026-10-27 解决（库里附件都按版本改了名，`read_library pdf` 排第一的就是正式版），这张同日恢复。
-- 状态：open，设计已定、已实现（2026-10-28），正在试跑和补全库。除这张 issue 外一切只读：不改代码、不写 Zotero、不动各项目；这张 issue 随时记录讨论中得到的事实、用户的补充和方向。"已定"是用户拍板的；"10-28 重新设计"当天定稿，按这张 issue 直接实现，不写 spec。
+- 状态：open。设计已定、已实现（`5d3df60`）。2026-10-28 全库 832 份 PDF 都挂上了结构化包，待推送、重装 skill 后关闭。除这张 issue 外一切只读：不改代码、不写 Zotero、不动各项目；这张 issue 随时记录讨论中得到的事实、用户的补充和方向。"已定"是用户拍板的；"10-28 重新设计"当天定稿，按这张 issue 直接实现，不写 spec。
 
 ## 目标
 
@@ -184,3 +184,5 @@ Zotero 里每篇论文的 PDF 都有一份结构化版本（paddleocr 的 md + j
 - **写回**：`put` 打包可复现，内容没变就跳过。替换时新挂一个，读回确认后，旧的进回收站，不逐次问（写在 `structured.py` 的说明里）。原地替换文件那项实测没做，先用这个已知可行的办法。
 - **跟着 PDF 走**：`trash_item` 把 PDF 移进回收站时，它的包一起进；`merge_items` 搬 PDF 时，它的包一起搬。PDF 改标题时包不跟着改，也没加 lint 检查：包对不上标题，读的时候就当没有，重新做。
 - **SKILL.md**：新加"Reading a library paper"一节；第 4 步存好 PDF 之后，接着给这批 PDF 做包。organize.md 加"Structured packages"一节，写补全库和 paddleocr 更新后的整库更新。
+- **补全结果**（2026-10-28）：先试 5 份，再在后台补 827 份，每批 100 份，用 vLLM 约 1 秒一页，共约 3 小时。第一轮挂上 774 份。没挂上的 53 份里：51 份是写回时 Zotero 一度没响应（用户正在 Zotero 里批量重命名文件），2 份是改名后，`take` 先前做的软链接指向旧文件名，解析失败。重跑一遍补齐，`take --missing` 再查全库为 0。832 份里 52 份没有待核对的标记；其余共 5674 处待核对，第一次被读时再核对。
+- **文件名里的中文**：另见 [20261028-paper-to-zotero-english-filenames.md](20261028-paper-to-zotero-english-filenames.md)。
