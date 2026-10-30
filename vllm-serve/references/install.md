@@ -23,8 +23,10 @@ Driver for CUDA 12.9 (R575): the `+cu129` build, a release asset that PyPI does 
 
 ```bash
 uv tool install --python 3.12 "vllm @ https://github.com/vllm-project/vllm/releases/download/v0.32.0/vllm-0.32.0%2Bcu129-cp38-abi3-manylinux_2_28_x86_64.whl" \
-  --torch-backend cu129                                           # 2026-10, 8× H200, driver 575
+  --torch-backend cu129
 ```
+
+(2026-10: on 8× H200 with driver 575, a downloaded copy of this wheel installed this way and served; the URL form resolves to the same packages.)
 
 Then, for either build:
 
