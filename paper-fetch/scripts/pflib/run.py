@@ -33,8 +33,9 @@ A stub result (identify could not identify the paper: a page with no metadata) h
 its files are checked against nothing: cannot_judge.
 
 Writers: identify writes all but files and outcome; settle() writes those two and settled_at, from fetch.jsonl,
-every time from the whole log (so whoever folds last is right). fetch, claim and wait fold the results they touched
-when they end; settle.py does it on its own, after the watcher filed something. The watcher and the agent only
+every time from the whole log (so whoever folds last is right). fetch, wait and claim (--file, --accept, --label)
+fold the results they touched when they end; settle.py does it on its own, after the watcher filed something. The
+watcher and the agent only
 append events.
 
 Events, each with `at`:
@@ -45,6 +46,8 @@ Events, each with `at`:
   arrival  {slug, md5, route, proposal, evidence}: how a file came that its claim could not see (Chrome downloaded
            it on a link fetch opened, and the watcher filed it from Downloads)
   label    {slug, file, title, why, by}: the attachment title the agent gave a file
+  pass     {pass, slug}: fetch is about to walk the chain for a paper without a file (from here on the watcher
+           files a download for it)
   try      {pass, slug, route, url?, version?, result, check?, by?}: one route tried for one paper
   stop     {pass, slug, route, url, why, gate?, page, title}: where fetch stopped for the agent
 """
@@ -507,16 +510,17 @@ def new_downloads(work, dl):
 
 
 def wanted(work, results):
-    """The results a download may be for: a route was tried for them (a `try` event) and they have no file yet."""
-    tried = {e.get("slug") for e in work.events("try")}
-    return [r for r in results if r.slug in tried and work.file_of(r.slug) is None]
+    """The results a download may be for: fetch was asked for their file (a pass, try or stop event names them) and
+    they have none yet. A paper whose file nobody asked for (the caller has it already) is never matched."""
+    asked = {e.get("slug") for e in work.events() if e.get("event") in ("pass", "try", "stop")}
+    return [r for r in results if r.slug in asked and work.file_of(r.slug) is None]
 
 
 class Scanner:
     """Claims the new files in Downloads (dl), remembering what it saw: a file is looked at again only when its size or
     time changed, and counts as complete once two looks found it the same; a file that is no PDF is never opened
-    again; the results are read again only when results/ changed. Each PDF is checked against every result a route was
-    tried for and that has no file yet (wanted()): one match -> filed, else left there (it may be the user's own) and
+    again; the results are read again only when results/ changed. Each PDF is checked against every result fetch was
+    asked for and that has no file yet (wanted()): one match -> filed, else left there (it may be the user's own) and
     checked again only against results that became wanted since."""
 
     def __init__(self, work, dl):

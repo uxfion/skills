@@ -155,7 +155,7 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 - **`identify`**：写 `files` 和 `outcome` 以外的所有字段。用 `--redraft` 重认时保留 `files`，因为那是已经拿到的文件，标签说明了各自是哪个版本。认不出来时，比如没有 DOI 的论文，也写一份只有 `request` 和 `warnings`、没有 `csl` 的占位结果文件，code 照报。这样后面还能把文件交给它核对（§4.2）。占位结果文件可以被同一个 slug 的新请求覆盖，不报 `slug_taken`，因为换个编号或网址再认一次是正常的。收到题目（`needs_pinning`）时什么都不写。
 - **汇总**：读 `fetch.jsonl`，把这篇的事件汇总成 `files` 和 `outcome`，原地写回，记下 `settled_at`。`fetch`、`claim`、`wait` 每次结束时都对自己碰过的那几篇做一次；`settle` 单独做这一件事，用在后台监视器后来收到文件之后。汇总每次都从整个 `fetch.jsonl` 重算，所以谁最后写都一样，不会丢更新。
 
-后台的 Downloads 监视器只往 `fetch.jsonl` 追加事件、把文件放进 `results/`，从不写结果文件。agent 定标签也是一个事件，用 `claim --label <标题> --why <理由> <slug>`。没定标签的文件，由汇总给出 `Unknown-<Source>`。
+后台的 Downloads 监视器只往 `fetch.jsonl` 追加事件、把文件放进 `results/`，从不写结果文件。agent 定标签也是一个事件，用 `claim --dir <dir> --label <标题> --why <理由> --slug <slug>`。没定标签的文件，由汇总给出 `Unknown-<Source>`。
 
 **`claim` 只吃掉自己的文件**：`claim --file` 现在会把交给它的文件移走或删掉。拆分后，只有 paper-fetch 自己目录里的文件和本轮 Downloads 里的新文件才这样处理；别处的文件一律先复制，原件不动。否则把 Zotero 存储目录里的 PDF 交给它定标签时，原件会被删掉（`run.place` 在复制后 `unlink` 原文件）。
 
@@ -184,7 +184,7 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 - `links`；
 - 记录旁边的文件。
 
-**条目已经有 PDF 的，就不交给 paper-fetch 取全文。**Downloads 监视器只对照这样的结果：`fetch.jsonl` 里有它的 `try` 事件，还没有通过核对或被接收的文件。它不再读 Zotero 的 `found`。
+**条目已经有 PDF 的，就不交给 paper-fetch 取全文。**Downloads 监视器只对照这样的结果：`fetch` 被要过它的文件（`fetch.jsonl` 里有它的 `pass`、`try` 或 `stop` 事件），而它还没有文件。它不再读 Zotero 的 `found`。（实现时改的：原稿只认 `try`，但 `fetch` 在一条路试完才记 `try`，试第一条路时下载的文件、第一条路就停在验证页的论文都对不上；现在 `fetch` 每一遍开始时给要取的论文各记一个 `pass` 事件。）
 
 ### 3.5 笔记文件
 
@@ -209,7 +209,7 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 | `wait.py` | 整个搬过来 | 等验证页 |
 | `check_pdf.py` | 整个搬过来 | 看一份文件的核对结果 |
 | `settle.py` | 新写 | 把事件汇总进结果文件；`fetch`、`claim`、`wait` 结束时也做同样的汇总 |
-| `ready.py` | 拆 | 检查 OpenCLI、Downloads、poppler、浏览器会话、监视器，建 `<dir>` |
+| `ready.py` | 拆 | 检查 OpenCLI、Downloads、poppler，建 `<dir>`（`--dir`，各个文件夹、`.started`、`run.json`）。浏览器会话和监视器照旧不在这里查 |
 
 `pflib/` 里有三部分：
 - **整个搬过来的**：`browser`、`verify`、`web`；
