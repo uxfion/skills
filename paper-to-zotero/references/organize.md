@@ -79,7 +79,19 @@ It lists the fields the kept item will take from the other (empty ones only), th
 
 ## Notes
 
-`note --cite <key> --file note.md --marker <name>` attaches a child note (a small Markdown subset becomes Zotero's HTML) and, run again with the same marker, updates that note instead of adding another. Use it for evidence the user asked you to keep with the paper — page numbers, quoted passages, what you verified — and keep the user's own notes untouched. A note carries no tags: its marker identifies it, and a tag on a note would sit in the tag selector beside the papers' tags. What a note claims about a paper's content rests on the attachment you read, so name it.
+Outside Zotero a note is one Markdown file: a front matter that names the note and where it belongs, then the note, with whatever Markdown cannot say kept as HTML in place, so a file put back unedited leaves the note as it was. Work on notes in the scratch directory:
+
+```bash
+uv run scripts/p2z.py note take --cite <key> -o <scratch>/notes/      # a file per child note; --title T picks one, --note K a standalone one
+uv run scripts/p2z.py note put <scratch>/notes/*.note.md -i            # back into Zotero; -i writes the new version into the file
+```
+
+- Edit between take and put and leave `key` and `version` as take wrote them. `version_conflict`: the note changed in Zotero after the take (the user edited it) — take it again into the same directory and redo your change there.
+- A new note is a file without `key`: `parent: <citation key>` makes it a child note; `collections:` and `related:` (citation keys) a standalone one, related both ways.
+- Raw HTML blocks stand on their own lines with a blank line around them. Inline code stays out of links and bold: the editor drops the link or the bold when it saves.
+- `note list --q <words>` finds notes by their text.
+
+Use notes for what the user asked you to keep with a paper — page numbers, quoted passages, what you verified — and name the attachment the claims rest on. The user's own notes change only on their word. Notes carry no tags: a tag on a note would sit in the tag selector beside the papers' tags.
 
 ## Exporting BibTeX
 

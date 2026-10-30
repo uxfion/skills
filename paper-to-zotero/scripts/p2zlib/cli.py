@@ -51,6 +51,24 @@ def outcome(line, answers=()):
     return "ok" if code == "ok" or code in answers else "skipped" if code == "skipped" else "failed"
 
 
+def output(p, value, count):
+    """Where -o/--out sends `count` outputs -> (path or None for stdout, is_dir). No -o: stdout, one output only; an
+    existing directory, or a path ending in "/": that directory, made if absent; anything else: one file. Misuse is
+    a usage error (exit 2)."""
+    from pathlib import Path
+    if value is None:
+        if count > 1:
+            p.error(f"{count} outputs need -o DIR/ (stdout takes one)")
+        return None, False
+    path = Path(value).expanduser()
+    if value.endswith("/") or path.is_dir():
+        path.mkdir(parents=True, exist_ok=True)
+        return path, True
+    if count > 1:
+        p.error(f"-o {value} names one file, for {count} outputs: give a directory, ending in /")
+    return path, False
+
+
 def parser(doc, **kwargs):
     """An ArgumentParser whose --help is the module docstring: its first line, then the rest as the epilog."""
     first, _, rest = (doc or "").strip().partition("\n")

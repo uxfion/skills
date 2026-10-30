@@ -1,0 +1,183 @@
+<!-- literal * and *x* -->
+<div data-schema-version="9"><p>评分用 4*5 网格，*不是*强调</p>
+</div>
+
+<!-- literal _ and __x__ -->
+<div data-schema-version="9"><p>__init__ 方法、snake_case_name 与 _前导下划线</p>
+</div>
+
+<!-- para starts '1. ' -->
+<div data-schema-version="9"><p>1. 这一段以数字加点开头，但不是列表</p>
+</div>
+
+<!-- para starts '# ' -->
+<div data-schema-version="9"><p># 不是标题</p>
+</div>
+
+<!-- para starts '- ' -->
+<div data-schema-version="9"><p>- 不是列表项</p>
+</div>
+
+<!-- literal <b> and &amp;amp; -->
+<div data-schema-version="9"><p>HTML 标签 &lt;b&gt; 的说明，以及 &amp;amp; 实体</p>
+</div>
+
+<!-- literal [x](y) -->
+<div data-schema-version="9"><p>[1](见下) 不是链接</p>
+</div>
+
+<!-- literal backtick -->
+<div data-schema-version="9"><p>用 ` 包裹代码</p>
+</div>
+
+<!-- literal $5 and $10 -->
+<div data-schema-version="9"><p>成本 $5 和 $10 美元</p>
+</div>
+
+<!-- literal backslashes -->
+<div data-schema-version="9"><p>路径 C:\Users\name\* 和 \(x\)</p>
+</div>
+
+<!-- literal ~~x~~ -->
+<div data-schema-version="9"><p>~~不是删除线~~</p>
+</div>
+
+<!-- hard break -->
+<div data-schema-version="9"><p>第一行<br>第二行</p>
+</div>
+
+<!-- nbsp / double space -->
+<div data-schema-version="9"><p>A &nbsp;B 和 C D</p>
+</div>
+
+<!-- two lists in a row -->
+<div data-schema-version="9"><ul>
+<li>
+A
+</li>
+</ul>
+<ul>
+<li>
+B
+</li>
+</ul>
+</div>
+
+<!-- loose item (2 paras) -->
+<div data-schema-version="9"><ul>
+<li>
+<p>段一</p>
+<p>段二</p>
+</li>
+<li>
+项二
+</li>
+</ul>
+</div>
+
+<!-- ol start=3 -->
+<div data-schema-version="9"><ol start="3">
+<li>
+第三
+</li>
+<li>
+第四
+</li>
+</ol>
+</div>
+
+<!-- list inside quote -->
+<div data-schema-version="9"><blockquote>
+<p>引文</p>
+<ul>
+<li>
+引文中的列表
+</li>
+</ul>
+</blockquote>
+</div>
+
+<!-- table without header -->
+<div data-schema-version="9"><table>
+<tbody>
+<tr>
+<td>
+<p>a</p>
+</td>
+<td>
+<p>b</p>
+</td>
+</tr>
+<tr>
+<td>
+<p>c</p>
+</td>
+<td>
+<p>d</p>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<!-- table cell with | -->
+<div data-schema-version="9"><table>
+<tbody>
+<tr>
+<th>
+<p>列|1</p>
+</th>
+<th>
+<p>列2</p>
+</th>
+</tr>
+<tr>
+<td>
+<p>x|y</p>
+</td>
+<td>
+<p>z</p>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<!-- bold link, bold+italic -->
+<div data-schema-version="9"><p><strong><a href="zotero://select/library/items/ABCD1234" rel="noopener noreferrer nofollow">粗体链接</a></strong> 和 <strong><em>粗斜体</em></strong></p>
+</div>
+
+<!-- em before CJK -->
+<div data-schema-version="9"><p><em>注：</em>斜体后接中文，<strong>“引号”</strong>后接中文</p>
+</div>
+
+<!-- heading with code -->
+<div data-schema-version="9"><h2>Q5 带 <code>code</code> 的标题 [已答]</h2>
+</div>
+
+<!-- code block -->
+<div data-schema-version="9"><pre>def f(x):
+ &nbsp; &nbsp;return x * 2</pre>
+</div>
+
+<!-- u, strike, sub, sup -->
+<div data-schema-version="9"><p><u>下划线</u>、<span style="text-decoration: line-through">删除线</span>、H<sub>2</sub>O、x<sup>2</sup></p>
+</div>
+
+<!-- colour, highlight -->
+<div data-schema-version="9"><p><span style="color: #ff2020">红色</span> 和 <span class="highlight" data-annotation="%7B%22k%22%3A1%7D">高亮</span></p>
+</div>
+
+<!-- embedded image -->
+<div data-schema-version="9"><p><img alt="" width="400" height="300" data-attachment-key="IMG12345"></p>
+</div>
+
+<!-- empty paragraph -->
+<div data-schema-version="9"><p>前</p>
+<p></p>
+<p>后</p>
+</div>
+
+<!-- math with * and _ -->
+<div data-schema-version="9"><p><span class="math">$a*b_{i}^*$</span> 与 <span class="math">$x\_1$</span></p>
+</div>
