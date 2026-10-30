@@ -2,7 +2,7 @@
 
 - 来源：用户 · 2026-10-29。在设计论文笔记的读法时提出，那张 issue 是 [20261028-paper-to-zotero-paper-notes.md](20261028-paper-to-zotero-paper-notes.md)。当时问题树刚定下来（那张 issue 的已定 28），用户说「A。 先不要在问了。有个设计上的非常重要的问题」，接着说了下面这段话。
 - 参考资料：`20261029-paper-to-zotero-split-reference/`，git 不跟踪。里面放 Zotero 和 Better Notes 对外接口的调研。笔记格式、Better Notes 源码、实测结果放在论文笔记那张 issue 的参考资料文件夹里。
-- 状态：open，按 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` 改造中。§10 第 0 步（存基线）和第 1 步（笔记转换）已完成（2026-10-30）；待验证 2 的测试笔记已经放进 `tmp`，等用户动手。下一步是第 2 步 paper-fetch。
+- 状态：open，按 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` 改造中。§10 第 0 步（存基线）、第 1 步（笔记转换）、第 2 步（paper-fetch）已完成（2026-10-30）；待验证 2 的测试笔记已经放进 `tmp`，等用户动手。下一步是第 3 步，把 p2z 改成读结果文件。
 - 和论文笔记那张 issue 的关系：读论文的流程、问题树和笔记格式，原来都打算放进 p2z（那张 issue 的"分工"一节）。如果按这张 issue 拆分，它们就归新的读论文 skill，p2z 只负责把笔记存进 Zotero、再取出来。
 
 ## 用户原话
@@ -406,6 +406,8 @@
     - **没有外层 div 的笔记不再被套上一个**，读出写回不变。
 
     100 个样例全部"结构不变"且"稳定"；14 个样例里有块退回 HTML，都是 Markdown 说不了的东西。补充的 7 条整篇笔记抓出两个真 bug（显示公式没过自检；没有外层 div 的笔记被套上一个），都已从根上改掉。`note.py` 换成 take/put/list，`put` 用同一个模型判断"没改"；用新的 `note put` 把 79 个样例拼成一条测试笔记放进了 `tmp`（key `8KAG38U2`），读回一致，再 put 一次报 `unchanged`。
+
+72. 第 2 步 paper-fetch 做完（`6ea7d15`、`65b12ee`、`3fe066e`、`384f301`）。顺序是 advisor 建议的：先定接口（`pflib/run.py`：结果文件、汇总、标签事件），用 `check_pdf` 做样板，`identify` 自己写，其余四个脚本（fulltext_links、fetch+wait、claim、ready）派四个 subagent 照接口并行移植，再由我统一检查。移植中发现一处设计漏洞：监视器原定只认有 `try` 事件的论文，但 `fetch` 一条路试完才记 `try`，试第一条路时下载的文件、第一条路就停在验证页的论文都对不上。subagent 在两个脚本里各写了一份绕过的代码；我改从根上解决：`fetch` 每一遍开始时给要取的论文各记一个 `pass` 事件，监视器认 `pass`、`try`、`stop` 三种，绕过的代码删掉。验收：三篇基线论文 `identify` 出来的字段和基线条目对得上；拿基线的三个 PDF 跑 `claim --file`，核对结果、版本、md5 都一样，原件留在原处。两项配置已拷进 `~/.config/paper-fetch/config.json`。
 
 ## 调研（2026-10-29，看的是代码）
 
