@@ -25,7 +25,7 @@ Claude Code 的 auto memory 由自身 harness 管理；AGENTS.md 的记忆规则
 - [paddleocr](paddleocr/SKILL.md) — 用本机 GPU 上的 PaddleOCR-VL 把文档的 PDF、截图或扫描件（论文、报告、幻灯片等）解析成 Markdown 和记录 JSON（阅读顺序、公式、表格、图、页码标记），对照 PDF 文字层核对，再由子代理核对修正，每处修改连同原因都记在 JSON 里；需先装 `paddleocr` uv tool（[安装](paddleocr/references/install.md)），再装 vllm-serve 可快十到二十倍。
 - [paper-to-zotero](paper-to-zotero/SKILL.md) — 按题目 / DOI / arXiv 号 / 清单 / bib 把论文连同 PDF 导入 Zotero，归类、打标签；按 citation key 整理、修字段、写笔记，导出 bib，查库里论文 PDF 的本地路径。
 - [uv-python](uv-python/SKILL.md) — 使用 uv 执行 Python、管理依赖和环境。
-- [vllm-serve](vllm-serve/SKILL.md) — 本机统一的 vLLM 后端：一份 vLLM 安装，每个模型一个 profile、一个服务，按需启动、多方共用、空闲自动退出；需先装 `vllm` uv tool（[安装](vllm-serve/references/install.md)）。
+- [vllm-serve](vllm-serve/SKILL.md) — 一台 GPU 机器上统一的 vLLM 后端（本机，或 ssh 过去、多人共用的服务器）：一份 vLLM 安装，每个模型一个 profile、一个服务，按需启动、多方共用、空闲自动退出；附共享服务器的部署原则和调优参考；需先装 `vllm` uv tool（[安装](vllm-serve/references/install.md)）。
 
 用 [skills CLI](https://www.skills.sh/docs) 安装，`npx` 可换成 `bunx`：
 

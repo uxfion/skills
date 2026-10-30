@@ -7,10 +7,10 @@
 # Sizing (2026-10, RTX 5090 D 32 GB, vLLM 0.31, 225 pages through paddleocr): every setting tried took 95-110 s,
 # the client being the bottleneck - GPU share 0.5 or 0.3 or 0.2, batch tokens 131072 (PaddleX) or 16384
 # (recipe), pinned memory on or off - so the profile takes the least memory: 0.2 of 32 GB leaves a 200k-token
-# KV cache. On a GPU under 24 GB raise gpu_memory_utilization so that it still holds about 6 GB.
+# KV cache. On a GPU under 24 GB raise --gpu-memory-utilization so that it still holds about 6 GB.
 model = "PaddlePaddle/PaddleOCR-VL-1.6"
 port = 8118
-gpu_memory_utilization = 0.2
 idle_minutes = 10
-args = ["--trust-remote-code", "--max-model-len", "16384", "--max-num-batched-tokens", "16384",
-        "--no-enable-prefix-caching", "--mm-processor-cache-gb", "0", "--trust-request-mm-kwargs"]
+args = ["--gpu-memory-utilization", "0.2", "--trust-remote-code", "--max-model-len", "16384",
+        "--max-num-batched-tokens", "16384", "--no-enable-prefix-caching", "--mm-processor-cache-gb", "0",
+        "--trust-request-mm-kwargs"]
