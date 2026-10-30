@@ -146,7 +146,8 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 - **勘误提醒**：在规范之前算好，因为要用到 `article-number`。
 - **LNCS 这类论文集**写成 `paper-conference`：`container-title` 写卷名，`collection-title` 写丛书名，丛书信息用 Crossref 查到的。
 - **找到了就写进 CSL**：摘要写进 `abstract`，作者关键词写进 `keyword`，PMID 写进 `PMID`。
-- **`source`** 写给出元数据的机构，比如 Crossref 或 DataCite。它本来就是 CSL 的变量，p2z 用它填 `libraryCatalog`。
+- **`source`** 直接写成 Zotero `libraryCatalog` 的样子：`DOI.org (Crossref)`、`DOI.org (Datacite)`，网页来的写网页的主机名。schema 的对照表里 `source` 本来就对 `libraryCatalog`，所以 p2z 不用为它写代码。（实现时改的：原稿是只写机构名，由 p2z 拼成 `DOI.org (<source>)`。）
+- **只留 CSL 的变量**：CSL 1.0.2 的文本、日期、姓名变量，加上按名字带着的 `categories`。Crossref 记录里的参考文献列表、入库日期、得分、链接、对象形式的许可证都不要，结果文件小了几十倍。老的 `build_item` 本来也只按对照表取 CSL 的键，所以不影响条目。
 - **CSL 里没有的**，按名字原样带着，比如 arXiv 的分类 `categories`。
 - **网页上的 `citation_*` 元数据**也转成 CSL。现在是直接拼进 Zotero 条目的，这一段要新写。
 
@@ -221,7 +222,8 @@ identify.py [编号或网址…] [--slug S] [-o DIR]            # 也可以从 s
 identify.py --redraft <编号或网址> RESULT                 # 原地换成选定的版本
 identify.py --search "<题目>" [--author 姓]               # 只列出候选，不写文件
 ```
-- **输入**：DOI、arXiv 号或网址。只有题目时，agent 先按 SKILL.md 的"认一篇论文"，用 OpenCLI 的适配器找到编号。`--search` 是其中一条路：用 Crossref 按题目查，原来在 `lint_items --crossref` 里。
+- **输入**：DOI、arXiv 号或网址。网址不是 doi.org、arxiv.org 的，就当论文页读它的 `citation_*`；读不到就写占位结果。只有题目时，agent 先按 SKILL.md 的"认一篇论文"，用 OpenCLI 的适配器找到编号。`--search` 是其中一条路：用 Crossref 按题目查，原来在 `lint_items --crossref` 里。
+- **预印本的版本**在 `identify` 里一并查好（原来是 `prepare` 单独一步）。有来源没应答时记在 `versions.incomplete`，同一个编号再跑一次 `identify` 会重新问，其余照旧跳过。
 - **输出**：stdout 每篇一行 `{slug, code, path, …}`，最后一行是 `{"summary"}`。code 有：
   - `ok`；
   - `skipped`：同一个 slug 已经有结果文件，而且 `request` 一样；
@@ -294,7 +296,7 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
 - 日期格式、作者转换、arXiv 分类转标签。
 - 选了正式版时，从 `versions.preprint` 里补三样：DOI 记录没有摘要时，用预印本的摘要；网页元数据缺作者时，用预印本的作者；`extra` 里加一行 `arXiv: <编号>`。这些现在在 `doi_to_item --redraft` 里。
 
-实现时要用真库的 `read_library schema` 核对一下：规范 CSL 时用到的键，Zotero 的对照表里都有对应吗？包括 `collection-title` 对 `series`，以及 `event-title`、`publisher-place`、`container-title-short`。缺了哪个就要在代码里补上，否则 §11 要求的"字段和拆分前一致"会出现说不清原因的差别。
+实现时要用真库的 `read_library schema` 核对一下：规范 CSL 时用到的键，Zotero 的对照表里都有对应吗？2026-10-30 核对过（schema 版本 44）：`event-title` 对 `meetingName`/`conferenceName`，`publisher-place` 对 `place`，`collection-title` 对 `seriesTitle`/`series`，`source` 对 `libraryCatalog`，都在；`container-title-short` 不在，表里对 `journalAbbreviation` 用的是 Zotero 自己的名字。老代码也从没写过期刊缩写，所以拆分前后一致；以后补期刊缩写（§13）时，在 `draft_item` 里把它对到 `journalAbbreviation`。另外 DataCite 的 `version` 在表里对 `versionNumber`，老代码有意不写它，`draft_item` 照旧跳过。
 
 **从拆分的脚本里拿过来的部分**：
 - **`find_in_library --file <PDF>…`**：按 md5 查遗留文件在不在库里，原来在 `claim --sweep` 里。
