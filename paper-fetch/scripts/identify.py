@@ -27,7 +27,7 @@ container-title, the series as collection-title. A paper's page is read over pla
 the CSL (paper-conference, article-journal or chapter by the venue tag).
 
 Versions. An arXiv preprint gets versions.preprint (its ids, arXiv's latest vN and comment, title, abstract,
-authors) and versions.published: the published versions the authors declared to arXiv, and Crossref works whose
+authors, arXiv's categories) and versions.published: the published versions the authors declared to arXiv, and Crossref works whose
 title matches (90%), each {ids: {doi}, venue, year, title, title_differs, type, sources}; sources that did not answer
 are in versions.incomplete, and identifying the same id again asks them again. Choosing one is the caller's: then
 --redraft. A published paper's versions are empty.
@@ -504,7 +504,7 @@ def versions_of_preprint(s, aid, csl, alt_titles):
     complete(s, answers["arxiv"], answers["crossref"])
     preprint = {"ids": {"arxiv": aid, "doi": f"10.48550/arXiv.{aid}"}, "latest": entry.get("version"),
                 "comment": entry.get("comment"), "title": csl.get("title"), "abstract": csl.get("abstract"),
-                "author": csl.get("author") or []}
+                "author": csl.get("author") or [], **({"categories": csl["categories"]} if csl.get("categories") else {})}
     return {"preprint": preprint, "published": merge_candidates(answers["arxiv"] + answers["crossref"], titles),
             "incomplete": sorted(k for k, code in codes.items() if code not in ANSWERED)}
 
@@ -640,7 +640,8 @@ def redraft(s, res, target):
     versions = dict(res.get("versions") or {"published": [], "incomplete": []})
     if res.get("record_of") == "preprint" and not versions.get("preprint"):
         versions["preprint"] = {"ids": {k: res.ids.get(k) for k in ("arxiv", "doi")}, "title": old.get("title"),
-                                "abstract": old.get("abstract"), "author": old.get("author") or []}
+                                "abstract": old.get("abstract"), "author": old.get("author") or [],
+                                **({"categories": old["categories"]} if old.get("categories") else {})}
     alt = [t for t in res.get("alt_titles") or [] if isinstance(t, str)]
     old_title = first_str(old.get("title"))
     if old_title and paper.norm_title(old_title) not in {paper.norm_title(t) for t in [csl.get("title"), *alt]}:

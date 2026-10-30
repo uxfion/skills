@@ -294,7 +294,7 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
 - 类型没有 DOI 字段时，把 DOI 写进 `extra`。
 - `libraryCatalog` 照现在写成 `DOI.org (<source>)`。
 - 日期格式、作者转换、arXiv 分类转标签。
-- 选了正式版时，从 `versions.preprint` 里补三样：DOI 记录没有摘要时，用预印本的摘要；网页元数据缺作者时，用预印本的作者；`extra` 里加一行 `arXiv: <编号>`。这些现在在 `doi_to_item --redraft` 里。
+- 选了正式版时，从 `versions.preprint` 里补四样：DOI 记录没有摘要时，用预印本的摘要；网页元数据缺作者时，用预印本的作者；`extra` 里加一行 `arXiv: <编号>`；arXiv 分类照旧转成自动标签（`csl.categories`，没有就用 `versions.preprint.categories`，老流程里预印本时打的标签重认后也留着）。这些现在在 `doi_to_item --redraft` 里。
 
 实现时要用真库的 `read_library schema` 核对一下：规范 CSL 时用到的键，Zotero 的对照表里都有对应吗？2026-10-30 核对过（schema 版本 44）：`event-title` 对 `meetingName`/`conferenceName`，`publisher-place` 对 `place`，`collection-title` 对 `seriesTitle`/`series`，`source` 对 `libraryCatalog`，都在；`container-title-short` 不在，表里对 `journalAbbreviation` 用的是 Zotero 自己的名字。老代码也从没写过期刊缩写，所以拆分前后一致；以后补期刊缩写（§13）时，在 `draft_item` 里把它对到 `journalAbbreviation`。另外 DataCite 的 `version` 在表里对 `versionNumber`，老代码有意不写它，`draft_item` 照旧跳过。
 

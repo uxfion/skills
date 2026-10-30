@@ -22,7 +22,7 @@ A result file, results/<slug>.json, one JSON object:
   csl                   the paper's metadata as normalized CSL-JSON (identify.py says how), with `source` the agency
                         that gave it and, by name, what CSL has no variable for (arXiv's `categories`)
   alt_titles            [str]: other titles the paper went by
-  versions              {preprint?: {ids, latest, comment, title, abstract, author}, published: [{ids, venue, year,
+  versions              {preprint?: {ids, latest, comment, title, abstract, author, categories?}, published: [{ids, venue, year,
                         title, title_differs, type, sources}], incomplete: [sources that did not answer]}
   files                 [{name, md5, kind, label: {title, version, source, detail, by, why}, check: ok | accepted |
                         cannot_judge, accepted_reason?, url, evidence}]
