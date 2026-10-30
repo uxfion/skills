@@ -6,7 +6,8 @@
 """Run paper-to-zotero's commands: `p2z.py <command> [args...]` runs scripts/<command>.py; prepare and save run several.
 
 `p2z.py --help` (or no arguments) lists every command with the first line of its docstring. A script runs with the
-same interpreter and its exit code is passed through; an unknown command exits 2 with the list.
+`uv run --script`, so its own PEP 723 dependencies load, and its exit code is passed through; an unknown command
+exits 2 with the list.
 
 Two commands run several scripts over the same record files, one after the other, and print one line per record:
   prepare RECORD...   fill the blocks computed from a record: doi_to_item (a preprint's published versions),
@@ -34,6 +35,11 @@ HERE = Path(__file__).resolve().parent
 SELF = Path(__file__).name
 STEPS = {"prepare": ("doi_to_item", "find_in_library", "fulltext_links", "check_item"),
          "save": ("create_item", "attach_file")}
+
+
+def command(script, *args):
+    """The command line that runs scripts/<script>.py: through uv, which loads the script's own dependencies."""
+    return ["uv", "run", "--quiet", "--script", str(HERE / f"{script}.py"), *args]
 
 
 def scripts():
@@ -84,7 +90,7 @@ def compound(name, argv):
     paths = [a for a in args if a.endswith(".json")]
     steps, stopped = {Path(p).stem: {} for p in paths}, None
     for script in STEPS[name]:
-        done = subprocess.run([sys.executable, str(HERE / f"{script}.py"), *args], capture_output=True, text=True, env=env)
+        done = subprocess.run(command(script, *args), capture_output=True, text=True, env=env)
         sys.stderr.write(done.stderr)
         for raw in done.stdout.splitlines():
             try:
@@ -134,7 +140,7 @@ def main(argv):
         print(f"{SELF}: unknown command {name!r}\n", file=sys.stderr)
         usage(sys.stderr)
         return 2
-    os.execv(sys.executable, [sys.executable, str(HERE / f"{name}.py"), *argv[1:]])
+    os.execvp("uv", command(name, *argv[1:]))
 
 
 if __name__ == "__main__":

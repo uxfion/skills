@@ -12,6 +12,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -93,14 +94,15 @@ def call(module, *argv, config=None, env=None, stdin=""):
 
 
 SHEBANG = "#!/usr/bin/env -S uv run --script"
+UV = shutil.which("uv")   # found once: a test may hand the script a PATH of stubs only
 
 
 def smoke(name, *argv, config=None, env=None, timeout=120):
-    """scripts/<name>.py as its own process (after checking it opens with the uv shebang)."""
+    """scripts/<name>.py as its own process, run by uv as the docs run it (after checking it opens with the uv shebang)."""
     first = (SCRIPTS / f"{name}.py").read_text(encoding="utf-8").splitlines()[0]
     assert first == SHEBANG, f"{name}.py must open with {SHEBANG!r}, not {first!r}"
     environ = {**os.environ, **({"PAPER_TO_ZOTERO_CONFIG": str(config)} if config else {}), **(env or {})}
-    done = subprocess.run([sys.executable, str(SCRIPTS / f"{name}.py"), *map(str, argv)], capture_output=True,
+    done = subprocess.run([UV, "run", "--quiet", "--script", str(SCRIPTS / f"{name}.py"), *map(str, argv)], capture_output=True,
                           text=True, env=environ, timeout=timeout)
     return _no_secret(Result(done.returncode, done.stdout, done.stderr))
 

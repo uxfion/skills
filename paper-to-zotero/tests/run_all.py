@@ -4,6 +4,8 @@
 # ///
 """Run every tests/test_*.py at once, each in its own process: uv run tests/run_all.py [name ...].
 
+Each file runs through `uv run --script`, so the dependencies its PEP 723 block declares load.
+
 A name picks test files (test_read_library or read_library). Prints one line per file (ok or FAILED, its time),
 then the output of each file that failed. Exit 0 = all passed.
 """
@@ -18,7 +20,7 @@ HERE = Path(__file__).resolve().parent
 
 def run(path):
     start = time.monotonic()
-    done = subprocess.run([sys.executable, str(path)], capture_output=True, text=True, timeout=600)
+    done = subprocess.run(["uv", "run", "--quiet", "--script", str(path)], capture_output=True, text=True, timeout=600)
     return path.stem, done.returncode, time.monotonic() - start, done.stdout + done.stderr
 
 
