@@ -179,7 +179,8 @@ def fingerprint(value):
 
 @dataclass
 class Subject:
-    """What a result says its paper is, in the terms the scripts look for it by."""
+    """What a result says its paper is, in the terms the scripts look for it by. `arxiv` is the paper's arXiv id, also
+    when the result describes its published version (versions.preprint): the preprint is a route to its text."""
     title: str = ""
     alt_titles: list = field(default_factory=list)
     doi: str | None = None
@@ -217,8 +218,9 @@ class Result(dict):
         csl, alts = self.csl, self.get("alt_titles")
         alts = [alts] if isinstance(alts, str) else alts if isinstance(alts, list) else []
         parts = ((csl.get("issued") or {}).get("date-parts") or [[None]])[0] or [None]
+        preprint = ((self.get("versions") or {}).get("preprint") or {}).get("ids") or {}
         return Subject(title=first_str(csl.get("title")), alt_titles=[a for a in alts if isinstance(a, str) and a.strip()],
-                       doi=self.ids.get("doi") or None, arxiv=self.ids.get("arxiv") or None,
+                       doi=self.ids.get("doi") or None, arxiv=self.ids.get("arxiv") or preprint.get("arxiv") or None,
                        surname=paper.first_surname(csl.get("author")),
                        year=parts[0] if isinstance(parts[0], int) else None, url=first_str(csl.get("URL")) or None)
 
@@ -433,6 +435,12 @@ def label(work, slug, title, why, by="agent", file=None):
     return work.append({"event": "label", "slug": slug, "file": name, "title": title.strip(), "why": why, "by": by})
 
 
+def label_of(work, slug, name, events=None):
+    """The last label event for the result's file `name`, or None: the file has no label yet."""
+    return next((e for e in reversed(work.events("label") if events is None else events)
+                 if e.get("event") == "label" and e.get("slug") == slug and e.get("file") == name), None)
+
+
 # ---- the fold: fetch.jsonl -> each result's files and outcome -----------------------------------------------
 
 def folded(work, res, events):
@@ -442,7 +450,7 @@ def folded(work, res, events):
     for f in work.files_of(res.slug):
         md5, kind = md5_of(f), paper.kind_of_file(f.name)
         came = arrived(work, res.slug, md5, mine) or {}
-        given = next((e for e in reversed(mine) if e.get("event") == "label" and e.get("file") == f.name), None)
+        given = label_of(work, res.slug, f.name, mine)
         if given:
             parsed = titles.parse_title(given["title"])
             lab = {"title": given["title"], **parsed, "by": given.get("by"), "why": given.get("why")}
