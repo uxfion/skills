@@ -8,13 +8,13 @@ A paper is a result in `<imp>/fetch/results/<slug>.json`, written by paper-fetch
 
 ## The run
 
-**1. Triage** (main conversation, minutes): identify every paper (import.md step 1; a .bib through `read_bib`, a list as `id<TAB>citation key` lines on `identify`'s stdin), choose the versions (step 2: each preprint's `versions.published` checked against its arXiv comment, papers.cool's venue search for the rest, one request at a time), then draft and prepare (step 3): its `decide` lists say what is still open. Put every question in one message (below). Say early what you foresee needing the user for ("8 of these go through the institutional login — if you can, log in now: Ctrl+N, a normal window").
+**1. Triage** (main conversation, minutes): identify every paper (import.md step 1; a .bib through `read_bib`, a list as `id<TAB>citation key` lines on `identify`'s stdin), choose the versions (step 2), then draft and prepare (step 3): its `decide` lists say what is still open. Put every question in one message (below).
 
 **2. First pass**: paper-fetch's chain over the results of the records that need a file (import.md step 4).
 
 **3. Save what is in hand:** `p2z.py save <imp>/records/*.json`. Every paper gets its item now, with or without a file; run it again after each pass.
 
-**4. Second pass**, then **save** again. Time has passed since the first: a login, a rate limit or a flaky site may have recovered.
+**4. Second pass**, then **save** again.
 
 **5. Last pass, with the user**: one message for all the papers that remain ("3 wait for the institutional login, 2 were found nowhere"), each record's `blocker` saying what it waits for; then paper-fetch's last pass with the user there; then **save**.
 
@@ -26,7 +26,7 @@ Identify all papers first, then put every question in one message: candidates to
 
 ## What runs in parallel
 
-The scripts that call Zotero in bulk (`prepare`, `save`) and paper-fetch's that call outside services run in the main conversation, one at a time. Subagents (at most five) take the judgment work beside them — tags, abstracts, checking published-version candidates on papers.cool, one request at a time per service — and edit only the records' agent fields. A subagent that has to reach the user does so with `SendMessage` to the main conversation, the only one on the user's screen.
+The scripts that call Zotero in bulk (`prepare`, `save`) run in the main conversation, one at a time, like paper-fetch's (its batch.md, *What runs in parallel*). Subagents take the judgment work beside them — tags, abstracts — and edit only the records' agent fields.
 
 ## Report
 

@@ -58,7 +58,7 @@ The **watcher** files every new PDF in Downloads that matches exactly one paper 
 tail -n 0 -F <dir>/fetch.jsonl | grep --line-buffered -E '"result": "(claimed|left)"'
 ```
 
-`claimed`: that paper has its file — drop whatever you were doing for it. `left`: a new file matched no paper, or several — look at it. An event never interrupts a running command, so whatever waits looks for the file itself. The watcher only appends events: `settle.py` folds them into the results (`fetch`, `claim` and `wait` fold what they touched when they end).
+`claimed`: that paper has its file — drop whatever you were doing for it. `left`: a new file matched no paper, or several — look at it. An event never interrupts a running command, so whatever waits looks for the file itself. The watcher only appends events: `pf.py settle` folds them into the results (`fetch`, `claim` and `wait` fold what they touched when they end).
 
 Done when `ready` reports `ok` and the watcher runs.
 
@@ -101,7 +101,7 @@ By its answer: the file arrived → rerun the command. A gate → references/gat
 2. With the user there, `fetch --pass 3 --window foreground`: pages open where the user sees them. At each paper it stops on, tell the user which paper this is, what the earlier passes met and what they could do (log in, click the PDF button); have the browser agent work the page meanwhile, and wait with `pf.py wait <result> --file-only` in the background — it ends when the file arrives. The user says 跳过 → stop the wait, `--verdict skipped_by_user`, rerun, and the next paper opens.
 3. A paper still without a file gets a snapshot of its article page: `pf.py fetch --pass 3 --route snapshot <result>`. The page that arrives is checked like any file, so a login page never becomes the snapshot.
 
-Done when every result has a file that passed the check (or that you accepted) and its label, or its last pass is in `fetch.jsonl` and its snapshot is filed — and `settle.py --dir <dir>` shows each result's `outcome`.
+Done when every result has a file that passed the check (or that you accepted) and its label, or its last pass is in `fetch.jsonl` and its snapshot is filed — and `pf.py settle --dir <dir>` shows each result's `outcome`.
 
 ## Label files you already have
 

@@ -318,6 +318,7 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
 - 标题用 `files[].label.title`，再按命名规则检查一遍；
 - 附件的网址照现在用条目的 `url`，没有就用 DOI 链接；
 - 不再自己核对 PDF，也不再去代理前缀。
+- （实现时加的，advisor 审出来的两处：条目在库里本来就有正文 PDF、结果文件从没交给 paper-fetch 取过的，报 `skipped library_has_pdf`，不报 `unsettled`；结果里只有 paper-fetch 判断不了的文件（`cannot_judge`，比如没有元数据的论文）时，报 `unchecked` 并给出接收的步骤，不当成"还没文件"。）
 
 **没有 DOI 的论文**：paper-fetch 取到文件，标成 `cannot_judge`。p2z 照现在经 connector 的 `saveStandaloneAttachment` 存，让 Zotero 的识别器建条目。已定 18 说"只走本地 API"，那是针对桥接插件说的；这是现有的一处例外，保留。
 
@@ -717,6 +718,8 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
   - `zotero://open-pdf/…?page=N` 链接没被改写；
   - 结构化包里带着页码。
 - **审阅**：实现完，用 code-review 对照本 spec 审一遍，再提交。
+
+（2026-10-30 code-review 做完，两路：按编码规范、按本 spec。逻辑上的四处已改（`0f489f7`）：接收一个已经在结果旁边的文件时，不再把它当第二个文件挪进 stray/；`identify` 不再把已经重认成正式版的结果改回预印本；结果名是推出来的、后来又给了引用键的，在还没开始取全文时改名，开始了就在输出里报 `slug_not_applied`；给库里的文件定标签时一个文件一个目录，因为一个结果只装这篇论文的一个文件。另外 paper-fetch 只留一个 `host_of`，p2z 的副本同步；文档去掉重复的段落、补上完成标准、`settle` 统一写成 `pf.py settle`，拷来的代码注明出处和提交。有意不改的：`first_str` 各脚本一份，按 §8 不做共享库；p2z 读结果文件的字段散在几个脚本里，结果文件的格式由 paper-fetch 的 `pflib/run.py` 一处定义，p2z 只读不写，暂不另包一层。一处实现时定的：agent 另找到的摘要、关键词、PMID 写进 p2z 记录里的条目，不写进结果文件，因为结果文件只由 `identify` 和汇总写。）
 
 ## 12. 要接受的代价，以及不做的事
 

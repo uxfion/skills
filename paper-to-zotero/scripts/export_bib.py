@@ -30,9 +30,9 @@ Exit 0 = exported, every item with its own clean citationKey; 1 = a list above o
 or stopped; 2 = cannot read (zotero_unreachable, local_api_disabled).
 
 Examples:
-  uv run scripts/export_bib.py --collection 9EYXTC2I --recursive --out ref.bib
+  uv run scripts/export_bib.py --collection 9EYXTC2I --recursive -o ref.bib
   uv run scripts/export_bib.py --cite liu2022progressive zhou2021handheld
-  uv run scripts/export_bib.py work/records/*.json --out ref.bib   # record paths before any --key / --cite
+  uv run scripts/export_bib.py <scratch>/paper-to-zotero/records/*.json -o ref.bib   # record paths before any --key / --cite
 """
 import re
 import sys
@@ -139,7 +139,7 @@ def main(argv=None):
     p.add_argument("--collection", metavar="KEY", help="the collection's top-level items")
     p.add_argument("--recursive", action="store_true", help="with --collection: its sub-collections too")
     cli.add_targets(p)
-    p.add_argument("--out", metavar="FILE", help="write the BibTeX here instead of stdout")
+    p.add_argument("-o", "--out", metavar="FILE", help="write the BibTeX here instead of stdout")
     cli.add_base_url(p)
     args = cli.targets_of(p, p.parse_args(argv), required=False)
     if args.collection and not cli.KEY_RE.match(args.collection):

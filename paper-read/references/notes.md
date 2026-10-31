@@ -42,4 +42,4 @@ Two agents writing one note do not overwrite each other: `note put` refuses when
 
 ## The library's older notes
 
-What becomes of the notes the library held before this skill — the user's own, and earlier agents' — is 待定 (the paper-notes design, open point 5). Until then they are read as they are and changed only on the user's word.
+What becomes of the notes the library held before this skill — the user's own, and earlier agents' — is 待定 (the paper-notes design, open point 5, kept with the skills' sources). Until then they are read as they are and changed only on the user's word.

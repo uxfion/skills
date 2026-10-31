@@ -14,7 +14,7 @@ From a paper in the Zotero library to its **paper note**: what the paper says, a
 | Record that a project uses a paper (用在哪里) | [references/notes.md](references/notes.md), *Used in* |
 | A topic note across papers (主题笔记) | references/notes.md, *Topic notes* |
 | Correct or extend a note | references/notes.md, *Corrections* |
-| The library's older notes | 待定 — still being designed |
+| The library's older notes | references/notes.md, *The library's older notes* (待定) |
 
 **The subject decides where a sentence goes.** A sentence about the paper — what it says, what that implies, what it could be used for, what direction it suggests — goes into the paper note, whether or not any project needs it. A sentence about a project — what it decided, measured or changed — goes into the project, pointing at the note (citation key, which question, the page). One home per piece of knowledge: elsewhere it is pointed at, never copied.
 

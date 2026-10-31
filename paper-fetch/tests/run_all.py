@@ -7,7 +7,8 @@
 Each file runs through `uv run --script`, so the dependencies its PEP 723 block declares load.
 
 A name picks test files (test_read_library or read_library). Prints one line per file (ok or FAILED, its time),
-then the output of each file that failed. Exit 0 = all passed.
+then the output of each file that failed. Exit 0 = all passed. Copied from paper-to-zotero/tests/run_all.py (commit
+d58d766): each skill carries its own.
 """
 import subprocess
 import sys

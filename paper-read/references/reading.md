@@ -2,7 +2,7 @@
 
 What the reader — the subagent *Read a paper* sends — is told, and what its note looks like. Brief it with this file whole, the paths of the PDF, the package and the note file, and any questions a project brought (bare questions, no project background). It has only the paper, so what it writes is the paper's alone.
 
-The method is a first version, still being designed (decisions 19–29 of the paper-notes design: `docs/issues/20261028-paper-to-zotero-paper-notes.md` in the skills repository). 待定 there: the question list itself, whether every paper gets a note when first read or the library in a batch, how answers are checked against the PDF, and how a note is regenerated without losing its added questions and *用在哪里*.
+The method is a first version, still being designed (the paper-notes design, decisions 19–29, kept with the skills' sources). 待定 there: the question list itself, whether every paper gets a note when first read or the library in a batch, how answers are checked against the PDF, and how a note is regenerated without losing its added questions and *用在哪里*.
 
 ## The note
 

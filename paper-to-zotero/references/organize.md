@@ -94,7 +94,7 @@ Use notes for what the user asked you to keep with a paper — page numbers, quo
 ## Exporting BibTeX
 
 ```bash
-uv run scripts/p2z.py export_bib --collection <key> --out ref.bib      # or --cite k1,k2 …, or record paths
+uv run scripts/p2z.py export_bib --collection <key> -o ref.bib      # or --cite k1,k2 …, or record paths
 ```
 
 Keys are the items' `citationKey`s, so a manuscript that cites them compiles unchanged; the stderr summary names items without a key, with a shared key, or with a key holding a TeX-special character (and the key without it) — fix those with `update_item --set citationKey=…` on the user's word. The .bib is a derived file: regenerate it rather than editing it, and tell the user that Better BibTeX's auto-export can keep it current without an agent.

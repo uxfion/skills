@@ -4,8 +4,6 @@ From what the user gives to Zotero items with their PDFs, filed and tagged, and 
 
 **The directory** is `<scratch>/paper-to-zotero/` (SKILL.md, *The scratch directory*), below as `<imp>`. In it, `<imp>/fetch/` is paper-fetch's directory for this import — a result file per paper, `fetch/results/<slug>.json`, with its file beside it — and `<imp>/records/` holds this skill's record per paper, under the same slug. A record points at its result (`fetched`) and holds the item to create and what you decided about it (`scripts/p2zlib/run.py` documents both); you change the record, never the result. The slug is the citation key the user brought, else `<surname><year><first title word>`.
 
-**The user helps; the work is yours.** The run is the same whether or not the user is watching: you fetch every paper yourself. The user may log in, pass a CAPTCHA or click a download at any moment, and that only speeds things up — paper-fetch's watcher files their downloads. Say early what you can foresee needing them for ("3 of these need the institutional login — if you can, log in now: Ctrl+N, a normal window"). Only paper-fetch's last pass waits for them.
-
 ## 0. Ready
 
 paper-fetch is installed beside this skill: `../paper-fetch/SKILL.md`. Read it now; this file names its sections, and its scripts run as `uv run ../paper-fetch/scripts/pf.py <command>`. No such file → stop and tell the user the paper-fetch skill has to be installed.
@@ -40,7 +38,7 @@ Done when every paper has a result with metadata (a stub — a DOI without a CSL
 
 ## 2. Choose the version
 
-**The published version comes first**, unless the user asked for the preprint, and it is chosen now, before any record is drafted, so the item is drafted once. A preprint's result lists `versions.published`, the versions the authors declared to arXiv and those Crossref's title search found: confirm one against arXiv's comment (`versions.preprint.comment`: "Accepted at ICLR 2024") and the title. None, but the comment or the paper names a venue → papers.cool's venue search or the venue's own listing finds the paper's page. Confirmed → `pf.py identify --redraft <DOI | paper page> <result>` turns the result into the published version; the preprint stays in its `versions.preprint`, and step 3 takes from it what the published record lacks. A conference paper later extended into a journal article is two papers, two items. No published version, or the user wants the preprint → the preprint it is, and its record gets `keep_preprint` with the reason in step 3. `versions.incomplete` names sources that did not answer: identify again later before you settle on the preprint.
+The rule is this skill's: **the published version comes first**, unless the user asked for the preprint, and it is chosen now, before any record is drafted, so the item is drafted once. A conference paper later extended into a journal article is two papers, two items: the version chosen is this paper's. Confirming a candidate from a preprint's `versions.published` and redrafting the result to it is paper-fetch's *Identify a paper* (`pf.py identify --redraft <DOI | paper page> <result>`); the preprint stays in the result's `versions.preprint`, and step 3 takes from it what the published record lacks. No published version, or the user wants the preprint → the preprint it is, and its record gets `keep_preprint` with the reason in step 3.
 
 Done when every preprint result is redrafted or has its reason to stay.
 
@@ -94,7 +92,7 @@ Run it after every pass of step 4: each step skips what is done (`saved`, an `at
 
 `attach_file` attaches every file of the result whose check passed (`ok`, or `accepted` by you), the paper's and any supplement, each under its label (an unlabelled file came out of paper-fetch as `Unknown-<Source>`); a label settled later renames this run's attachment at the next `save`. `unsettled`: the result was never folded — `pf.py settle --dir <imp>/fetch`, then `save` again; `file_changed`: the same. `library_has_pdf`: the item had a PDF of the paper and nothing was fetched for it. `unchecked` (or `unchecked` names on an `ok` line): files paper-fetch could not judge against the paper — read page 1, accept the paper's (`pf.py claim --dir <imp>/fetch --accept <file> --slug <slug> --reason …`), settle, `save` again. A file the item had already keeps its own title: the report suggests the rename, which waits for the user. The attachment's `url` is the item's canonical page (`item.url`, else `https://doi.org/<DOI>`). It reuses a half-made attachment and never duplicates a file; if it still fails, hand the file to the user with its path.
 
-Then the structured packages of the PDFs this run attached: `uv run scripts/p2z.py structured take --key <their items' keys> --missing -o <imp>/structured`, one parse of the links it printed with the paddleocr skill (`-o <imp>/structured`, in the background), then `structured put <imp>/structured/*/`. Their findings stay open: a paper is settled when a task first reads it. A PDF left without its package (no GPU, a failed parse) is archived all the same: name it in the report, and the next reader makes it.
+Then the structured packages of the PDFs this run attached (the paddleocr skill parses them: `../paddleocr/SKILL.md`; missing → name the PDFs in the report as without a package, and tell the user the skill to install): `uv run scripts/p2z.py structured take --key <their items' keys> --missing -o <imp>/structured`, one parse of the links it printed with the paddleocr skill (`-o <imp>/structured`, in the background), then `structured put <imp>/structured/*/`. Their findings stay open: a paper is settled when a task first reads it. A PDF left without its package (no GPU, a failed parse) is archived all the same: name it in the report, and the next reader makes it.
 
 Done when every record's item is in the library (`saved.key`, or `found` confirmed), every file the result passed is in the record's `attach`, and every PDF attached has its package or is named in the report as without one.
 
@@ -109,6 +107,8 @@ The report reads every item from the library as it is now. It prints the table, 
 - substitutions — an item built through the recognizer, fields left empty for lack of a source, fields `checks` said would be mapped or moved to Extra, fields set against a source other than the DOI record, with that source named;
 - paper-fetch's part (its *Report*): the gates hit, the hosts left alone, the sources a 429 stopped, and the residue in one line;
 - **skill notes** — anything either skill lacked, got wrong or made you work around, for the user to decide whether to change it.
+
+Done when the report is in the conversation: every paper's row read from the library, every section that applies, and the additions above.
 
 ## 7. Clear residue
 

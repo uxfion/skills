@@ -7,12 +7,12 @@
 
   uv run scripts/check_note.py <scratch>/<cite>.<title>.note.md
 
-The tree is the note's headings (references/reading.md): every question heading (## to ####) ends in its status in
-brackets, [待答], [进行中], [已答], [论文没有说明], [要看别处] or [等 Qn] (a pointer after it, "→ Q4.1", is allowed).
-A note is read through when no heading is still 待答, 进行中 or 等 Qn, every question heading has a status, and the
-one-sentence summary — the first paragraph under the title, before the first question — is written (not [待答]).
-Headings without a question number (## 用在哪里) are sections, not questions, and carry no status. A front matter
-(the lines between two --- at the top) is skipped.
+The tree is the note's headings (references/reading.md): every question heading (## to ####) ends in
+its status in brackets, [待答], [进行中], [已答], [论文没有说明], [要看别处] or [等 Qn] (a pointer after it, "→ Q4.1",
+is allowed). A note is read through when no heading is still 待答, 进行中 or 等 Qn, every question heading
+has a status, and the one-sentence summary — the first paragraph under the title, before the first
+question — is written (not [待答]). Headings without a question number (## 用在哪里) are sections, not
+questions, and carry no status. A front matter (the lines between two --- at the top) is skipped.
 
 stdout: one JSON object {code, open: [{line, heading, status}], no_status: [{line, heading}], summary_written}.
   complete   read through: the note may be put into Zotero

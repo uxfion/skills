@@ -27,7 +27,7 @@ A `needs_pinning` line is a title: pin it (SKILL.md, *Identify a paper*) and ide
 
 **5. Last pass, with the user** (SKILL.md, *Get the file*): one message for all the papers that remain ("3 wait for the institutional login, 2 were found nowhere"), then `--pass 3` with the user there, the browser routes one paper at a time in the foreground; snapshots for what still has no file.
 
-**6.** `settle.py --dir <dir>` once more, then clear the residue (SKILL.md, *Residue*).
+**6.** `pf.py settle --dir <dir>` once more, then clear the residue (SKILL.md, *Residue*).
 
 ## What runs in parallel
 

@@ -6,11 +6,11 @@
 """The run's report: one row per record as a Markdown table and a tally, then the sections (or the same as JSON).
 
 Each item is read from the library as it is now (citation key, collections, tags, attachments); what this run did
-comes from the records, and what happened to the files from their results (paper-fetch's: files and outcome). Row: citationKey | title | year |
-item key | collection(s) | tags | attachments [| blocker]. citationKey is the library's (the record's, marked, when
-the two differ; the slug in italics when there is none); the item is the one this run created or the one the lookup
-confirmed; attachments are the titles of the item's files, best first (Published-IEEE; Preprint-arXiv-v3). In JSON
-a row also has file: PDF (a PDF of the paper, of any version) / snapshot / null.
+comes from the records, and what happened to the files from their results (paper-fetch's: files and outcome). Row:
+citationKey | title | year | item key | collection(s) | tags | attachments [| blocker]. citationKey is the library's
+(the record's, marked, when the two differ; the slug in italics when there is none); the item is the one this run
+created or the one the lookup confirmed; attachments are the titles of the item's files, best first (Published-IEEE;
+Preprint-arXiv-v3). In JSON a row also has file: PDF (a PDF of the paper, of any version) / snapshot / null.
 
 Sections, each only when it has something to say:
   无法获取 (not obtained)      records with no PDF (got, attached or in the library): the result's outcome (waiting,
@@ -151,7 +151,7 @@ def markdown(rows, summary, sections):
             + ([r["blocker"]] if blockers else []) for r in rows]
     out = table(head, body) + ["", "**Summary**: " + " · ".join(f"{k.replace('_', ' ')} {v}" for k, v in summary.items())]
     cite = {r["slug"]: r["citationKey"] or r["slug"] for r in rows}
-    titles = {"not_obtained": "无法获取 (not obtained)", "alternate_versions": "替代版本 (alternate versions)",
+    headings = {"not_obtained": "无法获取 (not obtained)", "alternate_versions": "替代版本 (alternate versions)",
               "unknown_versions": "版本未定 (version not settled)", "preprint_kept": "保留预印本 (preprint kept)",
               "accepted": "接收的文件 (accepted files)", "attachments_to_clean": "待清理附件 (attachments to clean)",
               "renames": "建议改名 (suggested renames)", "new_tags": "新标签 (new tags)"}
@@ -165,10 +165,10 @@ def markdown(rows, summary, sections):
               "accepted": (["citationKey", "file", "why"], lambda r: [cite.get(r["slug"], r["slug"]), r["file"], r["reason"]]),
               "attachments_to_clean": (["citationKey", "item key", "attachment", "reason"], lambda r: [cite[r["slug"]], r["key"], r["attachment"], r["reason"]]),
               "new_tags": (["tag", "items"], lambda r: [r["tag"], ", ".join(r["items"])])}
-    for name in (n for n in titles if n in sections):
+    for name in (n for n in headings if n in sections):
         head, shape = shapes[name]
         rows_ = sections[name]
-        out += ["", f"### {titles[name]}: {len(rows_)}", ""] + table(head, [shape(r) for r in rows_])
+        out += ["", f"### {headings[name]}: {len(rows_)}", ""] + table(head, [shape(r) for r in rows_])
         if name == "attachments_to_clean":
             out += ["", "Only on the user's word: `uv run scripts/trash_item.py --dry-run --key "
                     + " ".join(r["attachment"] for r in rows_) + "`, then without --dry-run."]

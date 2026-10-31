@@ -11,12 +11,13 @@ The files are those of the result (the record's `fetched`) whose check is ok or 
 supplement, each under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which paper-fetch
 settled. A result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is
 attached until it is — unless the library item has a PDF of the paper already, and the result was never fetched for
-another. A file paper-fetch could not judge against the paper (check cannot_judge) waits for the agent's look. Each file's md5 is compared with the result's before anything is uploaded. A child of the item
-already holding a file (same md5) settles it without an upload and keeps its own title (`existing`: a title that
-differs from the label is the report's to suggest, the user's to approve); an empty attachment left by a cut-off run
-is reused. A label settled after this run attached the file renames that attachment on the next run. The source url
-is the item's url, else its DOI link. `attach` is a list, an entry per file: {attachment, md5, title, filename,
-kind, url, at, existing?}; another file later (another md5) is attached afresh.
+another. A file paper-fetch could not judge against the paper (check cannot_judge) waits for the agent's look. Each
+file's md5 is compared with the result's before anything is uploaded. A child of the item already holding a file (same
+md5) settles it without an upload and keeps its own title (`existing`: a title that differs from the label is the
+report's to suggest, the user's to approve); an empty attachment left by a cut-off run is reused. A label settled
+after this run attached the file renames that attachment on the next run. The source url is the item's url, else its
+DOI link. `attach` is a list, an entry per file: {attachment, md5, title, filename, kind, url, at, existing?}; another
+file later (another md5) is attached afresh.
 
 stdout: one line per record {slug, code, reason?, status?, key?, files?: [{name, code, attachment?, title?,
 renamed?: {from, to}, suggested_title?}], unchecked?: [names]}, then {"summary"}.
@@ -27,7 +28,7 @@ renamed?: {from, to}, suggested_title?}], unchecked?: [names]}, then {"summary"}
                 library_has_pdf (the item has a PDF of the paper, and the result was never fetched for another)
   unchecked     the result's only files are ones paper-fetch could not judge (`files`): look at them, then accept the
                 paper's with paper-fetch's claim --accept, settle, and rerun
-  unsettled     the result has no outcome: settle it (paper-fetch's settle.py), then rerun
+  unsettled     the result has no outcome: settle it (paper-fetch's pf.py settle), then rerun
   file_changed  a file's md5 is not the one in the result: settle the result again, then rerun
   bad_label     a file's label title is not an attachment title: label the file again (paper-fetch's claim --label)
   no_result     the record names no result file (`fetched`), or it cannot be read: draft_item.py writes it
@@ -46,7 +47,7 @@ from p2zlib import cli, paper, run, titles, zotero
 
 ATTACHABLE = ("ok", "accepted")
 HINT_UNCHECKED = ("paper-fetch could not judge these files against the paper: read page 1 (the pdf skill); the paper's "
-                  "-> paper-fetch's claim --dir <its dir> --accept <file> --slug <slug> --reason …, then settle.py and "
+                  "-> paper-fetch's claim --dir <its dir> --accept <file> --slug <slug> --reason …, then pf.py settle and "
                   "this again; not the paper's -> leave it to the next pass.")
 
 
@@ -97,7 +98,7 @@ def process(rec, ctx):
         if library_has_pdf(rec):
             return cli.skipped("library_has_pdf", key=run.item_key(rec))
         raise cli.Stop("unsettled", hint="The result was never settled, so its files may lack one that came: run "
-                                         "paper-fetch's settle.py on it, then this again.", result=str(path))
+                                         "paper-fetch's pf.py settle on it, then this again.", result=str(path))
     files, unchecked = wanted(res, path)
     if not files:
         if unchecked:
@@ -107,7 +108,7 @@ def process(rec, ctx):
     attach = [a for a in rec.get("attach") or [] if isinstance(a, dict)] if isinstance(rec.get("attach"), list) else []
     url = rec.item.get("url") or (f"https://doi.org/{paper.doi_of(rec.item)}" if paper.doi_of(rec.item) else None)
     lines, key = [], None
-    for f, path, title in files:
+    for f, file, title in files:
         entry = next((a for a in attach if a.get("md5") == f["md5"]), None)
         if entry and (entry.get("existing") or entry.get("title") == title):
             lines.append({"name": f["name"], "code": "skipped", "reason": "attached", "attachment": entry["attachment"],
@@ -125,14 +126,14 @@ def process(rec, ctx):
         if key is None:
             raise cli.Stop("no_item_key", hint="The record has no item in Zotero yet: create_item.py (p2z.py save) makes "
                                                "it; a possible duplicate is settled with same_as or distinct_from first.")
-        res = zot.attach(key, path, title=title, url=url, dry_run=dry_run)
-        existing = res["code"] == "skipped"
-        if existing or not res.get("dry_run"):
-            attach.append({"attachment": res["attachment"], "md5": f["md5"], "title": res["title"], "filename": res["filename"],
+        done = zot.attach(key, file, title=title, url=url, dry_run=dry_run)
+        existing = done["code"] == "skipped"
+        if existing or not done.get("dry_run"):
+            attach.append({"attachment": done["attachment"], "md5": f["md5"], "title": done["title"], "filename": done["filename"],
                            "kind": f.get("kind"), "url": url, "at": run.now_iso(), **({"existing": True} if existing else {})})
-        lines.append({"name": f["name"], "code": "skipped" if existing else "ok", **({"reason": res["reason"]} if existing else {}),
-                      "attachment": res.get("attachment"), "title": res.get("title"),
-                      **({"suggested_title": title} if existing and res.get("title") != title else {})})
+        lines.append({"name": f["name"], "code": "skipped" if existing else "ok", **({"reason": done["reason"]} if existing else {}),
+                      "attachment": done.get("attachment"), "title": done.get("title"),
+                      **({"suggested_title": title} if existing and done.get("title") != title else {})})
     if attach:
         rec["attach"] = attach
     done = all(ln["code"] == "skipped" for ln in lines)

@@ -22,8 +22,8 @@ A result file, results/<slug>.json, one JSON object:
   csl                   the paper's metadata as normalized CSL-JSON (identify.py says how), with `source` the agency
                         that gave it and, by name, what CSL has no variable for (arXiv's `categories`)
   alt_titles            [str]: other titles the paper went by
-  versions              {preprint?: {ids, latest, comment, title, abstract, author, categories?}, published: [{ids, venue, year,
-                        title, title_differs, type, sources}], incomplete: [sources that did not answer]}
+  versions              {preprint?: {ids, latest, comment, title, abstract, author, categories?}, published: [{ids, venue, year, title,
+                        title_differs, type, sources}], incomplete: [sources that did not answer]}
   files                 [{name, md5, kind, label: {title, version, source, detail, by, why}, check: ok | accepted |
                         cannot_judge, accepted_reason?, url, evidence}]
   outcome               {status: got | not_got | waiting, tried: [hosts], stop: {route, why, url} | null}
@@ -32,11 +32,10 @@ A result file, results/<slug>.json, one JSON object:
 A stub result (identify could not identify the paper: a page with no metadata) holds only slug, request, warnings;
 its files are checked against nothing: cannot_judge.
 
-Writers: identify writes all but files and outcome; settle() writes those two and settled_at, from fetch.jsonl,
-every time from the whole log (so whoever folds last is right). fetch, wait and claim (--file, --accept, --label)
-fold the results they touched when they end; settle.py does it on its own, after the watcher filed something. The
-watcher and the agent only
-append events.
+Writers: identify writes all but files and outcome; settle() writes those two and settled_at, from fetch.jsonl, every
+time from the whole log (so whoever folds last is right). fetch, wait and claim (--file, --accept, --label) fold the
+results they touched when they end; settle.py does it on its own, after the watcher filed something. The watcher and
+the agent only append events.
 
 Events, each with `at`:
   claim    {file, slug, result: claimed | stray | unverified | left, kind, code, md5, source, route?, proposal,

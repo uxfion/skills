@@ -272,12 +272,12 @@ def put_one(zot, names, text, args):
 
     body = plan(row)
     if body is None:
-        return cli.skipped("unchanged", key=key, version=row.get("version"))
+        return cli.skipped("unchanged", key=key, action="unchanged", version=row.get("version"))
     if args.dry_run:
         return cli.ok(key=key, action="updated", dry_run=True, fields=sorted(body), html=body.get("note"))
     before, sent, retried = zot.update(key, plan, row)
     if sent is None:
-        return cli.skipped("unchanged", key=key, version=before.get("version"))
+        return cli.skipped("unchanged", key=key, action="unchanged", version=before.get("version"))
     if "relations" in sent:
         old = set((zotero.data(before).get("relations") or {}).get("dc:relation") or [])
         new = set(sent["relations"].get("dc:relation") or [])

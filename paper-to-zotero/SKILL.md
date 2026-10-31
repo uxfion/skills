@@ -1,6 +1,6 @@
 ---
 name: paper-to-zotero
-description: Puts papers into Zotero — item, PDF, collection, tags — from a title, DOI, arXiv id, URL, a list, a .bib, or search results, with paper-fetch finding them; also organizes what is already there (tags, collections, field fixes, duplicates, attachment titles), takes notes out as Markdown and puts them back, and exports a collection as BibTeX keyed by citation key. Use when the user wants papers added to Zotero (把论文/文献/清单/bib 导入 Zotero), refers to a paper by its citation key, needs a library paper's PDF to read or parse, or wants the library tidied, fixed, or exported (整理/修/导出 Zotero).
+description: Puts papers into Zotero — item, PDF, collection, tags — from a title, DOI, arXiv id, URL, a list, a .bib, or search results, with paper-fetch finding them; also organizes what is already there (tags, collections, field fixes, duplicates, attachment titles), takes notes out as Markdown and puts them back, and exports a collection as BibTeX keyed by citation key. Use when the user wants papers added to Zotero (把论文/文献/清单/bib 导入 Zotero), refers to a paper by its citation key, needs a library paper's PDF or structured package, or wants the library tidied, fixed, or exported (整理/修/导出 Zotero).
 ---
 
 # Paper to Zotero
@@ -33,7 +33,7 @@ uv run scripts/p2z.py structured take --cite <citation key> -o <scratch>
 
 `--key` names the item by its key; named by title or author, `read_library items --q '<surname title words>'` finds the key first. `take` picks the best version; `--title <attachment title>` picks another (`read_library pdf --cite …` lists them, best first, with each file's path). The package unzips to `<scratch>/<cite>.<title>/`. Reading it — and the paper's note before it, where what the paper says is already answered — is the paper-read skill's (*Look it up*, *Read a paper*). Then:
 
-- `package: null` (the PDF came in where there was no GPU): parse `input`, the link `take` made, with the paddleocr skill, `-o <scratch>`; a parse beyond fixing in place: the same with `--force`;
+- `package: null` (the PDF came in where there was no GPU): parse `input`, the link `take` made, with the paddleocr skill (`../paddleocr/SKILL.md`; missing → tell the user to install it), `-o <scratch>`; a parse beyond fixing in place: the same with `--force`;
 - after a parse, a settled finding or a fix: `uv run scripts/p2z.py structured put <scratch>/<cite>.<title>/`, so the next reader gets your work (an unchanged folder is skipped).
 
 Done when every folder you changed is put back.

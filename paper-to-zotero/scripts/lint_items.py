@@ -37,9 +37,10 @@ Problem codes (each problem is {"code", ...}):
                           official page is the url); paper-fetch's identify --search looks a DOI up by title
   missing_abstract        a research item with no abstract
   no_identifier           no DOI, no arXiv id and no url: nothing locates the paper
-  url_not_record          a published item whose url is not its version of record: empty, or a copy (CVF, MICCAI,
-                          arXiv, ProQuest, PMC, a library proxy: an EZproxy-style host, OTHER_PROXIES) beside a DOI ("patch" sets https://doi.org/<DOI>); for a NeurIPS DOI (10.52202, the
-                          printed proceedings), a url that is not the paper's NeurIPS page
+  url_not_record          a published item whose url is not its version of record: empty, or a copy (CVF, MICCAI, arXiv, ProQuest, PMC, a
+                          library proxy: an EZproxy-style host, OTHER_PROXIES) beside a DOI ("patch" sets
+                          https://doi.org/<DOI>); for a NeurIPS DOI (10.52202, the printed proceedings), a url that is
+                          not the paper's NeurIPS page
   name_not_tagged         the abstract names a model or system ("we propose EchoWDiff") that no tag carries
                           ({"name"}: a bare tag, or dataset/ for a benchmark - the agent decides)
 
@@ -75,9 +76,9 @@ NAME_PATTERNS = (re.compile(r"\b[Ww]e\s+(?:propose|present|introduce|develop|nam
 COPY_HOSTS = {"openaccess.thecvf.com", "papers.miccai.org", "arxiv.org", "www.arxiv.org", "www.proquest.com",
               "openreview.net", "europepmc.org", "pmc.ncbi.nlm.nih.gov", "www.ncbi.nlm.nih.gov", "www.ecva.net",
               "www.biorxiv.org", "www.medrxiv.org", "www.researchgate.net", "www.semanticscholar.org"}
-# Library proxies, by the form of their hosts (copied from paper-fetch's pflib/web.py; the institution's own proxy is
-# paper-fetch's config, not read here): EZproxy's hostname mode (*.ezproxy.*), OCLC's hosted EZproxy
-# (*.idm.oclc.org), WebVPN gateways.
+# Library proxies, by the form of their hosts (copied from paper-fetch's pflib/web.py, commit 6ea7d15; the
+# institution's own proxy is paper-fetch's config, not read here): EZproxy's hostname mode (*.ezproxy.*), OCLC's hosted
+# EZproxy (*.idm.oclc.org), WebVPN gateways.
 OTHER_PROXIES = re.compile(r"\.idm\.oclc\.org$|(?:^|[.-])(?:ezproxy|webvpn)(?:[.-]|$)", re.I)
 
 

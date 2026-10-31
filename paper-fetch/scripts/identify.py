@@ -26,11 +26,11 @@ chapter of a known proceedings series (LNCS and co., asked of Crossref once) bec
 container-title, the series as collection-title. A paper's page is read over plain HTTP: its citation_* tags give
 the CSL (paper-conference, article-journal or chapter by the venue tag).
 
-Versions. An arXiv preprint gets versions.preprint (its ids, arXiv's latest vN and comment, title, abstract,
-authors, arXiv's categories) and versions.published: the published versions the authors declared to arXiv, and Crossref works whose
-title matches (90%), each {ids: {doi}, venue, year, title, title_differs, type, sources}; sources that did not answer
-are in versions.incomplete, and identifying the same id again asks them again (not once it is redrafted). Choosing one is the caller's: then
---redraft. A published paper's versions are empty.
+Versions. An arXiv preprint gets versions.preprint (its ids, arXiv's latest vN and comment, title, abstract, authors,
+arXiv's categories) and versions.published: the published versions the authors declared to arXiv, and Crossref works
+whose title matches (90%), each {ids: {doi}, venue, year, title, title_differs, type, sources}; sources that did not
+answer are in versions.incomplete, and identifying the same id again asks them again (not once it is redrafted).
+Choosing one is the caller's: then --redraft. A published paper's versions are empty.
 
 Redraft: --redraft TARGET RESULT. The result's metadata becomes TARGET's (a DOI, or the paper's page); the preprint
 stays in versions.preprint, its title joins alt_titles, files already got stay.
