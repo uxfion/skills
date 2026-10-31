@@ -10,7 +10,8 @@ The item is the one this run created (saved.key), else the one the lookup confir
 The files are those of the result (the record's `fetched`) whose check is ok or accepted, the paper's and any
 supplement, each under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which paper-fetch
 settled. A result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is
-attached until it is. Each file's md5 is compared with the result's before anything is uploaded. A child of the item
+attached until it is — unless the library item has a PDF of the paper already, and the result was never fetched for
+another. A file paper-fetch could not judge against the paper (check cannot_judge) waits for the agent's look. Each file's md5 is compared with the result's before anything is uploaded. A child of the item
 already holding a file (same md5) settles it without an upload and keeps its own title (`existing`: a title that
 differs from the label is the report's to suggest, the user's to approve); an empty attachment left by a cut-off run
 is reused. A label settled after this run attached the file renames that attachment on the next run. The source url
@@ -18,11 +19,14 @@ is the item's url, else its DOI link. `attach` is a list, an entry per file: {at
 kind, url, at, existing?}; another file later (another md5) is attached afresh.
 
 stdout: one line per record {slug, code, reason?, status?, key?, files?: [{name, code, attachment?, title?,
-renamed?: {from, to}, suggested_title?}]}, then {"summary"}.
+renamed?: {from, to}, suggested_title?}], unchecked?: [names]}, then {"summary"}.
   ok            a file attached, or renamed after its label (with --dry-run: would be; nothing written)
   skipped       reason no_file_yet (the result has no file to attach; `status` is its outcome's: got, waiting,
                 not_got. Not a failure, so save can run after every pass) | attached (every file is in `attach` under
-                its title, or the item had it: suggested_title when its title differs from the label's)
+                its title, or the item had it: suggested_title when its title differs from the label's) |
+                library_has_pdf (the item has a PDF of the paper, and the result was never fetched for another)
+  unchecked     the result's only files are ones paper-fetch could not judge (`files`): look at them, then accept the
+                paper's with paper-fetch's claim --accept, settle, and rerun
   unsettled     the result has no outcome: settle it (paper-fetch's settle.py), then rerun
   file_changed  a file's md5 is not the one in the result: settle the result again, then rerun
   bad_label     a file's label title is not an attachment title: label the file again (paper-fetch's claim --label)
@@ -41,6 +45,9 @@ from pathlib import Path
 from p2zlib import cli, paper, run, titles, zotero
 
 ATTACHABLE = ("ok", "accepted")
+HINT_UNCHECKED = ("paper-fetch could not judge these files against the paper: read page 1 (the pdf skill); the paper's "
+                  "-> paper-fetch's claim --dir <its dir> --accept <file> --slug <slug> --reason …, then settle.py and "
+                  "this again; not the paper's -> leave it to the next pass.")
 
 
 def setup(args, records):
@@ -50,15 +57,22 @@ def setup(args, records):
     return {"zot": zot, "args": args}
 
 
-def wanted(rec):
-    """The result's files to attach -> (result path, its outcome's status, [(file entry, path, title)])."""
-    res, path = run.result_of(rec)
-    if not isinstance(res.get("outcome"), dict):
-        raise cli.Stop("unsettled", hint="The result was never settled, so its files may lack one that came: run "
-                                         "paper-fetch's settle.py on it, then this again.", result=str(path))
-    out = []
+def library_has_pdf(rec):
+    """The library item this record found holds a PDF of the paper, of any version (a version not checked is still
+    the paper's file)."""
+    found = rec.get("found") if run.item_key(rec) and isinstance(rec.get("found"), dict) else {}
+    return any(a.get("version") in paper.PAPER_VERSIONS and a.get("contentType") == "application/pdf"
+               for a in found.get("attachments") or [] if isinstance(a, dict))
+
+
+def wanted(res, path):
+    """The result's files -> ([(file entry, path, title)] to attach, [names] of the files no check passed or refused)."""
+    out, unchecked = [], []
     for f in res.get("files") or []:
-        if not isinstance(f, dict) or f.get("check") not in ATTACHABLE:
+        if not isinstance(f, dict):
+            continue
+        if f.get("check") not in ATTACHABLE:
+            unchecked.append(f.get("name"))
             continue
         title = ((f.get("label") or {}).get("title") or "").strip()
         if not titles.parse_title(title):
@@ -74,13 +88,21 @@ def wanted(rec):
             raise cli.Stop("file_changed", file=str(file), hint="The file is not the one the result lists (gone, or "
                                                                 "changed since): settle the result again, then this again.")
         out.append((f, file, title))
-    return path, res["outcome"].get("status"), out
+    return out, unchecked
 
 
 def process(rec, ctx):
-    _, status, files = wanted(rec)
+    res, path = run.result_of(rec)
+    if not isinstance(res.get("outcome"), dict):
+        if library_has_pdf(rec):
+            return cli.skipped("library_has_pdf", key=run.item_key(rec))
+        raise cli.Stop("unsettled", hint="The result was never settled, so its files may lack one that came: run "
+                                         "paper-fetch's settle.py on it, then this again.", result=str(path))
+    files, unchecked = wanted(res, path)
     if not files:
-        return cli.skipped("no_file_yet", status=status)
+        if unchecked:
+            return {"code": "unchecked", "files": unchecked, "hint": HINT_UNCHECKED}
+        return cli.skipped("no_file_yet", status=res["outcome"].get("status"))
     zot, dry_run = ctx["zot"], ctx["args"].dry_run
     attach = [a for a in rec.get("attach") or [] if isinstance(a, dict)] if isinstance(rec.get("attach"), list) else []
     url = rec.item.get("url") or (f"https://doi.org/{paper.doi_of(rec.item)}" if paper.doi_of(rec.item) else None)
@@ -114,7 +136,8 @@ def process(rec, ctx):
     if attach:
         rec["attach"] = attach
     done = all(ln["code"] == "skipped" for ln in lines)
-    return {**(cli.skipped("attached") if done else {"code": "ok"}), **({"key": key} if key else {}), "files": lines}
+    return {**(cli.skipped("attached") if done else {"code": "ok"}), **({"key": key} if key else {}), "files": lines,
+            **({"unchecked": unchecked} if unchecked else {})}
 
 
 def main(argv=None):

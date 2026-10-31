@@ -78,6 +78,7 @@ class AttachFile(unittest.TestCase):
         self.assertEqual((r.code, [(f["name"], f["code"], f["title"]) for f in r.lines[0]["files"]]),
                          (0, [("liu.preprint.pdf", "ok", "Preprint-arXiv-v2"), ("liu.supplement.pdf", "ok", "Supplement-Publisher")]),
                          "a check the agent has not passed (cannot_judge) is left out")
+        self.assertEqual(r.lines[0]["unchecked"], ["liu.pdf"], "and named")
         self.assertEqual(self.attachments(), [("Preprint-arXiv-v2", URL), ("Supplement-Publisher", URL)])
         block = run.read(self.rec)["attach"]
         self.assertEqual([(a["kind"], a["title"]) for a in block], [("preprint", "Preprint-arXiv-v2"), ("supplement", "Supplement-Publisher")])
@@ -89,6 +90,27 @@ class AttachFile(unittest.TestCase):
         self.assertEqual((r.lines[0]["code"], r.lines[0]["files"][0]["renamed"]),
                          ("ok", {"from": "Preprint-arXiv-v2", "to": "Accepted-arXiv-v2"}), "this run's own attachment, relabelled")
         self.assertEqual(self.attachments()[0][0], "Accepted-arXiv-v2")
+
+    def test_a_file_nobody_judged_waits_for_the_agent(self):
+        self.settle(("liu.pdf", b"%PDF-1.4 cannot tell", "published", "Unknown-IEEE", "cannot_judge"))
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["files"], self.attachments()), (1, "unchecked", ["liu.pdf"], []))
+        self.assertIn("claim --dir <its dir> --accept", r.lines[0]["hint"])
+
+    def test_an_item_with_a_pdf_needs_no_result(self):
+        self.zot.add_item("HADPDF01", itemType="attachment", parentItem=PARENT, title="Preprint-arXiv-v1",
+                          contentType="application/pdf", linkMode="imported_url")
+        rec = run.read(self.rec)
+        rec.pop("saved")
+        run.stamp(rec, "found", {"code": "found", "key": PARENT, "attachments": [
+            {"key": "HADPDF01", "version": "preprint", "contentType": "application/pdf"}]})
+        rec.save()
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["reason"]), (0, "skipped", "library_has_pdf"),
+                         "never fetched, so never settled: the item's own PDF settles it")
+        self.settle(("liu.pdf", b"%PDF-1.4 the published one", "published", "Published-IEEE", "ok"))
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), "fetched for the published version: attached beside it")
 
     def test_what_is_refused(self):
         self.settle(("liu.pdf", b"%PDF-1.4 x", "published", "Published IEEE", "ok"))

@@ -95,6 +95,9 @@ class PrepareAndSave(unittest.TestCase):
         self.addCleanup(zot.close)
         zot.add_collection("COLL0001", "Inbox")
         zot.add_item("LIKE0001", itemType="journalArticle", title="Paper Near Something")
+        zot.add_item("HAVE0001", itemType="journalArticle", title="A Paper The Library Has", DOI="10.1000/have.1")
+        zot.add_item("HAVEPDF1", itemType="attachment", parentItem="HAVE0001", title="Published-Example",
+                     contentType="application/pdf", linkMode="imported_url")
         work = work_run.Work(tempfile.mkdtemp(prefix="p2z-main-"))
         results = work.root / "fetch" / "results"
         results.mkdir(parents=True)
@@ -114,6 +117,8 @@ class PrepareAndSave(unittest.TestCase):
                      "archiveID": "arXiv:2303.11366", "date": "2023"},
                     {"record_of": "preprint", "versions": {"published": [{"ids": {"doi": "10.1000/pub.9"}, "venue": "NeurIPS"}],
                                                            "incomplete": []}}),
+            "lib": ({"itemType": "journalArticle", "title": "A Paper The Library Has", "DOI": "10.1000/have.1", "date": "2024"},
+                    {"record_of": "published"}),  # never fetched: the item has its PDF
         }
         for slug, (item, res) in papers.items():
             (results / f"{slug}.json").write_text(json.dumps({"slug": slug, **res}))
@@ -146,8 +151,10 @@ class PrepareAndSave(unittest.TestCase):
         self.assertEqual(by["dup"]["steps"]["create_item"], "possible_duplicate")
         self.assertEqual(by["dup"]["failed"], ["create_item"])
         self.assertEqual(by["pre"]["steps"]["attach_file"], "unsettled", "a result never settled attaches nothing")
+        self.assertEqual((by["lib"]["steps"]["attach_file"], by["lib"].get("failed")), ("skipped: library_has_pdf", None),
+                         "the library's own PDF: nothing to fetch, nothing to settle")
         self.assertNotIn({"published_versions": 1}, by["pre"].get("decide", []), "keep_preprint settles it")
-        self.assertEqual(lines[-1]["summary"]["decide"], 3)
+        self.assertEqual(lines[-1]["summary"]["decide"], 4)
 
 
 if __name__ == "__main__":
