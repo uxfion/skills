@@ -90,7 +90,9 @@ A start can write nothing for minutes and still be working. Phases seen quiet fo
 - Weights from a nearly full or network disk (Timings). `--safetensors-load-strategy eager` reads each file in order instead of through page faults (default `lazy`; vLLM prefetches by itself on NFS and Lustre).
 - Engine start held at "Initializing a V1 LLM engine": `CUDA_MODULE_LOADING=EAGER` (vLLM 0.28). serve.py removes it, so only a server started by hand meets it.
 
-Progress shows outside the log too: `nvidia-smi` memory rising on the server's GPUs, a download's files growing under the Hugging Face cache. A vLLM that has not answered 30 minutes after its start is stopped by serve.py, its log ending in "has not answered"; the download before it does not count.
+Progress shows outside the log too: `nvidia-smi` memory rising on the server's GPUs, a download's files growing under the Hugging Face cache.
+
+A vLLM that has not answered 30 minutes after its start is stopped by serve.py, its log ending in "has not answered"; the download before it does not count.
 
 ## A server that does not start, or loads foreign CUDA
 
@@ -100,7 +102,7 @@ Progress shows outside the log too: `nvidia-smi` memory rising on the server's G
 - "PyTorch and TorchAudio were compiled with different CUDA versions": the install mixed CUDA builds. Install from scratch with a named `--torch-backend`.
 - "CUDA compiler and CUDA toolkit headers are incompatible": the toolkit's compiler and runtime differ; the `cuda-toolkit[…]` pin is missing or does not match PyTorch's.
 - "FlashInfer kernels are disabled", "precompiled kernels are missing", or "Ninja build failed" with "cannot find -lcudart": run `vllm download-kernels`.
-- "Free memory on device … is less than desired GPU memory utilization": other programs hold the GPU. An idle server of ours among them (`status`): `down` it, unless it is a deployment that others use (references/shared-machines.md), which is the user's to stop. Otherwise their jobs come first, the user's or other people's: choose other GPUs (references/shared-machines.md), lower `--gpu-memory-utilization` only as far as the profile's comment allows, or tell the user and wait.
+- "Free memory on device … is less than desired GPU memory utilization": other programs hold the GPU. An idle server of ours among them (`status`): `down` it, unless it is a deployment that others use, which is the user's to stop. Otherwise their jobs come first, the user's or other people's: choose other GPUs (references/shared-machines.md), lower `--gpu-memory-utilization` only as far as the profile's comment allows, or tell the user and wait.
 - "max_num_seqs (N) exceeds available Mamba cache blocks (M)": a hybrid model (Mamba or gated-delta-net layers) on a GPU whose KV cache holds fewer than N blocks; set `--max-num-seqs` at most M (references/tuning.md).
 - "Address already in use" seconds after the start: a program listens on the port at an address `up` does not probe (it probes the address the server binds, 127.0.0.1 for `0.0.0.0`). `ss -ltnp | grep :<port>` names it.
 - "the download exited with N": `hf`'s own error stands above it. A gated model needs `HF_TOKEN` in the caller's environment. A download that sat at 0 bytes while huggingface.co answered: its download hosts are blocked. The default Xet path uses `cas-server.xethub.hf.co` and `transfer.xethub.hf.co`, and `HF_HUB_DISABLE_XET=1` switches to plain HTTP through a CDN host; try the other path, else copy the model (Weights).

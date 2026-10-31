@@ -4,7 +4,7 @@ A GPU server that other people use, reached over ssh with a personal login and n
 
 ## First deployment
 
-1. Agree on the place with the user and make a `vllm-serve` directory there: the root. A root already there from an earlier deployment is used as it is: go on at step 6. Everything the deployment writes stays under it (uv and its Python, vLLM, the Hugging Face cache, every compile cache, serve.py's profiles, state and logs): shared servers often have a nearly full system disk, and other people's space is off limits.
+1. Agree on the place with the user and make a `vllm-serve` directory there: the root. Everything the deployment writes stays under it (uv and its Python, vLLM, the Hugging Face cache, every compile cache, serve.py's profiles, state and logs): shared servers often have a nearly full system disk, and other people's space is off limits. A root already there from an earlier deployment is used as it is: refresh its skill copy (step 4), then go on at step 6.
 2. Write `<root>/env.sh` and source it before every command on that machine, `ssh <host> '. <root>/env.sh && …'`, since non-interactive ssh reads no shell profile. Pointing `HOME` at the root moves every tool's files there at once, including those that ignore the XDG variables (FlashInfer's kernels, CUDA's `~/.nv/ComputeCache`, Triton's `~/.triton`):
 
    ```sh

@@ -16,13 +16,12 @@
                                  a stopped one's "last": how its last start ended, and whether that was a failure
 
 A start is one job of a supervisor process: it downloads the weights when the cache lacks them, starts vLLM and
-writes all their output to the profile's log, whose last line says how the start ended; the next start keeps it as
-<profile>.prev.log and says so when that start failed. Its phases: downloading, starting,
-running, stopping; with no supervisor the profile is stopped. `up` waits until the server answers or the
-supervisor exits. A vLLM that has not answered 30 min after its start is stopped (the download does not count).
-Once it has answered, a server stops by itself after idle_minutes without a request, so the GPUs are free for
-other work; `up` counts as a request. Clients speak the OpenAI API at the url,
-with the model name given.
+writes all their output to the profile's log. Its phases: downloading, starting, running, stopping; with no
+supervisor the profile is stopped. `up` waits until the server answers or the supervisor exits; a vLLM that has not
+answered 30 min after its start is stopped (the download does not count). Once it has answered, a server stops by
+itself after idle_minutes without a request, so the GPUs are free for other work; `up` counts as a request. The
+log's last line says how the start ended; the next start keeps the log as <profile>.prev.log and says so when that
+start failed. Clients speak the OpenAI API at the url, with the model name given.
 
 Profiles: <name>.toml in ~/.config/vllm-serve/profiles/ (XDG_CONFIG_HOME), then in the skill's profiles/.
 Keys: model (Hugging Face id or local directory; clients use it as the model name), port, idle_minutes (above 0,
