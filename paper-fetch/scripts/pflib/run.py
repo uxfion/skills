@@ -780,7 +780,7 @@ def folded(work, res, events):
     got = any(f["kind"] != "supplement" for f in files)
     waiting_on = sorted({h["kind"] for h in open_handoffs(work, events, res.slug)})
     tries = [e for e in mine if e.get("event") == "try"]
-    tried = list(dict.fromkeys(paper.host_of(e["url"]) for e in tries if e.get("url")))
+    tried = list(dict.fromkeys(paper.host_of(web.unproxy(e["url"])) for e in tries if e.get("url")))  # the site, not the proxy
     last = next((e for e in reversed(mine) if e.get("event") in ("try", "handoff", "answer")), None)
     status = "got" if got else "waiting" if {"page", "file"} & set(waiting_on) else "not_got"  # a label brings no file
     return files, {"status": status, **({"waiting_on": waiting_on} if waiting_on else {}), "tried": tried,
