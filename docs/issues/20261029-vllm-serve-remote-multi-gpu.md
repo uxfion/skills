@@ -22,7 +22,7 @@
 
 ## 现状（2026-10-31）
 
-已按两份 spec 实现并在本机验证：[20261030](../specs/20261030-vllm-serve-shared-machines-spec.md)（共享和远程服务器），[20261031](../specs/20261031-vllm-serve-principles-rework-spec.md)（按 design principles 返工，实现记录在它的第 7 节）。主机 B 已实测通过（2026-10-31，单卡和两卡数据并行，`/metrics` 覆盖两个副本；结果在 20261031 spec 第 7 节），部署在共享目录下，另一个项目的旧部署 `hc_llm` 已删。主机 A 也已部署、实测通过（2026-10-31，CUDA 12.9 驱动旁边装着系统 CUDA 13.1，`foreign_cuda` 为空，卡号和 `nvidia-smi` 一致；结果同在 20261031 spec 第 7 节），`hc_llm` 同样已删。两台都测完，可以关闭这张 issue。
+已按两份 spec 实现并在本机验证：[20261030](../specs/20261030-vllm-serve-shared-machines-spec.md)（共享和远程服务器），[20261031](../specs/20261031-vllm-serve-principles-rework-spec.md)（按 design principles 返工，实现记录在它的第 7 节）。主机 B 已实测通过（2026-10-31，单卡和两卡数据并行，`/metrics` 覆盖两个副本；结果在 20261031 spec 第 7 节），部署在共享目录下，另一个项目的旧部署 `hc_llm` 已删。主机 A 也已部署、实测通过（2026-10-31，CUDA 12.9 驱动旁边装着系统 CUDA 13.1，`foreign_cuda` 为空，卡号和 `nvidia-smi` 一致；结果同在 20261031 spec 第 7 节），`hc_llm` 同样已删。两台都测完，可以关闭这张 issue。用户（2026-10-31）：「h200现在不能用了，这段时间都不行，因为别的同学已经预约了。现在就pro6000可以用，后面我再给你找一台。」主机 A 上的环境和部署 profile 装好留着；新机器照 shared-machines.md 部署。
 
 ## 进展（2026-10-30）
 
