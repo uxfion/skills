@@ -12,6 +12,7 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 
 OK, ACT, CANNOT = 0, 1, 2
 KEY_RE = re.compile(r"^[A-Z0-9]{8}$")
@@ -110,6 +111,42 @@ def targets_of(p, args, required=True):
     if bad:
         p.error(f"--key takes 8-character keys: {', '.join(bad)}")
     return args
+
+
+def batch_entries(name):
+    """A --batch file, one format for every script that writes in bulk (update_item, file_and_tag; titles_from_labels
+    and fields_from_results write it): JSON lines, an object per line naming its item by "key" or by "cite", blank
+    lines skipped -> ([{where, key, cite, entry}], [problems]); the script checks the rest of each entry."""
+    try:
+        text = Path(name).expanduser().read_text(encoding="utf-8")
+    except OSError as e:
+        return [], [f"{name}: {e.strerror or e}"]
+    entries, problems = [], []
+    for n, raw in enumerate(text.splitlines(), 1):
+        if not raw.strip():
+            continue
+        try:
+            e = json.loads(raw)
+        except ValueError as err:
+            problems.append(f"line {n}: not JSON ({err})")
+            continue
+        if not isinstance(e, dict):
+            problems.append(f'line {n}: an entry is an object naming its item by "key" or "cite"')
+            continue
+        key, cite = e.get("key"), e.get("cite")
+        where = f"line {n}" + (f" (key {key})" if "key" in e else f" (cite {cite})" if "cite" in e else "")
+        if ("key" in e) == ("cite" in e):
+            problems.append(f'{where}: name the item by "key" or by "cite", one of them')
+        elif "key" in e and not (isinstance(key, str) and KEY_RE.match(key)):
+            problems.append(f'{where}: "key" is an 8-character item key')
+        elif "cite" in e and not (isinstance(cite, str) and cite.strip()):
+            problems.append(f'{where}: "cite" is a citationKey')
+        else:
+            entries.append({"where": where, "key": key if "key" in e else None,
+                            "cite": cite.strip() if "cite" in e else None, "entry": e})
+    if not entries and not problems:
+        problems.append("no entries")
+    return entries, problems
 
 
 def finish(lines, *, stopped=None, extra=None, answers=()):

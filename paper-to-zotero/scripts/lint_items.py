@@ -10,10 +10,15 @@ duplicates and citation-key clashes are found across the library whatever the sc
 items are reported: --collection KEY (--recursive takes its subcollections too), --key / --cite (several, or
 comma-separated), or nothing for every top-level item. Paths and --collection see only collections outside the trash.
 
-Problem codes (each problem is {"code", ...}):
+Problem codes (each problem is {"code", ...}: a fact and its evidence; what it means is a judge's):
   duplicate_of            other items with the same DOI or arXiv id ({"keys", "by": doi | arxiv}; a doi.org url
-                          counts as the DOI), or the same title ({"by": "title"}: a near match, maybe a
-                          preprint/published pair - "pair" says so)
+                          counts as the DOI): the same paper. By title ({"by": "title", "paper", "candidates", "more"?}):
+                          the items a Zotero quick search for the title would find (every word of one of
+                          paper.title_queries inside a word of their title, creator names or year), less those found
+                          by DOI or arXiv id; ranked by paper.candidates as the import's lookup ranks its hits, each
+                          {key, title, year, first_author, doi, arxiv, itemType, venue, similarity, attachments (their
+                          titles)}, 10 at most, `more` counting the rest; `paper` is this item's own evidence. A title confirms nothing: one paper
+                          twice, a preprint and its published version, or two papers alike
   citation_key            {"problem": "missing"}; {"problem": "duplicate", "keys"}: the other items carrying the same
                           citationKey; {"problem": "tex_special", "suggested"}: a character TeX treats specially
                           (renaming a key breaks the user's \\cite{}: ask first)
@@ -25,31 +30,32 @@ Problem codes (each problem is {"code", ...}):
                           url's site by paper.SOURCES, else null: where the item lives or the page was saved from, not
                           proof of the file's source), filename, md5, doi (the item's)}. What the file itself is,
                           paper-fetch judges (references/organize.md, "Attachment titles")
-  label_clash             two or more PDFs or snapshots of the item with one title ({"title", "attachments": [keys]}):
-                          most likely the same file twice
+  label_clash             two or more PDFs or snapshots of the item with one title ({"title", "attachments": [keys],
+                          "same_file"}): same_file true when their md5s are all there and equal (the same file twice),
+                          false when they differ (two files under one title: paper-fetch labels them), null when an
+                          md5 is missing
   superseded              a file another one from the same source replaces (paper.superseded: an older arXiv vN, an
                           in_press copy beside the final one, an older snapshot): {"attachment", "title", "by", "by_title"}
   date_unparseable        a date Zotero cannot parse (no meta.parsedDate), e.g. "十一月 23, 2021"
-  abbreviation_misplaced  journalAbbreviation longer than publicationTitle (they are swapped: "patch" swaps them
-                          back), or publicationTitle looks abbreviated with no journalAbbreviation
+  abbreviation_misplaced  journalAbbreviation longer than publicationTitle, both set ({"publicationTitle",
+                          "journalAbbreviation"}): maybe swapped
   missing_doi             a journal article or conference paper with no DOI in its DOI field or an Extra "DOI:" line
                           (an arXiv DOI is not one; venues that issue none - ICML, ICLR - are expected here: their
                           official page is the url); paper-fetch's identify --search looks a DOI up by title
   missing_abstract        a research item with no abstract
   no_identifier           no DOI, no arXiv id and no url: nothing locates the paper
-  url_not_record          a published item whose url is not its version of record: empty, or a copy (CVF, MICCAI, arXiv, ProQuest, PMC, a
-                          library proxy: an EZproxy-style host, OTHER_PROXIES) beside a DOI ("patch" sets
-                          https://doi.org/<DOI>); for a NeurIPS DOI (10.52202, the printed proceedings), a url that is
-                          not the paper's NeurIPS page
-  name_not_tagged         the abstract names a model or system ("we propose EchoWDiff") that no tag carries
-                          ({"name"}: a bare tag, or dataset/ for a benchmark - the agent decides)
+  url_not_record          an item with a DOI, not a preprint, whose url is not https://doi.org/<DOI> (http, dx.doi.org
+                          and case aside): {"url", "host", "doi"}; "patch" sets https://doi.org/<DOI> when the url is
+                          empty. Whether the url is the version of record - the publisher's page, a copy, a library
+                          proxy, a venue's own page - is the judge's
 
 stdout: one compact JSON line per reported item with problems {key, citationKey, title, itemType, collections (paths
 from the root, "/" between names), problems}, then {"summary": {items, with_problems, by_code}}. A --key
 or --cite that names no top-level item prints its {key | cite, code, hint} line first (not_found, cite_not_found,
 cite_ambiguous); --collection naming no collection prints one collection_not_found line. "patch" appears only where
-the fix is mechanical; it is a fields object for one item: write it to a file for `update_item.py --key KEY --patch
-FILE`. Every other problem is the agent's to judge and the user's to confirm. Nothing here goes online.
+the fix is mechanical (an empty url); it is a fields object for one item: the "set" of an `update_item.py --batch`
+line {"key", "set"}, or a file for `--key KEY --patch FILE`. Every other problem is the agent's to judge and the
+user's to confirm. Nothing here goes online.
 
 Exit 0 = no problems; 1 = problems listed, a target or collection that does not resolve, or unexpected_response
 (a page of the library Zotero sent wrong: nothing was checked); 2 = cannot check (zotero_unreachable,
@@ -60,22 +66,14 @@ Examples:
   uv run scripts/lint_items.py --cite liu2022progressive,smith2024deep
 """
 import re
+import unicodedata
+from urllib.parse import unquote
 
 from p2zlib import cli, paper, zotero
 from p2zlib.zotero import LIB
 
 RESEARCH_TYPES = {"journalArticle", "conferencePaper", "preprint", "bookSection", "thesis", "report"}
 DOI_TYPES = {"journalArticle", "conferencePaper"}
-# "we propose EchoWDiff", "Here we present AMIFound", "an approach, PromptIR, for": a capitalised token with a
-# second capital or a digit, so ordinary words ("We propose Deep ...") stay out, and not followed by another
-# capitalised word, which makes it the start of a phrase ("We propose Weight-Decomposed Low-Rank Adaptation").
-NAME = r"([A-Z][\w^+\-]*[A-Z0-9][\w^+\-]*)(?![\w^+\-])(?!\s+[A-Z][a-z])"
-NAME_PATTERNS = (re.compile(r"\b[Ww]e\s+(?:propose|present|introduce|develop|name|call)\s+(?:it\s+)?" + NAME),
-                 re.compile(r"\b(?:approach|framework|model|method|system|network|pipeline|agent),\s+" + NAME + r","))
-# Hosts of copies, not of a version of record (references/import.md step 3: url is the version of record). A living list.
-COPY_HOSTS = {"openaccess.thecvf.com", "papers.miccai.org", "arxiv.org", "www.arxiv.org", "www.proquest.com",
-              "openreview.net", "europepmc.org", "pmc.ncbi.nlm.nih.gov", "www.ncbi.nlm.nih.gov", "www.ecva.net",
-              "www.biorxiv.org", "www.medrxiv.org", "www.researchgate.net", "www.semanticscholar.org"}
 # Library proxies, by the form of their hosts (copied from paper-fetch's pflib/web.py, commit 6ea7d15; the
 # institution's own proxy is paper-fetch's config, not read here): EZproxy's hostname mode (*.ezproxy.*), OCLC's hosted
 # EZproxy (*.idm.oclc.org), WebVPN gateways.
@@ -95,13 +93,16 @@ class Library:
             if parent:
                 self.children.setdefault(parent, []).append(r)
         self.tree = zot.collections()
-        self.by = {"doi": {}, "arxiv": {}, "title": {}}
+        self.by = {"doi": {}, "arxiv": {}}
+        self.words, self.held = {}, {}  # word -> the keys of the items holding it (searchable_words); holding()'s answers
         for key, r in self.top.items():
             d = zotero.data(r)
             doi, aid = paper.identifiers(d)
-            for by, value in (("doi", doi), ("arxiv", aid), ("title", paper.norm_title(d.get("title")))):
+            for by, value in (("doi", doi), ("arxiv", aid)):
                 if value:
                     self.by[by].setdefault(value, []).append(key)
+            for w in searchable_words(d):
+                self.words.setdefault(w, set()).add(key)
         self.cites = cite_problems({key: zotero.data(r) for key, r in self.top.items()})
 
     def paths(self, data):
@@ -110,6 +111,34 @@ class Library:
     def in_collection(self, zot, key, recursive):
         wanted = set(zot.collection_scope(key, recursive, self.tree))
         return [r for r in self.top.values() if wanted & set(zotero.data(r).get("collections") or [])]
+
+    def title_hits(self, title):
+        """The keys a quick search for the title would find: the items where every word of one of
+        paper.title_queries is inside one of their words, as Zotero matches a word ("network" finds "Networks")."""
+        hits = set()
+        for q in paper.title_queries(title):
+            postings = sorted((self.holding(w) for w in words(q)), key=len)
+            if postings:
+                hits |= postings[0].intersection(*postings[1:])
+        return hits
+
+    def holding(self, w):
+        """The keys of the items with a word that contains w (worked out once per word)."""
+        if w not in self.held:
+            self.held[w] = set().union(*(keys for v, keys in self.words.items() if w in v))
+        return self.held[w]
+
+
+def words(text):
+    """A text's words, as a quick search compares them here: runs of letters and digits, NFKC, casefolded."""
+    return set(re.findall(r"\w+", unicodedata.normalize("NFKC", text or "").casefold()))
+
+
+def searchable_words(data):
+    """The words a quick search (titleCreatorYear) looks in: the item's title, its creators' names, its year."""
+    names = [c.get(f) or "" for c in data.get("creators") or [] if isinstance(c, dict) for f in ("lastName", "firstName", "name")]
+    year = re.search(r"\d{4}", data.get("date") or "")
+    return words(" ".join([data.get("title") or "", *names, year.group(0) if year else ""]))
 
 
 def cite_problems(items):
@@ -124,21 +153,6 @@ def cite_problems(items):
     for tex in found["tex"]:
         out.setdefault(tex["key"], []).append({"code": "citation_key", "problem": "tex_special", "suggested": tex["suggested"]})
     return out
-
-
-def looks_abbreviated(title):
-    words = title.split()
-    return len(words) >= 2 and sum(w.endswith(".") for w in words) >= 2
-
-
-def names_in(abstract):
-    seen = []
-    for pattern in NAME_PATTERNS:
-        for m in pattern.finditer(abstract or ""):
-            name = m.group(1).rstrip("-")
-            if len(name) >= 3 and name not in seen:
-                seen.append(name)
-    return seen
 
 
 def unproxy(url):
@@ -162,7 +176,7 @@ def title_problems(data, children):
         label = paper.attachment_label(d, titles)
         if label["version"] is None:  # a link, a note's attachment, a file of another type
             continue
-        files.append({"key": c["key"], "title": d.get("title"), "dateAdded": d.get("dateAdded"), **label})
+        files.append({"key": c["key"], "title": d.get("title"), "dateAdded": d.get("dateAdded"), "md5": d.get("md5"), **label})
         url = unproxy(d.get("url") or "") or None
         source = paper.source_of(url)
         # A snapshot's url is the page it saved; a PDF's is often the item's, which names no download site.
@@ -175,8 +189,12 @@ def title_problems(data, children):
                         "doi": paper.doi_of(data) or None})
     by_title = {}
     for f in files:
-        by_title.setdefault(f["title"], []).append(f["key"])
-    out += [{"code": "label_clash", "title": t, "attachments": keys} for t, keys in by_title.items() if len(keys) > 1]
+        by_title.setdefault(f["title"], []).append(f)
+    for title, clash in by_title.items():
+        if len(clash) > 1:
+            md5s = {f["md5"] for f in clash}
+            out.append({"code": "label_clash", "title": title, "attachments": [f["key"] for f in clash],
+                        "same_file": len(md5s) == 1 if all(md5s) else None})
     out += [{"code": "superseded", "attachment": a["key"], "title": a["title"], "by": b["key"], "by_title": b["title"]}
             for a, b in paper.superseded(files) if a["title"] != b["title"]]
     return out
@@ -192,12 +210,13 @@ def problems_of(item, lib):
         if keys:
             others.update(keys)
             out.append({"code": "duplicate_of", "by": by, "keys": keys})
-    title = paper.norm_title(data.get("title"))
-    title_keys = sorted(k for k in lib.by["title"].get(title, ()) if k != key and k not in others) if len(title) >= 12 else []
-    if title_keys:
-        types = {zotero.data(lib.top[k]).get("itemType") for k in title_keys} | {data.get("itemType")}
-        out.append({"code": "duplicate_of", "by": "title", "keys": title_keys,
-                    **({"pair": "preprint/published"} if "preprint" in types and len(types) > 1 else {})})
+    hits = sorted(lib.title_hits(data.get("title")) - others - {key})
+    if hits:
+        near, more = paper.candidates(data, [(k, zotero.data(lib.top[k]), None) for k in hits])
+        for c in near:
+            c["attachments"] = paper.file_titles(zotero.attachment_rows(lib.children.get(c["key"], [])))
+        mine = {**paper.evidence(data), "attachments": paper.file_titles(zotero.attachment_rows(lib.children.get(key, [])))}
+        out.append({"code": "duplicate_of", "by": "title", "paper": mine, "candidates": near, **({"more": more} if more else {})})
     out += lib.cites.get(key, [])
     if data.get("itemType") == "webpage" and not data.get("collections"):
         out.append({"code": "unfiled_webpage", "url": data.get("url")})
@@ -206,11 +225,7 @@ def problems_of(item, lib):
         out.append({"code": "date_unparseable", "date": data["date"]})
     full, abbr = (data.get("publicationTitle") or "").strip(), (data.get("journalAbbreviation") or "").strip()
     if full and abbr and len(abbr) > len(full):
-        out.append({"code": "abbreviation_misplaced", "publicationTitle": full, "journalAbbreviation": abbr,
-                    "patch": {"publicationTitle": abbr, "journalAbbreviation": full}})
-    elif full and not abbr and "journalAbbreviation" in data and looks_abbreviated(full):
-        out.append({"code": "abbreviation_misplaced", "publicationTitle": full,
-                    "hint": "publicationTitle looks abbreviated: move it to journalAbbreviation, find the full title"})
+        out.append({"code": "abbreviation_misplaced", "publicationTitle": full, "journalAbbreviation": abbr})
     # A DOI only in the url still leaves the DOI field empty; an arXiv DOI (identifiers gives '') is not the article's.
     if data.get("itemType") in DOI_TYPES and not (doi and paper.doi_of(data, url=False)):
         out.append({"code": "missing_doi", "url": data.get("url") or None})
@@ -219,20 +234,11 @@ def problems_of(item, lib):
     url = (data.get("url") or "").strip()
     if not doi and not aid and not url and data.get("itemType") in RESEARCH_TYPES:
         out.append({"code": "no_identifier"})
-    host = paper.host_of(url)
-    if doi and data.get("itemType") != "preprint":
-        if doi.startswith("10.52202/"):
-            if host not in ("proceedings.neurips.cc", "proceedings.nips.cc"):
-                out.append({"code": "url_not_record", "url": url or None,
-                            "hint": "a NeurIPS DOI leads to the printed proceedings: url is the paper's NeurIPS page"})
-        elif not url or host in COPY_HOSTS or OTHER_PROXIES.search(host):
-            field = (data.get("DOI") or "").strip()
-            out.append({"code": "url_not_record", "url": url or None,
-                        "patch": {"url": f"https://doi.org/{field if paper.DOI_FORM.match(field) else doi}"}})
-    tags = {t.get("tag", "") for t in data.get("tags") or []}
-    for name in names_in(data.get("abstractNote")):
-        if not any(t == name or t.endswith("/" + name) for t in tags):
-            out.append({"code": "name_not_tagged", "name": name})
+    if doi and data.get("itemType") != "preprint" and paper.normalize_doi(unquote(url)) != doi:
+        field = (data.get("DOI") or "").strip()
+        record = field if paper.DOI_FORM.match(field) else doi  # the field's own case
+        out.append({"code": "url_not_record", "url": url or None, "host": paper.host_of(url) or None, "doi": record,
+                    **({} if url else {"patch": {"url": f"https://doi.org/{record}"}})})
     return out
 
 

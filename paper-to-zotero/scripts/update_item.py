@@ -3,22 +3,25 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Change fields of existing Zotero items through the local API: the same --set / --patch on every item named.
+"""Change fields of existing Zotero items through the local API: one --set / --patch for every item named, or a batch.
 
-Items: --key and --cite (the top-level item carrying that citationKey). For each: read it; merge --patch, then --set
-(the later wins), into its data; check the names against the item type's schema (a base name such as
-publicationTitle goes to the type's own field, proceedingsTitle on a conferencePaper, as Zotero does); PATCH only
-what differs, with its version; read it back. On an item-type change Zotero keeps each field the new type has under
-its own or its base field's name and moves the rest to Extra: `fields_to_extra` says which. Tags and collections
-are file_and_tag.py's, the trash is trash_item.py's: both are refused here. A PDF's new title goes to its
-structured package too, and a new citationKey or title renames the packages' files in place (`packages`).
+Items: --key and --cite (the top-level item carrying that citationKey), each taking --patch, then --set (the later
+wins); or --batch FILE, JSON lines, an entry per item: {"key" | "cite", "set": {field: value}}. Any other key of an
+entry is a note for people (the listers write from, why, by) and is ignored. Entries run in the file's order, each on
+the item as it is then. For each item: read it; merge the fields into its data; check the names against the item
+type's schema (a base name such as publicationTitle goes to the type's own field, proceedingsTitle on a
+conferencePaper, as Zotero does); PATCH only what differs, with its version; read it back. On an item-type change
+Zotero keeps each field the new type has under its own or its base field's name and moves the rest to Extra:
+`fields_to_extra` says which. Tags and collections are file_and_tag.py's, the trash is trash_item.py's: both are
+refused here. A PDF's new title goes to its structured package too, and a new citationKey or title renames the
+packages' files in place (`packages`). titles_from_labels.py and fields_from_results.py write batch files.
 
-stdout: one line per item, then {"summary": {total, ok, skipped, failed}}. A written item: {key, cite?, code,
-changes {field: {from, to}}, mapped_fields, fields_to_extra, applied, normalized, version_before, version_after,
-retried, extra?}; --dry-run: {key, cite?, code, changes, mapped_fields, fields_to_extra, version}. `normalized`
-holds the fields Zotero stored otherwise than sent ({sent, now}); an Extra line it moved into the field of that name
-("PMID: 1" -> PMID) shows as normalized.extra.moved_to_fields, a success: set that field itself next time. `extra`
-is an Extra that Zotero changed on its own (a type change).
+stdout: one line per item (a batch: per entry), then {"summary": {total, ok, skipped, failed}}. A written item: {key,
+cite?, code, changes {field: {from, to}}, mapped_fields, fields_to_extra, applied, normalized, version_before,
+version_after, retried, extra?}; --dry-run: {key, cite?, code, changes, mapped_fields, fields_to_extra, version}.
+`normalized` holds the fields Zotero stored otherwise than sent ({sent, now}); an Extra line it moved into the field
+of that name ("PMID: 1" -> PMID) shows as normalized.extra.moved_to_fields, a success: set that field itself next
+time. `extra` is an Extra that Zotero changed on its own (a type change).
   ok                  written and read back (--dry-run: planned, nothing written)
   skipped             reason unchanged: the item holds every value already
   refused_property    tags, collections, relations, deleted, key, version, dates, parentItem, note, attachment internals
@@ -36,8 +39,10 @@ is an Extra that Zotero changed on its own (a type change).
   readback_mismatch   the write was accepted, but a field still shows its old value (`mismatch`)
   not_run             Zotero stopped answering before this item (summary.stopped says why)
 refused_property, invalid_patch_file and a value that is not a string are found before Zotero is asked: one line,
-nothing done. Exit 0 = every item ok or skipped, 1 = some item not, 2 = cannot check (zotero_unreachable,
-local_api_disabled, no_key, key_rejected, server_mismatch).
+nothing done. In a batch they are invalid_batch, one line naming each bad entry by its line number (`detail`), as is
+a line that is not a JSON object {key | cite, set: {field: value}} or a file without entries: nothing done.
+Exit 0 = every item ok or skipped, 1 = some item not, 2 = cannot check (zotero_unreachable, local_api_disabled,
+no_key, key_rejected, server_mismatch).
 
 Examples:
   uv run scripts/update_item.py --key ABCD1234 --set date=2023 --set DOI=10.1109/CVPR52729.2023.00194 --dry-run
@@ -45,6 +50,7 @@ Examples:
       --set "publicationTitle=2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)" --set pages=1952-1961
   uv run scripts/update_item.py --key ABCD1234 --patch fix.json      # {"creators": [...], "extra": "arXiv: 2205.07680"}
   uv run scripts/update_item.py --cite liu2022progressive --set citationKey=liu2022progressive
+  uv run scripts/update_item.py --batch titles.jsonl --dry-run       # {"key": "ATTACH01", "set": {"title": "Published-IEEE"}}
 """
 import json
 from pathlib import Path
@@ -78,26 +84,63 @@ def read_patch(name):
     return raw
 
 
+def checked(sets):
+    """{field: value} with each value a string, stripped (creators a list): a refused name or a value that is not a
+    string stops here."""
+    out = {}
+    for field, value in sets.items():
+        field = field.strip()
+        if field in REFUSED:
+            raise cli.Stop("refused_property", hint=f"{field!r} is not set here: {REFUSED[field]}.", field=field)
+        if field != "creators":
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                value = str(value)
+            if not isinstance(value, str):
+                raise cli.Stop("invalid_field", hint="Field values are strings (creators is a list).", field=field,
+                               value=value)
+            value = value.strip()
+        out[field] = value
+    return out
+
+
+def read_batch(name):
+    """--batch FILE -> [{key, cite, sets}], each entry checked as --set is; invalid_batch naming every bad entry."""
+    path = Path(name).expanduser()
+    found, problems = cli.batch_entries(path)
+    entries = []
+    for b in found:
+        sets = b["entry"].get("set")
+        if not isinstance(sets, dict) or not sets:
+            problems.append(f'{b["where"]}: "set" is a non-empty object of field: value')
+            continue
+        try:
+            entries.append({"key": b["key"], "cite": b["cite"], "sets": checked(sets)})
+        except cli.Stop as stop:
+            problems.append(f"{b['where']}: {stop.code} {stop.extra['field']!r}: {stop.hint}")
+    if problems:
+        raise invalid_batch(path, problems)
+    return entries
+
+
+def invalid_batch(path, problems):
+    return cli.Stop("invalid_batch", hint='--batch holds JSON lines, an entry per item: {"key" | "cite", "set": {field: '
+                                          'value}}. Fix the file, then rerun; nothing was done.',
+                    batch_file=str(path), detail=problems)
+
+
 def check(p, args):
-    """--patch, then --set, as args.sets {field: value}: refused names and values that are not strings stop here."""
+    """The batch's entries as args.entries, or --patch, then --set, as args.sets {field: value}: refused names and
+    values that are not strings stop here."""
+    if args.batch:
+        args.entries = read_batch(args.batch)
+        return
     if not args.set and not args.patch:
-        p.error("give --set FIELD=VALUE and/or --patch FILE")
+        p.error("give --set FIELD=VALUE and/or --patch FILE, or --batch FILE")
     pairs = [s.partition("=") for s in args.set]
     bad = ["".join(t) for t in pairs if not t[1] or not t[0].strip()]
     if bad:
         p.error(f"--set takes FIELD=VALUE (an empty VALUE clears the field): {', '.join(bad)}")
-    sets = {**(read_patch(args.patch) if args.patch else {}), **{f.strip(): v for f, _, v in pairs}}
-    for field, value in list(sets.items()):
-        if field in REFUSED:
-            raise cli.Stop("refused_property", hint=f"{field!r} is not set here: {REFUSED[field]}.", field=field)
-        if field == "creators":
-            continue
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            value = str(value)
-        if not isinstance(value, str):
-            raise cli.Stop("invalid_field", hint="Field values are strings (creators is a list).", field=field, value=value)
-        sets[field] = value.strip()
-    args.sets = sets
+    args.sets = checked({**(read_patch(args.patch) if args.patch else {}), **{f.strip(): v for f, _, v in pairs}})
 
 
 def plan(item, sets, types):
@@ -181,17 +224,17 @@ def moved_to_fields(sent, now, after_data):
     return out
 
 
-def process(zot, key, args):
+def process(zot, key, sets, dry_run):
     types, planned = zot.item_types(), {}
 
     def body_of(item):
-        body, planned["info"] = plan(item, args.sets, types)
+        body, planned["info"] = plan(item, sets, types)
         return body or None
 
     item = zot.item(key)
     if item is None:
         raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND)
-    if args.dry_run:
+    if dry_run:
         if not body_of(item):
             return cli.skipped("unchanged", version=item.get("version"))
         return cli.ok(**planned["info"], version=item.get("version"), dry_run=True)
@@ -220,16 +263,51 @@ def process(zot, key, args):
     return cli.ok(**line)
 
 
-def configure(p):
+def targets(zot, args):
+    """[(key, cite, sets, failure)] in the order handled: the items --key / --cite name, each with args.sets (an item
+    named twice once), or the batch's entries in the file's order (every citation key resolved at once)."""
+    if not args.batch:
+        return [(key, cite, args.sets, failure) for key, cite, failure in zot.targets(args.key, args.cite)]
+    cites = list(dict.fromkeys(e["cite"] for e in args.entries if e["cite"]))
+    hits, out = zot.resolve_cites(cites) if cites else {}, []
+    for e in args.entries:
+        keys = hits[e["cite"]] if e["cite"] else [e["key"]]
+        failure = zot.cite_failure(e["cite"], keys) if len(keys) != 1 else None
+        out.append((None if failure else keys[0], e["cite"], e["sets"], failure))
+    return out
+
+
+def main(argv=None):
+    p = cli.parser(__doc__)
+    cli.add_targets(p)
     p.add_argument("--set", action="append", default=[], metavar="FIELD=VALUE",
                    help="a field to set (repeatable); an empty VALUE clears it; FIELD may be itemType, or a base name "
                         "such as publicationTitle")
     p.add_argument("--patch", metavar="FILE", help="a JSON object of field: value, for creators (a list) and multi-line "
                                                    "values such as extra; --set wins over it")
+    p.add_argument("--batch", metavar="FILE", help='JSON lines, an entry per item: {"key" | "cite", "set": {field: value}}')
+    p.add_argument("--dry-run", action="store_true", help="show what would be written; write nothing")
+    cli.add_base_url(p)
+    args = cli.targets_of(p, p.parse_args(argv), required=False)
+    if args.batch and (args.key or args.cite or args.set or args.patch):
+        p.error("--batch names the items and their fields in the file: leave out --key, --cite, --set and --patch")
+    if not args.batch and not (args.key or args.cite):
+        p.error("name the items with --key and/or --cite, or pass --batch")
 
+    def loop():
+        check(p, args)  # before Zotero is asked
+        zot = zotero.Zotero(args.base_url)
+        if not args.dry_run:
+            zot.write_headers()
+        out = cli.Lines()
+        for key, cite, sets, failure in targets(zot, args):
+            if failure is not None:
+                out.lines.append(failure.line(**cli.head(key, cite)))
+            else:
+                out.add(cli.head(key, cite), lambda: process(zot, key, sets, args.dry_run))
+        return out.finish({"dry_run": True} if args.dry_run else None)
 
-def main(argv=None):
-    return cli.main_items(__doc__, process, argv, configure=configure, check=check)
+    return cli.run(loop)
 
 
 if __name__ == "__main__":

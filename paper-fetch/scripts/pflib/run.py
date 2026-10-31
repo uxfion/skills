@@ -29,7 +29,8 @@ A result file, results/<slug>.json, one JSON object:
   alt_titles            [str]: other titles the paper went by
   versions              {preprint?: {ids, latest, comment, title, abstract, author, categories?}, published: [{ids, venue,
                         year, title, title_differs, type, sources}], incomplete: [sources that did not answer]}
-  files                 [{name, md5, kind, label: {title, version, source, detail, by, why}, check: ok | accepted |
+  files                 [{name, md5, kind, label: {title, version, source, detail, by, why} (by: settle on a file
+                        nobody has labelled yet, titled Unknown-<Source> meanwhile), check: ok | accepted |
                         unconfirmed | cannot_judge, accepted_reason?, url, evidence}]: every file of the paper, its
                         versions side by side; the paper's file is the one whose label is the wanted version
   outcome               {status, waiting_on?: [kinds of the paper's open handoffs: page, file, label], tried: [hosts

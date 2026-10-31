@@ -12,15 +12,18 @@ A change says, for one item:
   tags               its COMPLETE tag set: a list of "name" (type 0) or {"tag": "name", "type": 0|1} (0 manual,
                      1 automatic); a tag given twice keeps its last occurrence, with a warning on stderr
   add_tags           tags to add to the ones it has, in the same form
+  remove_tags        take these off (a tag name or a list of names, whatever their type), keeping its others; one
+                     it does not have is a no-op
 collection excludes add_collection and remove_collection, which combine (a move that keeps the others); tags
-excludes add_tags.
+excludes add_tags and remove_tags, which combine the same way.
 
---batch FILE is a JSON list of changes, each naming its item by "key" or by "cite" (its citationKey):
-  [{"cite": "liu2022progressive", "add_collection": "NEWCOLL1", "remove_collection": ["OLDCOLL1"]},
-   {"key": "ABCD1234", "tags": ["CVPR", {"tag": "Deep learning", "type": 1}]}]
+--batch FILE holds JSON lines, a change per line, each naming its item by "key" or by "cite" (its citationKey) —
+the batch format update_item.py reads too:
+  {"cite": "liu2022progressive", "add_collection": "NEWCOLL1", "remove_collection": ["OLDCOLL1"]}
+  {"key": "ABCD1234", "tags": ["CVPR", {"tag": "Deep learning", "type": 1}]}
 --key / --cite with --collection, --add-collection, --remove-collection, --tags-file, --add-tags-file (a file
-holding a tag list as above) give every item they name the same change. An item named twice is handled once when
-both ask the same; two different changes for one item are invalid_changes.
+holding a tag list as above), --remove-tags (tag names) give every item they name the same change. An item named
+twice is handled once when both ask the same; two different changes for one item are invalid_changes.
 
 Nothing is written unless every change passes its checks: each cite names one top-level item, each item exists,
 only top-level items change collections, each destination collection is in the collection tree and not in the
@@ -46,17 +49,18 @@ Exit 0 = every item ok or skipped, 1 = not (or invalid_changes), 2 = cannot chec
 local_api_disabled, no_key, key_rejected, server_mismatch).
 
 Examples:
-  uv run scripts/file_and_tag.py --batch changes.json --dry-run    # show the change list to the user first
-  uv run scripts/file_and_tag.py --batch changes.json              # after the user confirmed it
+  uv run scripts/file_and_tag.py --batch changes.jsonl --dry-run    # show the change list to the user first
+  uv run scripts/file_and_tag.py --batch changes.jsonl              # after the user confirmed it
   uv run scripts/file_and_tag.py --cite liu2022progressive --add-collection NEWCOLL1 --remove-collection OLDCOLL1
   uv run scripts/file_and_tag.py --key ABCD1234 EFGH5678 --add-tags-file tags.json
+  uv run scripts/file_and_tag.py --cite liu2022progressive --remove-tags "to read" "Deep learning, theory"
 """
 import json
 from pathlib import Path
 
 from p2zlib import cli, paper, zotero
 
-FIELDS = ("collection", "add_collection", "remove_collection", "tags", "add_tags")
+FIELDS = ("collection", "add_collection", "remove_collection", "tags", "add_tags", "remove_tags")
 
 
 def invalid(problems):
@@ -83,6 +87,14 @@ def collection_keys(field, value):
     return list(dict.fromkeys(v.strip() for v in values)), None
 
 
+def tag_names(value):
+    """remove_tags as a list of names -> (names, problem or None)."""
+    values = [value] if isinstance(value, str) else value
+    if not isinstance(values, list) or not all(isinstance(v, str) and v.strip() for v in values):
+        return [], f"remove_tags: a tag name or a list of them, not {json.dumps(value, ensure_ascii=False)}"
+    return list(dict.fromkeys(v.strip() for v in values)), None
+
+
 def parse_change(raw, where=""):
     """A change's fields, checked -> (change, problems): the collection fields as key lists, the tag fields normalized."""
     change, problems = {}, []
@@ -90,7 +102,10 @@ def parse_change(raw, where=""):
         if field not in FIELDS + ("key", "cite"):
             cli.log(f"{where}ignoring the field {field!r}")
     for field in (f for f in FIELDS if f in raw):
-        if field.endswith("tags"):
+        if field == "remove_tags":
+            change[field], bad = tag_names(raw[field])
+            problems += [bad] if bad else []
+        elif field.endswith("tags"):
             change[field], bad, warnings = paper.normalize_tags(raw[field])
             for w in warnings:
                 cli.log(f"{where}{field}: {w}")
@@ -99,12 +114,13 @@ def parse_change(raw, where=""):
             change[field], bad = collection_keys(field, raw[field])
             problems += [bad] if bad else []
     if not change:
-        problems.append("no change: give collection, add_collection, remove_collection, tags or add_tags")
+        problems.append("no change: give collection, add_collection, remove_collection, tags, add_tags or remove_tags")
     if "collection" in change and ("add_collection" in change or "remove_collection" in change):
         problems.append("collection replaces, add_collection / remove_collection edit: give one or the other")
-    if "tags" in change and "add_tags" in change:
-        problems.append("tags replaces, add_tags adds: give one or the other")
+    if "tags" in change and ("add_tags" in change or "remove_tags" in change):
+        problems.append("tags replaces, add_tags / remove_tags edit: give one or the other")
     both = [k for k in change.get("add_collection", []) if k in change.get("remove_collection", [])]
+    both += [t["tag"] for t in change.get("add_tags", []) if t["tag"] in change.get("remove_tags", [])]
     if both:
         problems.append(f"added and removed at once: {', '.join(both)}")
     return change, [where + p for p in problems]
@@ -112,28 +128,13 @@ def parse_change(raw, where=""):
 
 def from_batch(path):
     """The --batch file -> entries {key | cite, change, name}; invalid_changes when any of it is malformed."""
-    raw, problem = read_json(path, "--batch")
-    if problem:
-        raise invalid([problem])
-    if not isinstance(raw, list) or not raw:
-        raise invalid([f'--batch {path}: a non-empty JSON list of changes, each naming its item by "key" or "cite"'])
-    entries, problems = [], []
-    for i, e in enumerate(raw):
-        if not isinstance(e, dict):
-            problems.append(f'[{i}]: a change is an object {{"key" | "cite", ...}}')
-            continue
-        key, cite = e.get("key"), e.get("cite")
-        name = f"[{i}] (key {key})" if "key" in e else f"[{i}] (cite {cite})" if "cite" in e else f"[{i}]"
-        if ("key" in e) == ("cite" in e):
-            problems.append(f'{name}: name the item by "key" or by "cite", one of them')
-        elif "key" in e and not (isinstance(key, str) and cli.KEY_RE.match(key)):
-            problems.append(f'{name}: "key" is an 8-character item key')
-        elif "cite" in e and not (isinstance(cite, str) and cite.strip()):
-            problems.append(f'{name}: "cite" is a citationKey')
-        change, bad = parse_change(e, f"{name}: ")
+    found, problems = cli.batch_entries(path)
+    problems = [f"--batch {p}" if p.startswith(str(path)) else p for p in problems]
+    entries = []
+    for b in found:
+        change, bad = parse_change(b["entry"], f"{b['where']}: ")
         problems += bad
-        entries.append({"key": key if "key" in e else None, "cite": cite.strip() if isinstance(cite, str) else None,
-                        "change": change, "name": name})
+        entries.append({"key": b["key"], "cite": b["cite"], "change": change, "name": b["where"]})
     if problems:
         raise invalid(problems)
     return entries
@@ -151,6 +152,8 @@ def from_flags(args):
         if path:
             raw[field], problem = read_json(path, flag)
             problems += [problem] if problem else []
+    if args.remove_tags:
+        raw["remove_tags"] = args.remove_tags
     if problems:
         raise invalid(problems)
     change, problems = parse_change(raw)
@@ -218,8 +221,9 @@ def plan(data, change):
     if want is not None and set(want) != set(has):
         body["collections"], fields["collection"] = want, {"from": has, "to": want}
     tags = change.get("tags")
-    if "add_tags" in change:
-        tags = tag_list({**tag_map(data.get("tags")), **tag_map(change["add_tags"])})
+    if "add_tags" in change or "remove_tags" in change:
+        kept = {**tag_map(data.get("tags")), **tag_map(change.get("add_tags", []))}
+        tags = tag_list({t: k for t, k in kept.items() if t not in change.get("remove_tags", [])})
     if tags is not None:
         now, then = tag_map(data.get("tags")), tag_map(tags)
         added = {t: k for t, k in then.items() if now.get(t) != k}
@@ -306,19 +310,21 @@ def run(args):
 def main(argv=None):
     p = cli.parser(__doc__)
     cli.add_targets(p)
-    p.add_argument("--batch", metavar="CHANGES.json", help='a JSON list of changes, each naming its item by "key" or "cite"')
+    p.add_argument("--batch", metavar="CHANGES.jsonl", help='JSON lines, a change per line, each naming its item by "key" or "cite"')
     p.add_argument("--collection", metavar="KEY", help="the items' collections become exactly this one; 'none' clears them")
     p.add_argument("--add-collection", nargs="+", action="extend", default=[], metavar="KEY", help="add the items to these")
     p.add_argument("--remove-collection", nargs="+", action="extend", default=[], metavar="KEY",
                    help="take the items out of these")
     p.add_argument("--tags-file", metavar="TAGS.json", help="the items' complete tag set")
     p.add_argument("--add-tags-file", metavar="TAGS.json", help="tags to add to the ones each item has")
+    p.add_argument("--remove-tags", nargs="+", action="extend", default=[], metavar="NAME",
+                   help="take these tags off the items, keeping their others (each value one name, commas and all)")
     p.add_argument("--dry-run", action="store_true", help="show what would be written; write nothing")
     cli.add_base_url(p)
     args = cli.targets_of(p, p.parse_args(argv), required=False)
     named = args.key or args.cite
     flags = (args.collection is not None or args.add_collection or args.remove_collection or args.tags_file
-             or args.add_tags_file)
+             or args.add_tags_file or args.remove_tags)
     if args.batch and (named or flags):
         p.error("--batch names the items and their changes in the file: leave out --key, --cite and the change flags")
     if not args.batch and not named:

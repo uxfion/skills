@@ -150,6 +150,13 @@ def evidence(data):
             "itemType": data.get("itemType"), "venue": next((data[f] for f in VENUE_FIELDS if data.get(f)), None)}
 
 
+def file_titles(attachments):
+    """The titles of an item's files, as a judge compares them: its structured packages (zips under a PDF's title)
+    left out. attachments: rows with title and contentType (zotero.attachment_rows)."""
+    pdfs = {a.get("title") for a in attachments if a.get("contentType") == "application/pdf"}
+    return [a.get("title") for a in attachments if not (a.get("contentType") == PACKAGE and a.get("title") in pdfs)]
+
+
 def candidates(item, rows):
     """Library items that may be the paper an item describes -> (candidates, more). rows: [(key, data, matched_by)],
     matched_by "arxiv" for a preprint/published pair, else None. Each candidate is {key, **evidence, similarity,

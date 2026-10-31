@@ -45,9 +45,16 @@ class FileAndTag(unittest.TestCase):
     def run_(self, *argv, base_url=None, config=None):
         return call(file_and_tag, *argv, "--base-url", base_url or self.zot.base_url, config=config or self.config)
 
-    def file(self, content, name="changes.json"):
+    def file(self, content, name="changes.jsonl"):
+        """A batch (name *.jsonl: a JSON line per entry), a tag list file (*.json), or the text given."""
         path = self.tmp / name
-        path.write_text(content if isinstance(content, str) else json.dumps(content, ensure_ascii=False), encoding="utf-8")
+        if isinstance(content, str):
+            text = content
+        elif name.endswith(".jsonl"):
+            text = "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in content)
+        else:
+            text = json.dumps(content, ensure_ascii=False)
+        path.write_text(text, encoding="utf-8")
         return path
 
     def posts(self):
@@ -133,6 +140,29 @@ class FileAndTag(unittest.TestCase):
         self.assertEqual((r.lines[0]["tags_added"], r.lines[0]["tags_removed"]),
                          ([{"tag": "CVPR", "type": 1}], [{"tag": "GAN", "type": 0}]))
 
+    def test_remove_tags_by_name_keeps_the_others(self):
+        self.zot.data(I1)["tags"] = [{"tag": "GAN", "type": 0}, {"tag": "Deep learning, theory", "type": 1},
+                                     {"tag": "to read", "type": 0}]
+        r = self.run_("--key", I1, I2, "--remove-tags", "Deep learning, theory", "--remove-tags", "to read", "absent")
+        self.assertEqual(r.code, 0, r)
+        self.assertEqual(r.lines[0]["tags_removed"], [{"tag": "Deep learning, theory", "type": 1}, {"tag": "to read", "type": 0}],
+                         "each value is one name, its comma kept; the type does not matter")
+        self.assertNotIn("tags_added", r.lines[0])
+        self.assertEqual(self.tags(I1), [{"tag": "GAN", "type": 0}])
+        self.assertEqual((r.lines[1]["key"], r.lines[1]["code"], r.lines[1]["reason"]), (I2, "skipped", "unchanged"))
+        self.assertEqual(self.posts(), [[{"key": I1, "version": 10, "tags": [{"tag": "GAN", "type": 0}]}]])
+
+        r = self.run_("--batch", self.file([{"cite": "zhu2017unpaired", "add_tags": ["CVPR"], "remove_tags": "GAN"},
+                                            {"key": I2, "remove_tags": [], "add_collection": CX}]))
+        self.assertEqual(r.code, 0, r)
+        self.assertEqual((r.lines[0]["tags_added"], r.lines[0]["tags_removed"]),
+                         ([{"tag": "CVPR", "type": 0}], [{"tag": "GAN", "type": 0}]))
+        self.assertEqual((self.tags(I1), self.colls(I2), self.tags(I2)), ([{"tag": "CVPR", "type": 0}], [CA, CX], []))
+
+        self.zot.on_write = lambda it: it["data"].update(tags=[{"tag": "CVPR", "type": 0}])
+        r = self.run_("--key", I1, "--remove-tags", "CVPR")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["now"]), (1, "readback_mismatch", {"tags": [{"tag": "CVPR", "type": 0}]}))
+
     # ---- checks before anything is written -----------------------------------------------------------------------
 
     def test_not_a_parent_and_not_found_write_nothing(self):
@@ -209,9 +239,13 @@ class FileAndTag(unittest.TestCase):
                         [{"key": I1, "collection": "bad"}],
                         [{"key": I1, "tags": [{"tag": "x", "type": 2}]}],
                         [{"key": I1, "tags": "GAN"}],
+                        [{"key": I1, "tags": ["x"], "remove_tags": ["GAN"]}],
+                        [{"key": I1, "add_tags": ["GAN"], "remove_tags": "GAN"}],
+                        [{"key": I1, "remove_tags": [{"tag": "GAN"}]}],
+                        [{"key": I1, "remove_tags": ["GAN", " "]}],
                         ["ITEM0001"],
                         [],
-                        {"key": I1, "tags": []},                                           # not a list
+                        [[{"key": I1, "tags": []}]],                                       # a line that is not an object
                         "[{"):                                                             # not JSON
             r = self.run_("--batch", self.file(entries))
             self.assertEqual((r.code, r.lines[0]["code"], len(r.lines)), (1, "invalid_changes", 1), entries)
@@ -226,8 +260,8 @@ class FileAndTag(unittest.TestCase):
                                             {"key": I2, "tags": [{"tag": "t", "type": 3}]}]))
         detail = r.lines[0]["detail"]
         self.assertEqual(len(detail), 2, detail)
-        self.assertTrue(detail[0].startswith("[1] (cite x): collection"), detail)
-        self.assertTrue(detail[1].startswith(f"[2] (key {I2}): tags"), detail)
+        self.assertTrue(detail[0].startswith("line 2 (cite x): collection"), detail)
+        self.assertTrue(detail[1].startswith(f"line 3 (key {I2}): tags"), detail)
 
     def test_two_entries_for_one_item(self):
         for entries in ([{"cite": "zhu2017unpaired", "add_collection": CB}, {"cite": "zhu2017unpaired", "tags": []}],
@@ -257,6 +291,7 @@ class FileAndTag(unittest.TestCase):
     def test_usage_errors(self):
         batch = self.file([{"key": I1, "add_collection": CB}])
         self.assertEqual(self.run_("--batch", batch, "--remove-collection", CB).code, 2)
+        self.assertEqual(self.run_("--batch", batch, "--remove-tags", "GAN").code, 2)
         self.assertEqual(self.run_("--batch", batch, "--key", I1).code, 2)
         self.assertEqual(self.run_("--add-collection", CB).code, 2)
         self.assertEqual(self.run_("--key", "short", "--add-collection", CB).code, 2)
