@@ -59,7 +59,7 @@ Every run, a test run included, follows the SKILL.md: at each stop, read the ste
 
 ## 4. Writing for agents
 
-The standard is the writing-for-agents skill *(mattpocock)*; read it before writing a SKILL.md, a reference, AGENTS.md or a brief. Its levers, in short:
+The standard is the writing-for-agents skill *(mattpocock)*, and every document follows it, whoever reads it: what makes a text predictable for an agent makes it readable for the user. A design is written by it from the start; when the development is done, the skill is invoked once more for a full pass over everything the work wrote. The agent settles the wording itself, with the advisor's review, and reports the result in brief; instruction text below is the exception. Documents here include, but are not limited to: a SKILL.md and its references, a script's `--help` and the messages and log lines it prints, code and config comments, AGENTS.md, CLAUDE.md and the other global instructions, briefs, memory, and what the user reads (README, specs, issues, reports). The skill's levers, in short:
 - **Context pointers.** An always-loaded line (a skill's description, an AGENTS.md line) names material and the condition to reach it; its wording decides whether the agent reaches it. Front-load the leading word; one trigger per branch.
 - **Two loads.** Always-loaded text costs every turn; what only some branches need goes behind a pointer (progressive disclosure). A concept's definition, rules and caveats sit together.
 - **Steps end on completion criteria**, clear enough to tell done from not done and demanding enough to force the legwork.
@@ -70,7 +70,7 @@ The standard is the writing-for-agents skill *(mattpocock)*; read it before writ
 
 **Language by reader.** What agents read (SKILL.md and its references, AGENTS.md, briefs, memory) is English, quoting the user verbatim in Chinese; what the user reads (README, specs, issues, reports) is Chinese.
 
-**Changing instruction text** — AGENTS.md, `agent-instructions/`, a SKILL.md — goes through a review loop, however small the change: read it sentence by sentence with a Chinese rendering and name the defect exactly; hunt double readings in every copy the text lands in; write from the user's points in their own words, not from the last draft; fix at the point of use, not with a patch sentence; have the advisor review the draft; show the user one change at a time, **原文** and **修改建议** verbatim with their Chinese, then the reason, and wait. The global instructions change only with the user's consent.
+**Changing instruction text** — AGENTS.md and `agent-instructions/` — goes through a review loop, however small the change: read it sentence by sentence with a Chinese rendering and name the defect exactly; hunt double readings in every copy the text lands in; write from the user's points in their own words, not from the last draft; fix at the point of use, not with a patch sentence; have the advisor review the draft; show the user one change at a time, **原文** and **修改建议** verbatim with their Chinese, then the reason, and wait. The global instructions change only with the user's consent.
 
 ## 5. Deciding with the user
 
@@ -129,6 +129,7 @@ Verbatim, dated, by section, with the scene in a few words. For checking a princ
 - 2026-09-24: 「面向用户、需要用户真的自己去读的内容就用中文；面向 Agent 或者 harness、让 Agent 读的，要保持英文」
 - 2026-09-26, the review loop: 「其实刚才那一套工作流其实是非常重要的，你需要总结一下，然后记下来」; 2026-10-20, four amended drafts: 「写得乱七八糟的…不要在原有的基础上改」; on showing changes: 「你一个一个问题问我然后要展现原本是什么，修改建议成什么」
 - 2026-10-30: 「扩展到所有的项目，就是进入到 global instruction，还是需要谨慎考虑的，而且需要经得我的同意」
+- 2026-10-31, vllm-serve's SKILL.md changes shown one at a time, after two of eight: 「我自己看不过来，你按照Writing for agent skill 里面的原则自己决定吧，然后后面统一都要调用 writing for agent skill 优化一遍」; then 「writing-for-agents skill实际上在对于任何面向agents的所有内容的时候都优化。一开始设计也是按照他的思路来，然后开发完成后再统一调用一遍全量优化」, 「不仅仅针对SKILL.md 和它的 references」, 「甚至包括global instruction里的内容，一个CLAUDE.md AGENTS.md 面向agent的文档，更应该遵守这个，另外我自己读的可能很少，同样也要遵守，所以几乎全部文档都应该遵守，这样写出来的也更可读，一切面向agent的东西，还有全部的文档，都要这样走这个流程」; on my first wording, a list of document kinds: 「你这样一个个列举会不会感觉很烦，可以写的大一点，也没关系」, then 「可以在后面加包括但不限于，并列上你刚才举例的，因为我怕有时候他不会认为这种场景，所以列出来还是保留吧，但是可以放在后面」
 
 **§5 Deciding with the user**
 - 2026-10-13, a redesign presented as a mechanism table with a line budget: 「这个好像不是我定的吧，没有这些具体的硬性规定，只需要你根据writing for agents来就行了… 像你讲的段机制这些，我根本就不了解。你应该讲实际的例子，比如应该怎么过之类的，或者说整体的设计思路、流程，或者是大致的结构… 需要我去判断决定了，你一条一条问我。」
