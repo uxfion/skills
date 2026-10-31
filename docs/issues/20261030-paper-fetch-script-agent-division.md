@@ -27,7 +27,7 @@
 
 **方向（用户定的）。** 脚本只做重复、确定的事；差异化、不确定、没见过的，一律交给 subagent（浏览器操作和小判断用 sonnet）。脚本在把握的边界停下，带着证据交出去，不再加匹配规则。三个 skill 都按这个原则从顶层重新划分工，并且全面查一遍迁移有没有丢东西。
 
-相关：`20261030-paper-to-zotero-short-title-cannot-judge.md`（它提的“加 DOI 规则”方向已被这里取代），`20261030-paper-to-zotero-proxy-login-not-a-gate.md`。
+相关：`archive/20261030-paper-to-zotero-short-title-cannot-judge-fixed.md`（它提的“加 DOI 规则”方向已被这里取代），`archive/20261030-paper-to-zotero-proxy-login-not-a-gate-fixed.md`。
 
 ## 设计（2026-10-31）
 

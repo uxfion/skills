@@ -291,10 +291,10 @@
 ## 10. issue 去向
 
 - `20261030-paper-fetch-script-agent-division.md`：由这份 spec 解决。
-- `20261030-paper-to-zotero-short-title-cannot-judge.md`：§3.1 解决。
-- `20261030-paper-to-zotero-proxy-login-not-a-gate.md`：§3.3 解决，它原来提的识别密码框这个方向不采纳。
-- `20261030-paper-to-zotero-cvf-link-missing.md`：CVF 写进 publishers.md，作为带日期的提示，由 agent 去找，不在 fulltext_links 里写某一家的代码。
-- `20261020-paper-to-zotero-cross-origin-frames.md`、`20261021-paper-to-zotero-ieee-akamai-rate-limit.md`：停下的页面在新流程里有 paper agent 接手；第一期实测之后再看要不要关。
+- `archive/20261030-paper-to-zotero-short-title-cannot-judge-fixed.md`：§3.1 解决（2026-10-31 已关）。
+- `archive/20261030-paper-to-zotero-proxy-login-not-a-gate-fixed.md`：§3.3 解决，它原来提的识别密码框这个方向不采纳（2026-10-31 已关）。
+- `archive/20261030-paper-to-zotero-cvf-link-missing-fixed.md`：CVF 写进 publishers.md，作为带日期的提示，由 agent 去找，不在 fulltext_links 里写某一家的代码（2026-10-31 已关）。
+- `archive/20261020-paper-to-zotero-cross-origin-frames-fixed.md`、`archive/20261021-paper-to-zotero-ieee-akamai-rate-limit-fixed.md`：停下的页面在新流程里有 paper agent 接手；第一期实测之后关了（2026-10-31），两处网站行为写进 publishers.md，作为带日期的提示。
 
 ## 11. 审查意见怎么并入的
 

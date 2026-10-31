@@ -1,6 +1,6 @@
 # paper-to-zotero：代码一路复制、各自走样，需要从顶层重新设计
 
-> 已解决（2026-10-20）：按 [重构 spec](../../specs/20261020-paper-to-zotero-restructure-spec.md) 分三期实现——`8b77e53`（共享库和整理脚本）、`85f6eff`（导入流水线）、`d889001`（按路线取全文）——代码审查的修正 `907a4a5`，真实页面测试后的修正 `4c791dc`，已推送并从 GitHub 重装。结果：脚本约 12k 行减到 7.8k 行；22 个脚本都导入 `scripts/p2zlib/`，互不导入；测试共用一个假 Zotero（`tests/fake_zotero.py`）。余下的一处另记为 [跨域 iframe](../20261020-paper-to-zotero-cross-origin-frames.md)。
+> 已解决（2026-10-20）：按 [重构 spec](../../specs/20261020-paper-to-zotero-restructure-spec.md) 分三期实现——`8b77e53`（共享库和整理脚本）、`85f6eff`（导入流水线）、`d889001`（按路线取全文）——代码审查的修正 `907a4a5`，真实页面测试后的修正 `4c791dc`，已推送并从 GitHub 重装。结果：脚本约 12k 行减到 7.8k 行；22 个脚本都导入 `scripts/p2zlib/`，互不导入；测试共用一个假 Zotero（`tests/fake_zotero.py`）。余下的一处另记为 [跨域 iframe](20261020-paper-to-zotero-cross-origin-frames-fixed.md)。
 
 - 来源：用户 · 2026-10-20
 - 现场：讨论最初的需求时（Zotero 里每篇 PDF 有一份结构化版本，任何项目的 agent 都能直接取来读），先盘点了两个 skill 的结构。paddleocr 是新重写的，5 个文件，分工清楚。paper-to-zotero 有 21 个脚本，约 12k 行，测试约 6.9k 行。用 ast 把每个脚本的顶层函数、类、常量取出来，按名字跨文件比对（同名、出现在 ≥2 个脚本里的算一组，按规范化后的语法树判断写法是否相同），结果是：

@@ -1,5 +1,8 @@
 # paper-to-zotero: the check cannot judge a one-word title, even with the DOI on page 1
 
+> 已解决（2026-10-31）：spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` §3.1。核对拿不准的文件不再当错文件，写 `file` 交接给这篇的 paper agent，看前两页后答复；这里提的“加 DOI 规则”方向没有采纳。第一期验收实测的 Mask R-CNN 就走的这条路。
+
+
 Logged 2026-10-30, while saving the baseline for the split (spec `20261030-paper-to-zotero-split-spec.md` §10 step 0). After the split this belongs to paper-fetch's `verify`.
 
 **What was run.** `p2z.py fetch --pass 2` on `he2020mask` (Mask R-CNN, IEEE TPAMI, DOI `10.1109/TPAMI.2018.2844175`). The publisher route downloaded IEEE's own PDF through the institution's proxy.
