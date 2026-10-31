@@ -33,10 +33,10 @@ no record in the discovery search — it judges nothing: it writes a `page` hand
 that route, and the walk goes on with the others. The paper's agent works the page and hands back with
 `--start <url> --session pf-<slug>`, or answers with a verdict (pf.py answer; run.VERDICTS). The bulk walk skips a
 paper with an open page or file handoff, and a paper an answer holds on its route this pass (blocked, gate_timeout);
-a run with --session or --start does not skip its paper. When the walk ends, each filed file without a label gets a
-`label` handoff holding the host's word recorded at download — the page's title, metadata and words around the
-paper's title, the link taken, arXiv's comment on the version — then the file's (page 1). The browser itself failing
-(OpenCLI's BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs: pflib/run.py; pf.py todo lists
+a run with --session or --start does not skip its paper. When the command ends, the fold gives each filed file
+without a label a `label` handoff (settle.py) holding the host's word recorded at download — the page's title,
+metadata and words around the paper's title, the link taken, arXiv's comment on the version — then the file's (page
+1). The browser itself failing (OpenCLI's BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs: pflib/run.py; pf.py todo lists
 them, pf.py answer answers them.
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, held, wrong_file,
@@ -48,11 +48,12 @@ Before each candidate the result's file is looked for (the watcher may have file
 command scans Downloads itself). Requests to one host keep their gap (web.GAPS; full text through the institution
 15 s), in the machine's pace file.
 
-stdout: the try and skip lines as they happen, one short line per handoff ({handoff, slug, kind, taker, path}), then
-{"summary": {results, satisfied, handoffs: {kind: n}, routes}}. When it ends it folds the results it was given (and
-any other its scan of Downloads filed a file for) into their files and outcome, as settle.py does.
-Exit 0 = the pass went through with nothing open; 1 = handoffs are open for the agent (or the browser failed); 2 =
-cannot run (no opencli, results of two directories, no pdftotext).
+stdout: the try and skip lines as they happen, one short line per page, file or browser_down handoff ({handoff, slug,
+kind, taker, path}), then {"summary": {results, satisfied, handoffs: {kind: n}, routes}}: every open handoff of these
+results, label handoffs included (pf.py todo lists them; --start prints no summary). When it ends it folds the
+results it was given (and any other its scan of Downloads filed a file for) into their files and outcome, as
+settle.py does. Exit 0 = the pass went through with nothing open; 1 = handoffs are open for the agent (or the browser
+failed); 2 = cannot run (no opencli, results of two directories, no pdftotext).
 
 Examples:
   uv run scripts/fetch.py --pass 1 <dir>/results/*.json

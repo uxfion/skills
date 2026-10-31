@@ -9,12 +9,17 @@ fetch, claim and wait fold the results they touched when they end; run this afte
 file (a `claimed` event in fetch.jsonl), or to see the state of every result. Each fold starts from the whole log,
 so whoever folds last is right.
 
-files: one entry per file beside the result {name, md5, kind, label, check, accepted_reason?, url, evidence}. The
-label is the last `label` event for that file (claim.py --label), else Unknown-<Source> (Snapshot-<Source> for a
-page) from where it came. check: ok (the check passed), accepted (claim.py --accept: the agent read it), cannot_judge
-(a stub result: nothing to check against). outcome: {status: got | waiting | not_got, tried: [hosts], stop}: got when
-a file of the paper is there (a supplement alone is not), waiting when the last thing fetch did for it was to stop at
-a gate in front of the user, else not_got.
+Before folding, each filed file without a label (a snapshot needs none) gets a `label` handoff, unless one is open
+for it: whichever command filed the file, a judge is asked (pflib/run.py, Handoffs).
+
+files: one entry per file beside the result {name, md5, kind, label, check, accepted_reason?, url, evidence}, every
+version side by side. The label is the last `label` event for that file's md5 (pf.py answer), else Unknown-<Source>
+(Snapshot-<Source> for a page) from where it came. check: ok (the check passed), accepted (an agent accepted it on a
+`file` handoff, its reason in accepted_reason), unconfirmed (answered unknown: filed, but the paper still goes on;
+withdrawn when a confirmed file comes), cannot_judge (a stub result: nothing to check against). outcome: {status,
+waiting_on?, tried: [hosts], last}: status got when a file of the paper is there (a supplement alone is not),
+waiting when none is and a page or file handoff of the paper is open, else not_got; waiting_on the kinds of its open
+handoffs; last its last try, handoff or answer {event, route, result, url}.
 
 stdout: one line per result {slug, code ok, status, files: [label titles], changed}, then {"summary"}.
 Exit 0 = every result folded; 1 = a file named is not a result.

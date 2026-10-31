@@ -7,7 +7,7 @@
 
 The file is the result's own (<dir>/results/<slug>.pdf, .accepted.pdf, .preprint.pdf, .supplement.pdf or .html),
 or --file F for one result. claim.py runs this check itself; this shows why a file passed or not. A file the check
-refuses that is the paper after all: claim.py --accept FILE --slug S --reason R.
+could not be sure of is held with a `file` handoff, which its agent answers (pf.py answer).
 
 stdout: one line per result {slug, code, file, kind, md5, evidence, hint?}, then {"summary"}; the codes and the
 evidence are below. no_file: the result has no file yet. Exit 0 = every file passes; 1 = not; 2 = no pdftotext.

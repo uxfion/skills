@@ -30,30 +30,36 @@ A result file, results/<slug>.json, one JSON object:
   files                 [{name, md5, kind, label: {title, version, source, detail, by, why}, check: ok | accepted |
                         unconfirmed | cannot_judge, accepted_reason?, url, evidence}]: every file of the paper, its
                         versions side by side; the paper's file is the one whose label is the wanted version
-  outcome               {status: got | waiting | not_got, waiting_on?: [handoff kinds], tried: [hosts],
-                        last: {event, route, result, url} | null}
+  outcome               {status, waiting_on?: [kinds of the paper's open handoffs: page, file, label], tried: [hosts
+                        tried], last: {event, route, result, url} | null (the last try, handoff or answer)}; status:
+                        got (a file of the paper is there, an unconfirmed one included; a supplement alone is not),
+                        waiting (none yet, and a page or file handoff is open: an agent may still bring one), not_got
+  enrichment            {incomplete: [sources]}: identify's lookups (OpenAlex, Europe PMC) that did not answer
   warnings              [str]: what identify noticed (an erratum-like title, a date filled in from another field)
   settled_at            when files and outcome were last folded
-A stub result (identify could not identify the paper: a page with no metadata) holds only slug, request, warnings;
-its files are checked against nothing: cannot_judge.
+A stub result (identify could not identify the paper: a page with no metadata) holds only slug, slug_given, cite?,
+wanted, request, warnings; its files are checked against nothing: cannot_judge.
 
 Writers: identify writes all but files and outcome; settle() writes those two and settled_at, from fetch.jsonl, every
-time from the whole log (so whoever folds last is right). fetch, wait, claim and answer fold the results they touched
+time from the whole log (so whoever folds last is right), and first opens a `label` handoff for each filed file
+without a label (ask_labels), whichever command filed it. fetch, wait, claim and answer fold the results they touched
 when they end; settle.py does it on its own, after the watcher filed something. The watcher and agents only append
 events, through scripts.
 
 Handoffs. Where a script reaches the edge of what it can be certain of, it writes a handoff: handoffs/<id>.json
-{id, kind, taker, slug, pass, route, url, file, md5, code, paper: {title, doi, wanted}, evidence: {files, ...},
-answers, at} and a `handoff` event. Kinds (HANDOFF_TAKERS):
+{id, kind, taker, slug, pass, route, url, file, md5, code, note, paper: {title, doi, wanted}, evidence: {files,
+...}, answers, at} and a `handoff` event. The evidence's long texts (a file's page excerpts, a page's words) and, for
+a handoff about a PDF (file, label, left), pages 1-2 as images (pdftoppm) are files in handoffs/<id>/, listed in
+evidence.files; the short facts stay in the record. Kinds (HANDOFF_TAKERS):
   page          a page fetch could not get a PDF from (a sign-in, a challenge, no PDF link): the paper's agent works
                 it, then hands back with `fetch --start <url> --session pf-<slug>`, or answers with a verdict
   file          a file the check could not be certain of, held in unverified/: accept [--label] | refuse | unknown
   label         a filed file whose version is not settled yet: label (with --label, --why) | unknown
   left          a download in Downloads that matched no paper, or several: claim (with --slug) | not_ours
   browser_down  the browser itself failed (OpenCLI's BROWSER_CONNECT): resolved
-A handoff is open until answered (answer()), and a page or file handoff also closes once a file is filed for its
-paper; a label handoff once its file has a label; a left one once its file is filed. A paper with an open page or
-file handoff is skipped by the bulk walk; its own agent's runs (fetch --session, --start) are not.
+A handoff is open until answered (answer()); a page or file handoff also closes once a confirmed file is filed for
+its paper; a label handoff once its file has a label or is withdrawn; a left one once its file is filed. A paper with
+an open page or file handoff is skipped by the bulk walk; its own agent's runs (fetch --session, --start) are not.
 Answers that hold a paper on its route until the next pass: HOLD. Every other verdict, refuse and unknown let it go on.
 
 Events, each with `at`:
@@ -122,7 +128,7 @@ def now_iso():
 class Work:
     def __init__(self, root):
         self.root = Path(root).expanduser().absolute()
-        for name in ("results", "links", "handoffs", "inbox", "stray", "unverified", "scratch"):
+        for name in ("results", "links", "handoffs", "inbox", "unverified", "scratch"):
             setattr(self, name, self.root / name)
         self.started, self.log, self.settings_path = self.root / ".started", self.root / "fetch.jsonl", self.root / "run.json"
 
@@ -625,7 +631,7 @@ def handoff(work, kind, res=None, *, slug=None, pass_=None, route=None, url=None
         except FileExistsError:
             n += 1
     os.close(fd)
-    files = evidence_files(work.handoffs / hid, kind, file, evidence or {})
+    files = evidence_files(work.handoffs / hid, file, evidence or {})
     record = {"id": hid, "kind": kind, "taker": HANDOFF_TAKERS[kind], "slug": slug, "pass": pass_, "route": route,
               "url": url, "file": str(file) if file else None, "md5": md5, "code": code, "note": note,
               "paper": {"title": res.subject.title, "doi": res.subject.doi, "wanted": res.wanted} if res else None,
@@ -640,9 +646,9 @@ def handoff(work, kind, res=None, *, slug=None, pass_=None, route=None, url=None
     return record
 
 
-def evidence_files(folder, kind, file, evidence):
+def evidence_files(folder, file, evidence):
     """Write a handoff's evidence where an agent reads it rather than in the conversation -> [paths]: the file's page
-    texts and, with poppler's pdftoppm, pages 1-2 as images; a page's words."""
+    texts and, for a PDF with poppler's pdftoppm, pages 1-2 as images; a page's words."""
     folder.mkdir(parents=True, exist_ok=True)
     out = []
     texts = dict(evidence.get("file") or {})
@@ -653,7 +659,7 @@ def evidence_files(folder, kind, file, evidence):
             path = folder / f"{name}.txt"
             path.write_text(texts[name], encoding="utf-8")
             out.append(str(path))
-    if kind == "file" and file and str(file).lower().endswith(".pdf") and shutil.which("pdftoppm"):
+    if file and str(file).lower().endswith(".pdf") and shutil.which("pdftoppm"):
         try:
             subprocess.run(["pdftoppm", "-r", str(PAGE_IMAGES_DPI), "-f", "1", "-l", "2", "-png", str(file),
                             str(folder / "page")], capture_output=True, timeout=60)
@@ -775,7 +781,7 @@ def folded(work, res, events):
     waiting_on = sorted({h["kind"] for h in open_handoffs(work, events, res.slug)})
     tries = [e for e in mine if e.get("event") == "try"]
     tried = list(dict.fromkeys(paper.host_of(e["url"]) for e in tries if e.get("url")))
-    last = next((e for e in reversed(mine) if e.get("event") in ("try", "stop", "handoff", "answer")), None)
+    last = next((e for e in reversed(mine) if e.get("event") in ("try", "handoff", "answer")), None)
     status = "got" if got else "waiting" if {"page", "file"} & set(waiting_on) else "not_got"  # a label brings no file
     return files, {"status": status, **({"waiting_on": waiting_on} if waiting_on else {}), "tried": tried,
                    "last": {"event": last["event"], "route": last.get("route"),
@@ -842,7 +848,7 @@ def wanted(work, results):
     """The results a download may be for: fetch was asked for their file (a pass, try or handoff event names them)
     and they are not satisfied yet. A paper whose file nobody asked for (the caller has it already) is never matched."""
     events = work.events()
-    asked = {e.get("slug") for e in events if e.get("event") in ("pass", "try", "stop", "handoff")}
+    asked = {e.get("slug") for e in events if e.get("event") in ("pass", "try", "handoff")}
     return [r for r in results if r.slug in asked and not satisfied(work, r, events)]
 
 
