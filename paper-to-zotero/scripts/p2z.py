@@ -24,11 +24,11 @@ settles it:
                   on the user's word)
   published_versions  a preprint item whose result lists published versions: identify --redraft and draft_item
                   --redraft, or keep_preprint with the reason
-  checks, warnings    check_item's flags (run.check_flags) and draft_item's warnings that `accepted` does not hold:
-                  revise the item, or accept them
+  checks, warnings    check_item's flags (mapped:publicationTitle, missing_minimum:date, ...) and draft_item's
+                  warnings that `accepted` does not hold: revise the item, or accept them
   unanswered      sources that did not answer: prepare (for versions, identify) again later
-Then {"summary"}. --dry-run and --base-url go to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a script could not go on (the next steps did not
-run).
+Then {"summary"}. --dry-run and --base-url go to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a
+script could not go on (the next steps did not run).
 """
 import json
 import os

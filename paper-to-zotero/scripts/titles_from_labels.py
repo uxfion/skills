@@ -9,12 +9,12 @@
   uv run scripts/update_item.py --batch <scratch>/paper-to-zotero/titles.jsonl --dry-run
 
 DIR is paper-fetch's directory: its results/*.json list each file of a paper with its md5 and label. A file's
-attachment is the one in the library holding the same md5, the same bytes (zotero.Zotero.files_by_md5; the newest,
-none in the trash). A file is labelled once a label was given: a label `by` settle is paper-fetch's placeholder
-(Unknown-<Source>) while it still asks for one, and is never written over a title; a snapshot's counts, since
-paper-fetch asks none for it. Each attachment whose title is not its file's label gets one line in -o FILE: {key:
-the attachment, set: {title: the label}, from: its title now, why, by, citationKey: its parent's}. update_item
---batch writes them, each PDF's structured package along with it. Nothing is written to Zotero here.
+attachment is the one in the library holding the same md5, the same bytes (the newest, none in the trash). Only a
+given label counts: one `by` settle is paper-fetch's placeholder (Unknown-<Source>) while it still asks for a label,
+and is never written over a title — except a snapshot's, since paper-fetch asks none for it. Each attachment whose
+title is not its file's label gets one line in -o FILE: {key: the attachment, set: {title: the label}, from: its
+title now, why, by, citationKey: its parent's}. update_item --batch writes them, each PDF's structured package along
+with it. Nothing is written to Zotero here.
 
 stdout: one line per file {slug, file, code, ...}, then {"summary": {total, ok, skipped, failed, batch, lines}}
 (lines: how many FILE holds).

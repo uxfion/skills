@@ -9,9 +9,9 @@
   uv run scripts/update_item.py --batch <scratch>/paper-to-zotero/fields.jsonl --dry-run
 
 Each RESULT (paper-fetch's result file, identified with --slug <citation key>) names its library item by citation
-key: its `cite`, else its slug. The result is drafted into an item by draft_item.py's own conversion (item_of:
-Zotero's CSL tables and draft_item's rules), and each drafted field goes to the library item's type under its own
-name or its base field's (a conferencePaper's proceedingsTitle -> a journalArticle's publicationTitle). A field the
+key: its `cite`, else its slug. The result is drafted into an item by draft_item.py's own conversion (Zotero's CSL
+tables and draft_item's rules), and each drafted field goes to the library item's type under its own name or its
+base field's (a conferencePaper's proceedingsTitle -> a journalArticle's publicationTitle). A field the
 library item has empty and the draft has a value for is to fill; a value is never overwritten, and creators, tags,
 collections, itemType and extra are never listed. Each item with something to fill gets one line in -o FILE: {cite,
 set: {field: value}, from: the result's path}; update_item --batch writes them. Nothing is written to Zotero here.

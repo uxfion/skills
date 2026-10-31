@@ -6,15 +6,15 @@
 """Identify papers without metadata from their PDF, with Zotero's recognizer: the record's `saved` and `recognize`.
 
 A record here is one whose result (`fetched`) is a stub: paper-fetch found no metadata (no CSL) to check the file
-against, and filed the PDF as cannot_judge (draft_item writes such a record: {"fetched": <the result's path>}). The PDF sent is the stub's cannot_judge PDF that is not a supplement; of several,
-the first, the others named on the line (`others`). It goes to Zotero as Zotero's browser connector saves a PDF
-(/connector/saveStandaloneAttachment), titled with the file's label: a standalone attachment in the collection Zotero
-has selected, which Zotero's recognizer then tries to identify. Its url, which Zotero requires and names the file after,
-is the file's url, else the result's request as a DOI link or a web address, else the PDF's file:// address. The script
-finds the attachment by its md5, then waits up to --wait seconds for the recognizer to finish
-(/connector/getRecognizedItem, as the browser connector does). Once it has, the attachment's parent item is the answer
-(Zotero's own definition of the recognized item); only that attachment is looked at, never what else the library
-gains meanwhile.
+against, and filed the PDF as cannot_judge (draft_item writes such a record: {"fetched": <the result's path>}). The
+PDF sent is the stub's cannot_judge PDF that is not a supplement; of several, the first, the others named on the line
+(`others`). It goes to Zotero as Zotero's browser connector saves a PDF (/connector/saveStandaloneAttachment), titled
+with the file's label: a standalone attachment in the collection Zotero has selected, which Zotero's recognizer then
+tries to identify. Its url, which Zotero requires and names the file after, is the file's url, else the result's
+request as a DOI link or a web address, else the PDF's file:// address. The script finds the attachment by its md5,
+then waits up to --wait seconds for the recognizer to finish (/connector/getRecognizedItem, as the browser connector
+does). Once it has, the attachment's parent item is the answer (Zotero's own definition of the recognized item); only
+that attachment is looked at, never what else the library gains meanwhile.
   - A parent: the record's saved is {key, version, citationKey, created_at, via: recognizer}. The recognizer renames
     the attachment's file and sets its title (to "PDF"): the title goes back to the label, the file keeps its new
     name. The line prints the item's fields and the PDF's path, for a judge to compare with the PDF's first page.
@@ -44,8 +44,9 @@ stdout: one line per record {slug, code, ...}, then {"summary"}.
   not_a_stub      the result has metadata: draft_item.py drafts the item, p2z.py save attaches its files
   no_file         the stub has no PDF filed cannot_judge: paper-fetch has not got it yet
   file_changed    the PDF's md5 is not the one in the result: settle the result again, then rerun
-  in_library      the PDF is in Zotero already {attachment, parent, parent_title, citationKey; parent null: a
-                  standalone copy}: the paper is there, nothing to import; nothing sent
+  in_library      the PDF is in Zotero already {attachment, parent, parent_title, citationKey}; nothing sent. Under
+                  `parent`, the paper is there, nothing to import; parent null, a stray standalone copy: once it is
+                  in the trash (trash_item.py), rerun
   no_result | connector_failed | readback_mismatch | unexpected_response | not_found | write_denied |
   write_failed    see the hint
 Exit 0 = every record recognized or skipped; 1 = not; 2 = cannot go on (Zotero not running, local API off, no key, the

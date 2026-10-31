@@ -3,15 +3,15 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Draft records from paper-fetch's result files: each record's Zotero item, made from the result's CSL by Zotero's
-own CSL tables (its schema) plus the rules below.
+"""Draft a record from each of paper-fetch's result files: its Zotero item, made from the result's CSL.
 
   uv run scripts/draft_item.py <scratch>/paper-to-zotero/fetch/results/*.json
   uv run scripts/draft_item.py --redraft <scratch>/paper-to-zotero/fetch/results/<slug>.json
 
-The results are the arguments, or lines on stdin. A record is <records>/<slug>.json, under its result's slug; the
-records directory is -o, by default records/ beside the result's fetch/ (an import's layout: <scratch>/paper-to-
-zotero/{fetch,records}/). Drafting writes:
+The item is made by Zotero's own CSL tables (its schema) plus the rules below. The results are the arguments, or
+lines on stdin. A record is <records>/<slug>.json, under its result's slug; the records directory is -o, by default
+records/ beside the result's fetch/ (an import's layout: <scratch>/paper-to-zotero/{fetch,records}/). Drafting
+writes:
   fetched      the result file's absolute path
   item         the Zotero item to create; the agent may revise it
   citationKey  the key given (the result's `cite`, verbatim: a .bib key); otherwise Better BibTeX makes the key

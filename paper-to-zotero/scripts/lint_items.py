@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Check existing Zotero items for problems worth tidying, read-only: duplicates, citation keys, stray webpages, attachment titles, bad fields.
+"""Check Zotero items for problems worth tidying, read-only: duplicates, citation keys, stray webpages, attachment titles, fields.
 
 The whole library is read once (every page of /items: items, attachments and notes; trashed ones dropped), so
 duplicates and citation-key clashes are found across the library whatever the scope. The scope only chooses which
@@ -12,30 +12,31 @@ comma-separated), or nothing for every top-level item. Paths and --collection se
 
 Problem codes (each problem is {"code", ...}: a fact and its evidence; what it means is a judge's):
   duplicate_of            other items with the same DOI or arXiv id ({"keys", "by": doi | arxiv}; a doi.org url
-                          counts as the DOI): the same paper. By title ({"by": "title", "paper", "candidates", "more"?}):
-                          the items a Zotero quick search for the title would find (every word of one of
+                          counts as the DOI): the same paper. By title ({"by": "title", "paper", "candidates",
+                          "more"?}): the items a Zotero quick search for the title would find (every word of one of
                           paper.title_queries inside a word of their title, creator names or year), less those found
                           by DOI or arXiv id; ranked by paper.candidates as the import's lookup ranks its hits, each
                           {key, title, year, first_author, doi, arxiv, itemType, venue, similarity, attachments (their
-                          titles)}, 10 at most, `more` counting the rest; `paper` is this item's own evidence. A title confirms nothing: one paper
-                          twice, a preprint and its published version, or two papers alike
+                          titles)}, 10 at most, `more` counting the rest; `paper` is this item's own evidence. A title
+                          confirms nothing: one paper twice, a preprint and its published version, or two papers alike
   citation_key            {"problem": "missing"}; {"problem": "duplicate", "keys"}: the other items carrying the same
                           citationKey; {"problem": "tex_special", "suggested"}: a character TeX treats specially
                           (renaming a key breaks the user's \\cite{}: ask first)
   unfiled_webpage         a webpage item in no collection
   nonstandard_title       a PDF or HTML snapshot whose title is outside the scheme <Version>-<Source>-<detail>
-                          (paper.py; Zotero's "Full Text PDF", an older run's "Preprint (arXiv)"), or a snapshot in it
-                          without a source while its url's site has a name ({"why": "outside_scheme" | "no_source"}). The
-                          evidence to name it from, no name: {attachment, title, contentType, url, host, url_site (the
-                          url's site by paper.SOURCES, else null: where the item lives or the page was saved from, not
-                          proof of the file's source), filename, md5, doi (the item's)}. What the file itself is,
-                          paper-fetch judges (references/organize.md, "Attachment titles")
+                          (paper.py; Zotero's "Full Text PDF", an older run's "Preprint (arXiv)"), or a snapshot in
+                          it without a source while its url's site has a name ({"why": "outside_scheme" |
+                          "no_source"}). The evidence to name it from, no name: {attachment, title, contentType, url,
+                          host, url_site (the url's site by paper.SOURCES, else null: where the item lives or the page
+                          was saved from, not proof of the file's source), filename, md5, doi (the item's)}. What the
+                          file itself is, paper-fetch judges (references/organize.md, "Attachment titles")
   label_clash             two or more PDFs or snapshots of the item with one title ({"title", "attachments": [keys],
                           "same_file"}): same_file true when their md5s are all there and equal (the same file twice),
                           false when they differ (two files under one title: paper-fetch labels them), null when an
                           md5 is missing
   superseded              a file another one from the same source replaces (paper.superseded: an older arXiv vN, an
-                          in_press copy beside the final one, an older snapshot): {"attachment", "title", "by", "by_title"}
+                          in_press copy beside the final one, an older snapshot): {"attachment", "title", "by",
+                          "by_title"}
   date_unparseable        a date Zotero cannot parse (no meta.parsedDate), e.g. "十一月 23, 2021"
   abbreviation_misplaced  journalAbbreviation longer than publicationTitle, both set ({"publicationTitle",
                           "journalAbbreviation"}): maybe swapped

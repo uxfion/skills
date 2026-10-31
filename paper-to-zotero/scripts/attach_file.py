@@ -3,21 +3,22 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Attach each record's files to its Zotero item: the files paper-fetch got, as the record's result lists them; the
-record's `attach`.
+"""Attach each record's files, the ones paper-fetch got, to its Zotero item: the record's `attach`.
 
-The item is the one this run created (saved.key), else the one the lookup confirmed (found.key); never a near match.
-The files are those of the result (the record's `fetched`) whose check is ok, accepted or unconfirmed, every version
-of the paper and any supplement, each under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...),
-which paper-fetch settled. An unconfirmed file (the agent could not tell it is the paper's) is attached all the same
-and named on the line: the report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A
-result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is attached until
-it is — unless the library item has a PDF of the paper already, and the result was never fetched for another. A
-stub's file (check cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead
-(recognize.py); once the recognizer made the record's item from it (saved.via recognizer), it is that item's file. Each
-file's md5 is compared with the result's before anything is uploaded. A child of the item already holding a file (same
-md5) settles it without an upload and keeps its own title (`existing`: a title that differs from the label is the
-report's to suggest, the user's to approve); an empty attachment left by a cut-off run is reused. A label settled
+The item is the one this run created (saved.key), else the one the lookup confirmed (found.key) — never a near
+match, nor one of several items with the paper's identifier until same_as picks one. The files are the result's (the
+record's `fetched`) whose check is ok, accepted or unconfirmed: every version of the paper and any supplement, each
+under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which paper-fetch settled. An
+unconfirmed file (its agent could not tell it is the paper's) is attached all the same and named on the line: the
+report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A stub's file (check
+cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead (recognize.py); once the
+recognizer made the record's item from it (saved.via recognizer), it is that item's file.
+
+A result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is attached until
+it is — unless the library item has a PDF of the paper already, and the result was never fetched for another. Each
+file's md5 is compared with the result's before anything is uploaded. A child of the item already holding the file
+(same md5) settles it without an upload and keeps its own title (`existing`: a title that differs from the label is
+the report's to suggest, the user's to approve); an empty attachment left by a cut-off run is reused. A label settled
 after this run attached the file renames that attachment on the next run. The source url is the item's url, else its
 DOI link. `attach` is a list, an entry per file: {attachment, md5, title, filename, kind, url, at, existing?}; another
 file later (another md5) is attached afresh.

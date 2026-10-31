@@ -3,15 +3,16 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Look each record's paper up in the Zotero library: the record's `found` and `near_matches` (read-only); with
---file, look files up among its attachments.
+"""Look each record's paper up in the Zotero library, read-only: the record's `found` and `near_matches`.
+
+With --file, it looks files up among the library's attachments instead (below).
 
 Only an identifier confirms a paper is there: the DOI (a doi.org url and an Extra "DOI:" line count), else the
 arXiv id — unless the record's item has a DOI of its own that the library lacks: then an arXiv hit is its preprint,
 a candidate. A title never confirms: whatever a quick search for the title finds is a candidate (near_matches), with
-the evidence a judge needs (zotero.Zotero.lookup). Open candidates go into a same_paper handoff (handoffs/<slug>.<n>
-.json, run.py), which a judge answers with answer.py: same_as or distinct_from in the record; then this runs again,
-and items in distinct_from are left out at every step.
+the evidence a judge needs. Open candidates go into a same_paper handoff (handoffs/<slug>.<n>.json), which a judge
+answers with answer.py: same_as or distinct_from in the record; then this runs again, and items in distinct_from are
+left out at every step.
 
 `found` is computed again only when it is not done: absent (an older run's `found`, written without `from`,
 counts as absent), or the item's identifiers or title, same_as or distinct_from changed since; each line says why

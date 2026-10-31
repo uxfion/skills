@@ -1,6 +1,6 @@
 # Setting up
 
-Read when `ready.py` reports something missing. Each piece below says what needs it and how it is put in place; settings in the user's own programs are the user's to approve. Fetching (poppler, OpenCLI and Chrome, the institution's login) is paper-fetch's: its own `references/install.md`.
+Read when `p2z.py ready` reports something missing. Each piece below says what needs it and how it is put in place; settings in the user's own programs are the user's to approve. Fetching (poppler, OpenCLI and Chrome, the institution's login) is paper-fetch's: its own `references/install.md`.
 
 ## The skill itself
 
@@ -18,4 +18,4 @@ Zotero 10 or newer, running, with the local API on: Settings → Advanced → "A
 {"zotero": {"key": "…", "serverID": "…", "created": "…"}, "automatic_tags": false}
 ```
 
-`p2z.py ready --authorize` writes the key and keeps any other field. `automatic_tags` is the user's: `true` gives drafted items the source's own keywords as automatic tags (references/tagging.md); absent or `false`, none. An older version kept the OpenAlex key and the institution's proxy and discovery page here too; paper-fetch reads them from its own config now, and `ready` names them under `config.moved` while they remain. `ready.py` warns when others can read the file.
+`p2z.py ready --authorize` writes the key and keeps any other field. `automatic_tags` is the user's: `true` gives drafted items the source's own keywords as automatic tags (references/tagging.md); absent or `false`, none. An older version kept the OpenAlex key and the institution's proxy and discovery page here too; paper-fetch reads them from its own config now, and `ready` names them under `config.moved` while they remain; it also warns when others can read the file.

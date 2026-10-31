@@ -1,6 +1,6 @@
 # Several papers
 
-Read before step 0 of [import.md](import.md) when the request covers two or more papers — a list, a .bib, a search result, "these three". One paper is a batch of one; nothing here contradicts import.md, it only says how its steps run over many papers at once. paper-fetch's own `references/batch.md` says the same for its part: read it too.
+Read before step 0 of [import.md](import.md) when the request covers two or more papers — a list, a .bib, a search result, "these three". This file says how import.md's steps run over many papers at once; paper-fetch's own `references/batch.md` says the same for its part: read it too.
 
 ## Two files per paper, each with one writer
 
@@ -22,11 +22,11 @@ A paper is a result in `<imp>/fetch/results/<slug>.json`, written by paper-fetch
 
 ## Ask once, then run
 
-Identify all papers first, then put every question in one message: candidates to choose between, preprint-or-published pairs, published versions you could not confirm, destinations for papers the user did not place. Scope the user has already set — destination, version preference, what may be renamed or removed — holds for the whole run; ask again only about a paper it does not cover. Nobody to ask → the published version, `tmp`, and say so in the report.
+Identify all papers first, then put every question in one message: candidates to choose between, preprint-or-published pairs, published versions you could not confirm, destinations for papers the user did not place. Scope the user has already set (SKILL.md, *Authorization*) — destination, version preference, what may be renamed or removed — covers every paper of the run; ask again only about a paper it does not cover. Nobody to ask → the published version, `tmp`, and say so in the report.
 
 ## What runs in parallel
 
-The scripts that call Zotero in bulk (`prepare`, `save`) run in the main conversation, one at a time, like paper-fetch's (its batch.md, *What runs in parallel*). Subagents take the judgement beside them, at most 5 at once, reading only local files: judges answer the library candidates (import.md step 3), and for many papers tagging subagents write the records' `tags` (tagging.md), each a share of the records and nothing else in them.
+The scripts that call Zotero in bulk (`prepare`, `save`) run in the main conversation, one at a time, like paper-fetch's (its batch.md, *What runs in parallel*). Subagents take the judgement beside them, reading only local files (SKILL.md, *Handoffs*): judges answer the library candidates (import.md step 3), and for many papers tagging subagents write the records' `tags` (tagging.md), each a share of the records and nothing else in them.
 
 A paper the user downloads outside the run: paper-fetch identifies and claims it (its batch.md); then `draft_item`, `prepare` and `save` take it in here like the rest.
 
