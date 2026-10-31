@@ -26,7 +26,9 @@ Identify all papers first, then put every question in one message: candidates to
 
 ## What runs in parallel
 
-The scripts that call Zotero in bulk (`prepare`, `save`) run in the main conversation, one at a time, like paper-fetch's (its batch.md, *What runs in parallel*). Subagents take the judgment work beside them — tags, abstracts — and edit only the records' agent fields.
+The scripts that call Zotero in bulk (`prepare`, `save`) run in the main conversation, one at a time, like paper-fetch's (its batch.md, *What runs in parallel*). Subagents take the judgement beside them, at most 5 at once, reading only local files: judges answer the library candidates (import.md step 3), and for many papers tagging subagents write the records' `tags` (tagging.md), each a share of the records and nothing else in them.
+
+A paper the user downloads outside the run: paper-fetch identifies and claims it (its batch.md); then `draft_item`, `prepare` and `save` take it in here like the rest.
 
 ## Report
 
