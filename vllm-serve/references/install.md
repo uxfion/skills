@@ -26,7 +26,7 @@ uv tool install --python 3.12 "vllm @ https://github.com/vllm-project/vllm/relea
   --torch-backend cu129
 ```
 
-(2026-10: on 8× H200 with driver 575, a downloaded copy of this wheel installed this way and served; the URL form resolves to the same packages.)
+(2026-10-31: on 8× H200 with driver 575 this command installed and served, with no `foreign_cuda` beside a system CUDA 13.1 in `/usr/local/cuda`.)
 
 Then, for either build:
 
@@ -67,7 +67,7 @@ The first `up` of a Hub model downloads it as the first phase of the start (`sta
 
 | Setting | Why |
 | --- | --- |
-| `CUDA_HOME` and `CUDA_PATH` → the environment's toolkit (`site-packages/nvidia/cu13`); `CUDA_LIB_PATH` → its `lib`; its `bin`, then the environment's `bin`, first on `PATH` | Libraries look for CUDA in these places, and the machine's system toolkit leaked in through them (2026-10, WSL2, `CUDA_HOME=/usr/local/cuda-12.8` from `~/.bashrc`): FlashInfer preloads `$CUDA_LIB_PATH/libcudart.so.12`, `/usr/local/cuda/…` by default, and judged the GPU by `CUDA_HOME`'s nvcc 12.8. The environment's `bin` holds `ninja`, which FlashInfer's builds call. A CUDA 12.9 environment has no toolkit of its own: there all three are removed. |
+| `CUDA_HOME` and `CUDA_PATH` → the environment's toolkit (`site-packages/nvidia/cu13`); `CUDA_LIB_PATH` → its `lib`; its `bin`, then the environment's `bin`, first on `PATH` | Libraries look for CUDA in these places, and the machine's system toolkit leaked in through them (2026-10, WSL2, `CUDA_HOME=/usr/local/cuda-12.8` from `~/.bashrc`): FlashInfer preloads `$CUDA_LIB_PATH/libcudart.so.12`, `/usr/local/cuda/…` by default, and judged the GPU by `CUDA_HOME`'s nvcc 12.8. The environment's `bin` holds `ninja`, which FlashInfer's builds call. A CUDA 12.9 environment has no toolkit of its own (its `nvidia/cuda_nvcc` holds `ptxas`, not `nvcc`): there all three are removed. |
 | `LD_LIBRARY_PATH` → a directory of unversioned names (`libcublas.so` → the environment's `libcublas.so.13`), then the toolkit's `lib`; system toolkit directories removed | FlashInfer's autotuner opens `libcublas.so` by its unversioned name; the pip toolkit ships only versioned files, so the system loader cache (`/etc/ld.so.conf.d/cuda-12-8.conf`) answered with the system cuBLAS 12.8. |
 | `VLLM_USE_FLASHINFER_SAMPLER=0` | FlashInfer's sampler gained nothing: 2026-10-31, vLLM 0.32 with `vllm download-kernels`, PaddleOCR-VL 0.9B on an RTX 5090 D, 128 concurrent requests sampling with temperature, top-p and top-k, 54k generated tokens/s with PyTorch's sampler and 45–54k with FlashInfer's; a small model is where sampling weighs most. Without the precompiled kernels it compiles them on first use, which the pip toolkit cannot link ("cannot find -lcudart"). |
 | `CUDA_DEVICE_ORDER=PCI_BUS_ID` | `CUDA_VISIBLE_DEVICES` numbers then mean `nvidia-smi`'s numbers; CUDA's own order puts the fastest GPU first. |
