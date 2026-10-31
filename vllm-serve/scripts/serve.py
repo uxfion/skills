@@ -12,13 +12,16 @@
                                  profile's env sets
   serve.py down PROFILE          stop it now, in whatever phase, waiting up to 90 s for it to end (--all: every
                                  profile)
-  serve.py status                one JSON line per profile: phase, url, owner, gpus, load, idle_for_minutes, log
+  serve.py status                one JSON line per profile: phase, url, owner, gpus, load, idle_for_minutes, log;
+                                 a stopped one's "last": how its last start ended, and whether that was a failure
 
 A start is one job of a supervisor process: it downloads the weights when the cache lacks them, starts vLLM and
-writes all their output to the profile's log, which the next start overwrites. Its phases: downloading, starting,
-running, stopping; with no supervisor the profile is stopped. `up` waits, with no deadline, until the server
-answers or the supervisor exits. Once it has answered, a server stops by itself after idle_minutes without a
-request, so the GPUs are free for other work; `up` counts as a request. Clients speak the OpenAI API at the url,
+writes all their output to the profile's log, whose last line says how the start ended; the next start keeps it as
+<profile>.prev.log and says so when that start failed. Its phases: downloading, starting,
+running, stopping; with no supervisor the profile is stopped. `up` waits until the server answers or the
+supervisor exits. A vLLM that has not answered 30 min after its start is stopped (the download does not count).
+Once it has answered, a server stops by itself after idle_minutes without a request, so the GPUs are free for
+other work; `up` counts as a request. Clients speak the OpenAI API at the url,
 with the model name given.
 
 Profiles: <name>.toml in ~/.config/vllm-serve/profiles/ (XDG_CONFIG_HOME), then in the skill's profiles/.
@@ -62,8 +65,14 @@ from contextlib import contextmanager
 from pathlib import Path
 
 SKILL_PROFILES = Path(__file__).resolve().parent.parent / "profiles"
+GUIDE = Path(__file__).resolve().parent.parent / "references" / "install.md"
 KEYS = {"model", "port", "idle_minutes", "args", "env", "extends"}
 TICK = float(os.environ.get("VLLM_SERVE_TICK", 30))      # seconds between idle checks
+# Seconds vLLM may take from its start to its first answer before the supervisor stops it, so a start that hangs
+# gives the GPUs back with nobody watching. The slowest phases met (references/install.md, Timings): a 27B model's
+# first start compiling kernels, about 6 min, and its weights read from a nearly full disk, 7-8 min. The download
+# before vLLM holds no GPU and does not count.
+START_LIMIT = float(os.environ.get("VLLM_SERVE_START_LIMIT", 30 * 60))
 # Settings every server gets, under the caller's environment and the profile's env; the reason for each is in
 # references/install.md ("What serve.py sets for every server").
 MACHINE_ENV = {"VLLM_WSL2_ENABLE_PIN_MEMORY": "1", "VLLM_USE_FLASHINFER_SAMPLER": "0",
@@ -182,9 +191,28 @@ def write_state(name: str, state: dict) -> None:
 
 
 def live(name: str) -> dict | None:
-    """The state of the profile's live supervisor: {} for the moment it has none (just started, or on its way out);
-    None when no supervisor runs."""
-    return (read_state(name) or {}) if held(name) else None
+    """The state of the profile's live supervisor: {} for the moment it has none (just started, or on its way out
+    with its record of how it ended written); None when no supervisor runs."""
+    if not held(name):
+        return None
+    state = read_state(name) or {}
+    return {} if state.get("phase") == "stopped" else state
+
+
+def last_start(name: str) -> dict | None:
+    """How the profile's last start ended, once no supervisor runs: the supervisor's own record, or, when it left
+    the state of a live one behind, that it died without one."""
+    try:
+        state, at = read_state(name), (state_dir() / f"{name}.json").stat().st_mtime
+    except OSError:
+        return None
+    if not state:
+        return None
+    if state.get("phase") == "stopped":
+        ended, failed = state.get("why"), state.get("failed")
+    else:
+        ended, failed = "its supervisor died without a record: killed, or the machine restarted", True
+    return {"ended": ended, "failed": failed, "at": time.strftime("%Y-%m-%d %H:%M", time.localtime(at))}
 
 
 def running_names() -> list[str]:
@@ -466,7 +494,13 @@ def failed(name: str, phase: str) -> Failure:
 def start_supervisor(name: str, profile: dict, extra: list[str]) -> dict:
     """Start the profile's supervisor (under the decision lock) and return its state once it holds its run lock;
     server_failed when it exits first."""
-    (state_dir() / f"{name}.json").unlink(missing_ok=True)     # a dead supervisor's
+    last, previous = last_start(name), state_dir() / f"{name}.prev.log"
+    if log_path(name).exists():
+        os.replace(log_path(name), previous)
+    (state_dir() / f"{name}.json").unlink(missing_ok=True)
+    if last and last["failed"]:
+        print(f"[vllm-serve] the last start of {name} failed ({last['ended']}, {last['at']}); its log: {previous}",
+              file=sys.stderr, flush=True)
     print(f"[vllm-serve] starting {name} ({profile['model']}) on port {profile['port']}; log: {log_path(name)}",
           file=sys.stderr, flush=True)
     with open(log_path(name), "wb") as log:
@@ -492,7 +526,8 @@ def wait_ready(name: str, state: dict, told: bool) -> dict:
             print(f"[vllm-serve] waiting for {name}, {phase}; log: {log_path(name)}", file=sys.stderr, flush=True)
             told = True
         time.sleep(2)
-        state = read_state(name) or state
+        if (now := read_state(name) or {}).get("pid"):  # a live state, not the record of how it ended
+            state = now
         phase = phase if state["phase"] == "stopping" else state["phase"]     # the phase it was stopped in
     return state
 
@@ -575,15 +610,21 @@ def stop(proc: subprocess.Popen) -> None:
             time.sleep(0.2)
 
 
-def on_sigterm(*_) -> None:
-    signal.signal(signal.SIGTERM, signal.SIG_IGN)       # a second `down` does not cut the stop short
-    print("[vllm-serve] SIGTERM (serve.py down, or the system): stopping", flush=True)
-    raise SystemExit(0)
-
-
 def supervise(name: str, extra: list[str]) -> int:
     """One start of the profile, from download to stop: download the weights if the cache lacks them, run vLLM
-    until it has been idle for idle_minutes, it exits, or `down` stops it."""
+    until it has been idle for idle_minutes, it exits, `down` stops it, or it has not answered within START_LIMIT.
+    How it ended is the log's last line and the state it leaves."""
+    ending = {"why": "serve.py raised an error (its traceback follows)", "failed": True}
+
+    def end(why: str, failed: bool = True) -> int:
+        ending.update(why=why, failed=failed)
+        return 1 if failed else 0
+
+    def on_sigterm(*_) -> None:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)   # a second `down` does not cut the stop short
+        end("stopped by SIGTERM (serve.py down, or the system)", failed=False)
+        raise SystemExit(0)
+
     signal.signal(signal.SIGTERM, on_sigterm)
     lock = open(state_dir() / f"{name}.run", "a")       # held until this process exits; children never get it
     for _ in range(20):
@@ -613,17 +654,15 @@ def supervise(name: str, extra: list[str]) -> int:
             try:
                 child = spawn(cmd, start_env)
             except OSError as e:
-                print(f"[vllm-serve] cannot run {cmd[0]}: {e}", flush=True)
-                return 1
+                return end(f"cannot run {cmd[0]}: {e}")
             if child.wait():
-                print(f"[vllm-serve] the download exited with {child.returncode}", flush=True)
-                return 1
+                return end(f"the download exited with {child.returncode}")
             state["phase"] = "starting"
         cuda = own_cuda(vllm)
         offline = not local_model(profile) and hub_cached(profile["model"], revision, start_env)
         env = server_env(dict(os.environ), profile, offline, cuda, Path(vllm).resolve().parent,
                          unversioned_links(cuda) if cuda else None)
-        child = spawn([vllm, "serve", *run["args"]], env)
+        child, since = spawn([vllm, "serve", *run["args"]], env), time.time()
         state["vllm_pid"] = child.pid
         write_state(name, state)
         idle = load = None
@@ -631,6 +670,8 @@ def supervise(name: str, extra: list[str]) -> int:
         while child.poll() is None:
             if idle is None:                            # the idle clock starts when the server first answers
                 if not healthy(run["host"], run["port"]):
+                    if time.time() - since > START_LIMIT:
+                        return end(f"vLLM has not answered {START_LIMIT / 60:g} min after its start")
                     time.sleep(min(TICK, 2))
                     continue
                 idle, load = Idle(time.time()), Load()
@@ -647,10 +688,10 @@ def supervise(name: str, extra: list[str]) -> int:
                         state["phase"] = "stopping"
                         write_state(name, state)
                 if state["phase"] == "stopping":
-                    print(f"[vllm-serve] {name} idle for {profile['idle_minutes']} min, stopping", flush=True)
-                    return 0
-        print(f"[vllm-serve] vLLM exited with {child.returncode}", flush=True)
-        return 1
+                    return end(f"idle for {profile['idle_minutes']} min", failed=False)
+        return end(f"vLLM exited with {child.returncode}")
+    except Failure as e:
+        return end(f"{e.code}: {e.detail}")
     finally:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         if state.get("phase") != "stopping" and state.get("pid"):
@@ -659,7 +700,9 @@ def supervise(name: str, extra: list[str]) -> int:
                 write_state(name, state)
         if child:
             stop(child)
-        (state_dir() / f"{name}.json").unlink(missing_ok=True)
+        print(f"[vllm-serve] ended: {ending['why']}" + (f"; the cause stands above, and {GUIDE} (\"A server that does not "
+              f"start, or loads foreign CUDA\") lists the known ones" if ending["failed"] else ""), flush=True)
+        write_state(name, {"phase": "stopped", **ending})
 
 
 # ---------------------------------------------------------------- down and status
@@ -694,6 +737,8 @@ def status(name: str) -> dict:
         profile = load_profile(name)
         out = {"profile": name, "phase": "stopped", "model": profile["model"],
                "url": url(launch(profile, [])["host"], profile["port"])}
+        if last := last_start(name):
+            out["last"] = last
     else:
         out = {"profile": name, "phase": state.get("phase", "starting")}
         if state.get("pid"):

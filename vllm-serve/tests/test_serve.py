@@ -303,15 +303,19 @@ class LifeCycle(unittest.TestCase):
     def run_serve(self, *args, **env):
         out = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True,
                              env={**self.env, **env}, timeout=120)
+        self.stderr = out.stderr
         return [json.loads(line) for line in out.stdout.splitlines()], out.returncode
 
     def start_up(self, profile="fake", **env):
         return subprocess.Popen([sys.executable, str(SCRIPT), "up", profile], stdout=subprocess.PIPE, text=True,
                                 stderr=subprocess.DEVNULL, env={**self.env, **env})
 
-    def phase(self, profile="fake"):
+    def status(self, profile="fake"):
         lines, _ = self.run_serve("status")
-        return next(s for s in lines if s["profile"] == profile).get("phase")
+        return next(s for s in lines if s["profile"] == profile)
+
+    def phase(self, profile="fake"):
+        return self.status(profile).get("phase")
 
     def test_up_reuse_status_down(self):
         (first,), code = self.run_serve("up", "fake", "--", "--seed", "0", CUDA_VISIBLE_DEVICES="4,5", FAKE_RUNNING="1")
@@ -348,9 +352,15 @@ class LifeCycle(unittest.TestCase):
         started = [json.loads(p.communicate(timeout=120)[0])["started"] for p in procs]
         self.assertEqual(sorted(started), [False, False, True])
 
-    def test_a_quiet_start_is_waited_for(self):
-        (slow,), code = self.run_serve("up", "fake", FAKE_QUIET_SECONDS="4")    # no deadline, no log needed
+    def test_a_start_is_waited_for_until_its_limit(self):
+        (slow,), code = self.run_serve("up", "fake", FAKE_QUIET_SECONDS="4")    # quiet, but within the limit
         self.assertEqual((code, slow["started"]), (0, True))
+        self.run_serve("down", "fake")
+        t = time.time()
+        (err,), code = self.run_serve("up", "fake", FAKE_QUIET_SECONDS="120", VLLM_SERVE_START_LIMIT="3")
+        self.assertEqual((code, err["error"]), (2, "server_failed"))
+        self.assertIn("has not answered", err["detail"])
+        self.assertLess(time.time() - t, 30)
 
     def test_down_while_up_waits(self):
         waiting = self.start_up(FAKE_QUIET_SECONDS="120")
@@ -378,7 +388,9 @@ class LifeCycle(unittest.TestCase):
         (state / "fake.json").write_text(json.dumps({"pid": os.getpid(), "phase": "running", "port": self.port,
                                                      "host": "127.0.0.1", "model": "x"}))   # a live, reused pid
         (state / "fake.run").write_text("")
-        self.assertEqual(self.phase(), "stopped")
+        stale = self.status()
+        self.assertEqual((stale["phase"], stale["last"]["failed"]), ("stopped", True))
+        self.assertIn("without a record", stale["last"]["ended"])
         (first,), code = self.run_serve("up", "fake")
         self.assertEqual((code, first["started"]), (0, True))
 
@@ -410,7 +422,16 @@ class LifeCycle(unittest.TestCase):
         self.assertIn("Engine core initialization failed", err["detail"])
         log = self.root / "state" / "vllm-serve" / "fake.log"
         self.assertIn(str(log), err["detail"])
+        self.assertIn("references/install.md", err["detail"])           # the log's last line points at the guide
         self.assertIn("Free memory on device", log.read_text())    # the cause, above the tail: the agent reads it
+        last = self.status()["last"]
+        self.assertEqual((last["failed"], last["ended"]), (True, "vLLM exited with 1"))
+        (again,), code = self.run_serve("up", "fake")                   # the next start keeps the failed log, says so
+        self.assertEqual((code, again["started"]), (0, True))
+        self.assertIn("the last start of fake failed (vLLM exited with 1", self.stderr)
+        self.assertIn("Free memory on device", log.with_name("fake.prev.log").read_text())
+        self.run_serve("down", "fake")
+        self.assertEqual(self.status()["last"], {**self.status()["last"], "failed": False})   # stopped by down: no failure
 
     def test_download_is_part_of_the_start(self):
         self.write_profile("fake", 10, model="Org/M", env=f'HF_HUB_CACHE = "{self.root / "profile-hub"}"')
@@ -423,8 +444,8 @@ class LifeCycle(unittest.TestCase):
         self.assertIn("Fetching 4 files", (self.root / "state" / "vllm-serve" / "fake.log").read_text())
         hf = json.loads((self.root / "hf.json").read_text())["pid"]
         self.assertTrue(wait_for(lambda: not Path(f"/proc/{hf}").exists()))      # no orphan downloading on
-        (first,), code = self.run_serve("up", "fake", FAKE_HF_SECONDS="1")
-        self.assertEqual((code, first["started"]), (0, True))
+        (first,), code = self.run_serve("up", "fake", FAKE_HF_SECONDS="4", VLLM_SERVE_START_LIMIT="2")
+        self.assertEqual((code, first["started"]), (0, True))           # the download is not part of the limit
         self.assertEqual(json.loads((self.root / "hf.json").read_text())["env"]["HF_HUB_CACHE"], str(self.root / "profile-hub"))
         self.assertEqual(json.loads(self.record.read_text())["env"]["HF_HUB_OFFLINE"], "1")   # found in the profile's cache
 

@@ -90,11 +90,11 @@ A start can write nothing for minutes and still be working. Phases seen quiet fo
 - Weights from a nearly full or network disk (Timings). `--safetensors-load-strategy eager` reads each file in order instead of through page faults (default `lazy`; vLLM prefetches by itself on NFS and Lustre).
 - Engine start held at "Initializing a V1 LLM engine": `CUDA_MODULE_LOADING=EAGER` (vLLM 0.28). serve.py removes it, so only a server started by hand meets it.
 
-Progress shows outside the log too: `nvidia-smi` memory rising on the server's GPUs, a download's files growing under the Hugging Face cache.
+Progress shows outside the log too: `nvidia-smi` memory rising on the server's GPUs, a download's files growing under the Hugging Face cache. A vLLM that has not answered 30 minutes after its start is stopped by serve.py, its log ending in "has not answered"; the download before it does not count.
 
 ## A server that does not start, or loads foreign CUDA
 
-`status` names each profile's log; `server_failed` quotes its end. vLLM's root cause usually sits above the tracebacks that end the log, and the next `up` overwrites the log.
+`status` names each profile's log; `server_failed` quotes its end. The last line says how the start ended; vLLM's root cause usually sits above the tracebacks before it. The next start keeps the log as `<profile>.prev.log`.
 
 - "CUDA driver version is insufficient for CUDA runtime version": the vLLM build is newer than the driver; install the build the driver supports.
 - "PyTorch and TorchAudio were compiled with different CUDA versions": the install mixed CUDA builds. Install from scratch with a named `--torch-backend`.
