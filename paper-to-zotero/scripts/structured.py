@@ -44,9 +44,9 @@ stdout: one line per PDF (take) or folder (put), then {"summary"}.
 Exit 0 = all ok or skipped; 1 = not; 2 = cannot go on (Zotero not running, local API off, no key).
 
 Examples:
-  uv run scripts/structured.py take --cite savageLargeLanguageModel2024 --to <scratch>/papers
-  uv run scripts/structured.py take --key ABCD1234 --missing --to <work>/structured
-  uv run scripts/structured.py put <work>/structured/*/
+  uv run scripts/structured.py take --cite savageLargeLanguageModel2024 -o <scratch>/papers
+  uv run scripts/structured.py take --key ABCD1234 --missing -o <scratch>/structured
+  uv run scripts/structured.py put <scratch>/structured/*/
 """
 import hashlib
 import io
@@ -165,7 +165,7 @@ def library(zot):
 
 
 def cmd_take(zot, args):
-    to = Path(args.to).expanduser().resolve()
+    to = Path(args.out).expanduser().resolve()
     to.mkdir(parents=True, exist_ok=True)
     out = cli.Lines()
     if args.key or args.cite:
@@ -292,7 +292,8 @@ def parse_args(argv):
     which.add_argument("--title", help="the PDF with this attachment title (Preprint-arXiv-v7)")
     which.add_argument("--every", action="store_true", help="every PDF of the items (no item named: the library's)")
     which.add_argument("--missing", action="store_true", help="the PDFs without a package (no item named: the library's)")
-    s.add_argument("--to", required=True, metavar="DIR", help="the scratch directory (made if absent)")
+    s.add_argument("-o", "--out", required=True, metavar="DIR",
+                   help="where the packages go: a folder in the scratch directory (made if absent)")
     s.set_defaults(func=cmd_take)
     s = sub.add_parser("put", help="zip folders back onto their items as their PDFs' packages")
     s.add_argument("folders", nargs="+", metavar="FOLDER", help="folders take prepared: DIR/<cite>.<title>/")
