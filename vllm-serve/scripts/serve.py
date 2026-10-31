@@ -540,7 +540,7 @@ def reply(name: str, state: dict, want: dict, started: bool, vllm: str | None) -
     if started and (foreign := server_foreign_cuda(state, vllm)):
         out["foreign_cuda"] = foreign
         print(f"[vllm-serve] {name}'s server loaded CUDA libraries from outside vLLM's environment: "
-              f"{', '.join(foreign)}; see references/install.md", file=sys.stderr, flush=True)
+              f"{', '.join(foreign)}; {GUIDE}, entry `foreign_cuda`, traces them", file=sys.stderr, flush=True)
     return out
 
 
@@ -555,13 +555,13 @@ def up(name: str, extra: list[str]) -> dict:
             if state is None:
                 holder = next((n for n in running_names() if n != name and (read_state(n) or {}).get("port") == profile["port"]), None)
                 if holder:
-                    raise Failure("port_busy", f"port {profile['port']} is profile {holder}'s, whose server runs "
-                                               f"(`serve.py status`); a profile needs a port of its own")
+                    raise Failure("port_busy", f"port {profile['port']} is held by profile {holder}'s server "
+                                               f"(`serve.py status` shows it)")
                 if listening(want["host"], profile["port"]):
                     raise Failure("port_busy", f"another program listens on port {profile['port']}: "
                                                f"`ss -ltnp | grep :{profile['port']}`")
                 if not (vllm := find_vllm()):
-                    raise Failure("vllm_missing", "no vllm executable; see references/install.md")
+                    raise Failure("vllm_missing", f"no vllm executable; installing it: {GUIDE}")
                 state, started, told = start_supervisor(name, profile, extra), True, True
         if not state or state.get("phase") == "stopping":       # on its way out: decide again once it is gone
             time.sleep(1)
