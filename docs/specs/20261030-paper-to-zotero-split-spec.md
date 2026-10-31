@@ -711,6 +711,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 
   （2026-10-30 做完 dry-run 这一半：从三篇的结果文件起，`claim --file` 基线的三份 PDF、照基线定标签，`draft_item`、`prepare`、`create_item --dry-run` 对真库只读地跑，条目、查库和预览结果、要建的内容都和基线一致；附件标题和 md5 在假 Zotero 上核对过，也一致。真写进 `tmp` 再移进回收站那一半会把 PDF 传进用户的 Zotero 存储，留到收尾时先问用户。）
 - **整理**：在现有分类上只读地跑 `lint_items`、`read_library`、`export_bib`，结果要和拆分前一致。只有两处例外：`lint_items` 不再给 Crossref 候选，也不再给 PDF 摘录，这两样改由 paper-fetch 做。
+  （2026-10-30 做完：在"医疗图像"分类（`9EYXTC2I`，连子分类）上，拆分前的 `4bbfdd7` 和现在的代码各跑一遍。`export_bib` 的 1490 行 bib、`read_library items` 和 `tags` 的输出逐字相同；`lint_items` 报的 19 个条目和各类问题的计数相同，去掉 PDF 摘录以后每条问题都相同。）
 - **笔记的实测**：读一篇用户指定的论文，用 `note.py put` 存成笔记，在 Zotero 里看过以后再 take 回来，要和存进去的一致。同时核对论文笔记那张 issue 列的几项：
   - 独立笔记的 `related`，在论文条目那一侧看得到；
   - `zotero://open-pdf/…?page=N` 链接没被改写；
