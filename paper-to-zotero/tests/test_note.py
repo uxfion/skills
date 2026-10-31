@@ -172,11 +172,16 @@ class Note(unittest.TestCase):
         self.assertEqual(self.zot.writes(), [])
         cases = {"---\nkey NOTE0001\n---\nx\n": "bad_front_matter", "---\nkey: NOTE0001\n---\nx\n": "no_version",
                  "---\nkey: ZZZZZZZZ\nversion: 1\n---\nx\n": "not_found", "---\nparent: nobody\n---\nx\n": "cite_not_found",
-                 "---\ncollections: NOPE0000\n---\nx\n": "collection_not_found"}
+                 "---\ncollections: NOPE0000\n---\nx\n": "collection_not_found",
+                 "---\nkey: ATTA0001\nversion: 12\n---\nx\n": "not_a_note", "---\nparent: ATTA0001\n---\nx\n": "not_a_parent",
+                 "---\nparent: one2020paper\n---\n\n  \n": "empty_note",
+                 "---\nparent: one2020paper\n---\n# 论文笔记\n\nQ1 another start\n": "same_title"}
         for text, code in cases.items():
             with self.subTest(code=code):
                 r = self.run_("put", stdin=text)
                 self.assertEqual((r.code, r.lines[0]["code"]), (1, code))
+                if code == "same_title":
+                    self.assertEqual(r.lines[0]["keys"], ["NOTE0001"], "the note already there, to take and carry on")
         self.assertEqual(self.run_("put", "-i", stdin="x").code, 2)
         self.assertEqual(self.zot.writes(), [])
 

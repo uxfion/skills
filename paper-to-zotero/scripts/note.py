@@ -21,8 +21,9 @@ matter says which note it is and where it belongs:
          same directory.
   put    Each INPUT (paths, or stdin): with a key, Zotero's note is updated (its HTML, and parent, collections and
          related where the front matter names them) unless its version moved since the take, and left alone when it
-         already holds the same note; without one, a note is created under `parent`, else as a standalone note in
-         `collections`, related both ways to the papers in `related`. Every write is read back. -i writes the new key
+         already holds the same note; without one, a note is created under `parent` (unless a child note there has
+         its title already), else as a standalone note in `collections`, related both ways to the papers in
+         `related`. A note without text is refused. Every write is read back. -i writes the new key
          and version into the file's front matter, so the next put follows on.
   list   One line per note: the child notes of the item named, the notes in --collection K, or every note; --q TEXT
          keeps the notes whose text holds it (Zotero's "All Fields & Tags" search).
@@ -33,7 +34,9 @@ stdout (take to files, put, list): one line per note, then {"summary"}.
         skipped unchanged: Zotero already holds this note as written
   list  {key, parent?, title, version, dateModified, collections}
   no_notes (the item has none, or none with that title), not_a_note, not_a_parent, not_found, cite_not_found,
-  cite_ambiguous, collection_not_found, bad_front_matter, no_version (a key without a version: take the note first),
+  cite_ambiguous, collection_not_found, bad_front_matter, empty_note (no text after the front matter), same_title
+  (a new note whose parent has a child note of that title: `keys`), no_version (a key without a version: take the
+  note first),
   version_conflict (the note changed after the take: take it again, redo the change there), write_denied,
   write_failed, readback_mismatch, file_not_found.
 Exit 0 = all ok or skipped; 1 = some not; 2 = cannot go on (Zotero not running, local API off, no key) or usage
@@ -238,6 +241,9 @@ def put_one(zot, names, text, args):
         html, meta = note_md.to_note(text)
     except ValueError as e:
         raise cli.Stop("bad_front_matter", hint="The front matter is `---`, `key: value` lines, `---`.", detail=str(e))
+    if not title_of(html):
+        raise cli.Stop("empty_note", hint="The note has no text after its front matter: nothing was written.",
+                       **({"key": meta["key"]} if meta.get("key") else {}))
     where = wanted(names, meta)
     rel_want = where.pop("related", None)
     key = meta.get("key")
@@ -294,6 +300,12 @@ def create(zot, names, html, where, rel_want, args):
         parent = zot.item(where["parentItem"])
         if parent is None or not zotero.is_top(parent) or is_note(parent):
             raise cli.Stop("not_a_parent", hint="parent must name a regular item.", parent=where["parentItem"])
+        title = title_of(html)
+        same = [n["key"] for n in notes_of(zot, where["parentItem"]) if title_of(zotero.data(n).get("note")) == title]
+        if same:
+            raise cli.Stop("same_title", title=title, keys=same,
+                           hint="The item has a note of this title already: take it (--note KEY), carry this text into "
+                                "it, and put that file. Nothing was written.")
         obj["parentItem"] = where["parentItem"]
     else:
         obj["collections"] = where.get("collections", [])
