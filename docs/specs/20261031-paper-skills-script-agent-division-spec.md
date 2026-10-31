@@ -374,7 +374,7 @@
 - `note put` 收到空内容，报 `empty_note`。
 - 新建的笔记（文件里没有 `key`），如果父条目下已经有同标题的子笔记，就报 `same_title`，带上已有笔记的 key，什么都不写。处理办法是取出那条笔记，把内容并进去。
 
-**paper-read。**
+**paper-read（没拍板）。** 用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。§5 和下面几条只是讨论用的初稿，这期先不实现；p2z 和 paper-fetch 做完后，和用户一起把 paper-read 的设计定下来。
 - `prepare_note.py --cite K -o <scratch>/<cite>.<title>.note.md`：
   - 用 p2z 的 `note take --title 论文笔记` 取笔记：一条，就改名为 `-o`；没有，就用骨架新建，front matter 写 `parent`；两条，就停下报 `two_notes`，带上两个 key，由主 agent 合并、存回，再重跑。
   - 旁边总是存一份副本 `<file>.taken`，新建的就存骨架。
