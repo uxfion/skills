@@ -36,8 +36,8 @@ ambiguous, as in 10/12/2023, with a warning).
 
 Lookups. Every result with a DOI asks OpenAlex (filter doi:a|b|..., the config's openalex_key as api_key) and Europe
 PMC (DOI:"a" OR ..., resultType core), 50 DOIs a request for all of a run's papers, for what its CSL lacks: the
-abstract (OpenAlex's, rebuilt from its inverted index, else Europe PMC's; a warning names where it came from, and
-says so when the two differ: OpenAlex's is kept), PMID and PMCID (Europe PMC's, else OpenAlex's). Author keywords
+abstract (Europe PMC's, which is PubMed's, else OpenAlex's, rebuilt from its inverted index; a warning names where
+it came from, and says so when the two differ: Europe PMC's is kept), PMID and PMCID (Europe PMC's, else OpenAlex's). Author keywords
 are not added yet (author_keywords() is where a source goes). A source that does not answer (a network error, a 5xx,
 a 429) is in enrichment.incomplete and does not fail the line; identifying the paper again asks it again, and what
 it gave before stays meanwhile.
@@ -512,7 +512,7 @@ def enrich(s, doi, csl, warnings, old=None):
     (work, oa_code), (record, epmc_code) = s.lookups(doi)
     silent = sorted(name for name, code in (("openalex", oa_code), ("europepmc", epmc_code)) if code not in ANSWERED)
     oa_abstract, epmc_abstract = inverted_text(work.get("abstract_inverted_index")), strip_markup(first_str(record.get("abstractText")))
-    found = {"abstract": oa_abstract or epmc_abstract, "keyword": author_keywords(work, record),
+    found = {"abstract": epmc_abstract or oa_abstract, "keyword": author_keywords(work, record),
              "PMID": pm_id(record.get("pmid")) or pm_id((work.get("ids") or {}).get("pmid")),
              "PMCID": pm_id(record.get("pmcid"), "PMC") or pm_id((work.get("ids") or {}).get("pmcid"), "PMC")}
     for key, value in found.items():
@@ -523,11 +523,11 @@ def enrich(s, doi, csl, warnings, old=None):
             if key == "abstract":
                 warnings.append(f"abstract kept from the earlier identify ({', '.join(silent)} did not answer)")
         elif value and key == "abstract":
-            warnings.append(f"abstract from {'OpenAlex' if oa_abstract else 'Europe PMC'} (the record has none)")
-            a, b = paper.norm_title(oa_abstract), paper.norm_title(epmc_abstract)
+            warnings.append(f"abstract from {'Europe PMC' if epmc_abstract else 'OpenAlex'} (the record has none)")
+            a, b = paper.norm_title(epmc_abstract), paper.norm_title(oa_abstract)
             if a and b and a not in b and b not in a:
-                warnings.append(f"OpenAlex's and Europe PMC's abstracts differ: OpenAlex's kept; Europe PMC's begins "
-                                f"{epmc_abstract[:120]!r}: check which is the paper's")
+                warnings.append(f"Europe PMC's and OpenAlex's abstracts differ: Europe PMC's kept; OpenAlex's begins "
+                                f"{oa_abstract[:120]!r}: check which is the paper's")
         if value:
             csl[key] = value
             if key == "abstract":

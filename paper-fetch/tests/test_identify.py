@@ -520,7 +520,8 @@ class Lookups(Base):
         self.web.openalex("10.9999/med1", abstract_inverted_index={"We": [0], "tested": [1], "something.": [2]},
                           ids={"pmid": "https://pubmed.ncbi.nlm.nih.gov/111"})
         self.web.europepmc("10.9999/med1", pmid="222", pmcid="PMC333", abstractText="<h4>Background</h4>A different abstract.")
-        self.web.europepmc("10.9999/med2", pmid="444", abstractText="Europe PMC's abstract.")
+        self.web.europepmc("10.9999/med2", pmid="444")
+        self.web.openalex("10.9999/med2", abstract_inverted_index={"OpenAlex's": [0], "abstract.": [1]})
         self.web.europepmc(JBHI, pmid="555", abstractText="Another abstract entirely.")
         self.web.europepmc(NEURIPS, pmid="666")
         key = "oa-key-1234567890"
@@ -529,14 +530,15 @@ class Lookups(Base):
         self.assertEqual(r.code, 0, r)
         med1, med2, jbhi = (self.res(o["slug"]) for o in r.lines[:-1])
         self.assertEqual({k: med1["csl"].get(k) for k in ("abstract", "PMID", "PMCID", "keyword")},
-                         {"abstract": "We tested something.", "PMID": "222", "PMCID": "PMC333", "keyword": None},
-                         "OpenAlex's abstract, Europe PMC's PMID; no keywords yet")
+                         {"abstract": "Background A different abstract.", "PMID": "222", "PMCID": "PMC333", "keyword": None},
+                         "Europe PMC's abstract (PubMed's) and PMID; no keywords yet")
         self.assertEqual((med1["ids"]["pmid"], med1["ids"]["pmcid"], med1["enrichment"]), ("222", "PMC333", {"incomplete": []}))
-        self.assertIn("abstract from OpenAlex (the record has none)", med1["warnings"])
-        self.assertTrue(any(w.startswith("OpenAlex's and Europe PMC's abstracts differ: OpenAlex's kept") for w in med1["warnings"]))
+        self.assertIn("abstract from Europe PMC (the record has none)", med1["warnings"])
+        self.assertTrue(any(w.startswith("Europe PMC's and OpenAlex's abstracts differ: Europe PMC's kept") for w in med1["warnings"]))
         self.assertNotIn("record has no abstract", med1["warnings"])
-        self.assertEqual((med2["csl"]["abstract"], med2["csl"]["PMID"]), ("Europe PMC's abstract.", "444"))
-        self.assertIn("abstract from Europe PMC (the record has none)", med2["warnings"])
+        self.assertEqual((med2["csl"]["abstract"], med2["csl"]["PMID"]), ("OpenAlex's abstract.", "444"),
+                         "OpenAlex's abstract where Europe PMC has none")
+        self.assertIn("abstract from OpenAlex (the record has none)", med2["warnings"])
         self.assertEqual((jbhi["csl"]["abstract"], jbhi["ids"]["pmid"]), ("Ultrasound.", "555"), "the record's abstract stays")
         openalex, epmc = self.web.requested("GET", "/openalex/works"), self.web.requested("GET", "/epmc/*")
         self.assertEqual((len(openalex), len(epmc)), (1, 1), "one request each for the run's papers")
