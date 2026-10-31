@@ -420,6 +420,8 @@
     - `report` 去掉"残留"和"停下与门禁"两节，前者归 paper-fetch 清理，后者已在结果文件的 `outcome.stop` 里；
     - `lint_items` 和 `zotero.attach` 里只为取全文服务的部分（Crossref 查 DOI、读 PDF 摘录、`verify` 钩子）一并删了，代理网址只按通用写法认。
 
+    advisor 审完又抓出两处，都已改（`0661b77`）：库里条目本来就有 PDF 的论文不交给 paper-fetch，它的结果文件就永远没汇总，`save` 每次都会报 `unsettled`，现在跳过并注明 `library_has_pdf`；paper-fetch 判断不了的文件被悄悄略过，结果说"拿到了"、`save` 却说"还没文件"，现在报 `unchecked` 并给出接收的步骤。之后按 spec §11 跑了 dry-run 那一半的端到端对照，和基线一致；真写进库那一半留到收尾时问用户。
+
 ## 调研（2026-10-29，看的是代码）
 
 - **记录文件里每一块只由一个脚本写**：`item`、`published_candidates` 由 `doi_to_item` 写；`links`、`fetch.jsonl`、`label` 由取全文那边写；`found`、`checks`、`saved`、`attach` 由 Zotero 那边写。拆分的缝在数据里本来就有。
