@@ -21,11 +21,19 @@ writes (key, server id and write_status apply), the transfer needs no key:
              the attachment then carries md5, filename and mtime, and its /file redirects to a stored copy
 The form is read as Zotero reads it: %XX decoded, '+' left as it is.
 
+The connector (POST /connector/saveStandaloneAttachment, no key; server_connector.js): X-Metadata {sessionID,
+title, url} (400 without it or without a sessionID, 409 for a sessionID used before, 500 without url), the bytes
+as the body -> a standalone imported_url attachment {title, url, contentType, filename after the url, md5,
+dateAdded, collections: [selected_collection]} and 201 {canRecognize: a PDF or EPUB}. POST
+/connector/getRecognizedItem {sessionID} (400 SESSION_NOT_FOUND for a session the fake never saw) waits until
+`recognizer_free` is set, lets the recognizer work on that session's PDF once, then answers 200 {title, itemType}
+when the attachment has a parent, else 204.
+
 Search (`q`): titleCreatorYear (the default) looks at title, creator names and the year; `fields` and `everything`
 at every string field (`citationKey` only while `search_sees_citekey`).
 
 Hooks, all reset by reset():
-  disabled               every request answers 403 "Local API is not enabled"
+  disabled               every local API request answers 403 "Local API is not enabled" (the connector still answers)
   search_sees_citekey    q matches citationKey (False: only the fallback scan finds it)
   bump_before_write      this many writes find the item one version newer (a concurrent edit), each running
                          `concurrent_edit(item)` when set
@@ -39,6 +47,12 @@ Hooks, all reset by reset():
   file_md5               the md5 the register step records instead of the uploaded file's (another file stored)
   authorize_replies      [(status, headers, body) | ("sleep", seconds)]: POST /api/local/authorize answers these in
                          turn (the dialog's outcome); with none left, 404
+  selected_collection    the collection Zotero has selected: where the connector files what it saves
+  recognizer             parent data, or None (the recognizer finds nothing): the PDF gets a new parent item made from
+                         the data, in the attachment's collections, and its title becomes "PDF" and its file is renamed
+                         (the recognizer's second write; getRecognizedItem answers after both)
+  recognizer_free        a threading.Event, set: clear it and getRecognizedItem blocks (still recognizing) until it
+                         is set again
 The authorize step counts for bump_before_write / concurrent_edit, and the register step for ignore_writes.
 
 `requests` logs (method, path, query dict, body) for every request; `uploads` holds {uploadKey: bytes} received by
@@ -123,6 +137,10 @@ class FakeZotero:
         self.file_md5 = None
         self.authorize_replies = []
         self.uploads, self.pending_uploads, self.upload_counter = {}, {}, 0
+        self.selected_collection = None
+        self.recognizer, self.recognizer_free = None, threading.Event()
+        self.recognizer_free.set()
+        self.sessions, self.pending, self.added = {}, set(), 0  # session -> its attachment; PDFs not yet recognized
 
     # ---- building the library ---------------------------------------------------------------------------------
 
@@ -266,6 +284,46 @@ class FakeZotero:
                 self.on_write(row)
         return row
 
+    def save_standalone(self, meta, content_type, body):
+        """The connector's standalone attachment -> (status, body), as Zotero's connector server answers."""
+        if meta is None:
+            return 400, {"error": "METADATA_NOT_PROVIDED"}
+        meta = json.loads(meta)
+        if not meta.get("sessionID"):
+            return 400, {"error": "SESSION_ID_NOT_PROVIDED"}
+        if meta["sessionID"] in self.sessions:
+            return 409, {"error": "SESSION_EXISTS"}
+        url = meta.get("url")
+        if not url or not body or not content_type:  # Zotero.Attachments.importFromNetworkStream throws
+            return 500, "An error occurred"
+        parts = urllib.parse.urlsplit(url)
+        name = (Path(urllib.parse.unquote(parts.path)).stem or parts.hostname or "file") + ".pdf"
+        self.added += 1
+        key = self.add_item(None, itemType="attachment", linkMode="imported_url", title=meta.get("title") or name, url=url,
+                            contentType=content_type, filename=name, md5=hashlib.md5(body).hexdigest(),
+                            dateAdded=f"2026-10-31T12:{self.added // 60:02d}:{self.added % 60:02d}Z",
+                            collections=[self.selected_collection] if self.selected_collection else [])
+        self.files[key] = self.store_file(key, name, body)
+        self.sessions[meta["sessionID"]] = key
+        recognizable = content_type in ("application/pdf", "application/epub+zip")
+        if recognizable:
+            self.pending.add(key)
+        return 201, {"canRecognize": recognizable}
+
+    def recognized_item(self, session):
+        """getRecognizedItem, after the wait -> (status, body): the recognizer's work on the session's PDF, done once."""
+        key = self.sessions[session]
+        it = self.items[key]
+        if key in self.pending:
+            self.pending.discard(key)
+            if self.recognizer:
+                parent = json.loads(json.dumps(self.recognizer))
+                it["data"]["parentItem"] = self.add_item(None, **parent, collections=it["data"].pop("collections", []))
+                it["data"].update(title="PDF", filename=f"{parent.get('title', 'item')[:100]}.pdf")
+                self.touch(it)
+        parent = self.items.get(it["data"].get("parentItem"))
+        return (200, {"title": parent["data"].get("title"), "itemType": parent["data"].get("itemType")}) if parent else (204, None)
+
     def store_file(self, key, filename, content):
         """Keep an uploaded file as Zotero does, at <storage>/<attachment key>/<filename>; returns its path."""
         if self.storage is None:
@@ -398,6 +456,20 @@ class _Handler(BaseHTTPRequestHandler):
         path, _, raw = self.parse()
         if path.startswith(UPLOADS):
             return self.transfer(path[len(UPLOADS):], raw)
+        if path == "/connector/saveStandaloneAttachment":  # the connector answers whether the local API is on or not
+            with z.lock:
+                return self.send(*z.save_standalone(self.headers.get("X-Metadata"), self.headers.get("Content-Type"), raw))
+        if path == "/connector/getRecognizedItem":
+            session = json.loads(raw or b"{}").get("sessionID")
+            if session not in z.sessions:
+                return self.send(400, {"error": "SESSION_NOT_FOUND" if session else "SESSION_ID_NOT_PROVIDED"})
+            z.recognizer_free.wait(30)  # Zotero: await session.autoRecognizePromise
+            with z.lock:
+                reply = z.recognized_item(session)
+            try:
+                return self.send(*reply)
+            except OSError:  # the client gave up waiting
+                return None
         if path == "/api/local/authorize":
             if not z.authorize_replies:
                 return self.send(404, "Not found")

@@ -38,7 +38,9 @@ stdout: one line per result {slug, code, itemType?, title?, warnings?}, then {"s
   ok              drafted
   skipped         reason exists: the record has an item (--redraft drafts it again)
   already_saved   --redraft on a record whose item is in Zotero: change it there with update_item.py
-  result_invalid  not a result with metadata (a stub: paper-fetch could not identify the paper)
+  stub            the result has no metadata (paper-fetch could not identify the paper): the record holds only
+                  `fetched`, and recognize.py takes it from the PDF
+  result_invalid  not one of paper-fetch's result files
 Exit 0 = every result drafted or skipped; 1 = some not; 2 = Zotero (asked for its schema once a run) not running.
 """
 import json
@@ -225,15 +227,21 @@ def draft(path, out, redraft, schema_of):
     except (OSError, ValueError) as e:
         raise cli.Stop("result_invalid", path=str(path), detail=str(e), hint="Give paper-fetch's result files: "
                                                                           "<scratch>/paper-to-zotero/fetch/results/*.json.") from None
-    if not isinstance(res, dict) or not isinstance(res.get("csl"), dict) or not res.get("slug"):
-        raise cli.Stop("result_invalid", path=str(path), hint="The result has no metadata: identify the paper first "
-                                                               "(paper-fetch's identify; its warnings say what failed).")
+    if not isinstance(res, dict) or not res.get("slug"):
+        raise cli.Stop("result_invalid", path=str(path), hint="Give paper-fetch's result files: "
+                                                               "<scratch>/paper-to-zotero/fetch/results/*.json.")
     records = records_dir(path, out)
     if records is None:
         raise cli.Stop("no_records_dir", path=str(path), hint="The result is not in an import's fetch/results/: give "
                                                               "-o <scratch>/paper-to-zotero/records.")
     records.mkdir(parents=True, exist_ok=True)
     target = records / f"{res['slug']}.json"
+    if not isinstance(res.get("csl"), dict):  # a stub: no metadata to draft from, its PDF is the way in
+        if not target.exists():
+            run.Record(target, {"fetched": str(Path(path).absolute())}).save()
+        return {"code": "stub", "warnings": [w for w in res.get("warnings") or [] if isinstance(w, str)],
+                "hint": "paper-fetch found no metadata for this paper: once its PDF is in hand, recognize.py has "
+                        "Zotero's recognizer identify it from the PDF (references/no-doi-record.md)."}
     moved = next((old for old in res.get("renamed_from") or [] if not target.exists() and (records / f"{old}.json").exists()), None)
     if moved:  # the result was renamed after its record was drafted: the record follows it
         (records / f"{moved}.json").rename(target)

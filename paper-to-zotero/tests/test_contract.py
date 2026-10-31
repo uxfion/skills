@@ -36,8 +36,8 @@ class Contract(unittest.TestCase):
     def test_drafted_saved_attached_reported(self):
         r = call(draft_item, *sorted(self.results.glob("*.json")), "--base-url", f"http://127.0.0.1:{closed_port()}")
         codes = {line["slug"]: line["code"] for line in r.lines[:-1]}
-        self.assertEqual(codes, {"109999html": "result_invalid", "liu2022jbhi": "ok", "shinn2023reflexion": "ok"},
-                         "a stub has no metadata to draft from (references/no-doi-record.md)")
+        self.assertEqual(codes, {"109999html": "stub", "liu2022jbhi": "ok", "shinn2023reflexion": "ok"},
+                         "a stub has no metadata to draft from: its record holds the result alone, for recognize.py")
         liu, shinn = self.rec("liu2022jbhi"), self.rec("shinn2023reflexion")
         self.assertEqual((liu["item"]["itemType"], liu["item"]["DOI"], liu["citationKey"]),
                          ("journalArticle", "10.1109/JBHI.2022.3142076", "liu2022jbhi"), "a given slug is the citation key")

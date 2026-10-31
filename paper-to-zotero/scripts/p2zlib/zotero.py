@@ -328,7 +328,7 @@ class Zotero:
                 hits.setdefault(r["key"], (r, None))
         near, more = paper.candidates(item, [(key, data(r), by) for key, (r, by) in hits.items()])
         for c in near:
-            c["attachments"] = [a["title"] for a in self.attachments(c["key"])]
+            c["attachments"] = paper.file_titles(self.attachments(c["key"]))
         return {"code": "not_found", "searched": searched, **({"more": more} if more else {})}, near
 
     def _search(self, q, qmode, searched):
@@ -713,6 +713,50 @@ class Zotero:
         else:
             failure.hint = "Fix the cause, then rerun: the attachment item is reused, not created again."
         return failure
+
+    # ---- the connector --------------------------------------------------------------------------------------
+
+    def save_standalone_attachment(self, path, *, title, url, session):
+        """Send a PDF to Zotero the way its browser connector saves one: POST /connector/saveStandaloneAttachment, the
+        bytes as the body, X-Metadata {sessionID, title, url}, no key. Zotero makes a standalone attachment in the
+        collection it has selected (url is required: Zotero stores it and names the file after it) and, for a PDF,
+        starts its recognizer. -> whether Zotero can recognize the file (its canRecognize). Any answer but 201 ->
+        connector_failed."""
+        meta = json.dumps({"sessionID": session, "title": title, "url": url})  # ASCII (\u escapes): a header is latin-1
+        status, _, body = self.request("POST", "/connector/saveStandaloneAttachment", Path(path).read_bytes(),
+                                       {"Content-Type": "application/pdf", "X-Metadata": meta})
+        if status != 201:
+            raise Stop("connector_failed", hint="Zotero's connector did not take the PDF; see status and detail.",
+                       status=status, detail=detail(body))
+        try:
+            return bool(json.loads(body).get("canRecognize"))
+        except (ValueError, AttributeError):
+            raise Stop("unexpected_response", hint="Zotero's connector took the PDF but its answer is not the one expected.",
+                       detail=detail(body)) from None
+
+    def recognizer_done(self, session, timeout):
+        """Wait for Zotero's recognizer on what a connector session saved: POST /connector/getRecognizedItem
+        {sessionID}, which Zotero answers once recognition is over (200: the attachment has a parent; 204: none).
+        -> True when it is over, or when Zotero no longer knows the session (400 SESSION_NOT_FOUND: Zotero restarted,
+        and its recognizer with it); False when no answer came within `timeout` seconds (still recognizing).
+        Any other answer -> connector_failed."""
+        req = urllib.request.Request(self.base + "/connector/getRecognizedItem", method="POST",
+                                     data=json.dumps({"sessionID": session}).encode("utf-8"),
+                                     headers={"Content-Type": "application/json", "Accept": "application/json"})
+        try:
+            with self.opener.open(req, timeout=timeout) as resp:
+                status, body = resp.status, resp.read()
+        except urllib.error.HTTPError as e:
+            status, body = e.code, e.read()
+        except TimeoutError:  # connected, no answer yet; a failed connection comes as a URLError
+            return False
+        except (urllib.error.URLError, OSError) as e:
+            raise Stop("zotero_unreachable", exit=CANNOT, hint=HINT_UNREACHABLE, base_url=self.base,
+                       detail=str(getattr(e, "reason", None) or e)) from None
+        if status in (200, 204) or (status == 400 and b"SESSION_NOT_FOUND" in body):
+            return True
+        raise Stop("connector_failed", hint="Zotero's connector did not answer about the recognizer; see status and detail.",
+                   status=status, detail=detail(body))
 
 
 def attachment_rows(children):

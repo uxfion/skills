@@ -42,7 +42,7 @@ A script settles only what is certain — an identifier that matches, the same m
 | `same_paper`: library items a title search found, in `<imp>/handoffs/` (prepare, create_item) | judges: background subagents on a cheap model (Claude Code `model: "sonnet"`), ~20 handoffs each, at most 5 at once | references/import.md, step 3 | `p2z.py answer <handoff> same\|distinct\|pair\|unknown --by judge` |
 | a `pair` or `unknown` (`waiting_on: user`) | the user, in the run's one message of questions | both items' evidence | `p2z.py answer … same\|distinct --by user` |
 | `duplicates`, `published_versions`, `checks`, `warnings` (prepare's `decide`) | you | references/import.md, step 3 | the record: `same_as`, a redraft or `keep_preprint`, the item or `accepted` |
-| a stub's file (attach_file `unchecked`) | `recognize.py`, then a judge on the recognised item | references/no-doi-record.md | `update_item`, `file_and_tag`, or `trash_item` |
+| a stub's file (attach_file `unchecked`) | `p2z.py recognize`, then a judge on the recognised item's fields | references/no-doi-record.md | `update_item` and `file_and_tag`; nothing recognised: the item written by hand |
 | lint's findings in a tidy | judges, ~20 items each, at most 5 at once | references/organize.md, *A tidy* | their change list, written after the user's word by `update_item --batch` and `file_and_tag --batch` |
 | tags | you, or subagents (at most 5) for many papers | references/tagging.md | the record's `tags`; in a tidy, the change list |
 | merges, the trash, renames of existing items | the user | the `--dry-run` list | the same command without `--dry-run` |

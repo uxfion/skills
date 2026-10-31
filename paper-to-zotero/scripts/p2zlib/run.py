@@ -29,7 +29,10 @@ Blocks, each written by one script and nothing else:
                   {from, code: not_found, searched: [{q, qmode, hits}], more?}; a candidate is never here
   near_matches    written with found, under its `from`: the candidates (paper.candidates: {key, title, year,
                   first_author, doi, arxiv, itemType, venue, similarity, matched_by?, attachments: [titles]})
-  saved           create_item: {pending: true, at} right before the POST, then {key, version, citationKey, created_at}
+  saved           create_item: {pending: true, at} right before the POST, then {key, version, citationKey, created_at};
+                  or recognize.py, for a stub's PDF Zotero's recognizer made an item from: the same, with via: recognizer
+  recognize       recognize.py: {md5, title, url, sessionID, at, code: sent | recognized | not_recognized, attachment?}:
+                  the stub's PDF sent through the connector, and what came of it (sent: a rerun asks again, never sends twice)
   attach          attach_file: [{attachment, md5, title, filename, kind, url, at, existing?}], an entry per file of the
                   result it attached (existing: the item had this file already, under its own title)
 The blocks prepare fills (PREPARED) carry `from`, a short hash of the inputs they were computed from (inputs() names

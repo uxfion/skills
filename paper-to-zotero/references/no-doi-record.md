@@ -1,13 +1,18 @@
 # No DOI record
 
-Context for step 3 of [import.md](import.md).
+Context for import.md, step 5 (`attach_file` answers `unchecked`).
 
-paper-fetch could not identify the paper from a record (its result is a stub: `no_csl_record`, `page_unreachable`, `no_citation_meta`), or the paper has no identifier, but its PDF is in hand (paper-fetch filed it as `cannot_judge`, and you looked at it): let Zotero's recognizer identify it. Note the library version (`Last-Modified-Version` of `GET /api/users/0/items?limit=1`), send the PDF through the connector — one request, no key:
+paper-fetch could not identify the paper from a record — its result is a stub (`no_csl_record`, `page_unreachable`, `no_citation_meta`) — but the paper's PDF is in hand, filed as `cannot_judge`. Zotero's recognizer identifies a paper from its PDF, and `recognize` hands the file to it:
 
 ```bash
-curl -s -X POST http://127.0.0.1:23119/connector/saveStandaloneAttachment \
-  -H "Content-Type: application/pdf" -H "X-Metadata: {\"sessionID\":\"$(uuidgen)\",\"title\":\"paper.pdf\",\"url\":\"<source url>\"}" \
-  --data-binary @<scratch>/paper-to-zotero/fetch/results/<slug>.pdf
+uv run scripts/p2z.py recognize <imp>/records/<slug>.json
 ```
 
-Within a minute a parent item appears (`GET /api/users/0/items?since=<version>`); put its key into the record's `saved` (a record of your own, `<scratch>/paper-to-zotero/records/<slug>.json`, when `draft_item` had no metadata to make one from), revise it with `update_item` and finish with `file_and_tag` (it landed in whatever collection Zotero had selected). No parent after a minute: move the standalone attachment to the trash (`p2z.py trash_item --key`) and write the record's `item` by hand (`p2z.py check_item --help` prints a skeleton), then steps 5–7 as usual.
+It sends the PDF through the connector under its label title — into the collection selected in the user's Zotero window — and waits for the recognizer (`--wait`, 60 s by default). Its line per record:
+
+- `recognized`: the record's `saved` names the item the recognizer made (`via: recognizer`), and the line holds the item's fields and the PDF's path. A judge compares the fields with the PDF's first page (title, authors, venue, year, DOI). What is wrong or missing, `update_item` sets from that page; `file_and_tag` files the item and tags it (it landed where the window was); then `save` as usual, which finds the PDF already attached.
+- `not_recognized`: the recognizer found nothing, and the attachment this run sent is in the trash already. Write the record's `item` by hand from the PDF's first page (`p2z.py check_item --help` prints a skeleton), then `prepare` and `save`.
+- `recognizing`: the recognizer is still at work (Zotero offline retries it every minute): run `recognize` again later; nothing is sent twice.
+- `in_library`: the library holds this very PDF already, under the item the line names: the paper is there, which the report says.
+
+Done when every stub record has its item in the library (`saved`) with the PDF attached, or is named in the report with what stopped it.

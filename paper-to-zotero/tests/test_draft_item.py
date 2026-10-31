@@ -184,7 +184,8 @@ class DraftItem(unittest.TestCase):
         elsewhere = self.root / "elsewhere.json"
         elsewhere.write_text(json.dumps(JAMA), encoding="utf-8")
         r = self.draft("--redraft", path, stub, elsewhere)
-        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]]), (1, ["already_saved", "result_invalid", "no_records_dir"]))
+        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]]), (1, ["already_saved", "stub", "no_records_dir"]))
+        self.assertEqual(self.rec("stub"), {"fetched": str(stub)}, "a stub's record: its result, for recognize.py")
         r = self.draft(elsewhere, "-o", self.root / "other")
         self.assertEqual((r.code, (self.root / "other" / "jama.json").is_file()), (0, True))
 
