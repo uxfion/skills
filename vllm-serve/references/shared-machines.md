@@ -53,3 +53,7 @@ A full commit hash in `--revision` pins the weights: serve.py downloads that rev
 - Check from a client on that network: `curl --noproxy '*' http://<address>:<port>/v1/models`. Refused there while it answers on the server: a firewall, which only root opens.
 - Clients on other machines cannot `up`. After an idle stop the next batch needs one, `ssh <host> '. <root>/env.sh && uv run <root>/vllm-serve/scripts/serve.py up <profile>'`, run by the client or by you; or a large `idle_minutes` (100000 is ten weeks) keeps the server until `down`. The user chooses, since a running server holds its GPUs.
 - A server outlives the ssh session that started it, at any phase; if `up` was cut off, the next `up` waits for the same start. A start that hangs with nobody watching gives the GPUs back 30 minutes after vLLM started, and the next `up` there, or `status`, says that it failed.
+
+## Leaving the machine
+
+A shared server goes back once the user stops using it, its space included (2026-10-31: the H200 host was cleared when other people booked it). Stop the servers there (`down --all`); the root, which may hold the user's other projects, is cleared by the user or, on their word, by you.
