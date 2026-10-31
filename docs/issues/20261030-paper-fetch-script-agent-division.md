@@ -31,7 +31,7 @@
 
 ## 设计（2026-10-31）
 
-顶层设计写成 `docs/specs/20261030-paper-skills-script-agent-division-spec.md`（预览稿）。依据是 `docs/design-principles.md`，五份调研报告存在 scratchpad 的 `audit/` 下。
+顶层设计写成 `docs/specs/20261031-paper-skills-script-agent-division-spec.md`。依据是 `docs/design-principles.md`，五份调研报告存在 scratchpad 的 `audit/` 下。
 
 - **已定 1**：一篇论文拿到的文件不是想要的版本时，用户选方案 A。标签定下来之后，这篇在同一遍里接着走出版商、图书馆系统；拿到想要的版本，它就成为这篇的文件，先前那份作为另一个版本一起挂进 Zotero。用户原话：「A」。
 - **按原则推翻的三条旧约定**，已告诉用户，用户没有异议：
