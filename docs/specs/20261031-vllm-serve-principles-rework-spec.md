@@ -96,7 +96,7 @@
 
 **`down`**
 
-- 有活着的守护进程，就给它发 SIGTERM，不需要拿锁。守护进程先停 vLLM（或下载），再退出。正在等的 `up` 看到它退出，就报 `server_failed`。
+- 有活着的守护进程，就在决定锁里给它发 SIGTERM、把状态标成 `stopping`（只拿一瞬间，见第 7 节），然后在锁外等它退出。守护进程先停 vLLM（或下载），再退出。正在等的 `up` 看到它退出，就报 `server_failed`。
 - `down` 等运行锁被放开，最多等 90 s。
 - 停不了别的登录的进程时，报 `not_permitted`。
 
@@ -258,4 +258,25 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 
 ## 7. 实现记录
 
-（实现后补）
+2026-10-31。
+
+**实现时定下、和上文不同的几处**
+
+- `down` 也拿决定锁，但只在锁里读状态、发 SIGTERM、标上 `stopping`（几毫秒），等守护进程退出在锁外。3.3 原写“不需要拿锁”；不拿的话，新守护进程刚拿到运行锁、还没写状态的那一瞬间，`down` 会读到上一个守护进程留下的 pid。启动守护进程的 `up` 要等新状态写好才放锁，所以经过这把锁的 `down` 读不到旧 pid。`down` 只等它发了信号的那个守护进程退出：期间另一个 `up` 起了新的，不算没停。
+- 任何一条退出的路（`down`、vLLM 自己退出、空闲自停），守护进程都先在决定锁里标上 `stopping`，再停子进程：停的过程中不会有 `up` 拿到它。`up` 碰到 `stopping` 就等它走完再起新的；`server_failed` 里写的仍是被停之前的阶段。
+- 停子进程时等整个进程组退干净（先 SIGTERM，30 s 后 SIGKILL），之后才放开运行锁：下一次启动不会撞上还没释放的显存或端口。
+- 判断“活着”：只读打开 `<profile>.run`，试拿共享锁（`LOCK_SH|LOCK_NB`），拿不到就是活着。守护进程拿排他锁时重试 2 秒，避开别人探测的那一瞬间；2 秒还拿不到，说明另一个守护进程在跑，就退出。
+- 对运行中的服务，`down` 和 `status` 只看状态文件，不读 profile：profile 改坏了也停得掉、看得到。`down --all` 和 `status` 覆盖 profile 名加上正在跑的名字，`down --all` 碰到一个报错接着停后面的；`down` 一个既不在跑、也没有 profile 的名字，报 `unknown_profile`。
+- `status` 用 `phase` 取代 `running`：`stopped`、`downloading`、`starting`、`running`、`stopping`。
+- 下载用的 `hf` 和判断是否已缓存，都用调用方环境加上 profile 的 env，和 vLLM 一致：profile 里写了镜像或别的缓存目录，下载和离线启动都跟着走。
+- 状态文件先写临时文件再改名；profile 不是合法 TOML 时报 `unknown_profile`，不再让 `status` 整个崩掉。
+- 一个根目录只归一个登录：别的登录在那里得到 `not_permitted`，写明属主；换人用 `chown` 交接（shared-machines.md 原写“共用根目录的登录共用状态”，文件是 644，本来就不成立）。
+- shared-machines.md 第 4 步：skill 只装在本机，服务器上的是 serve.py 的一份副本，经 ssh 调用；更新副本前，先等 `status` 显示空闲，用旧副本 `down --all`，因为新版认不出旧版起的服务。起因是一个旁路 agent 的提醒，用户补充：「一般我不会在训练公共服务器上去安装 skills，我都是通过本机的 Agent（比如 Claude Code 或其他 harness）去调用我自己本机上安装的 skills，然后让它通过 SSH 去操作」。
+
+**验证**
+
+- 测试：25 个，全部通过，约 75 s。
+- 本机实测（vLLM 0.31，RTX 5090 D）：`up paddleocr-vl` 130 s 起来（其中 CUDA graph 捕获 76 s，比 Timings 原写的 25–50 s 长，已补进 install.md）；paddleocr 解析一页有标题、正文和表格的 PDF，backend `vllm-server`，`checks: ok`，内容逐字对；`status` 显示 `running` 和负载；`down` 2 s。后台 `up`、启动中途 `down`：`down` 32 s 返回（vLLM 在捕获 CUDA graph 时不理 SIGTERM，30 s 后被 SIGKILL），等着的 `up` 返回 `server_failed`，日志最后一行是 `[vllm-serve] SIGTERM (serve.py down, or the system): stopping`，没有残留进程，显存回到启动前。旧代码的 `down --all` 没跑：动手前查过，本机没有在跑的服务。
+- FlashInfer 采样器（第 5 节第 3 步）：新根目录装 0.32.0 加 `vllm download-kernels`（安装 1.5 min，kernel 11 min，其中 jit-cache 要现下），`paddleocr-vl`，每轮 512 个请求、128 并发、每个固定生成 512 token，带 temperature 0.8、top_p 0.9、top_k 50。打开采样器能用（日志 “Using FlashInfer for top-p & top-k sampling.”），预热后 5 轮 45–54k token/s，中位数 51k；关闭 5 轮 53.6–54.9k，中位数 54k。没有收益，保留 `VLLM_USE_FLASHINFER_SAMPLER=0`，量到的数写进 install.md 当理由；本机 0.31 不用动。
+- 最后一遍：我自己通读；两份只读评审（技术正确性 11 条加文档、测试几处；原则和设计 9 条）；一个没看过对话的 agent 照 SKILL.md 稿子走“远程部署”和“paddleocr 等服务卡住”两个场景（10 条）。采纳的已改：`down` 不标 `stopping`（两份评审都提了）、profile 写坏会让 `status` 崩、停子进程不等进程组、判断缓存不看 profile 的 env、被杀的 `up` 之后误报失败、`down --all` 遇错就停、锁里复查空闲的超时缩到 2 s、第二个 SIGTERM、符号链接竞争、`server_failed` 和 `port_busy` 的交接写法（远程日志经 ssh、子 agent 的模型名、可直接复用对方的服务）、“判断卡住”的标准、显存不够时别停别人在用的部署、已有根目录直接用、Verify 的 `up` 等选好卡再做、paddleocr 卡住后要查原因。没采纳：多个登录共用一个根目录（改成写明一个根目录归一个登录）、超长部署的选卡提醒、把要问用户的决定攒到一起问（和“一次只问一个”冲突）。
+- 待定：没人等的启动怎么办（旁路 agent 提醒，用户问：「看一下这个问题，如何优雅的解决」），等用户选方案。

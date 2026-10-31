@@ -36,7 +36,7 @@
 6. 流程（§2）：动手前只让 advisor 审了 spec，没做三个视角的独立评审；新 agent 视角的评审是写完才做的，之后的修改正是第 1 条的来源。
 7. 能写成检查的规则还写在文档里（§3）：“部署 profile 要和被继承的 profile 同名，否则要有自己的端口”可以变成脚本检查：两个 profile 用同一个端口时直接报出。
 8. 一个意思写了两处（§3、§4）：SKILL.md 复述了 `--help` 里的输出字段和错误码含义；SKILL.md 和 shared-machines.md 都讲了“本次启动和 profile 的分工”。
-9. 公开仓库里有个人的值（§4）：shared-machines.md 的例子和本 issue 里写着用户服务器上的真实目录（`/data/.tmp` 等），应换成占位符。
+9. 公开仓库里有个人的值（§4）：shared-machines.md 的例子和本 issue 里写着用户服务器上的真实目录，应换成占位符（已换：下面原话里的目录写作 `<dir-A>`、`<dir-B>`）。
 10. SKILL.md 的改动没按 §4 的流程逐条给用户看原文和修改建议。
 11. 该用户定的决定由我定了（§5）：profile 的 env 优先于调用方环境、版本钉 0.32.0、删掉显存预检，都写进了 spec 当作已定。
 12. 大众优化没顺手做（tuning 原则）：`VLLM_USE_FLASHINFER_SAMPLER=0` 的理由是 pip 工具包编不了采样器；有了 `vllm download-kernels` 后这个理由可能不成立了，需实测。
@@ -52,7 +52,11 @@
 
 **一个部署由谁带到底：不另设机制（2026-10-31）。** 用户：「我一般用这些 skills 都是主动用的嘛，而且都是交给 Agent 去操作的……根据我们的 skills，去部署远程服务器上的一个 VLLM」。
 
-**返工 spec（2026-10-31，预览稿）：** [20261031-vllm-serve-principles-rework-spec.md](../specs/20261031-vllm-serve-principles-rework-spec.md)。实现前做了两份独立评审（低级错误和技术正确性 14 条、原则和设计 15 条），处理见该 spec 第 6 节；最重的一处——“谁在跑、归谁”撑不住不计时的等待——从根上重切成“一次启动整个交给守护进程，活着看它拿着的运行锁”。
+**返工 spec（2026-10-31，已定稿、已实现）：** [20261031-vllm-serve-principles-rework-spec.md](../specs/20261031-vllm-serve-principles-rework-spec.md)。实现前做了两份独立评审（低级错误和技术正确性 14 条、原则和设计 15 条），处理见该 spec 第 6 节；最重的一处——“谁在跑、归谁”撑不住不计时的等待——从根上重切成“一次启动整个交给守护进程，活着看它拿着的运行锁”。
+
+**实现（2026-10-31）：** 按返工 spec 实现，测试、本机实测、FlashInfer 采样器实测（没有收益，保留关闭）和三份评审的处理都记在该 spec 第 7 节。SKILL.md 两份（vllm-serve、paddleocr）的改动还没逐条给用户看。
+
+**没拍板（2026-10-31）——没人等的启动：** 启动不计时，空闲计时又从第一次应答才开始，所以一个卡住的启动，在等它的 agent 会话结束以后会一直占着显卡，共享服务器上就是同事的卡。用户：「看一下这个问题，如何优雅的解决」。我的建议（方案 A）：一次启动归等它的人，没人等了就停；理由和另两个方案见对话。
 
 已核实、不再是问题：删掉显存预检所依据的事实（vLLM 本机实测 50 s 内报 “Free memory on device …” 并退出；0.32 默认比例 0.92 在主机 B 的 `--help` 里核对过）。
 
@@ -109,7 +113,7 @@
 ## 4. 所有文件都要放进用户指定的目录
 
 - 来源：用户要求 · 2026-10-29、10-30
-- 现场：共享服务器上只能写用户自己的目录，而且三台机器各不相同。主机 A：「以后h200上，就都放在这个路径下 /data/.tmp/，包括你现在的也迁移过去，这个目录是我自己用的」（根盘 97% 满）。主机 B：「所有东西都放在/home/.tmp下」。另一台：「……的存放位置就放在 /root/.tmp 下，记一下」，root 关闭后个人用户进不了 `/root`，改为「你先记一下……用/data/.tmp」（第 17 条）。serve.py 和它带起来的 uv、HF、vLLM、Triton、FlashInfer 默认写 `~/.cache`、`~/.local/state`、`~/.config`、`~/.local/share/uv`。共享服务器上的路径和文件里也不能出现个人名字。
+- 现场：共享服务器上只能写用户自己的目录，而且三台机器各不相同。主机 A：「以后h200上，就都放在这个路径下 <dir-A>/，包括你现在的也迁移过去，这个目录是我自己用的」（根盘 97% 满）。主机 B：「所有东西都放在<dir-B>下」。另一台：「……的存放位置就放在 /root/<dir> 下，记一下」，root 关闭后个人用户进不了 `/root`，改为「你先记一下……用<dir-A>」（第 17 条）。serve.py 和它带起来的 uv、HF、vLLM、Triton、FlashInfer 默认写 `~/.cache`、`~/.local/state`、`~/.config`、`~/.local/share/uv`。共享服务器上的路径和文件里也不能出现个人名字。
 - 为什么：skill 只有 XDG 变量这一个入口，而 uv、HF、vLLM、Triton 各自还有自己的变量。
 - 方向：一个环境变量（例如 `VLLM_SERVE_ROOT`），serve.py 和 install.md 从它推出全部路径：`UV_TOOL_DIR`、`UV_TOOL_BIN_DIR`、`UV_CACHE_DIR`、`UV_PYTHON_INSTALL_DIR`、`HF_HOME`、`XDG_CACHE_HOME`、`XDG_STATE_HOME`、`XDG_CONFIG_HOME`、`VLLM_CACHE_ROOT`、`TRITON_CACHE_DIR`。SKILL.md 加一节“在共享或远程机器上”：把 skill 复制到目标机的根目录下，设好根目录，在目标机上运行（不需要 skill 自己去 ssh）；用之前先和用户确认路径。
 - 补救：`env.sh` 导出上面这些变量，路径都从脚本所在目录推出；`serve.sh` 先 source 它；skill 复制到 `<root>/skill/`。

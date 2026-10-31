@@ -10,29 +10,34 @@
                                  ARGS are `vllm serve` arguments for this start only; the caller's environment
                                  reaches the server too (CUDA_VISIBLE_DEVICES picks the GPUs), except variables the
                                  profile's env sets
-  serve.py down PROFILE          stop it now (--all: every profile)
-  serve.py status                one JSON line per profile: running, url, owner, gpus, load, idle_for_minutes, log
+  serve.py down PROFILE          stop it now, in whatever phase, waiting up to 90 s for it to end (--all: every
+                                 profile)
+  serve.py status                one JSON line per profile: phase, url, owner, gpus, load, idle_for_minutes, log
 
-A server stops by itself once it has had no request for the profile's idle_minutes, so the GPUs are free for
-other work; `up` counts as a request. Clients speak the OpenAI API at the url, with the model name given.
+A start is one job of a supervisor process: it downloads the weights when the cache lacks them, starts vLLM and
+writes all their output to the profile's log, which the next start overwrites. Its phases: downloading, starting,
+running, stopping; with no supervisor the profile is stopped. `up` waits, with no deadline, until the server
+answers or the supervisor exits. Once it has answered, a server stops by itself after idle_minutes without a
+request, so the GPUs are free for other work; `up` counts as a request. Clients speak the OpenAI API at the url,
+with the model name given.
 
-Profiles: <name>.toml in ~/.config/vllm-serve/profiles/ (XDG_CONFIG_HOME), then in profiles/ beside this script.
-Keys: model (Hugging Face id or local directory; clients use it as the model name), port, idle_minutes (default
-10; 0: never stops by itself), args (`vllm serve` arguments), env, extends (a profile to start from: its keys, then this file's; args are
-appended, env merged; a profile may extend the one of its own name further down the search path).
+Profiles: <name>.toml in ~/.config/vllm-serve/profiles/ (XDG_CONFIG_HOME), then in the skill's profiles/.
+Keys: model (Hugging Face id or local directory; clients use it as the model name), port, idle_minutes (above 0,
+default 10), args (`vllm serve` arguments), env, extends (a profile to start from: its keys, then this file's; args
+are appended, env merged; a profile may extend the one of its own name further down the search path).
 Every vLLM setting is a vLLM argument. serve.py reads two of them, the last one winning as in vLLM: --host
 (added as 127.0.0.1 when absent) and --revision (the weights it downloads); it adds --served-model-name and --port.
 The vllm executable: VLLM_SERVE_VLLM, else the `vllm` uv tool, else vllm on PATH.
 State and logs: ~/.local/state/vllm-serve/ (XDG_STATE_HOME), <profile>.log per server.
 
-`up` waits as long as the server's log keeps growing. Its line may also carry "host" (the server listens beyond
-this machine: clients elsewhere use the machine's address), "differs" (the running server was started with other
-arguments or GPUs than this `up` asks for, given as the running ones; `down` it to apply yours) and "foreign_cuda"
-(CUDA libraries a freshly started server mapped from outside vLLM's environment; there should be none).
+`up`'s line may also carry "host" (the server listens beyond this machine: clients elsewhere use the machine's
+address), "differs" (the running server's model, port, arguments or GPUs where they differ from what this `up`
+asks for; it serves as it is) and "foreign_cuda" (CUDA libraries a freshly started server mapped from outside
+vLLM's environment; there should be none).
 
-Errors, one JSON line on stdout with exit 2: unknown_profile, vllm_missing, port_busy (another model answers on
-the port, or another program holds it), download_failed (hf's own output precedes it), server_failed (with the
-log's first error line and its end), not_permitted (a server or file of another login).
+Errors, one JSON line on stdout with exit 2: unknown_profile, vllm_missing, port_busy (another profile's server,
+named, or another program on the port), server_failed (the supervisor exited: the phase, the log and its end),
+not_permitted (a server or file of another login).
 """
 from __future__ import annotations
 
@@ -40,6 +45,7 @@ import argparse
 import fcntl
 import glob
 import hashlib
+import http.client
 import json
 import os
 import pwd
@@ -57,16 +63,9 @@ from pathlib import Path
 
 SKILL_PROFILES = Path(__file__).resolve().parent.parent / "profiles"
 KEYS = {"model", "port", "idle_minutes", "args", "env", "extends"}
-STALL = float(os.environ.get("VLLM_SERVE_STALL", 600))   # seconds a starting server may write nothing to its log
 TICK = float(os.environ.get("VLLM_SERVE_TICK", 30))      # seconds between idle checks
-# Settings every server gets; a profile's env overrides them.
-# - Pinned memory is off under WSL by default (2026-10, vLLM 0.28 stopped with "UVA is not available"; 0.31 runs
-#   slower without it).
-# - FlashInfer's sampler compiles its kernels on first use, and the pip CUDA toolkit cannot link them (no lib64, no
-#   libcudart.so, no stubs/libcuda.so); vLLM samples with PyTorch instead.
-# - CUDA_VISIBLE_DEVICES numbers mean nvidia-smi's numbering; CUDA's own default order is fastest first.
-# - vLLM's start-up deadline (600 s, applied with data parallel) stopped a 52 GB load from a slow disk (2026-10,
-#   vLLM 0.32); `up` watches the log instead.
+# Settings every server gets, under the caller's environment and the profile's env; the reason for each is in
+# references/install.md ("What serve.py sets for every server").
 MACHINE_ENV = {"VLLM_WSL2_ENABLE_PIN_MEMORY": "1", "VLLM_USE_FLASHINFER_SAMPLER": "0",
                "CUDA_DEVICE_ORDER": "PCI_BUS_ID", "VLLM_ENGINE_READY_TIMEOUT_S": "86400"}
 CUDA_LIBRARY = re.compile(r"/lib(cudart|cublas|cublasLt|cudnn\w*|nvrtc|nccl|cufft|curand|cusolver|cusparse)\.so")
@@ -80,7 +79,7 @@ class Failure(Exception):
         self.code, self.detail = code, detail
 
 
-# ---------------------------------------------------------------- profiles and paths
+# ---------------------------------------------------------------- profiles
 
 def profile_dirs() -> list[Path]:
     config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
@@ -108,7 +107,10 @@ def profile_path(name: str, below: Path | None = None) -> Path:
 def read_profile(path: Path, seen: tuple[Path, ...] = ()) -> dict:
     if path in seen:
         raise Failure("unknown_profile", f"profiles extend each other in a circle: {', '.join(map(str, seen))}")
-    p = tomllib.loads(path.read_text(encoding="utf-8"))
+    try:
+        p = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
+        raise Failure("unknown_profile", f"{path} is not valid TOML: {e}") from None
     if unknown := sorted(set(p) - KEYS):
         raise Failure("unknown_profile", f"{path}: unknown keys {', '.join(unknown)} (keys: {', '.join(sorted(KEYS))}; "
                                          f"vLLM settings go in args, e.g. --gpu-memory-utilization)")
@@ -121,11 +123,16 @@ def read_profile(path: Path, seen: tuple[Path, ...] = ()) -> dict:
 
 def load_profile(name: str) -> dict:
     path = profile_path(name)
-    p = read_profile(path)
+    p = {"idle_minutes": 10, **read_profile(path)}
     if missing := [k for k in ("model", "port") if k not in p]:
         raise Failure("unknown_profile", f"{path} lacks {', '.join(missing)}")
-    return {"idle_minutes": 10, **p, "name": name, "path": str(path)}
+    if not isinstance(p["idle_minutes"], (int, float)) or p["idle_minutes"] <= 0:
+        raise Failure("unknown_profile", f"{path}: idle_minutes must be minutes above 0 "
+                                         f"(a server meant to stay up takes a large number)")
+    return {**p, "name": name, "path": str(path)}
 
+
+# ---------------------------------------------------------------- state: who runs, decided under one lock
 
 def state_dir() -> Path:
     d = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "vllm-serve"
@@ -133,16 +140,32 @@ def state_dir() -> Path:
     return d
 
 
+def log_path(name: str) -> Path:
+    return state_dir() / f"{name}.log"
+
+
 @contextmanager
-def locked(name: str):
-    """The profile's lock: held by `up` from its health check until the server answers, by `down`, and by the
-    supervisor while it decides to stop, so a caller never gets a server that is starting or stopping."""
-    with open(state_dir() / f"{name}.lock", "a") as f:
+def deciding():
+    """The one lock, shared by every profile, for short decisions: whether to start a supervisor, handing a server
+    out, and a supervisor's decision to stop when idle. Nobody holds it while waiting for a server."""
+    with open(state_dir() / "decide.lock", "a") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
+        yield
+
+
+def held(name: str) -> bool:
+    """Whether the profile's supervisor is alive: it holds <profile>.run from its start to its exit, and the kernel
+    releases the lock when it dies, so a stale state file or a reused pid never counts."""
+    try:
+        f = open(state_dir() / f"{name}.run", "rb")
+    except FileNotFoundError:
+        return False
+    with f:
         try:
-            yield
-        finally:
-            fcntl.flock(f, fcntl.LOCK_UN)
+            fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)     # released when f closes
+        except BlockingIOError:
+            return True
+        return False
 
 
 def read_state(name: str) -> dict | None:
@@ -152,16 +175,20 @@ def read_state(name: str) -> dict | None:
         return None
 
 
-def alive(pid: int | None) -> bool:
-    if not pid:
-        return False
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:         # another login's process
-        return True
+def write_state(name: str, state: dict) -> None:
+    path = state_dir() / f"{name}.json"
+    path.with_suffix(".tmp").write_text(json.dumps(state))
+    os.replace(path.with_suffix(".tmp"), path)
+
+
+def live(name: str) -> dict | None:
+    """The state of the profile's live supervisor: {} for the moment it has none (just started, or on its way out);
+    None when no supervisor runs."""
+    return (read_state(name) or {}) if held(name) else None
+
+
+def running_names() -> list[str]:
+    return [p.stem for p in state_dir().glob("*.run") if held(p.stem)]
 
 
 def login() -> str:
@@ -198,37 +225,41 @@ def launch_args(profile: dict, extra: list[str] = ()) -> list[str]:
     return [model, *args, *own]
 
 
+def launch(profile: dict, extra: list[str]) -> dict:
+    """What a start of this profile from here runs: its model, port, arguments, address and the GPUs it sees."""
+    args = launch_args(profile, extra)
+    env = {**os.environ, **{k: str(v) for k, v in profile["env"].items()}}
+    return {"model": profile["model"], "port": profile["port"], "args": args, "host": arg_value(args, "--host"),
+            "cuda_visible_devices": env.get("CUDA_VISIBLE_DEVICES")}
+
+
 def address(host: str | None) -> str:
     """Where this machine reaches a server bound to `host`."""
-    return "127.0.0.1" if not host or host in LOOPBACK or host in ("0.0.0.0", "::") else host
+    return "127.0.0.1" if host in (None, "", "0.0.0.0", "::") else host
 
 
-def base_url(port: int, host: str | None) -> str:
-    return f"http://{address(host)}:{port}/v1"
+def url(host: str | None, port: int, path: str = "/v1") -> str:
+    a = address(host)
+    return f"http://{f'[{a}]' if ':' in a else a}:{port}{path}"
 
 
-def answers(port: int, model: str, host: str | None = None, key: str | None = None) -> bool | None:
-    """True: the model answers on the port; False: another model does; None: nothing does. `key`: the server's
-    --api-key, which guards /v1."""
-    request = urllib.request.Request(base_url(port, host) + "/models", headers={"Authorization": f"Bearer {key}"} if key else {})
+def healthy(host: str | None, port: int) -> bool:
+    """Whether vLLM answers 200 on /health (outside --api-key's guard). Nothing listening, a 503, a timeout or a
+    reply that is not HTTP: not yet."""
     try:
-        with LOCAL.open(request, timeout=5) as r:
-            ids = [m.get("id") for m in json.load(r).get("data", [])]
-        return model in ids
-    except (OSError, ValueError):
-        return None
+        with LOCAL.open(url(host, port, "/health"), timeout=5) as r:
+            return r.status == 200
+    except (OSError, ValueError, http.client.HTTPException):
+        return False
 
 
-def port_taken(port: int, host: str | None) -> bool:
-    """Whether another program holds the port where the server would bind (with SO_REUSEADDR, as vLLM binds)."""
-    bind = host if host and host not in ("localhost",) else "127.0.0.1"
-    with socket.socket(socket.AF_INET6 if ":" in bind else socket.AF_INET) as s:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            s.bind((bind, port))
-            return False
-        except OSError:
-            return True
+def listening(host: str | None, port: int) -> bool:
+    """Whether any program accepts connections on the port where the server would listen."""
+    try:
+        socket.create_connection((address(host), port), timeout=2).close()
+        return True
+    except OSError:
+        return False
 
 
 # ---------------------------------------------------------------- vLLM's environment
@@ -261,13 +292,6 @@ def own_cuda(vllm: str) -> Path | None:
     return found[-1].parent.parent if found else None
 
 
-def own_cuda_runtime(vllm: str) -> Path | None:
-    """The directory of the CUDA runtime (libcudart) inside vLLM's environment, the newest if several."""
-    root = Path(vllm).resolve().parent.parent
-    found = sorted(root.glob("lib/python3*/site-packages/nvidia/*/lib/libcudart.so.*"))
-    return found[-1].parent if found else None
-
-
 def unversioned_links(cuda: Path) -> Path:
     """A directory of unversioned library names pointing into the environment's toolkit (libcublas.so ->
     .../libcublas.so.13). FlashInfer's autotuner dlopens "libcublas.so"; the pip toolkit ships only versioned
@@ -277,12 +301,15 @@ def unversioned_links(cuda: Path) -> Path:
     for lib in sorted((cuda / "lib").glob("lib*.so.*")):
         link = d / (lib.name.split(".so.", 1)[0] + ".so")
         if not link.is_symlink():
-            link.symlink_to(lib)
+            try:
+                link.symlink_to(lib)
+            except FileExistsError:                     # another start made it a moment ago
+                pass
     return d
 
 
 def server_env(base: dict, profile: dict, offline: bool, cuda: Path | None = None, venv_bin: Path | None = None,
-               links: Path | None = None, runtime: Path | None = None) -> dict:
+               links: Path | None = None) -> dict:
     """The server's environment: serve.py's settings, the caller's environment (base), then the profile's env, each
     over the one before, made to use only vLLM's own CUDA. The profile wins: a deployment's GPUs must not move with
     whatever a caller's environment happens to hold."""
@@ -301,8 +328,6 @@ def server_env(base: dict, profile: dict, offline: bool, cuda: Path | None = Non
     else:   # no toolkit in the environment (CUDA 12 builds): nothing points libraries at a system one
         for k in ("CUDA_HOME", "CUDA_PATH", "CUDA_LIB_PATH"):
             env.pop(k, None)
-        if runtime:
-            env["CUDA_LIB_PATH"] = str(runtime)
     # Run as if the environment were activated: its own tools (ninja, which FlashInfer's kernel builds call) and
     # its CUDA compiler come first.
     env["PATH"] = ":".join([*(str(d) for d in (cuda / "bin" if cuda else None, venv_bin) if d), env.get("PATH", "")])
@@ -312,10 +337,12 @@ def server_env(base: dict, profile: dict, offline: bool, cuda: Path | None = Non
     return env
 
 
-def hub_cached(model: str, revision: str | None = None) -> bool:
-    """Whether the Hugging Face cache holds this revision of the model (a commit hash, a branch or tag, else main)
-    in the form an offline vLLM loads: a branch needs its refs/ entry, a commit hash only its snapshot."""
-    hub = os.environ.get("HF_HUB_CACHE") or Path(os.environ.get("HF_HOME") or Path.home() / ".cache" / "huggingface") / "hub"
+def hub_cached(model: str, revision: str | None = None, env: dict | None = None) -> bool:
+    """Whether the Hugging Face cache that `env` (default: this process's) points at holds this revision of the
+    model (a commit hash, a branch or tag, else main) in the form an offline vLLM loads: a branch needs its refs/
+    entry, a commit hash only its snapshot."""
+    env = os.environ if env is None else env
+    hub = env.get("HF_HUB_CACHE") or Path(env.get("HF_HOME") or Path.home() / ".cache" / "huggingface") / "hub"
     repo = Path(hub) / f"models--{model.replace('/', '--')}"
     commit = revision or "main"
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
@@ -324,22 +351,6 @@ def hub_cached(model: str, revision: str | None = None) -> bool:
         except OSError:
             return False
     return (repo / "snapshots" / commit / "config.json").exists()
-
-
-def ensure_weights(profile: dict, vllm: str, revision: str | None) -> None:
-    """Download a Hub model before the server starts, so the download does not hold up its start."""
-    if local_model(profile) or hub_cached(profile["model"], revision):
-        return
-    hf = Path(vllm).resolve().parent / "hf"
-    cmd = [str(hf) if hf.exists() else (shutil.which("hf") or "hf"), "download", profile["model"],
-           *(["--revision", revision] if revision else [])]
-    print(f"[vllm-serve] downloading {profile['model']} {revision or ''}...", file=sys.stderr, flush=True)
-    try:
-        done = subprocess.run(cmd, stdout=subprocess.DEVNULL)      # its progress and errors go to our stderr
-    except OSError as e:
-        raise Failure("download_failed", f"cannot run {cmd[0]}: {e}") from e
-    if done.returncode:
-        raise Failure("download_failed", f"`{' '.join(cmd)}` exited with {done.returncode}; its output is above")
 
 
 def foreign_cuda(maps: str, env_root: Path) -> set[str]:
@@ -353,9 +364,8 @@ def foreign_cuda(maps: str, env_root: Path) -> set[str]:
     return found
 
 
-def server_foreign_cuda(name: str, vllm: str) -> list[str]:
-    """foreign_cuda over every process of the profile's running server (vLLM's process group)."""
-    state = read_state(name) or {}
+def server_foreign_cuda(state: dict, vllm: str) -> list[str]:
+    """foreign_cuda over every process of a running server (vLLM's process group)."""
     env_root, found = Path(vllm).resolve().parent.parent, set()
     for proc in Path("/proc").glob("[0-9]*"):
         try:
@@ -364,43 +374,6 @@ def server_foreign_cuda(name: str, vllm: str) -> list[str]:
         except (OSError, ValueError, IndexError):
             continue
     return sorted(found)
-
-
-def log_tail(name: str, lines: int = 20) -> str:
-    try:
-        return "\n".join((state_dir() / f"{name}.log").read_text(errors="replace").splitlines()[-lines:])
-    except OSError:
-        return ""
-
-
-def failed(name: str, why: str) -> Failure:
-    """server_failed with the log's first error line (vLLM's root cause sits above the tracebacks that end the log)
-    and the log's end."""
-    log = state_dir() / f"{name}.log"
-    try:
-        first = next((line.strip() for line in log.read_text(errors="replace").splitlines()
-                      if re.search(r"\b[A-Z]\w*(Error|Exception): ", line)), None)
-    except OSError:
-        first = None
-    return Failure("server_failed", f"{name}'s server {why}; first error: {first or 'none logged'}\n{log} ends:\n{log_tail(name)}")
-
-
-def wait_ready(name: str, port: int, model: str, host: str | None, key: str | None, running) -> str | None:
-    """Wait until the server answers: None when it does, else why not. A start may take long (52 GB of weights
-    from a slow disk, kernels compiled on a first start) but keeps writing to its log; one that stops writing for
-    STALL seconds is stuck."""
-    log, size, changed = state_dir() / f"{name}.log", -1, time.time()
-    while True:
-        if answers(port, model, host, key):
-            return None
-        if not running():
-            return "exited"
-        now, grown = time.time(), log.stat().st_size if log.exists() else 0
-        if grown != size:
-            size, changed = grown, now
-        elif now - changed > STALL:
-            return f"wrote nothing to its log for {STALL / 60:.0f} min"
-        time.sleep(2)
 
 
 # ---------------------------------------------------------------- idle tracking and load
@@ -469,80 +442,108 @@ def touched(name: str) -> float:
         return 0.0
 
 
-def metrics(port: int, host: str | None) -> dict | None:
+def metrics(host: str | None, port: int, timeout: float = 10) -> dict | None:
     try:
-        with LOCAL.open(f"http://{address(host)}:{port}/metrics", timeout=10) as r:
+        with LOCAL.open(url(host, port, "/metrics"), timeout=timeout) as r:
             return parse_metrics(r.read().decode())
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):
         return None
 
 
-# ---------------------------------------------------------------- commands
+# ---------------------------------------------------------------- up
 
-def launch(profile: dict, extra: list[str]) -> dict:
-    """What a start of this profile from here would run: its arguments, the GPUs it would see, its address and API
-    key."""
-    args = launch_args(profile, extra)
-    env = {**os.environ, **{k: str(v) for k, v in profile["env"].items()}}
-    return {"args": args, "cuda_visible_devices": env.get("CUDA_VISIBLE_DEVICES"), "host": arg_value(args, "--host"),
-            "key": arg_value(args, "--api-key") or env.get("VLLM_API_KEY")}
+def log_tail(name: str, lines: int = 20) -> str:
+    try:
+        return "\n".join(log_path(name).read_text(errors="replace").splitlines()[-lines:])
+    except OSError:
+        return ""
 
 
-def reply(name: str, profile: dict, host: str | None, started: bool) -> dict:
-    out = {"profile": name, "url": base_url(profile["port"], host), "model": profile["model"], "started": started}
-    if host not in LOOPBACK:
-        out["host"] = host
+def failed(name: str, phase: str) -> Failure:
+    return Failure("server_failed", f"{name}'s supervisor exited while {phase}; {log_path(name)} ends:\n{log_tail(name)}")
+
+
+def start_supervisor(name: str, profile: dict, extra: list[str]) -> dict:
+    """Start the profile's supervisor (under the decision lock) and return its state once it holds its run lock;
+    server_failed when it exits first."""
+    (state_dir() / f"{name}.json").unlink(missing_ok=True)     # a dead supervisor's
+    print(f"[vllm-serve] starting {name} ({profile['model']}) on port {profile['port']}; log: {log_path(name)}",
+          file=sys.stderr, flush=True)
+    with open(log_path(name), "wb") as log:
+        supervisor = subprocess.Popen([sys.executable, os.path.abspath(__file__), "_supervise", name, "--", *extra],
+                                      stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+    while supervisor.poll() is None:
+        if (state := read_state(name)) and state.get("pid") == supervisor.pid:
+            return state
+        time.sleep(0.1)
+    if (state := live(name)) is not None:              # another supervisor holds the run lock: an `up` killed
+        return state                                    # while it started one
+    raise failed(name, "starting")
+
+
+def wait_ready(name: str, state: dict, told: bool) -> dict:
+    """Wait, outside the lock and with no deadline, until the server answers at the address its state names, and
+    return that state; server_failed when the supervisor exits first (a failed start, or `down`)."""
+    phase = state["phase"]
+    while not healthy(state["host"], state["port"]):
+        if not held(name):
+            raise failed(name, phase)
+        if not told:
+            print(f"[vllm-serve] waiting for {name}, {phase}; log: {log_path(name)}", file=sys.stderr, flush=True)
+            told = True
+        time.sleep(2)
+        state = read_state(name) or state
+        phase = phase if state["phase"] == "stopping" else state["phase"]     # the phase it was stopped in
+    return state
+
+
+def reply(name: str, state: dict, want: dict, started: bool, vllm: str | None) -> dict:
+    out = {"profile": name, "url": url(state["host"], state["port"]), "model": state["model"], "started": started}
+    if state["host"] not in LOOPBACK:
+        out["host"] = state["host"]
+    if differs := {k: state.get(k) for k in ("model", "port", "args", "cuda_visible_devices") if state.get(k) != want[k]}:
+        out["differs"] = differs
+    if started and (foreign := server_foreign_cuda(state, vllm)):
+        out["foreign_cuda"] = foreign
+        print(f"[vllm-serve] {name}'s server loaded CUDA libraries from outside vLLM's environment: "
+              f"{', '.join(foreign)}; see references/install.md", file=sys.stderr, flush=True)
     return out
 
 
 def up(name: str, extra: list[str]) -> dict:
     profile = load_profile(name)
     want = launch(profile, extra)
-    with locked(name):
-        state = read_state(name)
-        running = state if state and alive(state.get("pid")) else None
-        host = running.get("host", "127.0.0.1") if running else want["host"]
-        if running and answers(profile["port"], profile["model"], host, want["key"]) is None:
-            # a server still starting: the `up` that launched it was interrupted
-            if why := wait_ready(name, profile["port"], profile["model"], host, want["key"], lambda: alive(running["pid"])):
-                raise failed(name, f"{why} (its supervisor, pid {running['pid']}, runs: `serve.py down {name}`)")
-        found = answers(profile["port"], profile["model"], host, want["key"])
-        if found:                       # supervised here, or started by hand on the profile's port
-            touch(name)
-            out = reply(name, profile, host, False)
-            if running and (differs := {k: running.get(k) for k in ("args", "cuda_visible_devices") if running.get(k) != want[k]}):
-                out["differs"] = differs
-            return out
-        if found is False:
-            raise Failure("port_busy", f"port {profile['port']} answers with another model; `curl {base_url(profile['port'], host)}/models`")
-        if port_taken(profile["port"], want["host"]):
-            raise Failure("port_busy", f"another program holds port {profile['port']}: `ss -ltnp | grep :{profile['port']}`")
-        vllm = find_vllm()
-        if not vllm:
-            raise Failure("vllm_missing", "no vllm executable; see references/install.md")
-        ensure_weights(profile, vllm, arg_value(want["args"], "--revision"))
-        print(f"[vllm-serve] starting {name} ({profile['model']}) on port {profile['port']} ...", file=sys.stderr, flush=True)
-        log = open(state_dir() / f"{name}.log", "wb")
-        supervisor = subprocess.Popen([sys.executable, os.path.abspath(__file__), "_supervise", name, "--", *extra],
-                                      stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-        log.close()
-        why = wait_ready(name, profile["port"], profile["model"], want["host"], want["key"], lambda: supervisor.poll() is None)
-        if why is None:
-            touch(name)
-            out = reply(name, profile, want["host"], True)
-            if foreign := server_foreign_cuda(name, vllm):
-                out["foreign_cuda"] = foreign
-                print(f"[vllm-serve] {name}'s server loaded CUDA libraries from outside vLLM's environment: "
-                      f"{', '.join(foreign)}; see references/install.md", file=sys.stderr, flush=True)
-            return out
-        if supervisor.poll() is None:
-            supervisor.terminate()
-            supervisor.wait(60)
-        raise failed(name, why)
+    started = told = False
+    vllm = None
+    while True:
+        with deciding():
+            state = live(name)
+            if state is None:
+                holder = next((n for n in running_names() if n != name and (read_state(n) or {}).get("port") == profile["port"]), None)
+                if holder:
+                    raise Failure("port_busy", f"port {profile['port']} is profile {holder}'s, whose server runs "
+                                               f"(`serve.py status`); a profile needs a port of its own")
+                if listening(want["host"], profile["port"]):
+                    raise Failure("port_busy", f"another program listens on port {profile['port']}: "
+                                               f"`ss -ltnp | grep :{profile['port']}`")
+                if not (vllm := find_vllm()):
+                    raise Failure("vllm_missing", "no vllm executable; see references/install.md")
+                state, started, told = start_supervisor(name, profile, extra), True, True
+        if not state or state.get("phase") == "stopping":       # on its way out: decide again once it is gone
+            time.sleep(1)
+            continue
+        state, told = wait_ready(name, state, told), True
+        with deciding():
+            now = live(name)
+            if now and now.get("pid") == state["pid"] and now.get("phase") != "stopping":
+                touch(name)
+                return reply(name, now, want, started, vllm)
 
+
+# ---------------------------------------------------------------- the supervisor
 
 def die_with_parent() -> None:
-    """Runs in vLLM's process before it execs: SIGTERM it when the supervisor dies, even by SIGKILL."""
+    """Runs in a child before it execs: SIGTERM it when the supervisor dies, even by SIGKILL."""
     try:
         import ctypes
         ctypes.CDLL(None).prctl(1, signal.SIGTERM)      # PR_SET_PDEATHSIG
@@ -550,89 +551,162 @@ def die_with_parent() -> None:
         pass
 
 
+def spawn(cmd: list[str], env: dict | None = None) -> subprocess.Popen:
+    """A child in a process group of its own, for stop(), that dies with the supervisor."""
+    return subprocess.Popen(cmd, stdin=subprocess.DEVNULL, env=env, start_new_session=True,
+                            preexec_fn=die_with_parent if sys.platform == "linux" else None)
+
+
 def stop(proc: subprocess.Popen) -> None:
-    """SIGTERM vLLM's process group (it runs its engines in children), SIGKILL whatever is left after 30 s."""
-    for sig, wait in ((signal.SIGTERM, 30), (signal.SIGKILL, 10)):
+    """SIGTERM the child's process group (vLLM runs its engines in children), SIGKILL whatever is left of it after
+    30 s, and return once the whole group is gone, so its GPU memory and port are free."""
+    for sig, grace in ((signal.SIGTERM, 30), (signal.SIGKILL, 10)):
         try:
             os.killpg(proc.pid, sig)
         except ProcessLookupError:
             return
+        deadline = time.time() + grace
+        while time.time() < deadline:
+            proc.poll()                                 # reaps the leader, which killpg would still count
+            try:
+                os.killpg(proc.pid, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.2)
+
+
+def on_sigterm(*_) -> None:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)       # a second `down` does not cut the stop short
+    print("[vllm-serve] SIGTERM (serve.py down, or the system): stopping", flush=True)
+    raise SystemExit(0)
+
+
+def supervise(name: str, extra: list[str]) -> int:
+    """One start of the profile, from download to stop: download the weights if the cache lacks them, run vLLM
+    until it has been idle for idle_minutes, it exits, or `down` stops it."""
+    signal.signal(signal.SIGTERM, on_sigterm)
+    lock = open(state_dir() / f"{name}.run", "a")       # held until this process exits; children never get it
+    for _ in range(20):
         try:
-            proc.wait(wait)
-        except subprocess.TimeoutExpired:
-            pass
-
-
-def supervise(name: str, extra: list[str]) -> None:
-    """Run the profile's vLLM server until it has been idle for idle_minutes, it exits, or `down` stops it."""
-    profile = load_profile(name)
-    vllm = find_vllm()
-    run = launch(profile, extra)
-    offline = not local_model(profile) and hub_cached(profile["model"], arg_value(run["args"], "--revision"))
-    cuda = own_cuda(vllm)
-    env = server_env(dict(os.environ), profile, offline, cuda, Path(vllm).resolve().parent,
-                     unversioned_links(cuda) if cuda else None, None if cuda else own_cuda_runtime(vllm))
-    proc = subprocess.Popen([vllm, "serve", *run["args"]], stdin=subprocess.DEVNULL, env=env,
-                            start_new_session=True, preexec_fn=die_with_parent if sys.platform == "linux" else None)
-    path = state_dir() / f"{name}.json"
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    idle, load = Idle(time.time()), Load()
-    state = {"pid": os.getpid(), "vllm_pid": proc.pid, "port": profile["port"], "model": profile["model"],
-             "owner": login(), "since": time.time(), "idle_seconds": 0, **{k: run[k] for k in ("args", "cuda_visible_devices", "host")}}
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            break
+        except BlockingIOError:                         # a moment's check by held(), or another supervisor
+            time.sleep(0.1)
+    else:
+        print(f"[vllm-serve] another supervisor runs {name}", flush=True)
+        return 1
+    child, state = None, {}
     try:
-        path.write_text(json.dumps(state))
-        while proc.poll() is None:
+        profile, vllm = load_profile(name), find_vllm()
+        run = launch(profile, extra)
+        start_env = {**os.environ, **{k: str(v) for k, v in profile["env"].items()}}
+        revision = arg_value(run["args"], "--revision")
+        download = not local_model(profile) and not hub_cached(profile["model"], revision, start_env)
+        state.update(pid=os.getpid(), owner=login(), since=time.time(), phase="downloading" if download else "starting",
+                     idle_minutes=profile["idle_minutes"], **run)
+        write_state(name, state)
+        if download:
+            hf = Path(vllm).resolve().parent / "hf"
+            cmd = [str(hf) if hf.exists() else (shutil.which("hf") or "hf"), "download", profile["model"],
+                   *(["--revision", revision] if revision else [])]
+            print(f"[vllm-serve] {' '.join(cmd)}", flush=True)
+            try:
+                child = spawn(cmd, start_env)
+            except OSError as e:
+                print(f"[vllm-serve] cannot run {cmd[0]}: {e}", flush=True)
+                return 1
+            if child.wait():
+                print(f"[vllm-serve] the download exited with {child.returncode}", flush=True)
+                return 1
+            state["phase"] = "starting"
+        cuda = own_cuda(vllm)
+        offline = not local_model(profile) and hub_cached(profile["model"], revision, start_env)
+        env = server_env(dict(os.environ), profile, offline, cuda, Path(vllm).resolve().parent,
+                         unversioned_links(cuda) if cuda else None)
+        child = spawn([vllm, "serve", *run["args"]], env)
+        state["vllm_pid"] = child.pid
+        write_state(name, state)
+        idle = load = None
+        limit = profile["idle_minutes"] * 60
+        while child.poll() is None:
+            if idle is None:                            # the idle clock starts when the server first answers
+                if not healthy(run["host"], run["port"]):
+                    time.sleep(min(TICK, 2))
+                    continue
+                idle, load = Idle(time.time()), Load()
+                state.update(phase="running", idle_seconds=0)
+                write_state(name, state)
             time.sleep(TICK)
-            now, m = time.time(), metrics(profile["port"], run["host"])
+            now, m = time.time(), metrics(run["host"], run["port"])
             seconds = idle.update(now, m, touched(name))
             state.update(idle_seconds=round(seconds), **({"load": load.update(now, m)} if m else {}))
-            path.write_text(json.dumps(state))
-            limit = profile["idle_minutes"] * 60
-            if limit and seconds >= limit:
-                with locked(name):      # no `up` may hand out this server while it stops
-                    if idle.update(time.time(), metrics(profile["port"], run["host"]), touched(name)) >= limit:
-                        print(f"[vllm-serve] {name} idle for {profile['idle_minutes']} min, stopping", flush=True)
-                        stop(proc)
-                        path.unlink(missing_ok=True)
-                        return
+            write_state(name, state)
+            if seconds >= limit:
+                with deciding():                        # no `up` hands the server out once it is stopping
+                    if idle.update(time.time(), metrics(run["host"], run["port"], timeout=2), touched(name)) >= limit:
+                        state["phase"] = "stopping"
+                        write_state(name, state)
+                if state["phase"] == "stopping":
+                    print(f"[vllm-serve] {name} idle for {profile['idle_minutes']} min, stopping", flush=True)
+                    return 0
+        print(f"[vllm-serve] vLLM exited with {child.returncode}", flush=True)
+        return 1
     finally:
-        stop(proc)
-        path.unlink(missing_ok=True)
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        if state.get("phase") != "stopping" and state.get("pid"):
+            with deciding():                            # from here on no `up` is handed this server
+                state["phase"] = "stopping"
+                write_state(name, state)
+        if child:
+            stop(child)
+        (state_dir() / f"{name}.json").unlink(missing_ok=True)
 
+
+# ---------------------------------------------------------------- down and status
 
 def down(name: str) -> dict:
-    profile = load_profile(name)
-    with locked(name):
-        state = read_state(name)
-        if not state or not alive(state.get("pid")):
-            (state_dir() / f"{name}.json").unlink(missing_ok=True)
+    with deciding():
+        state = live(name)
+        if state is None:
+            profile_path(name)                          # a name that is neither running nor a profile: unknown_profile
             return {"profile": name, "stopped": False}
-        try:
-            os.kill(state["pid"], signal.SIGTERM)
-        except PermissionError:
-            raise Failure("not_permitted", f"{name}'s server (pid {state['pid']}) was started by {state.get('owner', 'another login')}: "
-                                           f"that login stops it, or it stops by itself once idle ({profile['idle_minutes']} min; 0: never)") from None
-        for _ in range(90):
-            if not alive(state["pid"]) and answers(profile["port"], profile["model"], state.get("host"), launch(profile, [])["key"]) is None:
-                break
-            time.sleep(1)
-        return {"profile": name, "stopped": True}
+        if pid := state.get("pid"):
+            try:
+                os.kill(pid, signal.SIGTERM)
+                write_state(name, {**state, "phase": "stopping"})   # no `up` is handed it from now on
+            except PermissionError:
+                raise Failure("not_permitted", f"{name}'s server (pid {pid}) was started by {state.get('owner', 'another login')}: "
+                                               f"that login stops it, or it stops by itself after "
+                                               f"{state.get('idle_minutes')} min idle") from None
+            except ProcessLookupError:
+                pass
+    for _ in range(90):                                 # until the supervisor signalled is gone, even if a new
+        now = live(name)                                # `up` has started another meanwhile
+        if now is None or now.get("pid") not in (None, state.get("pid")):
+            return {"profile": name, "stopped": True}
+        time.sleep(1)
+    return {"profile": name, "stopped": False, "phase": "stopping"}
 
 
 def status(name: str) -> dict:
-    profile = load_profile(name)
-    state = read_state(name)
-    running = bool(state and alive(state.get("pid")))
-    host = state.get("host") if running else arg_value(launch_args(profile), "--host")
-    out = {"profile": name, "model": profile["model"], "running": running, "url": base_url(profile["port"], host)}
-    if running:
-        out.update(pid=state["pid"], owner=state.get("owner"), gpus=state.get("cuda_visible_devices"),
-                   idle_for_minutes=round(state.get("idle_seconds", 0) / 60, 1), stops_after_minutes=profile["idle_minutes"])
-        if host not in LOOPBACK:
-            out["host"] = host
-        if "load" in state:
-            out["load"] = state["load"]
-    out["log"] = str(state_dir() / f"{name}.log")
+    state = live(name)
+    if state is None:
+        profile = load_profile(name)
+        out = {"profile": name, "phase": "stopped", "model": profile["model"],
+               "url": url(launch(profile, [])["host"], profile["port"])}
+    else:
+        out = {"profile": name, "phase": state.get("phase", "starting")}
+        if state.get("pid"):
+            out.update(model=state["model"], url=url(state["host"], state["port"]), pid=state["pid"],
+                       owner=state.get("owner"), gpus=state.get("cuda_visible_devices"))
+            if state["host"] not in LOOPBACK:
+                out["host"] = state["host"]
+            if state["phase"] == "running":
+                out.update(idle_for_minutes=round(state.get("idle_seconds", 0) / 60, 1),
+                           stops_after_minutes=state["idle_minutes"])
+            if "load" in state:
+                out["load"] = state["load"]
+    out["log"] = str(log_path(name))
     return out
 
 
@@ -650,17 +724,25 @@ def main(argv=None) -> int:
     args = p.parse_args(argv)
     try:
         if args.command == "_supervise":
-            supervise(args.profile, args.vllm_args)
-            return 0
+            return supervise(args.profile, args.vllm_args)
         if args.command == "up":
             print(json.dumps(up(args.profile, args.vllm_args)), flush=True)
         elif args.command == "down":
             if not args.all and not args.profile:
                 p.error("down needs a profile or --all")
-            for name in profile_names() if args.all else [args.profile]:
-                print(json.dumps(down(name)), flush=True)
+            if not args.all:
+                print(json.dumps(down(args.profile)), flush=True)
+                return 0
+            code = 0
+            for name in sorted({*profile_names(), *running_names()}):
+                try:
+                    print(json.dumps(down(name)), flush=True)
+                except Failure as e:
+                    print(json.dumps({"profile": name, "error": e.code, "detail": e.detail}), flush=True)
+                    code = 2
+            return code
         else:
-            for name in profile_names():
+            for name in sorted({*profile_names(), *running_names()}):
                 try:
                     print(json.dumps(status(name)), flush=True)
                 except Failure as e:
