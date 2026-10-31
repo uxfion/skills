@@ -373,7 +373,8 @@ def claim(work, src, slug, *, kind=None, source=None, via=None, cache=None, came
 
 def accept(work, src, slug, reason, kind=None, consume=True):
     """File a file the check refused, on the agent's reading of it -> the accept event (claim's shape plus the
-    reason), logged. `kind` is the version the agent named."""
+    reason), logged. `kind` is the version the agent named. A file already beside the result (a stub's, filed as
+    cannot_judge) is accepted where it is."""
     src = Path(src)
     if not src.is_file():
         raise Stop("file_not_found", hint="No such file; give the path of the file to accept.", file=str(src))
@@ -386,7 +387,8 @@ def accept(work, src, slug, reason, kind=None, consume=True):
     seen = refused.get("evidence") or {}  # how the file came, when it came through claim before the check refused it
     came = {"route": refused.get("route"), "url": seen.get("url"), "page": seen.get("page"), "link": seen.get("link"),
             "given": named}
-    result, path = place(work, slug, src, kind, consume)
+    here = next((f for f in work.files_of(slug) if md5_of(f) == md5), None)
+    result, path = ("claimed", here) if here else place(work, slug, src, kind, consume)
     return work.append({"event": "accept", "file": path.name, "slug": slug, "result": result, "kind": kind, "md5": md5,
                         "reason": reason, "source": str(src), **arrival(evidence, came)})
 

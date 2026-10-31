@@ -74,6 +74,19 @@ class Claim(unittest.TestCase):
         self.assertEqual(self.run_("--accept", again, "--slug", "paper").code, 2, "--accept needs --reason")
         self.assertEqual(self.run_("--file", again, "--scan").code, 2, "--file goes alone, or with --label")
 
+    def test_a_stubs_file_is_accepted_where_it_is(self):
+        stub = {"slug": "stub", "request": {"given": "10.9999/html"}, "warnings": ["no_csl_record"]}
+        (self.work.results / "stub.json").write_text(json.dumps(stub), encoding="utf-8")
+        self.work.inbox.mkdir()
+        f = fake_pdf(self.work.inbox / "s.pdf", ["A paper with no record to check against"])
+        self.assertEqual(self.run_("--file", f, "--slug", "stub").lines[0]["code"], "cannot_judge")
+        [entry] = self.read("stub")["files"]
+        r = self.run_("--accept", self.work.results / entry["name"], "--slug", "stub", "--reason", "page 1 is the paper")
+        self.assertEqual((r.code, r.lines[0]["file"], r.lines[0]["result"]), (0, entry["name"], "claimed"))
+        self.assertEqual([(x["name"], x["check"]) for x in self.read("stub")["files"]], [(entry["name"], "accepted")],
+                         "not sent to stray/ as a second file")
+        self.assertFalse(self.work.stray.exists() and any(self.work.stray.iterdir()))
+
     def test_an_accepted_file_keeps_how_it_came(self):
         self.work.inbox.mkdir()
         scan = fake_pdf(self.work.inbox / "s.pdf", ["A scanned first page the check cannot read"])

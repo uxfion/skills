@@ -196,13 +196,6 @@ def endpoint(env, default):
     return os.environ.get(env, default).rstrip("/")
 
 
-def host_of(url):
-    try:
-        return (urllib.parse.urlsplit(url).hostname or "").lower()
-    except ValueError:
-        return ""
-
-
 def retry_after(headers):
     """Seconds from a Retry-After header (seconds or an HTTP date), or None."""
     value = ((headers.get("Retry-After") if headers else None) or "").strip()
@@ -220,7 +213,7 @@ class _Hops(urllib.request.HTTPRedirectHandler):
     """Paces each host of a redirect chain once, before it is asked; `key` is the host asked last."""
 
     def __init__(self, pacer, url, key):
-        self.pacer, self.own, self.first, self.key, self.seen = pacer, host_of(url), key, key, set()
+        self.pacer, self.own, self.first, self.key, self.seen = pacer, paper.host_of(url), key, key, set()
 
     def enter(self, key):
         if key not in self.seen:
@@ -231,7 +224,7 @@ class _Hops(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         new = super().redirect_request(req, fp, code, msg, headers, newurl)
         if new is not None:
-            hop = host_of(new.full_url)
+            hop = paper.host_of(new.full_url)
             try:
                 self.enter(self.first if hop == self.own else hop)
             except Blocked:
@@ -248,7 +241,7 @@ def get(url, *, params=None, headers=None, host=None, timeout=30, pacer=None, ma
     read. A 429 stops the host that answered it and raises Blocked, as does a host already stopped; network failures
     raise OSError. The log line leaves out the query (it may carry a key)."""
     pacer = pacer or PACER
-    hops = _Hops(pacer, url, host or host_of(url))
+    hops = _Hops(pacer, url, host or paper.host_of(url))
     hops.enter(hops.first)
     full = url + ("?" + urllib.parse.urlencode(params) if params else "")
     req = urllib.request.Request(full, headers={"User-Agent": USER_AGENT, **(headers or {})})

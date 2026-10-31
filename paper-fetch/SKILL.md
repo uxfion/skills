@@ -107,10 +107,12 @@ Done when every result has a file that passed the check (or that you accepted) a
 
 A library's PDFs to rename by version, or files the user dragged in: the check and the label are the same as for a fetched file, but the file's own word comes first (references/attachment-titles.md, *A file already in the library*).
 
-1. `identify` the paper by its DOI or arXiv id, into a directory of its own (`-o <scratch>/paper-fetch/label`).
+1. `identify` the paper by its DOI or arXiv id into a directory of the file's own (`-o <scratch>/paper-fetch/label/<name>`; for a library file, its attachment key): a result holds one file of the paper, so two files of one paper take two directories.
 2. `pf.py claim --dir <dir> --file <path> --slug <slug>`: a file outside `<dir>` is copied, never moved, so a PDF in Zotero's storage stays where it is. Then `claim --label … --why …` as above.
 
 The result's `files[].label` is what the caller writes back (paper-to-zotero renames the attachment).
+
+Done when every file has its label, or stays Unknown-<Source> with what was looked at named, and the directories are deleted once the caller has the labels.
 
 ## Residue
 

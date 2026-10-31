@@ -29,15 +29,17 @@ the CSL (paper-conference, article-journal or chapter by the venue tag).
 Versions. An arXiv preprint gets versions.preprint (its ids, arXiv's latest vN and comment, title, abstract,
 authors, arXiv's categories) and versions.published: the published versions the authors declared to arXiv, and Crossref works whose
 title matches (90%), each {ids: {doi}, venue, year, title, title_differs, type, sources}; sources that did not answer
-are in versions.incomplete, and identifying the same id again asks them again. Choosing one is the caller's: then
+are in versions.incomplete, and identifying the same id again asks them again (not once it is redrafted). Choosing one is the caller's: then
 --redraft. A published paper's versions are empty.
 
 Redraft: --redraft TARGET RESULT. The result's metadata becomes TARGET's (a DOI, or the paper's page); the preprint
 stays in versions.preprint, its title joins alt_titles, files already got stay.
 
 Lines on stdout, one per ID, then {"summary"}: {id, slug?, code, path?, record_of?, title?, warnings?}.
-  ok                written
-  skipped           reason exists: a result for this paper is there (redraft: same_doi, it has that DOI already)
+  ok                written; renamed_from: a slug given for a paper whose result had a derived one, now its name
+  skipped           reason exists: a result for this paper is there (redraft: same_doi, it has that DOI already);
+                    slug_not_applied: the slug given, when fetching had begun under the old one (give it to the
+                    caller by hand: paper-to-zotero's record citationKey)
   slug_taken        the slug given names another paper's result: nothing written
   needs_pinning     a title, not an identifier (a `title:` line): find the paper's DOI or arXiv id first
   no_identifier     neither a DOI, an arXiv id nor a page url
@@ -388,7 +390,7 @@ def from_page(s, url, warnings):
               "abstract": abstract, "container-title": m["venue"], "volume": m["volume"], "issue": m["issue"],
               "page": m["pages"], "issued": {"date-parts": [[int(x) for x in date]]} if date else None, "DOI": m["doi"],
               "publisher": m["publisher"], "ISSN": m["issn"], "ISBN": m["isbn"], "URL": final,
-              "source": web.host_of(final)}
+              "source": paper.host_of(final)}
     if not m["date"]:
         warnings.append("the page gives no date: set it from the venue's year")
     return {k: v for k, v in values.items() if v}, final, m["doi"] or None
@@ -551,13 +553,20 @@ def identify(s, work, ident, slug_given, seen):
     if key in seen["this_run"]:
         return cli.skipped("duplicate", slug=seen["this_run"][key])
     slug = safe_slug(slug_given) if slug_given else None
-    there = seen["known"].get(key)
+    there, renamed, refused = seen["known"].get(key), None, None
     if there:
         res = run.read(work.results / f"{there}.json")
-        if not res.stub and not (res.get("versions") or {}).get("incomplete"):
+        if slug and slug != there:
+            moved = reslug(work, res, slug, seen)
+            renamed, refused = (there, None) if moved else (None, slug)
+            res, there = moved or res, slug if moved else there
+        redrafted = bool((res.get("request") or {}).get("redraft"))  # its version is chosen: never the preprint again
+        if not res.stub and (redrafted or not (res.get("versions") or {}).get("incomplete")):
             seen["this_run"][key] = there
-            return cli.skipped("exists", slug=there, path=str(res.path))
-        slug = slug or there                          # a stub, or versions to complete: written again in place
+            if renamed:
+                return {"slug": there, "path": str(res.path), "renamed_from": renamed}
+            return cli.skipped("exists", slug=there, path=str(res.path), **({"slug_not_applied": refused} if refused else {}))
+        slug = there                                  # a stub, or versions to complete: written again in place
     if slug and slug != there and (work.results / f"{slug}.json").exists():
         other = run.read(work.results / f"{slug}.json")
         if not other.stub and request_key((other.get("request") or {}).get("given")) != key:
@@ -599,7 +608,24 @@ def identify(s, work, ident, slug_given, seen):
     return {"slug": slug, "path": str(path), "record_of": record_of, "title": (csl.get("title") or "")[:80],
             **({"versions": len(result["versions"]["published"])} if record_of == "preprint" else {}),
             **({"incomplete": result["versions"]["incomplete"]} if result["versions"]["incomplete"] else {}),
+            **({"renamed_from": renamed} if renamed else {}), **({"slug_not_applied": refused} if refused else {}),
             **({"warnings": warnings} if warnings else {})}
+
+
+def reslug(work, res, slug, seen):
+    """A slug given for a paper whose result has a derived one: the result renamed to it -> the renamed result; None
+    when the result has its own given slug, or the name is taken, or fetching has begun (its files and log name the
+    old slug)."""
+    old = res.slug
+    if (res.get("slug_given") or (work.results / f"{slug}.json").exists() or work.files_of(old)
+            or any(e.get("slug") == old for e in work.events())):
+        return None
+    write(work, slug, {**res, "slug": slug, "slug_given": True})
+    res.path.unlink()
+    for k, v in list(seen["known"].items()):
+        if v == old:
+            seen["known"][k] = slug
+    return run.read(work.results / f"{slug}.json")
 
 
 def free(work, base, key, seen):

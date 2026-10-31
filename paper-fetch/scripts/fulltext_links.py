@@ -131,14 +131,14 @@ def link_version(host, claim, repository, pmc_version):
 
 def finalize(raws, pmc_version, in_pmc, proxy):
     """Raw links -> the result's links: version and needs_browser decided, one per url, ordered."""
-    if in_pmc and not any(under(web.host_of(canonical_url(r["url"])), ["ncbi.nlm.nih.gov"]) for r in raws):
+    if in_pmc and not any(under(paper.host_of(canonical_url(r["url"])), ["ncbi.nlm.nih.gov"]) for r in raws):
         raws = raws + [raw_link(f"https://pmc.ncbi.nlm.nih.gov/articles/{in_pmc}/", "europepmc")]
     kept = {}
     for seq, r in enumerate(raws):
         if not isinstance(r.get("url"), str) or not re.match(r"https?://", r["url"].strip(), re.I):
             continue
         url = canonical_url(r["url"])
-        host = web.host_of(url)
+        host = paper.host_of(url)
         if not host:
             continue
         version = r["version"] if r.get("version") in VERSION_RANK else link_version(host, r.get("claim"), r.get("repository"),
@@ -157,7 +157,7 @@ def finalize(raws, pmc_version, in_pmc, proxy):
 
 def venue_page(url):
     """The result's url when it is the venue's own page for the paper: not doi.org, not a preprint server's."""
-    host = web.host_of(url or "")
+    host = paper.host_of(url or "")
     if not host or under(host, ["doi.org"]) or paper.preprint_server(url):
         return None
     return url
@@ -296,7 +296,7 @@ def process(res, ctx):
         run.write_links(res, {"items": links}, incomplete=unanswered)
     line = {"reason": reason, "links": len(links), "sources": statuses}
     if links:
-        line["first"] = {"version": links[0]["version"], "needs_browser": links[0]["needs_browser"], "host": web.host_of(links[0]["url"])}
+        line["first"] = {"version": links[0]["version"], "needs_browser": links[0]["needs_browser"], "host": paper.host_of(links[0]["url"])}
     if len(unanswered) == sum(1 for code in statuses.values() if code != "no_identifier"):
         return {"code": "no_answer", **line, "hint": "No source answered; run this again later."}
     return {"code": "ok", **line}

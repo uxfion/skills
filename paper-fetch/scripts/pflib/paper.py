@@ -18,6 +18,7 @@ file_format, host_of) are copied from paper-to-zotero/scripts/p2zlib/paper.py (c
 import difflib
 import re
 import unicodedata
+import urllib.parse
 
 from .titles import SOURCES, label_title
 
@@ -99,8 +100,12 @@ def file_format(body, name):
 
 
 def host_of(url):
-    """The url's host, lowercased, without port; "" when it has none."""
-    return re.sub(r"^[a-z][a-z0-9+.-]*://", "", (url or "").strip().lower()).split("/", 1)[0].split(":", 1)[0]
+    """The url's host, lowercased, without port or credentials; a bare host counts; "" when it has none."""
+    s = (url or "").strip()
+    try:
+        return (urllib.parse.urlsplit(s if "://" in s else "//" + s).hostname or "").lower()
+    except ValueError:
+        return ""
 
 
 def by_host(host, table):

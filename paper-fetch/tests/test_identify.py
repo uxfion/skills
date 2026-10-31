@@ -180,6 +180,19 @@ class Identifying(Base):
         self.assertEqual([(o["code"], o.get("slug")) for o in r.lines[:-1]],
                          [("ok", "liu2022progressive"), ("skipped", "mine")])
         self.assertEqual([o["reason"] for o in self.ident(stdin=f"{JBHI}\n{JBHI}\n").lines[:2]], ["exists", "duplicate"])
+        # A key brought later (a .bib after a bare id): the result takes it while nothing was fetched under the old name.
+        self.assertEqual(self.ident(CVPR).lines[0]["slug"], "he2016deep")
+        r = self.ident(stdin=f"{CVPR}\the2016resnet\n")
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["slug"], r.lines[0]["renamed_from"]), ("ok", "he2016resnet", "he2016deep"))
+        self.assertEqual((self.res("he2016resnet")["slug_given"], self.path("he2016deep").exists()), (True, False))
+        self.work.append({"event": "pass", "pass": 1, "slug": "he2016resnet"})
+        r = self.ident(stdin=f"{CVPR}\thekaiming2016\n")
+        self.assertEqual((r.lines[0]["reason"], r.lines[0]["slug"], r.lines[0]["slug_not_applied"]),
+                         ("exists", "he2016resnet", "hekaiming2016"), "the result has its key already: the other one is reported, not applied")
+        self.work.append({"event": "pass", "pass": 1, "slug": "liu2022progressive"})  # 10.9999/twin, fetched for
+        r = self.ident(stdin="10.9999/twin\tliutwin\n")
+        self.assertEqual((r.lines[0]["slug"], r.lines[0]["slug_not_applied"]), ("liu2022progressive", "liutwin"),
+                         "fetching began under the old name: the key is reported, the name stays")
 
     def test_failures_stubs_and_titles(self):
         self.web.route("/doi/10.9999/broken", "upstream", status=503)
@@ -269,6 +282,15 @@ class Versions(Base):
         r = self.ident(REFLEXION)
         self.assertEqual((r.lines[0]["code"], r.lines[0].get("incomplete")), ("ok", None), "asked again, now complete")
         self.assertEqual(self.ident(REFLEXION).lines[0]["reason"], "exists")
+
+    def test_a_redraft_is_never_undone(self):
+        self.web.route("/arxiv/api/query", "busy", status=503, times=1)
+        self.ident(REFLEXION)
+        path = self.path("shinn2023reflexion")
+        self.assertEqual(self.run_("--redraft", NEURIPS, path).lines[0]["code"], "ok")
+        self.assertEqual(self.res("shinn2023reflexion")["versions"]["incomplete"], ["arxiv"])
+        self.assertEqual(self.ident(REFLEXION).lines[0]["reason"], "exists", "its version is chosen: not asked again")
+        self.assertEqual(self.res("shinn2023reflexion")["record_of"], "published")
 
 
 class Redraft(Base):

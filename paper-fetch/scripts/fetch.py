@@ -166,7 +166,7 @@ class Pass:
     def pace(self, url):
         """The gap before a request for full text: the institution's for anything through its proxy or its discovery
         system, else the host's own."""
-        host = web.host_of(url)
+        host = paper.host_of(url)
         key = web.INSTITUTION if self.route == "discovery" or (self.proxy and web.is_proxy_host(host, self.proxy)) else host
         if key in web.GAPS:
             try:
