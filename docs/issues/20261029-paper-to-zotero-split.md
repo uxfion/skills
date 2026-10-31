@@ -2,7 +2,7 @@
 
 - 来源：用户 · 2026-10-29。在设计论文笔记的读法时提出，那张 issue 是 [20261028-paper-to-zotero-paper-notes.md](20261028-paper-to-zotero-paper-notes.md)。当时问题树刚定下来（那张 issue 的已定 28），用户说「A。 先不要在问了。有个设计上的非常重要的问题」，接着说了下面这段话。
 - 参考资料：`20261029-paper-to-zotero-split-reference/`，git 不跟踪。里面放 Zotero 和 Better Notes 对外接口的调研。笔记格式、Better Notes 源码、实测结果放在论文笔记那张 issue 的参考资料文件夹里。
-- 状态：open，按 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` 改造中。§10 第 0 到 5 步已完成（2026-10-30）：存基线、笔记转换、paper-fetch、p2z 改成读结果文件、改说法、paper-read 的框架；待验证 2（真编辑器核对）已做完。剩第 6 步收尾（README 已更新；记忆、推送和重装等用户发话），以及 §11 里真写进库的那一半和 code-review。
+- 状态：open，按 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` 改造中。§10 第 0 到 5 步已完成（2026-10-30）：存基线、笔记转换、paper-fetch、p2z 改成读结果文件、改说法、paper-read 的框架；待验证 2（真编辑器核对）已做完。§11 的验证和 code-review 都做完了。剩第 6 步收尾：README 已更新，推送和重装等用户发话。
 - 和论文笔记那张 issue 的关系：读论文的流程、问题树和笔记格式，原来都打算放进 p2z（那张 issue 的"分工"一节）。如果按这张 issue 拆分，它们就归新的读论文 skill，p2z 只负责把笔记存进 Zotero、再取出来。
 
 ## 用户原话
@@ -422,6 +422,7 @@
 
     advisor 审完又抓出两处，都已改（`0661b77`）：库里条目本来就有 PDF 的论文不交给 paper-fetch，它的结果文件就永远没汇总，`save` 每次都会报 `unsettled`，现在跳过并注明 `library_has_pdf`；paper-fetch 判断不了的文件被悄悄略过，结果说"拿到了"、`save` 却说"还没文件"，现在报 `unchecked` 并给出接收的步骤。之后按 spec §11 跑了 dry-run 那一半的端到端对照，和基线一致；真写进库那一半留到收尾时问用户。
 75. 第 5 步搭好 paper-read 的框架（`744c353`）。§11 的"整理"只读对照也做了：拆分前后在"医疗图像"分类上的 `export_bib`、`read_library`、`lint_items` 输出一致。最后按 §11 跑 code-review，两路：编码规范、spec。改了的：四处逻辑问题（接收已归档的文件被挪进 stray/、再认一次会把重认过的正式版改回预印本、后给的引用键被丢掉、库里同一篇的第二个文件没地方定标签），重复的 `host_of`，文档里重复的段落和缺的完成标准，`export_bib -o`、`note put` 的 `action`、几处遮蔽和复用的变量名、过长的文档行，拷来的代码注明出处。有意不改的、实现时定的，都记在 spec §11 末尾。
+76. 我问 §11 真写进库那一半做不做，给了 A 现在做、B 等下次真导入时顺便、C 不做，推荐 B。用户：「A」。照做：三个条目真建进 `tmp`、挂上 PDF，读回和基线逐项一致，然后移进回收站。回收站里这三条（Mask R-CNN、Squeeze-and-Excitation Networks、Array programming with NumPy）等用户清空。
 
 ## 调研（2026-10-29，看的是代码）
 
