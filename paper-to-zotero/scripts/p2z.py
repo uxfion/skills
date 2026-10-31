@@ -10,15 +10,16 @@
 exits 2 with the list.
 
 Two commands run several scripts over the same record files, one after the other, and print one line per record:
-  prepare RECORD...   fill the blocks computed from a record: doi_to_item (a preprint's published versions),
-                      find_in_library (found, near_matches), fulltext_links (links), check_item (checks). Each script
-                      skips a block that is done, so after any change to a record run prepare again.
+  prepare RECORD...   fill the blocks computed from a record: find_in_library (found, near_matches), check_item
+                      (checks). Each script skips a block that is done, so after any change to a record run prepare
+                      again.
   save RECORD...      create_item, then attach_file: the item, then its file. Each skips what it has done, so save can
                       run after every pass of fetch.
 Each line: {slug, code: decide | failed | ok, decide?: [what is the agent's to settle], failed?: [the scripts whose
-line for it is not done], steps: {script: its code}}. `decide` comes from the record itself: near matches (write
-same_as, or add the key to distinct_from), published versions of a preprint not settled (redraft, or write
-keep_preprint with the reason), checks that are not ok, sources that did not answer (prepare again later). Then
+line for it is not done], steps: {script: its code}}. `decide` comes from the record and its result: near matches
+(write same_as, or add the key to distinct_from), a preprint item whose result lists published versions (identify
+--redraft and draft_item --redraft, or write keep_preprint with the reason), checks that are not ok, sources that did
+not answer (prepare, or for versions identify, again later). Then
 {"summary"}. --dry-run and --base-url go
 to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a script could not go on (the next steps did not
 run).
@@ -33,7 +34,7 @@ from p2zlib import cli, run
 
 HERE = Path(__file__).resolve().parent
 SELF = Path(__file__).name
-STEPS = {"prepare": ("doi_to_item", "find_in_library", "fulltext_links", "check_item"),
+STEPS = {"prepare": ("find_in_library", "check_item"),
          "save": ("create_item", "attach_file")}
 
 
@@ -62,16 +63,19 @@ def usage(stream):
 
 
 def decisions(rec):
-    """What the record leaves for the agent to settle, read from the record itself."""
+    """What the record leaves for the agent to settle, read from the record and its result."""
     block = lambda name: rec.get(name) if isinstance(rec.get(name), dict) else {}  # noqa: E731
+    res = run.result_of(rec)[0] if rec.get("fetched") else {}
+    versions = res.get("versions") if isinstance(res.get("versions"), dict) else {}
     out = []
     if rec.get("near_matches") and block("found").get("code") != "found":
         out.append({"near_matches": [m.get("key") for m in rec["near_matches"] if isinstance(m, dict)]})
-    if block("published_candidates").get("items") and not rec.get("keep_preprint"):  # the block is a preprint's only
-        out.append({"published_candidates": len(block("published_candidates")["items"])})
+    if res.get("record_of") == "preprint" and versions.get("published") and not rec.get("keep_preprint"):
+        out.append({"published_versions": len(versions["published"])})
     if block("checks") and block("checks").get("code") != "ok":
         out.append({"checks": block("checks").get("code")})
-    unanswered = sorted({s for name in run.PREPARED for s in block(name).get("incomplete") or []})
+    unanswered = sorted({s for name in run.PREPARED for s in block(name).get("incomplete") or []}
+                        | set(versions.get("incomplete") or [] if res.get("record_of") == "preprint" else []))
     if unanswered:
         out.append({"unanswered": unanswered})
     return out

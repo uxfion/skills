@@ -1,32 +1,21 @@
-"""One import run's work directory: its layout and settings, the records and when a block of theirs is done, the log.
+"""One import's records: where they are, what they hold, when a block of theirs is done.
 
-Layout (ready.py makes it):
-  records/<slug>.json     one record per paper; its file beside it, named by the version it was wanted as (its kind):
-                          <slug>.pdf, <slug>.accepted.pdf, <slug>.preprint.pdf, <slug>.supplement.pdf, <slug>.html
-                          (paper.KINDS); what the file actually is goes into the record's `label`
-  inbox/ stray/ unverified/ scratch/    bytes a script fetched / second copies / files the check refused / one-off files
-  .started                the run's start: Downloads files newer than it are this run's
-  run.json                the run's settings: downloads, session, the watcher's pid
-  fetch.jsonl             what happened to the files: one JSON line per event, appended
-  pace.json               request gaps per host (web.Pacer)
+An import works in <scratch>/paper-to-zotero/: paper-fetch's directory fetch/ (its results, their files, its log)
+and records/, one record per paper, records/<slug>.json under its result's slug. p2z reads a result as plain JSON
+and never writes it; paper-fetch never reads a record.
 
-A record is records/<slug>.json, one JSON object; its slug is the file name. The agent's fields — scripts read
-them and never change them; doi_to_item writes their first values when it drafts the record:
-  item            the Zotero item to create (doi_to_item drafts it; the agent revises it; --redraft replaces it)
-  warnings        [str]: what doi_to_item noticed while drafting (an erratum-like title, a guessed type)
+A record is one JSON object. The agent's fields — scripts read them and never change them; draft_item writes their
+first values:
+  fetched         the result file's absolute path (paper-fetch's <dir>/results/<slug>.json): the paper's ids, CSL,
+                  versions, and the files got for it with their labels and checks
+  item            the Zotero item to create (draft_item drafts it from the result; the agent revises it)
+  warnings        [str]: what draft_item noticed (a type guessed, the DOI put in extra, fields dropped)
   tags            [{tag, type}]               collection     KEY or [KEYS]          citationKey   str
-  alt_titles      [str]: other titles the file may carry (the preprint's, after a redraft)
   distinct_from   [KEYS]: library items the agent judged to be other papers
   same_as         KEY: the library item the agent judged to be this paper (a near match settled)
-  keep_preprint   str: why the preprint stays the item although published_candidates has entries
+  keep_preprint   str: why the item stays the preprint although the result's versions.published has entries
   blocker         str: what the record waits for (the last pass with the user, ...)
-  label           {title, by: agent | subagent | browser_agent, why}: what the record's file is, as its attachment
-                  title (paper.label_title: Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE ...), settled from the
-                  proposal and evidence its claim event carries; without one the file is attached as Unknown-<Source>
 Blocks, each written by one script and nothing else:
-  published_candidates  doi_to_item, for a preprint item only:
-                  {from, items: [{doi, venue, year, title, url?, sources: [arxiv | crossref], title_differs, type?,
-                  journal_ref?}], comment?: arXiv's comment, arxiv_version?: arXiv's latest vN, incomplete?}
   checks          check_item: {from, code: ok | needs_attention | unknown_item_type, itemType, ok_fields, mapped,
                   to_extra, dropped_or_rewritten, empty_fields, missing_minimum, suggestions?}
   found           zotero.Zotero.lookup (find_in_library; create_item's look before it posts): {from, code: found,
@@ -35,24 +24,13 @@ Blocks, each written by one script and nothing else:
                   same_as, duplicates?: [KEYS]} or
                   {from, code: not_found, searched: [{q, qmode, hits}]}; a near match is never here
   near_matches    written with found, under its `from`: [{key, title, itemType, reason, matched_by?}]
-  links           fulltext_links: {from, items: [{url, source, version: published | accepted | preprint | unknown,
-                  needs_browser: true | false | null}], incomplete?: [sources]}
   saved           create_item: {pending: true, at} right before the POST, then {key, version, citationKey, created_at}
-  attach          attach_file: {attachment, md5, title, filename, url, at, existing?} for the file it attached
-                  (existing: the item had this file already, under its own title); another file (another md5) is
-                  attached afresh
-The four blocks prepare fills carry `from`, a short hash of the inputs they were computed from (inputs() names
+  attach          attach_file: [{attachment, md5, title, filename, kind, url, at, existing?}], an entry per file of the
+                  result it attached (existing: the item had this file already, under its own title)
+The blocks prepare fills (PREPARED) carry `from`, a short hash of the inputs they were computed from (inputs() names
 them), and `incomplete: [sources]` when a source did not answer. Such a block is due again when it is absent (or has
 no `from`: an older run's, not trusted), incomplete, or stale; due() says which. `saved` and `attach` record writes
-to the library and are trusted as they are. The facts about files are not in the record: the file's name is its
-kind, and fetch.jsonl has how it came (events claim, accept, arrival, try, stop). A claim or accept event carries
-what its file's label is settled from: {route?, proposal: {title, version, source, detail} (paper.proposal),
-evidence: {url?, page?: {href, title?, meta?, words?: the page's own words about the paper; for an arXiv file,
-arXiv's comment on that version}, link?: {url, why, text, near}, file: {excerpt, excerpt_page_2, pdf_dates,
-arxiv_stamp, html_title}}}: the host's word, then the file's. An arrival event {slug, md5, route, proposal,
-evidence} adds how a file came that its claim could not see (Chrome downloaded it on a link fetch opened, and the
-watcher filed it from Downloads).
-The watcher and the agent never write the same file.
+to the library and are trusted as they are.
 """
 import hashlib
 import json
@@ -67,7 +45,7 @@ from pathlib import Path
 from . import paper, verify, web
 from .cli import ACT, CANNOT, Stop
 
-PREPARED = ("published_candidates", "checks", "found", "links")
+PREPARED = ("checks", "found")
 FILE_SUFFIXES = tuple(paper.KINDS.values())
 
 
@@ -190,6 +168,20 @@ class Record(dict):
         return [value] if isinstance(value, str) and value else [v for v in value if isinstance(v, str)] if isinstance(value, list) else []
 
 
+def result_of(rec):
+    """The record's result, read as plain JSON -> (result, its path); Stop no_result when it cannot be read."""
+    path = Path(str(rec.get("fetched") or ""))
+    try:
+        res = json.loads(path.read_text(encoding="utf-8")) if rec.get("fetched") else None
+    except (OSError, ValueError) as e:
+        raise Stop("no_result", path=str(path), detail=str(e), hint="The record's result file cannot be read: draft the "
+                                                                   "record again from its result (draft_item.py).") from None
+    if not isinstance(res, dict):
+        raise Stop("no_result", hint="The record names no result file (`fetched`): draft it from its result with "
+                                     "draft_item.py.")
+    return res, path
+
+
 def read(path):
     """The record at path -> Record; a file that is not one JSON object -> Stop record_invalid."""
     path = Path(path)
@@ -247,7 +239,7 @@ def old_format(rec):
     return [b for b in PREPARED if b in rec and not (isinstance(rec[b], dict) and "from" in rec[b])]
 
 
-HINT_NO_ITEM = "The record has no item: draft it with doi_to_item.py --doi ID --out-dir <work>/records."
+HINT_NO_ITEM = "The record has no item: draft it from its result with draft_item.py."
 HINT_NEAR = ("The library has something like this paper (near_matches): the same paper -> write same_as: KEY in the "
              "record; another paper -> add KEY to distinct_from; a preprint/published pair is the user's call. Then run "
              "p2z.py prepare (or save) again.")

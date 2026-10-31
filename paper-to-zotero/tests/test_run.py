@@ -63,23 +63,24 @@ class DoneRule(unittest.TestCase):
 
     def test_absent_fresh_stale_incomplete(self):
         rec = self.rec()
-        self.assertEqual(run.due(rec, "links"), "absent")
-        run.stamp(rec, "links", {"items": []})
-        self.assertIsNone(run.due(rec, "links"))
+        self.assertEqual(run.due(rec, "found"), "absent")
+        run.stamp(rec, "found", {"code": "not_found"})
+        self.assertIsNone(run.due(rec, "found"))
         rec["item"]["DOI"] = "10.1109/CVPR.2016.91"
-        self.assertEqual(run.due(rec, "links"), "stale")
-        run.stamp(rec, "links", {"items": []}, incomplete=["openalex"])
-        self.assertEqual((run.due(rec, "links"), rec["links"]["incomplete"]), ("incomplete", ["openalex"]))
+        self.assertEqual(run.due(rec, "found"), "stale")
+        run.stamp(rec, "found", {"code": "not_found"}, incomplete=["search"])
+        self.assertEqual((run.due(rec, "found"), rec["found"]["incomplete"]), ("incomplete", ["search"]))
 
     def test_inputs_are_what_the_block_depends_on(self):
         rec = self.rec()
         run.stamp(rec, "found", {"code": "not_found"})
-        run.stamp(rec, "links", {"items": []})
+        run.stamp(rec, "checks", {"code": "ok"})
         rec["tags"] = [{"tag": "x", "type": 0}]
+        self.assertIsNone(run.due(rec, "found"), "tags do not change a lookup")
+        self.assertIsNone(run.due(rec, "checks"))
         rec["item"]["abstractNote"] = "An abstract."
-        self.assertIsNone(run.due(rec, "found"), "tags and the abstract do not change a lookup")
-        self.assertIsNone(run.due(rec, "links"))
-        self.assertEqual(run.due(rec, "checks"), "absent")
+        self.assertIsNone(run.due(rec, "found"), "nor does the abstract")
+        self.assertEqual(run.due(rec, "checks"), "stale", "the preview is of the whole item")
         rec["distinct_from"] = ["ABCD1234"]
         self.assertEqual(run.due(rec, "found"), "stale", "a new distinct_from is a new lookup")
         run.stamp(rec, "found", {"code": "not_found"})
@@ -87,8 +88,8 @@ class DoneRule(unittest.TestCase):
         self.assertEqual(run.due(rec, "found"), "stale")
 
     def test_a_block_without_from_is_an_older_runs(self):
-        rec = self.rec(found={"code": "near_match", "key": "OTHER001"}, saved={"key": "MINE0001"}, links=[])
-        self.assertEqual(run.old_format(rec), ["found", "links"])
+        rec = self.rec(found={"code": "near_match", "key": "OTHER001"}, saved={"key": "MINE0001"}, checks={"code": "ok"})
+        self.assertEqual(run.old_format(rec), ["checks", "found"])
         self.assertEqual(run.due(rec, "found"), "absent")
 
     def test_item_key(self):

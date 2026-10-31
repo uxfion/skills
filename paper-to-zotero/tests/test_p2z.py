@@ -15,7 +15,6 @@ import unittest
 from pathlib import Path
 
 from helpers import config_file
-from fake_web import FakeWeb, location
 from fake_zotero import FakeZotero
 
 from p2zlib import run as work_run
@@ -92,26 +91,37 @@ class P2zTest(unittest.TestCase):
 
 class PrepareAndSave(unittest.TestCase):
     def test_the_main_line(self):
-        zot, web = FakeZotero(), FakeWeb()
+        zot = FakeZotero()
         self.addCleanup(zot.close)
-        self.addCleanup(web.close)
         zot.add_collection("COLL0001", "Inbox")
         zot.add_item("LIKE0001", itemType="journalArticle", title="Paper Near Something")
-        web.openalex("10.1000/new.1", [location("https://repo.example/new.pdf", None, "publishedVersion")])
-        web.crossref("10.1000/pub.9", type="proceedings-article", title="Reflexion: Language Agents with Verbal Reinforcement",
-                     container_title="NeurIPS", issued={"date-parts": [[2023]]})
-        web.arxiv("2303.11366", "Reflexion: Language Agents with Verbal Reinforcement", comment="NeurIPS 2023")
         work = work_run.Work(tempfile.mkdtemp(prefix="p2z-main-"))
+        results = work.root / "fetch" / "results"
+        results.mkdir(parents=True)
         work.records.mkdir()
+        pdf = results / "new.pdf"
+        pdf.write_bytes(b"%PDF-1.4 a new paper")
+        got = {"status": "got", "tried": [], "stop": None}
         author = [{"creatorType": "author", "firstName": "Wei", "lastName": "Liu"}]
-        for slug, item in (("new", {"itemType": "journalArticle", "title": "A New Paper", "DOI": "10.1000/new.1", "date": "2024"}),
-                           ("dup", {"itemType": "journalArticle", "title": "Paper Near Something", "date": "2024"}),
-                           ("pre", {"itemType": "preprint", "title": "Reflexion: Language Agents with Verbal Reinforcement",
-                                    "archiveID": "arXiv:2303.11366", "date": "2023"})):
-            (work.records / f"{slug}.json").write_text(json.dumps({"item": {**item, "creators": author}, "collection": "COLL0001",
-                                                                   "tags": ["method/x"]}))
-        records = [str(work.records / f"{s}.json") for s in ("new", "dup", "pre")]
-        env = {**os.environ, **web.env(), "PAPER_TO_ZOTERO_CONFIG": str(config_file()), "PATH": os.environ["PATH"]}
+        papers = {
+            "new": ({"itemType": "journalArticle", "title": "A New Paper", "DOI": "10.1000/new.1", "date": "2024"},
+                    {"record_of": "published", "outcome": got, "files": [
+                        {"name": "new.pdf", "md5": work_run.md5_of(pdf), "kind": "published", "check": "ok",
+                         "label": {"title": "Published-Example"}}]}),
+            "dup": ({"itemType": "journalArticle", "title": "Paper Near Something", "date": "2024"},
+                    {"record_of": "published", "outcome": {"status": "not_got", "tried": [], "stop": None}, "files": []}),
+            "pre": ({"itemType": "preprint", "title": "Reflexion: Language Agents with Verbal Reinforcement",
+                     "archiveID": "arXiv:2303.11366", "date": "2023"},
+                    {"record_of": "preprint", "versions": {"published": [{"ids": {"doi": "10.1000/pub.9"}, "venue": "NeurIPS"}],
+                                                           "incomplete": []}}),
+        }
+        for slug, (item, res) in papers.items():
+            (results / f"{slug}.json").write_text(json.dumps({"slug": slug, **res}))
+            (work.records / f"{slug}.json").write_text(json.dumps({
+                "fetched": str(results / f"{slug}.json"), "item": {**item, "creators": author}, "collection": "COLL0001",
+                "tags": ["method/x"]}))
+        records = [str(work.records / f"{s}.json") for s in papers]
+        env = {**os.environ, "PAPER_TO_ZOTERO_CONFIG": str(config_file())}
 
         def p2z(*argv):
             done = subprocess.run([sys.executable, str(P2Z), *argv, "--base-url", zot.base_url, *records], capture_output=True,
@@ -121,11 +131,9 @@ class PrepareAndSave(unittest.TestCase):
         code, lines = p2z("prepare")
         self.assertEqual(code, 1, lines)
         by = {line["slug"]: line for line in lines[:-1]}
-        self.assertEqual(set(by["new"]["steps"]), {"doi_to_item", "find_in_library", "fulltext_links", "check_item"})
-        self.assertEqual((by["new"]["steps"]["fulltext_links"], by["new"]["steps"]["doi_to_item"]), ("ok", "skipped: not_preprint"))
+        self.assertEqual(set(by["new"]["steps"]), {"find_in_library", "check_item"})
         self.assertEqual(by["dup"]["decide"][0], {"near_matches": ["LIKE0001"]})
-        self.assertIn({"published_candidates": 1}, by["pre"]["decide"])
-        self.assertEqual(work_run.read(records[0])["links"]["items"][0]["url"], "https://repo.example/new.pdf")
+        self.assertIn({"published_versions": 1}, by["pre"]["decide"], "the result lists a published version")
         code, again = p2z("prepare")
         self.assertTrue(all(v.startswith("skipped") for v in again[0]["steps"].values()), again[0])
         pre = work_run.read(records[2])
@@ -133,11 +141,12 @@ class PrepareAndSave(unittest.TestCase):
         pre.save()
         code, lines = p2z("save")
         by = {line["slug"]: line for line in lines[:-1]}
-        self.assertEqual((by["new"]["steps"], by["pre"]["code"]),
-                         ({"create_item": "ok", "attach_file": "skipped: no_file_yet"}, "decide"), lines)
+        self.assertEqual(by["new"]["steps"], {"create_item": "ok", "attach_file": "ok"}, lines)
+        self.assertEqual(work_run.read(records[0])["attach"][0]["title"], "Published-Example")
         self.assertEqual(by["dup"]["steps"]["create_item"], "possible_duplicate")
         self.assertEqual(by["dup"]["failed"], ["create_item"])
-        self.assertNotIn({"published_candidates": 1}, by["pre"]["decide"], "keep_preprint settles it")
+        self.assertEqual(by["pre"]["steps"]["attach_file"], "unsettled", "a result never settled attaches nothing")
+        self.assertNotIn({"published_versions": 1}, by["pre"].get("decide", []), "keep_preprint settles it")
         self.assertEqual(lines[-1]["summary"]["decide"], 3)
 
 
