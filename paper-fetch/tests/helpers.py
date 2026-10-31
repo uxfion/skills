@@ -27,6 +27,9 @@ sys.path.insert(0, str(SCRIPTS))   # `from pflib import ...` inside the scripts,
 sys.path.insert(0, str(TESTS))
 
 _loaded, SECRETS = {}, set()
+# Scripts pace through the machine's pace file: tests never touch the real one. A test that needs its own points
+# PAPER_FETCH_PACE into its directory.
+os.environ.setdefault("PAPER_FETCH_PACE", str(Path(tempfile.mkdtemp(prefix="pf-pace-")) / "pace.json"))
 
 
 def load(name):

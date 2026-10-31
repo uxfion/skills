@@ -113,7 +113,7 @@ class Pass:
                            work_dirs=sorted(map(str, works)))
         self.args, self.results, self.work, self.route, self.stopped = args, results, run.Work(works.pop()), None, None
         self.arxiv = None  # arXiv id -> arXiv's word on its latest version (arxiv_entry)
-        self.pacer = web.Pacer(self.work)
+        self.pacer = web.Pacer(web.pace_path())
         inst, settings = config.institution(), self.work.settings()
         self.proxy, self.discovery = inst["proxy"], inst["discovery"]
         dl = settings.get("downloads")

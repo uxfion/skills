@@ -163,7 +163,7 @@ class Fetch(unittest.TestCase):
         self.env = {**{k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")},
                     "PATH": f"{bin_}{os.pathsep}{os.environ['PATH']}", "STUB_SCENARIO": str(self.scenario),
                     "STUB_STATE": str(self.tmp / "state.json"), "PAPER_FETCH_CONFIG": str(self.config),
-                    "PAPER_FETCH_INSTITUTION_GAP": "0", "PAPER_FETCH_CLICK_WAIT": "3", "PAPER_FETCH_DOWNLOAD_WAIT": "3",
+                    "PAPER_FETCH_INSTITUTION_GAP": "0", "PAPER_FETCH_PACE": str(self.tmp / "pace.json"), "PAPER_FETCH_CLICK_WAIT": "3", "PAPER_FETCH_DOWNLOAD_WAIT": "3",
                     "PAPER_FETCH_DISCOVERY_WAIT": "0", "ARXIV_API_URL": f"{self.base}/arxiv/api/query"}
         self.server.arxiv_asked.clear()
         self.scene({})

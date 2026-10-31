@@ -3,6 +3,7 @@
 # dependencies = []
 # ///
 """Tests for scripts/fulltext_links.py against the fake web's OpenAlex, Europe PMC and venue pages."""
+import os
 import tempfile
 import unittest
 from unittest import mock
@@ -42,6 +43,7 @@ class FulltextLinks(unittest.TestCase):
                     pmcid="PMC123")
         self.work = run.Work(tempfile.mkdtemp(prefix="pf-links-"))
         self.config = config_file(self.work.root, openalex_key=KEY)
+        self.enterContext(mock.patch.dict(os.environ, {"PAPER_FETCH_PACE": str(self.work.root / "pace.json")}))
         self.enterContext(mock.patch.dict(web.GAPS, {"api.openalex.org": 0, "www.ebi.ac.uk": 0, "127.0.0.1": 0}))
 
     def result(self, slug, doi=None, *, url=None, type="article-journal", **fields):

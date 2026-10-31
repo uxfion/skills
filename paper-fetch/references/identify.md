@@ -13,4 +13,4 @@ uv run scripts/pf.py identify --search "<title>" --author <surname>   # Crossref
 - `versions.incomplete` names sources that did not answer; identifying the same id again asks again (the files already got stay).
 - `slug_taken`: the slug names another paper's result in that directory — give another slug, or another directory.
 
-No `ready`, no watcher and no browser are needed: everything here is metadata over plain HTTP, paced per host through `<dir>/pace.json`.
+No `ready`, no watcher and no browser are needed: everything here is metadata over plain HTTP, paced per host through the machine's pace file (`~/.cache/paper-fetch/pace.json`).

@@ -5,6 +5,7 @@
 """Tests for scripts/identify.py: result files from identifiers and pages, the CSL's normalization, a preprint's
 versions, --redraft and --search, against the fake web (doi.org, Crossref, arXiv's API, venue pages)."""
 import json
+import os
 import tempfile
 import unittest
 from unittest import mock
@@ -125,6 +126,7 @@ class Base(unittest.TestCase):
                 journal_ref="ECCV 2022 Workshops", doi="10.1007/978-3-031-25066-8_9")
         w.arxiv("2310.00001", "LabelDP-Pro: Learning with Label Differential Privacy via Projection", comment="ICLR 2024")
         self.work = run.Work(tempfile.mkdtemp(prefix="pf-identify-"))
+        self.enterContext(mock.patch.dict(os.environ, {"PAPER_FETCH_PACE": str(self.work.root / "pace.json")}))
         self.enterContext(mock.patch.dict(web.GAPS, {h: 0 for h in ("doi.org", "api.crossref.org", "export.arxiv.org", "127.0.0.1")}))
 
     def run_(self, *argv, stdin="", env=None):

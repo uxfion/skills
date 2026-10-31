@@ -51,7 +51,7 @@ Lines on stdout, one per ID, then {"summary"}: {id, slug?, code, path?, record_o
   not_published     (--redraft) a 10.48550 DOI is the preprint itself
   doi_org_unreachable, source_blocked (429: nothing is asked of the host before `until`): exit 2, the rest not_run
 Exit 0 = every line ok or skipped; 1 = not; 2 = cannot go on. Requests keep a gap per host, shared through
-DIR/pace.json; env DOI_BASE_URL, CROSSREF_BASE_URL, ARXIV_API_URL point the services elsewhere (tests).
+the machine's pace file (pflib/web.py); env DOI_BASE_URL, CROSSREF_BASE_URL, ARXIV_API_URL point the services elsewhere (tests).
 
 Examples:
   uv run scripts/identify.py 1505.04597 -o <scratch>/paper-fetch
@@ -137,7 +137,7 @@ class Session:
     """What one run shares: the pacer of the directory, and arXiv's answers."""
 
     def __init__(self, work=None):
-        self.pacer = web.Pacer(work)
+        self.pacer = web.Pacer(web.pace_path())
         self.arxiv = {}  # arXiv id -> (its entry, the source's code)
 
     def arxiv_entry(self, aid):

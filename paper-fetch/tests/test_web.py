@@ -7,6 +7,7 @@ what paper pages declare. Every request goes to a local server; "localhost" and 
 import contextlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -259,11 +260,13 @@ class Pacing(unittest.TestCase):
         self.assertEqual(web.gap("www.medrxiv.org"), 10.0)
         self.assertEqual(web.gap("unknown.example"), web.DEFAULT_GAP)
 
-    def test_an_object_with_a_root_names_the_work_directory(self):
-        class Work:
-            root = self.work
-        web.Pacer(Work()).wait("h")
-        self.assertIn("h", self.state()["last"])
+    def test_one_pace_file_per_machine(self):
+        with mock.patch.dict("os.environ", {"PAPER_FETCH_PACE": str(Path(self.work) / "pace.json")}):
+            web.Pacer(web.pace_path()).wait("h")
+        self.assertIn("h", self.state()["last"], "$PAPER_FETCH_PACE names the file")
+        env = {k: v for k, v in os.environ.items() if k not in ("PAPER_FETCH_PACE", "XDG_CACHE_HOME")}
+        with mock.patch.dict("os.environ", env, clear=True):
+            self.assertEqual(web.pace_path(), Path.home() / ".cache" / "paper-fetch" / "pace.json", "else the user's cache")
         with self.assertRaises(ValueError):
             with web.Pacer().state():
                 pass

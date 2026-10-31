@@ -265,7 +265,7 @@ def identifiers(res):
 def setup(args, results):
     config.read(strict=True)
     work = results[0].work if results else None
-    return {"key": config.openalex_key(), "proxy": config.institution()["proxy"], "pacer": web.Pacer(work),
+    return {"key": config.openalex_key(), "proxy": config.institution()["proxy"], "pacer": web.Pacer(web.pace_path()),
             "dry_run": args.dry_run}
 
 

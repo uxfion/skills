@@ -7,12 +7,14 @@ PAPER_FETCH_INSTITUTION_GAP, because licences forbid systematic downloading and 
 suspends the institution's account, not just this browser. A gap counts on the host actually requested: get() paces a
 redirect to another host under that host before following it. A host that answers 429 is stopped: no request goes to
 it until the stop ends, and Blocked carries the Retry-After and the end.
-  Pacer()      this process only; a stop lasts as long as the pacer (an organizing tool: one process is the run).
-  Pacer(work)  shared by every script of one directory through <dir>/pace.json, so a rerun keeps the gaps and a 429
-               holds across processes: until its Retry-After, else STOP seconds. Every wait reads the file, and every
-               read-modify-write holds an exclusive flock on <dir>/pace.json.lock (it holds on drvfs, /mnt/c, too). A
-               process reserves its slot under the lock and sleeps outside it, so a long gap on one host does not hold
-               up another.
+  Pacer()           this process only; a stop lasts as long as the pacer.
+  Pacer(pace_path()) shared by every script on this machine through one pace file (pace_path(): $PAPER_FETCH_PACE,
+               else <cache>/paper-fetch/pace.json): the gaps are courtesy to a site, whatever run asks it, so every
+               run, every agent's run and every rerun keep them, and a 429 holds across processes: until its
+               Retry-After, else STOP seconds. Every wait reads the file, and every read-modify-write holds an
+               exclusive flock on <pace file>.lock (it holds on drvfs, /mnt/c, too). A process reserves its slot under
+               the lock and sleeps outside it, so a long gap on one host does not hold up another. Pacer(<dir>) uses
+               <dir>/pace.json (tests point $PAPER_FETCH_PACE into their own directory).
 pace.json: {"last": {host: epoch seconds of the last request, or of the slot reserved for the next},
 "stopped": {host: {"at", "until", "retry_after"}}}; a stop past its end is dropped on the next write.
 
@@ -59,7 +61,7 @@ INSTITUTION_GAP_ENV = "PAPER_FETCH_INSTITUTION_GAP"
 GAPS = {"api.crossref.org": 1.0, "export.arxiv.org": 3.0, "doi.org": 0.5, "api.openalex.org": 0.1,
         "www.ebi.ac.uk": 0.2, "www.medrxiv.org": 10.0, "www.biorxiv.org": 10.0, INSTITUTION: 15.0}
 DEFAULT_GAP = 1.0
-# Seconds a 429 without Retry-After stops a host for the scripts of one <dir>; a living value.
+# Seconds a 429 without Retry-After stops a host for every script on the machine; a living value.
 STOP = 3600.0
 PACE_FILE = "pace.json"
 # Proxies other than the configured one that a stored url may still carry.
@@ -94,20 +96,29 @@ class Blocked(Exception):
                 **({"until": iso(self.until)} if self.until is not None else {})}
 
 
-class Pacer:
-    """When each host was last asked and which hosts a 429 stopped: in this process, or (work given: a directory or
-    anything with a .root) in <dir>/pace.json. `last` and `stopped` ({host: retry_after}) are this process's own, or
-    with a directory the file's as of the last wait or stop."""
+def pace_path():
+    """The machine's pace file: $PAPER_FETCH_PACE, else <XDG cache, ~/.cache>/paper-fetch/pace.json."""
+    given = os.environ.get("PAPER_FETCH_PACE")
+    if given:
+        return Path(given).expanduser()
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "paper-fetch" / PACE_FILE
 
-    def __init__(self, work=None):
+
+class Pacer:
+    """When each host was last asked and which hosts a 429 stopped: in this process, or (where given: a pace file, or
+    a directory holding pace.json) in that file. `last` and `stopped` ({host: retry_after}) are this process's own, or
+    with a file the file's as of the last wait or stop."""
+
+    def __init__(self, where=None):
         self.last, self.stopped = {}, {}
-        root = work if work is None or isinstance(work, (str, os.PathLike)) else work.root
         self.path = self.lock = None
-        if root is not None and fcntl is None:
+        if where is not None and fcntl is None:
             log("no file locks on this system: requests are paced in this process only")
-        elif root is not None:
-            self.path = Path(root) / PACE_FILE
-            self.lock = self.path.with_name(PACE_FILE + ".lock")
+        elif where is not None:
+            where = Path(where)
+            self.path = where / PACE_FILE if where.is_dir() else where
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.lock = self.path.with_name(self.path.name + ".lock")
 
     def wait(self, host):
         """Sleep until the host's gap has passed and count this request; Blocked when a 429 stopped the host."""
@@ -152,7 +163,7 @@ class Pacer:
         """pace.json under the lock (a dict with "last" and "stopped", expired stops left out); what the block
         changes is written back atomically when it ends without an error. Pacers with a directory only."""
         if self.path is None:
-            raise ValueError("a pacer without a directory has no pace.json")
+            raise ValueError("a pacer without a file has no pace.json")
         fd = os.open(self.lock, os.O_RDWR | os.O_CREAT, 0o644)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX)
