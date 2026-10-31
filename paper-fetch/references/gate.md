@@ -20,16 +20,16 @@ The moment a marker shows, alert first — before any further `wait` or `state`,
 uv run scripts/pf.py wait <result> --session pf-<slug>   # --until "Access provided by": text or selector only the passed gate shows
 ```
 
-`--until` names what only the page *after* the gate shows; a word the gate page itself carries (the Zotero Connector's proxy banner names the publisher's host) ends the wait at once. It looks at the tab and at the paper's file every 10 seconds, and every minute opens the gate's address afresh in a tab of its own, since a login in another window leaves the gate's tab as it was. Nobody tells you when the user is through; the wait sees it, and ends on whichever comes first:
+`--until` names what only the page *after* the gate shows; a word the gate page itself carries (the Zotero Connector's proxy banner names the publisher's host) ends the wait at once. It reads the tab and the paper's file every 10 seconds and requests nothing of the site: a page reloaded over and over is what gets a whole browser blocked. Nobody tells you when the user is through; the wait sees it, and ends on whichever comes first:
 - `arrived` — the paper has its file (the user downloaded it): its `page` handoff has closed; `pf.py todo --dir <dir> --slug <slug>` says what is left.
-- `passed` — `seen: tab`: the page shows `--until`, or, without it, its URL or title changed: go on where you stopped. `seen: fresh`: the fresh look got through: open the page again in your session and go on.
-- `timeout` after about ten minutes: answer the `page` handoff `gate_timeout`, leave the gate tab as it is, and report. The paper is tried again at the next pass.
+- `passed` — the page shows `--until`, or, without it, its URL or title changed: go on where you stopped.
+- `timeout` after about ten minutes. A login from another window leaves the gate's tab as it was, so a sign-in page gets one fresh look: open its address once in your session — through → go on. A bot check is never reopened. Still at the gate: answer the `page` handoff `gate_timeout`, leave the gate tab as it is, and report; the paper is tried again at the next pass.
 
 ## The main conversation at a gate
 
 On a paper agent's gate line, alert the user with a push notification (load the tool if it is deferred) and say in the conversation which paper waits, on which page, and what to do there; the page is in front of them already. They pass it in that tab (sign in, tick the box); a login holds for the whole of Chrome, so the other papers behind it pass too. Another paper agent that meets the same gate sends its own line: there is no list of gates to keep.
 
-Nothing goes back to the agent: its wait sees the gate pass however the user passed it, and it goes on by itself. The user need not say they are through; when they do after a `gate_timeout`, its agent may hand the page back at once (`fetch --start <url> --session pf-<slug>`: a run on its own paper is never held) instead of waiting for the next pass. Record every gate (page, time, paper) for the report.
+Nothing goes back to the agent: its wait sees the gate pass in its tab, or a download arrive, and a sign-in page gets one fresh look at the end; it goes on by itself. The user need not say they are through; when they do after a `gate_timeout`, its agent may hand the page back at once (`fetch --start <url> --session pf-<slug>`: a run on its own paper is never held) instead of waiting for the next pass. Record every gate (page, time, paper) for the report.
 
 ## Pages nobody can pass
 

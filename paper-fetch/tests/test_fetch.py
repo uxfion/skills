@@ -55,15 +55,12 @@ def fail(code, message):
     print(json.dumps({"ok": False, "error": {"code": code, "message": message}}))
     sys.exit(1)
 cmd = args[1]
-if cmd == "close":
-    out(True)
 if cmd == "open":
     url = args[2]
     dl = scen.get("downloads", {}).get(url)
     if dl:  # Chrome downloads it; the tab keeps its document
         open(os.path.join(dl["dir"], dl["name"]), "wb").write(base64.b64decode(dl["bytes"]))
         out({"url": url})
-    url = scen.get("redirects", {}).get(url, url)  # a page that now sends the browser on (a login passed elsewhere)
     if url not in scen.get("pages", {}):
         fail("navigation_failed", "navigation failed")
     state["current"], state["doc"] = url, state.get("doc", 0) + 1  # a new document, as performance.timeOrigin shows
@@ -416,17 +413,6 @@ class Fetch(unittest.TestCase):
         with mock.patch.object(wait, "STEP", 0.2):
             r = call(wait, gated, "--file-only", "--timeout", "5", env=self.env)
         self.assertEqual((r.code, r.lines[0]["code"], self.files()), (0, "arrived", ["v.pdf", "w.pdf"]), r)
-
-    def test_a_gate_passed_from_another_window(self):
-        pages = {"https://gate.example/login": {"title": "Sign in"}, "https://pub.example/a": {"title": "An article"}}
-        self.scene({"pages": pages})
-        subprocess.run(["opencli", "browser", "open", "https://gate.example/login", "--session", "pf"], env=self.env, capture_output=True)
-        self.scene({"pages": pages, "redirects": {"https://gate.example/login": "https://pub.example/a"}})  # signed in elsewhere
-        wait = load("wait")
-        with mock.patch.object(wait, "STEP", 0.2), mock.patch.object(wait, "PROBE", 0.0):
-            r = call(wait, self.result("w"), "--timeout", "5", env=self.env)
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["seen"], r.lines[0]["title"]), (0, "passed", "fresh", "An article"),
-                         "the gate's tab never changed: a fresh look at its address saw the login")
 
     def test_smoke(self):
         for name, first in (("fetch", "Walk one pass of the chain"), ("wait", "Wait at a gate")):

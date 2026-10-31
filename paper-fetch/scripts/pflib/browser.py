@@ -65,7 +65,7 @@ class BrowserDown(Exception):
 
 class Browser:
     def __init__(self, session="pf", window="background"):
-        self.session, self.window, self.opened = session, window, False
+        self.session, self.window = session, window
 
     def run(self, *args, timeout=EVAL_TIMEOUT, window=False):
         """One `opencli browser` command in this session -> (its result's data, None) or (None, the error);
@@ -102,7 +102,6 @@ class Browser:
     def open(self, url, front=False):
         """Navigate the session's tab (front: in a foreground window, for the user) -> None, or the error."""
         window, self.window = self.window, "foreground" if front else self.window
-        self.opened = True
         try:
             return self.run("open", url, timeout=OPEN_TIMEOUT, window=True)[1]
         finally:
