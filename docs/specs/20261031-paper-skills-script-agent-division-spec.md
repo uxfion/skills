@@ -113,7 +113,7 @@
 - 内层阅读页（比如 IEEE 的 stamp.jsp）停下时，它的信息也留作证据，不丢。
 - 浏览器本身出错是确定的事实：Browser 把 OpenCLI 的错误码交出来，扩展没连上、附着失败这类就写 `browser_down` 交接，这遍停下。taker 先是 `agent`（`opencli doctor`、`opencli daemon restart`），不行再交 `user`。
 - 限速按实际请求的主机算：identify 在 doi.org 的 API 上碰到的 429，不拦浏览器去打开 doi.org 跳转后的出版商页面。
-- 每次退出都把这遍拿到、版本还没定的文件写成 `label` 交接。
+- 没定标签的文件由 settle 写成 `label` 交接：fetch、claim、answer、wait 退出前都会 settle，所以不管哪条命令归位的文件都不会漏。（实施时改的：原来只写在 fetch 退出时，claim、answer、wait 归位的文件会漏掉。）
 - `fetch.jsonl` 现在可能有七个写入者（主对话、5 个 paper agent、监视器），一条证据可能超过一次原子追加的长度，所以追加时加锁（用限速记录现成的那把锁）。
 - 检索地址改成模板是配置格式的变化：`ready` 发现旧写法就报出来，让主 agent 改。
 - `fetch` 加 `--session`，paper agent 用它只跑自己这篇；`fetch --start <url> --session pf-<slug>` 是 agent 把页面打通后交回脚本的方式。`wait` 也加 `--session`。
@@ -134,8 +134,8 @@
 
 另外：
 - `--search` 列出 Crossref 的前 5 条，带作者、相似度，第一作者对不上的标出来，不再按 0.9 过滤；从中选哪条，交给 judge 或主 agent。
-- 正式版页面拒绝普通 HTTP 请求（`page_unreachable`）：交给一个 agent，用浏览器存下页面 HTML，再跑 `identify --redraft --html <文件> <页面网址> <结果>`，用 identify 现有的页面解析器填好结果里的 CSL。这样 fetch、核对、draft_item 都照常工作。
-- 摘要、PMID、作者关键词：由 identify 自己按 DOI 查 OpenAlex 和 Europe PMC，和 arXiv 一样按批查（OpenAlex 一次能查多个 DOI），照常限速，补进 CSL，不再由 agent 一篇一篇手查。几个来源说法不一致时，交给 agent。审查曾建议复用 fulltext_links 已经拿到的回应，没有采纳：结果文件只由 identify 和 settle 写，这条规矩比省一次请求更要紧。
+- 正式版页面拒绝普通 HTTP 请求（`page_unreachable`）：交给一个 agent，用浏览器存下页面 HTML，再跑 `identify --redraft <页面网址> <结果> --html <文件>`（argparse 读不了 `--redraft --html` 连写，实施时改的顺序），用 identify 现有的页面解析器填好结果里的 CSL。这样 fetch、核对、draft_item 都照常工作。
+- 摘要、PMID、作者关键词：由 identify 自己按 DOI 查 OpenAlex 和 Europe PMC（作者关键词的来源待和用户定：调研发现 OpenAlex 的 `keywords` 是模型从题目和摘要生成的，不是作者给的），和 arXiv 一样按批查（OpenAlex 一次能查多个 DOI），照常限速，补进 CSL，不再由 agent 一篇一篇手查。几个来源说法不一致时，交给 agent。审查曾建议复用 fulltext_links 已经拿到的回应，没有采纳：结果文件只由 identify 和 settle 写，这条规矩比省一次请求更要紧。
 - 认论文阶段的交接，在 SKILL.md 的交接表里写明 taker：题目要靠浏览器检索才能认准的，交给浏览器 agent；预印本的正式版候选要不要认，交给 judge；勘误信号要打开文章页看的，交给浏览器 agent。
 
 ### 3.5 限速放在一处
@@ -158,7 +158,8 @@
   - lint 找重复条目也用同一套候选，导入和整理对“重复”的判断不再各说各的。
 - **同一个 DOI 在库里有两条：** 进 `decide`，由主 agent 选一条，或者按 organize.md 先合并（要用户同意）。
 - **一个“已接受”字段：** 记录里新增 agent 字段 `accepted`，里面列字段检查的条目、draft_item 的警告。接受了的就不再每次重跑都列成待定。字段检查和警告是同一套机制，不各开一个字段。
-- **draft_item 读进 identify 补进来的字段：** 作者关键词作为第 1 类标签，PMID 写进 Extra（`PMID: <n>`），摘要写进 abstractNote。
+- **draft_item 读进 identify 补进来的字段：** PMID 写进 Extra（`PMID: <n>`），摘要写进 abstractNote；作者关键词要不要写成第 1 类标签，这时再定（§9 第 5 条）。
+- **tagging.md：** 加 `organ/` 一类（§9 第 6 条）；“Source keywords”一行把 OpenAlex 当成作者关键词来源，是错的，改掉；打标签时可以参考 OpenAlex 关键词（§9 第 5 条）。
 - **lint 只报有把握的事实和证据：**
   - `url_not_record` 只报“网址不是 doi.org/<DOI>”和主机名；只有网址为空时才给补丁；场馆的例外交给 agent。
   - `abbreviation_misplaced`、`looks_abbreviated` 只列值，不给补丁。
@@ -281,6 +282,8 @@
    - 摘要、PMID、作者关键词改由脚本自动补（拆分 spec §11 原来定的是 agent 手查）；
    - lint 用来找模型名的正则删掉，改交 judge（restructure spec §9 原来定的是保留）；
    - 没有 DOI 的论文走 connector 那段，改由脚本做（restructure spec §9 原来定的是不写脚本）。
+5. **OpenAlex 关键词：** 2026-10-31 用户选方案 1：不进 Zotero，只在导入时给打标签的 agent 当参考（存在临时结果文件里，导入完随目录删掉）。调研发现它们是 OpenAlex 的模型只读题目、摘要生成的，不是作者给的；拿一篇真实论文对照，有用的词人工标签已经覆盖，数据集、模型名、期刊它都没有。作者关键词（Europe PMC 的 `keywordList`）要不要写成自动标签，第二期改 draft_item 时再定。两部分都和消费它们的打标签步骤一起在第二期实现；identify 的 `author_keywords()` 先返回空。
+6. **部位标签：** 2026-10-31 用户选方案 1：tagging.md 加 `organ/<Name>` 一类，只给研究对象是人体（或动物）某个部位的论文打，部位不是器官的（胸部、腹部、膝关节）也放这里，其他论文留空，和 `modality/` 一样。起因是用户发现脑 MRI 论文没有 Brain：库里 1244 个标签没有一个部位类，Agent 打标签只看题目、摘要、期刊和必要时的第一页，方案里没有这一类就不会打。一篇涉及几个部位或几种模态时（2026-10-31 用户选 A）：用到几个就各打一个，沿用每类最多 5 个，不设 multi-organ 之类的总括值（只打总括值的论文，点具体部位时会找不到）；不针对具体部位的论文不打部位标签。用户原话：「A 就这样吧，如果以后再遇到像多模态这种再考虑好了，不用现在考虑」。已有条目要不要补打，以后单独整理时再说。
 
 ## 10. issue 去向
 
