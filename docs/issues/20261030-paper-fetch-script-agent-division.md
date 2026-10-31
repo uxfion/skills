@@ -51,3 +51,15 @@
 - 这三条网站行为要写进 publishers.md，作为带日期的提示，不写学校名。
 - **已定 2（2026-10-31）**：派 subagent 以一篇论文为单位。用户先提出：「一篇论文应该由一个 sub agent 去维护。具体来说，它也是一个 OpenCL 的 tab。如果出现问题，你就在上面操作浏览器或者去图书馆检索。也就是说，一篇论文对应一个流程，一个流程对应一个 sub agent。不要派多个 sub agent 去做多个操作。但是我说的也有可能不对，你需要跟我讨论一下。」查了记录：以前定的是“一个 subagent 负责一次完整的尝试”（restructure spec 2026-10-20，用户当时说「对，应该是一个subagent一个完整的try」）。讨论后用户选方案 A：脚本先批量跑；脚本没走完的论文，每篇一个 sonnet paper agent，负责这篇的全部剩余步骤，有自己的标签页；只差定标签的成批交给 judge。并发上限：「A  限流不是很担心，因为我们最多同时跑的时候会有限制嘛，最多是5篇论文同时…应该就最多5个同时跑就好了」。
 - **已定 3（2026-10-31）**：一个 agent 碰到拦截时，不做 agent 之间的协调，每个 agent 自己停下、自己报告，这篇在原路线上暂停、不转路线。用户原话：「如果就因为人机验证或者限速等限制，你就直接转头去其他地方查了，那这个查询的记录不就没了吗？这条路径不就直接被你否定掉了吗？」，「我觉得现在应该用方案 3，也就是最简单的方式去实现，后面碰到问题了再说。不要从一开始就把系统做得很复杂，我感觉是没必要的」。
+
+## 第一期验收实测（2026-10-31）
+
+按 SKILL.md 当主 agent 跑，paper agent 和 judge 照 SKILL.md 的模板派（sonnet，后台）。三次都通过，没有碰到验证页，没有推送。
+
+- **Mask R-CNN 走完整一遍。** `fetch --pass 1` 在出版商路线停在学校代理（OCLC）的登录页 → `page` 交接 → paper agent 在自己的会话里打开，单点登录还有效，直接进到 IEEE → `fetch --start` 交回 stamp.jsp → 题目太短，核对拿不准 → `file` 交接 → 同一个 agent 看第 1 页，答 `accept --label Published-IEEE` → 页面交接自动关闭 → 重跑 `fetch` 退出 0。没去图书馆系统。
+- **只走图书馆系统。** `fetch --route discovery`：访客视图里就有这篇的 ProQuest 记录，记录页上脚本找不到 PDF → `page` 交接（`no_pdf_link`）→ paper agent 从记录页进到 IEEE（经代理）→ `fetch --start` → `file` 交接 → `accept`，Published-IEEE。这次没用到“点 Sign in”，那一步在上面那次实测里验证过。
+- **先有接受稿，再拿正式版（决策 A）。** UNet++（TMI）：先单跑 `--route accepted`，PMC 文章页的 PDF 链接被核对拒了 → `page` 交接 → paper agent 用 `fetch --start --version accepted` 交回同一页，这次拿到 NIH 作者稿（`nihms-1600374.pdf`），核对通过 → `label` 交接 → agent 答 Accepted-PMC → 这篇不算满足（想要正式版）→ 照常跑完整一遍，开放路线经代理拿到 IEEE 正式版 → `label` 交接交给 judge，答 Published-IEEE → 两份并排，`paper_file` 是正式版 → 重跑退出 0。
+- **看到的、已处理的：** `outcome.tried` 写的是代理的主机名，已改成网站本身的（`2eb4330`）。
+- **看到的、留给以后的：**
+  - PMC：批量运行第一次请求 PDF 链接被拒，一分钟后 paper agent 对同一文章页 `fetch --start` 就拿到了。可以作为带日期的提示写进 publishers.md。
+  - `claim --sweep` 没有剩余文件时什么也不打印（退出 0），可以考虑输出一行摘要。
