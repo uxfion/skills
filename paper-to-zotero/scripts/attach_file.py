@@ -12,7 +12,8 @@ under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), wh
 unconfirmed file (its agent could not tell it is the paper's) is attached all the same and named on the line: the
 report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A stub's file (check
 cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead (recognize.py); once the
-recognizer made the record's item from it (saved.via recognizer), it is that item's file.
+record's item is made from it — by the recognizer, or by hand from its first page when the recognizer found
+nothing (the record's recognize block names it) — it is that item's file.
 
 A result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is attached until
 it is — unless the library item has a PDF of the paper already, and the result was never fetched for another. Each
@@ -68,16 +69,17 @@ def library_has_pdf(rec):
                for a in found.get("attachments") or [] if isinstance(a, dict))
 
 
-def wanted(res, path, recognized=False):
+def wanted(res, path, made_from=None):
     """The result's files -> ([(file entry, path, title)] to attach, [names] of a stub's files, which no check
     passed). A title is paper-fetch's label, in the scheme: a judge's, checked when given, or settle's
-    Unknown-<Source>. recognized: Zotero's recognizer made the item from the stub's own PDF (recognize.py), which
-    is that item's file."""
+    Unknown-<Source>. made_from: the md5 of the stub's PDF the item was made from (the record's recognize block:
+    by Zotero's recognizer, or by hand from its first page when the recognizer found nothing), which is that item's
+    file."""
     out, unchecked = [], []
     for f in res.get("files") or []:
         if not isinstance(f, dict):
             continue
-        if f.get("check") not in ATTACHABLE and not (recognized and f.get("check") == "cannot_judge"):
+        if f.get("check") not in ATTACHABLE and not (made_from and f.get("md5") == made_from):
             unchecked.append(f.get("name"))
             continue
         title = ((f.get("label") or {}).get("title") or "").strip()
@@ -100,8 +102,8 @@ def process(rec, ctx):
             return cli.skipped("library_has_pdf", key=run.item_key(rec))
         raise cli.Stop("unsettled", hint="The result was never settled, so its files may lack one that came: run "
                                          "paper-fetch's pf.py settle on it, then this again.", result=str(path))
-    saved = rec.get("saved") if isinstance(rec.get("saved"), dict) else {}
-    files, unchecked = wanted(res, path, recognized=saved.get("via") == "recognizer")
+    sent = rec.get("recognize") if isinstance(rec.get("recognize"), dict) else {}
+    files, unchecked = wanted(res, path, made_from=sent.get("md5") if sent.get("code") in ("recognized", "not_recognized") else None)
     if not files:
         if unchecked:
             return {"code": "unchecked", "files": unchecked, "hint": HINT_UNCHECKED}

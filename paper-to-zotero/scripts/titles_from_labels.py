@@ -5,8 +5,8 @@
 # ///
 """List library attachments whose title is not paper-fetch's label of their file, as lines for update_item --batch.
 
-  uv run scripts/titles_from_labels.py <scratch>/paper-to-zotero/fetch -o <scratch>/paper-to-zotero/titles.jsonl
-  uv run scripts/update_item.py --batch <scratch>/paper-to-zotero/titles.jsonl --dry-run
+  uv run scripts/titles_from_labels.py <scratch>/paper-fetch/label -o <scratch>/titles.jsonl
+  uv run scripts/update_item.py --batch <scratch>/titles.jsonl --dry-run
 
 DIR is paper-fetch's directory: its results/*.json list each file of a paper with its md5 and label. A file's
 attachment is the one in the library holding the same md5, the same bytes (the newest, none in the trash). Only a

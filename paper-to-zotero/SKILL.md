@@ -37,7 +37,7 @@ Everything in Zotero: items with their PDFs, filed and tagged; the library tidie
 
 A script settles only what is certain — an identifier that matches, the same md5, Zotero's own reply — and stops at everything else with its evidence. The table indexes those stops; the step it points to holds the brief.
 
-**Judges** are background subagents on a cheap model (Claude Code `model: "sonnet"`), about 20 cases each. A judge reads only the files its brief names and answers every case; what it cannot settle it answers `unknown`, and the step says who takes that. Its report is checked against the files before anything is built on it. At most 5 subagents run at once, judges and tagging subagents together.
+**Judges** are background subagents on a cheap model (Claude Code `model: "sonnet"`, Codex `luna`), about 20 cases each. A judge reads only the files its brief names and answers every case; what it cannot settle it answers `unknown`, and the step says who takes that. Its report is checked against the files before anything is built on it. At most 5 subagents run at once, judges and tagging subagents together.
 
 | stop | taker | brief | recorded by |
 |---|---|---|---|

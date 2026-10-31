@@ -101,17 +101,26 @@ class AttachFile(unittest.TestCase):
         self.assertEqual((r.code, r.lines[0]["unconfirmed"], self.attachments()), (0, ["liu.pdf"], [("Unknown-IEEE", URL)]),
                          "attached all the same, and named")
 
-    def test_a_recognized_stubs_file_is_its_items(self):
+    def test_the_stubs_pdf_its_item_was_made_from_is_attached(self):
         self.settle(("liu.pdf", b"%PDF-1.4 a stub's file", "published", "Unknown-IEEE", "cannot_judge"))
+        md5 = run.md5_of(self.results / "liu.pdf")
         rec = run.read(self.rec)
         rec["saved"]["via"] = "recognizer"  # recognize.py: Zotero made the item from this very PDF
+        rec["recognize"] = {"md5": md5, "code": "recognized"}
         rec.save()
         self.zot.add_item("RECOGATT", itemType="attachment", parentItem=PARENT, title="Unknown-IEEE", linkMode="imported_file",
-                          contentType="application/pdf", md5=run.md5_of(self.results / "liu.pdf"))
+                          contentType="application/pdf", md5=md5)
         r = self.run_(self.rec)
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["files"][0]["attachment"]), (0, "skipped", "RECOGATT"),
                          "the recognizer's attachment is the file: nothing uploaded twice, nothing left unchecked")
         self.assertEqual(run.read(self.rec)["attach"][0]["existing"], True)
+        self.zot.items.pop("RECOGATT")
+        rec = run.read(self.rec)
+        rec.update(recognize={"md5": md5, "code": "not_recognized"}, saved={"key": PARENT}, attach=[])
+        rec.save()  # nothing recognized: the agent wrote the item from the PDF's first page, create_item made it
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["code"], self.attachments()), (0, "ok", [("Unknown-IEEE", URL)]),
+                         "an item written from this PDF gets this PDF")
 
     def test_an_item_with_a_pdf_needs_no_result(self):
         self.zot.add_item("HADPDF01", itemType="attachment", parentItem=PARENT, title="Preprint-arXiv-v1",

@@ -26,7 +26,8 @@ settles it:
                   --redraft, or keep_preprint with the reason
   checks, warnings    check_item's flags (mapped:publicationTitle, missing_minimum:date, ...) and draft_item's
                   warnings that `accepted` does not hold: revise the item, or accept them
-  unanswered      sources that did not answer: prepare (for versions, identify) again later
+  unanswered      sources that did not answer: prepare (for versions, identify) again later; one that stays silent
+                  is accepted as "unanswered:<source>"
 Then {"summary"}. --dry-run and --base-url go to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a
 script could not go on (the next steps did not run).
 """
@@ -90,6 +91,7 @@ def decisions(rec):
         out.append({"warnings": warnings})
     unanswered = sorted({s for name in run.PREPARED for s in block(name).get("incomplete") or []}
                         | set(versions.get("incomplete") or [] if res.get("record_of") == "preprint" else []))
+    unanswered = [s for s in unanswered if f"unanswered:{s}" not in accepted]
     if unanswered:
         out.append({"unanswered": unanswered})
     return out

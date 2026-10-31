@@ -96,11 +96,11 @@ class Answer(unittest.TestCase):
         rec = run.read(path)
         self.assertIsNone(run.item_key(rec), "files never go to one of two duplicates by chance")
         rec["checks"] = {"code": "needs_attention", "mapped": [{"from": "publicationTitle", "to": "proceedingsTitle"}],
-                         "to_extra": [], "dropped_or_rewritten": [], "missing_minimum": ["date"]}
+                         "to_extra": [], "dropped_or_rewritten": [], "missing_minimum": ["date"], "incomplete": ["schema"]}
         self.assertEqual(p2z.decisions(rec), [{"duplicates": [X, Y]},
                                               {"checks": ["mapped:publicationTitle", "missing_minimum:date"]},
-                                              {"warnings": ["a type guessed"]}])
-        rec["accepted"] = ["mapped:publicationTitle", "missing_minimum:date", "a type guessed"]
+                                              {"warnings": ["a type guessed"]}, {"unanswered": ["schema"]}])
+        rec["accepted"] = ["mapped:publicationTitle", "missing_minimum:date", "a type guessed", "unanswered:schema"]
         rec["same_as"] = Y
         self.assertEqual(p2z.decisions(rec), [])
 

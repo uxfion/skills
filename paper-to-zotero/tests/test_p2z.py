@@ -83,7 +83,7 @@ class P2zTest(unittest.TestCase):
         self.assertIn('"code": "zotero_unreachable"', done.stdout)
 
     def test_one_sentence_docstrings(self):
-        for name in ("ready.py", "p2z.py"):
+        for name in sorted(p.name for p in SCRIPTS.glob("*.py")):  # p2z.py --help lists each first line
             line = first_doc_line(SCRIPTS / name)
             self.assertTrue(line.endswith("."), f"{name}: first docstring line must be one sentence: {line!r}")
             self.assertLess(len(line), 140, name)
