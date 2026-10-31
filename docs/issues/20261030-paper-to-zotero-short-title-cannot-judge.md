@@ -9,3 +9,5 @@ Logged 2026-10-30, while saving the baseline for the split (spec `20261030-paper
 **Why it hurts.** The right file, from the publisher, waits for the agent to read it and `claim --accept` it, and the report lists it among the files the agent accepted. A title of one or two words ("Mask R-CNN", "U-Net", "YOLO9000") is common in this library's field.
 
 **Direction.** When the title alone is too short to judge, let the DOI printed on page 1 matching the record's DOI, with the first author in the byline, settle it as `ok`; a DOI on page 1 is stronger evidence than title words anyway.
+
+**Superseded direction (2026-10-30).** Adding a DOI-and-author rule to the check is a matcher for an uncertain branch; the user set the opposite: a file the check cannot judge goes to a subagent, the script only detects it. The redesign is tracked in `20261030-paper-fetch-script-agent-division.md`.
