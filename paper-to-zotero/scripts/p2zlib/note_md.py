@@ -11,7 +11,9 @@ data-citation-items>; any other key is the caller's and passes through.
 
 Markdown carries the subset: headings, paragraphs, nested lists (to-dos are "[ ] text" items, as the editor stores
 them), quotes, code blocks, rules (`***`), GFM tables with one header row, $…$ and $$…$$ math, bold, italic, code,
-links, hard breaks. Everything else stays HTML inside the Markdown, as CommonMark allows.
+links, hard breaks. Everything else stays HTML inside the Markdown, as CommonMark allows. Inline math needs its $
+to hug the formula, so "$5 and $10" stays money, while 3$\\times$3 is math. The editor's headings hold no math
+(note-editor's schema): a $…$ in a heading stays its TeX text there, where the editor would split the heading.
 
 The editor's model (`Block`, the runs of a paragraph) is what "the same" means: blocks with their attributes, and
 inside a paragraph runs of text, each with the set of marks it carries, merged and with whitespace collapsed as the
@@ -357,6 +359,15 @@ def math_block(state, start, end, silent):
     return True
 
 
+def heading_text(state):
+    """A heading holds no math in the editor (nodes.js: heading's content): its $…$ stays text."""
+    for i, t in enumerate(state.tokens):
+        if t.type == "inline" and i and state.tokens[i - 1].type == "heading_open":
+            for c in t.children or ():
+                if c.type in ("math_inline", "math_inline_double"):
+                    c.type, c.content = "text", c.markup + c.content + c.markup
+
+
 def md_parser():
     global _MD
     if _MD is None:
@@ -365,8 +376,10 @@ def md_parser():
         from mdit_py_cjk_friendly import cjk_friendly
         from mdit_py_plugins.dollarmath import dollarmath_plugin
         m = MarkdownIt("commonmark", {"html": True, "xhtmlOut": False}).enable("table")
-        m.use(dollarmath_plugin, allow_labels=False, double_inline=True).use(cjk_friendly)
+        m.use(dollarmath_plugin, allow_labels=False, allow_space=False, double_inline=True)
+        m.use(cjk_friendly)
         m.block.ruler.at("math_block", math_block, {"alt": ["paragraph", "reference", "blockquote", "list"]})
+        m.core.ruler.after("inline", "heading_text", heading_text)
         m.normalizeLink = lambda url: url    # links as written: no percent-encoding, file: allowed
         m.validateLink = lambda url: True
         pre = lambda t, i, cls="": f"<pre{cls}>{escapeHtml(t[i].content.removesuffix(chr(10)))}</pre>\n"  # noqa: E731
@@ -416,13 +429,14 @@ def escape_line_starts(md: str) -> str:
     return "\n".join(out)
 
 
-def esc(s: str, cell=False) -> str:
-    """Backslashes only where CommonMark would otherwise read syntax (the starts of lines are escape_line_starts')."""
+def esc(s: str, cell=False, dollar=True) -> str:
+    """Backslashes only where CommonMark would otherwise read syntax (the starts of lines are escape_line_starts');
+    dollar=False where no math is read (a heading)."""
     s = re.sub(r"\\(?=[!-/:-@\[-`{-~]|$)", r"\\\\", s)
     s = re.sub(r"(?<! )\*|\*(?! )", r"\\*", s)
     s = re.sub(r"_", lambda m: "_" if 0 < m.start() < len(s) - 1 and (s[m.start() - 1] + s[m.start() + 1]).isalnum()
                or s[m.start() - 1:m.start() + 2] == " _ " else "\\_", s)
-    s = re.sub(r"([`$])", r"\\\1", s)
+    s = re.sub(r"([`$])" if dollar else r"(`)", r"\\\1", s)
     s = re.sub(r"\](?=\()", r"\\]", s)
     s = re.sub(r"<(?=[A-Za-z/!?])", r"\\<", s)
     s = re.sub(r"&(?=#?\w+;)", r"\\&", s)
@@ -474,9 +488,9 @@ class Reader:
                 return False
         return len(got) == 1 and got[0].key == b.key
 
-    def inline(self, items, style="*", oneline=False, cell=False) -> str | None:
+    def inline(self, items, style="*", oneline=False, cell=False, math=True) -> str | None:
         """Runs as Markdown: style "*" or "_" writes emphasis with that delimiter, "tags" writes every mark as its
-        HTML tag (the text inside stays Markdown)."""
+        HTML tag (the text inside stays Markdown); math=False where $…$ is not read as math (a heading)."""
         tags, out, stack = style == "tags", [], []
 
         def close_to(marks):
@@ -526,19 +540,19 @@ class Reader:
                     if code and not tags:
                         out.append(code_span(it[1], cell))
                     elif code:
-                        out.append("<code>" + esc(it[1], cell) + "</code>")
+                        out.append("<code>" + esc(it[1], cell, math) + "</code>")
                     else:
-                        out.append(esc(it[1], cell))
+                        out.append(esc(it[1], cell, math))
                 elif it[0] == "math":
                     inner = it[1][1:-1] if len(it[1]) >= 2 and it[1][0] == it[1][-1] == "$" else None
-                    if tags or inner is None:
-                        out.append('<span class="math">' + esc(it[1], cell) + "</span>")
+                    if tags or inner is None or not math:
+                        out.append('<span class="math">' + esc(it[1], cell, math) + "</span>")
                     else:
                         out.append("$" + (inner.replace("|", "\\|") if cell else inner) + "$")
                 elif it[0] == "void":
                     out.append(f"<{it[1]}{attr_html(dict(it[2]))}>")
                 else:
-                    inner = self.inline(it[4], style, oneline, cell)
+                    inner = self.inline(it[4], style, oneline, cell, math)
                     if inner is None:
                         return None
                     out.append(f"<{it[1]}{attr_html(dict(it[2]))}>{inner}</{it[1]}>")
@@ -557,7 +571,7 @@ class Reader:
         if not b.kids:                        # an empty paragraph has no Markdown, but a cell or a heading can be empty
             return "" if cell else "#" * int(b.tag[1]) if heading else None
         for style in ("*", "_", "tags"):
-            s = self.inline(b.kids, style, oneline=heading or bool(cell), cell=bool(cell))
+            s = self.inline(b.kids, style, oneline=heading or bool(cell), cell=bool(cell), math=not heading)
             if s is None:
                 continue
             if heading:

@@ -134,6 +134,16 @@ class Writer(unittest.TestCase):
         self.assertEqual(N.to_md(N.render("$x$ and $$y$$")), "$x$ and $$y$$\n")
         self.assertEqual(N.render("```py\na < b\n```\n"), "<pre>a &lt; b</pre>\n")
 
+    def test_dollars(self):
+        for md in ("成本 $5 和 $10 美元", "训练约 $4.6M，推理 $0.01/次"):
+            self.assertNotIn("math", N.render(md), md)
+        self.assertIn("math", N.render("3$\\times$3 卷积"))
+        # the editor's headings hold no math: the TeX stays text, and reads back as written
+        self.assertEqual(N.render("## 为什么 $O(n^2)$ 不可行"), "<h2>为什么 $O(n^2)$ 不可行</h2>\n")
+        self.assertEqual(N.to_md("<h2>为什么 $O(n^2)$ 不可行</h2>"), "## 为什么 $O(n^2)$ 不可行\n")
+        html = '<h2>a <span class="math">$x$</span></h2>'  # not the editor's, still kept
+        self.assertTrue(N.same(N.to_note(N.to_md(html))[0], html))
+
     def test_minimal_escapes(self):
         md = N.to_md("<p>C:\\temp\\x snake_case a - b 4 * 5 [已答] 1. x</p>")
         self.assertEqual(md, "C:\\temp\\x snake_case a - b 4 * 5 [已答] 1. x\n")
