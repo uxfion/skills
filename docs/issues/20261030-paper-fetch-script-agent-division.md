@@ -28,3 +28,24 @@
 **方向（用户定的）。** 脚本只做重复、确定的事；差异化、不确定、没见过的，一律交给 subagent（浏览器操作和小判断用 sonnet）。脚本在把握的边界停下，带着证据交出去，不再加匹配规则。三个 skill 都按这个原则从顶层重新划分工，并且全面查一遍迁移有没有丢东西。
 
 相关：`20261030-paper-to-zotero-short-title-cannot-judge.md`（它提的“加 DOI 规则”方向已被这里取代），`20261030-paper-to-zotero-proxy-login-not-a-gate.md`。
+
+## 设计（2026-10-31）
+
+顶层设计写成 `docs/specs/20261030-paper-skills-script-agent-division-spec.md`（预览稿）。依据是 `docs/design-principles.md`，五份调研报告存在 scratchpad 的 `audit/` 下。
+
+- **已定 1**：一篇论文拿到的文件不是想要的版本时，用户选方案 A。标签定下来之后，这篇在同一遍里接着走出版商、图书馆系统；拿到想要的版本，它就成为这篇的文件，先前那份作为另一个版本一起挂进 Zotero。用户原话：「A」。
+- **按原则推翻的三条旧约定**，已告诉用户，用户没有异议：
+  - 摘要、PMID、作者关键词改由 identify 按 DOI 自动查；
+  - lint 用来找模型名的正则删掉，改交 judge；
+  - 没有 DOI 的论文走 connector 那段，改由脚本做。
+
+## 实测：图书馆系统这条路交给浏览器 agent（2026-10-31）
+
+- **跑了什么。** 新目录，`identify` Mask R-CNN，启动下载监视器，`fetch --pass 1 --route discovery`。fetch 停在访客结果页（`why: sign_in`，`gate: false`）。照 SKILL.md 派一个 sonnet 后台浏览器 agent 接手，会话 `pf`。
+- **它点了什么。** “Sign in” → “Login using:” 对话框里学校那一项（不是 External users）→ 单点登录还有效，直接登上，没有遇到密码页 → 在完整结果里按题目和作者找到这篇的记录 → “Access content in IEEE” → IEEE 经学校代理打开 → “Download PDF” 进入 stamp.jsp 阅读页 → 在页内请求 iframe 里的 PDF，存进下载目录。正式版，TPAMI 第 42 卷第 2 期，386–397 页。
+- **看到的问题。**
+  - 下载目录监视器没有归位这个文件，记成 `left`（unmatched）：题目太短，核对无法判断，而监视器只认“通过”。主 agent 按浏览器 agent 报告的版本和依据 `claim --accept` 并定了标签。这正是 spec §3.1 要解决的：监视器把拿不准的下载扣下，交给 judge。
+  - 在记录页上点 “Access content in IEEE”，链接在会话之外开了一个新标签页。浏览器 agent 改用 `open` 在会话标签页里打开同一网址。
+  - Zotero Connector 会把 IEEE 的网址自动重定向到学校代理。
+  - stamp.jsp 把 PDF 嵌在 iframe 里，Chrome 不会自己下载。fetch 自己的代码能处理这种页面，浏览器 agent 用了一次同源的页内请求。
+- 这三条网站行为要写进 publishers.md，作为带日期的提示，不写学校名。

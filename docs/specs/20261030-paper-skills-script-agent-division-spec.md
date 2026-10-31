@@ -1,0 +1,200 @@
+> 预览稿：顶层设计已写完，用户的决策已定（§9）；三种视角的审查和 advisor 过后再动手。
+
+# paper-fetch / paper-to-zotero / paper-read：脚本和 agent 重新分工
+
+## 0. 为什么、按什么
+
+拆分后实测经学校登录那条路时，暴露了两个问题（issue `20261030-paper-fetch-script-agent-division.md`）：
+- 出版商的正版 PDF 因为题目太短“无法判断”，fetch 把它当成错文件，接着去试图书馆系统；
+- 在图书馆系统的登录页停下后，没有人派浏览器 agent 去点。
+
+五份调研（scratchpad `audit/`：文档、测试、脚本三份迁移对照，两份分工清点）证实这不是个例。三个 skill 里到处都是两类毛病：
+1. **脚本越界替判断拍板：** 用正则、关键词、阈值去决定拿不准的分支；
+2. **停下点没人接手：** 交接写得含糊，或者干脆没写。
+
+另外拆分时还丢了一些东西：几处行为、一些文档内容、不少测试。
+
+依据是 `docs/design-principles.md`，§1 最要紧：脚本只做有把握的事；拿不准的停下来，带证据交出去；每个停下点在 SKILL.md 里写明谁接手、交回什么、用哪条命令记下结果，然后脚本从停下的地方接着走。
+
+## 1. 整体思路
+
+**一种交接，处处一样。** 脚本走到把握的边界，就输出一条交接行，其余能做的事接着做，不卡住整条命令。交接行写明：
+- 要判断什么（`code`）；
+- 谁接手（`taker`）；
+- 证据（`evidence`）；
+- 交回后用哪条命令记下（`hint`）。
+
+接手的一共四种：
+
+| taker | 是谁 | 做什么 |
+|---|---|---|
+| `browser_agent` | 后台 sonnet subagent，一个负责一次完整的尝试，用自己的浏览器会话 | 看页面、点按钮，一直跟到拿到文件；碰到关口就把页面推到前台 |
+| `judge` | 后台 sonnet subagent，只读本地文件 | 判断文件是不是这篇、是哪个版本，两条记录是不是同一篇，某个字段对不对 |
+| `agent` | 主对话 | 需要上下文的判断：选版本规则、归到哪个分类、条目字段 |
+| `user` | 用户 | 只做只有用户能做的：输密码、过验证码、拍板 |
+
+每个 SKILL.md 有一张“交接”表：每种交接行对应谁接手、brief 写什么、交回什么、用哪条命令记下。主 agent 的循环因此变成机械的：
+1. 跑脚本；
+2. 按 taker 派人，最多 10 个并行，上网的每个网站一次一个；
+3. 用命令记下结果；
+4. 重跑脚本，已经答复的交接从原处接着走。
+
+## 2. 一个例子：Mask R-CNN 加另一篇，经学校登录取全文
+
+1. `identify`：两篇都认出来。arXiv 号一次批量查完，不再一篇查一次。
+2. `fetch --pass 1`：
+   - 两篇都没有开放获取链接，走出版商。Mask R-CNN 的 IEEE 页面经学校代理拿到 PDF。
+   - 核对时，题目只有“Mask R-CNN”这么短，脚本没有把握，于是把文件扣下，输出一条 `to_check`（taker `judge`），证据是前两页文字、页 1 上的 DOI、署名。Mask R-CNN 在出版商这一步暂停，不再去试图书馆系统。
+   - 另一篇的出版商页面停在一个要登录的页面，脚本拿不到 PDF，输出 `to_work`（taker `browser_agent`），证据是网址、标题、已经试过的链接。这篇也暂停在出版商这一步。
+   - 这遍跑完，退出码 0，汇总里列出 1 条 `to_check`、1 条 `to_work`。没有哪个页面卡住整条命令。
+3. 主 agent 同时派两个 sonnet：
+   - judge 看了 Mask R-CNN 的前两页，判断“是这篇，IEEE 正版，TPAMI 第 42 卷第 2 期”，交回结论；主 agent 跑 `claim --accept … --label Published-IEEE --why …`，文件归位并带上标签。
+   - 浏览器 agent 用会话 `pf-1` 打开那一页，读页面上的元素，点 “Institutional Sign In” 再点学校入口。单点登录还有效，就直接登上、点 PDF，Chrome 下载，监视器把文件归位。如果出现输账号密码的页面，它把页面推到前台，通过主对话推送提醒用户，等用户过了再接着点。
+4. `fetch --pass 1` 重跑：两篇都有文件了，不再走后面的路线。
+
+## 3. paper-fetch
+
+### 3.1 核对：三种结果
+
+| 结果 | 什么时候 | 去向 |
+|---|---|---|
+| 通过 | 完整题目出现在第 1 页 | 归位到 `results/` |
+| 确定不是 | 不是 PDF；出版版文件页 1 印着另一篇的 DOI；HTML 页面没有正文 | 进 `unverified/`，这篇接着试下一个候选、下一条路线 |
+| 拿不准 | 其余一切：题目太短、没有文字层、找不到题目、只在第 2 或第 3 页（引用它的论文也会把题目印在前几页）、只凭题目词重合（旧的路径 B）、题目对上了但页首像勘误或补充材料、stub（没有元数据可对照） | 文件扣在 `unverified/`，输出 `to_check`（judge）；这篇在这条路线上暂停 |
+
+- `claim --accept <file> --slug … --reason … [--label … --why …]` 一条命令完成接受和定标签。`claim --refuse <file> --slug … --reason …` 记下“不是这篇”，重跑时这篇接着往下走。
+- 扣着文件等判断的论文，结果文件的 `outcome` 是 `held`（有文件在等判断），不是 `not_got`。p2z 的 attach_file 对它报 `held`（先不挂，等判断），报告里列在“等判断”下。
+- 判断和定标签合成一次查看：judge 读前两页（文字加图片），同时回答“是不是这篇”和“是哪个版本”。
+- claim 事件把核对的全部证据（题目词、页 1 上的 DOI、署名）记下来，judge 不用再跑一遍 `check_pdf`。
+- 删掉没人用、或者只用来改个说法的匹配：`cover_page_suspected`、`collection_suspected`、`DENIAL_RE`。
+- 监视器对待下载文件也一样：对某一篇拿不准、对其余几篇都确定不是，就扣下给那一篇，输出 `to_check`；一篇都对不上，就记 `left`，交主 agent 去看。
+
+### 3.2 fetch：遇到页面不停整条命令
+
+- 一个候选停在拿不到 PDF 的页面上，就输出 `to_work`（browser_agent），记一条 `wait` 事件；这篇在这条路线上暂停，其余论文照走。这遍结束时，所有 `to_work`、`to_check`、`to_label` 一起列出。
+- 删掉 `GATE_TITLE`、`GATE_TEXT`、`SIGN_IN_CONTROL`、`SIGNED_OUT`。是不是关口、要不要点登录，都由浏览器 agent 看了页面再定。
+- 检索系统：结果里没有标题对得上的链接，也输出 `to_work`，不再记 `not_in_discovery` 关掉这条路线；有没有登录，交给浏览器 agent 去看。检索地址改成配置里带 `{title}` 占位符的模板，代码里不写 Primo 的参数。
+- 一页上的第一个 PDF 没通过核对，就接着试第二、第三个候选（最多 3 个，这个数是我定的）。
+- 浏览器本身出错（OpenCLI 报扩展没连上、附着失败这类错误码）是确定的事实：这遍立即停下，输出 `browser_down`，不再把每个候选都记成 error 后照常退出。taker 先是 `agent`（`opencli doctor`、`opencli daemon restart`），不行再交 `user`。
+- `--verdict` 记结论时，一篇论文可能同时有几条待办，所以要指明路线（`--route`），或者针对那条 `wait` 事件。
+- 第 3 遍用户在场：fetch 照样一次列出所有 `to_work`，浏览器 agent 并行去做；谁碰到关口，就把那一页推到前台、通过主对话推送提醒用户。主 agent 让关口一次只出现一个，告诉用户这是哪篇、之前几遍遇到了什么、在这一页要做什么。用户说“跳过”，就记 `--verdict skipped_by_user`。
+- 某个主机被 429 停了：浏览器路线也不去碰它，这个候选记 `host_stopped`，下一遍再试。
+- `to_label` 每次退出都输出，停下时也一样。
+- 浏览器 agent 并行：每个用自己的会话（`pf-<n>`，OpenCLI 的会话互相隔离、共用 Chrome 的登录状态），最多 10 个，每个网站一次一个。batch.md 里“浏览器只有主对话一个驾驶者”“最多 5 个”那两句改掉。
+
+### 3.3 identify
+
+补回迁移丢掉的：
+- 重跑时保留 `slug_given`；
+- bib 里原样的 citation key 记进结果的 `cite` 字段（slug 仍只用来当文件名），draft_item 用 `cite` 作 citationKey；
+- 某个来源这次没答，就保留它上次的答案；
+- arXiv 按批查，每 100 个 id 一个请求；
+- “记录里的 DOI 和请求的不同”这条警告恢复（在采用记录的 DOI 之前比较）；
+- Crossref 的 `event.name` 恢复成会议名；
+- 恢复“页面和预印本作者数不一致”的警告。
+
+另外：
+- `--search` 列出 Crossref 的前 5 条，带作者和相似度，第一作者对不上的标出来，不再按 0.9 过滤。列表本来就是给 agent 判断用的。
+- 正式版页面拒绝普通 HTTP 请求（`page_unreachable`）时，交给浏览器 agent 读页面（或用 `opencli web read`），由主 agent 把字段写进 p2z 记录里的条目，不改结果文件。
+- 摘要、PMID、作者关键词这类按 DOI 查得到的，由 identify 写进 CSL（OpenAlex、PubMed、Semantic Scholar），不再由 agent 一篇一篇手查；几个来源说法不一致时，才交给 agent。这推翻了拆分 spec §11 的一条约定，理由是设计原则 §1：按 DOI 查是重复、有把握的事，应该由脚本做。
+
+### 3.4 限速放在一处
+
+请求间隔和 429 停止的记录，从每个工作目录各一份（`<dir>/pace.json`），改成每台机器一份（`~/.cache/paper-fetch/pace.json`）。限速是对网站的礼貌，跟工作目录无关。这样批量给库里附件定标签时，即使一个文件一个目录，也共用同一套间隔和 429 停止。
+
+## 4. paper-to-zotero
+
+- **查库。**
+  - DOI 和 arXiv 号对上，才算确定是同一篇。
+  - 按题目搜到的条目全部作为候选，不再按“相等或包含”过滤，按相似度排序，最多 10 条（这个数是我定的），每条带证据：题目、年份、第一作者、DOI 或 arXiv 号、条目类型、附件标题。输出 `to_judge`（judge），判断是同一篇、不是、还是预印本和正式版的一对。主 agent 据此写 `same_as` / `distinct_from`；是“一对”的，交给用户。
+  - lint 找重复条目也用同一套候选，导入和整理对“重复”的判断不再各说各的。
+- **同一个 DOI 在库里有两条：** 列进 `decide`，由 agent 选一条，或者按 organize.md 先合并（要用户同意），不再默默挂到第一条上。
+- **字段检查：** 新增 agent 字段 `accepted_checks`。接受了的字段不再每次重跑都列成待定。
+- **draft_item 读进 identify 补进来的字段：** 作者关键词作为第 1 类标签，PMID 写进 Extra（`PMID: <n>`），摘要写进 abstractNote。现在 draft_item 只读 schema 表里有的 CSL 键，`keyword` 根本不读。
+- **draft_item 的警告**（类型是猜的、作者角色、跳过的字段）列进 `decide`。
+- **lint 只报有把握的事实和证据：**
+  - `url_not_record` 只报“网址不是 doi.org/<DOI>”和主机名；只有网址为空时才给补丁；NeurIPS 等场馆的例外交给 agent。
+  - `abbreviation_misplaced` 不再按长短给出互换补丁，只列两个值。
+  - `name_not_tagged` 的关键词正则删掉，改为把摘要和标签交给 judge。
+  - 交给 judge 的整理判断成批给，每个 judge 约 20 个条目（这个数是我定的），和批量改附件名同一条规矩。这推翻了 restructure spec §9 的一条约定，理由同上：这个正则漏掉的时候不会有任何提示。
+- **批量写入的小脚本：**
+  - 把 paper-fetch 结果里的标签批量写成库里附件的标题。拆分 spec §4.1 本来就这么定的，代码没做。
+  - 按文件批量打补丁。
+  - `remove_tags`。
+- **没有 DOI 的论文走 connector：** 发送、轮询、写 `saved` 由脚本做；认出来的条目对不对，交给 agent 看。这推翻了 restructure spec §9 的约定，理由是这段除了最后那一下判断，全是机械操作。
+- **笔记：**
+  - `note put` 收到空内容就拒绝（`empty_note`），这是迁移丢的；
+  - 新建笔记前，先看同一个父条目下有没有同标题的笔记，有就报出它的 key。
+- 每个 p2z 停下点在 SKILL.md 的交接表里写明 taker。
+
+## 5. paper-read
+
+- 一条脚本命令准备笔记文件：已有就取出来，没有就用骨架新建，文件名按约定。
+- “PDF 是不是这篇”：paper-fetch 核对过的、或者题目规范化后一致的，算确定；其余交 judge。
+- check_note 补查三项：Q1–Q6 都在；front matter 没被改；`## 用在哪里` 没被改。
+- 查完论文之后，结构化包要存回去（`structured put`），写进两个完成条件里。
+- 一个条目下有两条“论文笔记”时：交给 agent 合并，再存回。
+
+## 6. 文档要补回的（迁移对照找到的）
+
+- 正式版页面拒绝普通 HTTP 请求时怎么办（见 §3.3）；
+- 批量给库里附件按版本改名的细则：每个 subagent 约 20 个文件、看两页图片的理由、arXiv 先批量查、共用限速；
+- 查完论文把结构化包存回去；p2z 的依赖表加上 paper-read；
+- 打标签、补摘要的 subagent 最多 5 个，每个服务一次一个请求；
+- 不能开后台进程时，靠 fetch 自己扫描下载目录；
+- 用户下载了不在这次运行里的论文：identify、claim 之后，在 p2z 里接着 draft_item、prepare、save；
+- 收尾的完成条件要看到 “tab lease released”；
+- 一次性的代码放进 `scratch/`；
+- 用户自己写的笔记不动；
+- 快照会作为附件挂上、列在“无法获取”里、标题是 `Snapshot-<Source>`；
+- 修正 5 处指针（organize.md 指向 paper-fetch 批量规则、p2z 依赖表没列 paper-read 等）；
+- `publishers.md` 里残留的 `doi_to_item.py` 改成现在的命令。
+
+## 7. 测试
+
+- 给 paper-fetch 补一个库代码的单元测试模块：附件标题的生成和解析、`proposal` 的站点表、`kind_of_file`、代理主机名的往返转换、`config.institution`、`Work.events` 跳过坏行。`pf.py` 加冒烟测试。
+- 补回丢掉行为的测试：空笔记被拒、来源没答时保留上次答案、`slug_given` 重跑后保留、原样的 citation key、arXiv 批量、`--search` 带作者。
+- 新流程的测试：
+  - 一遍跑完不在第一个页面停住，输出 `to_work`；
+  - 拿不准的文件让这篇暂停，`accept` 或 `refuse` 之后继续；
+  - 监视器扣下拿不准的下载；
+  - 一页上第一个 PDF 失败后接着试下一个；
+  - 浏览器出错时停下（`browser_down`）；
+  - 被 429 停的主机在浏览器路线上也跳过；
+  - 查库的标题候选交给 judge；
+  - 同一 DOI 两条进 `decide`。
+- 每项测试都在脚本的接缝上，每个测试覆盖一整个行为。
+
+## 8. 实施顺序和验收
+
+分两期。第一期是 paper-fetch，带它自己的实测验收；第二期是 paper-to-zotero 和 paper-read，吸收第一期实测学到的东西。
+
+1. 这份 spec 定稿：用户拍板，再经三种视角的审查和 advisor。
+2. 第一期，paper-fetch：
+   - 先做共用部分（限速放在一处；交接行的格式；核对的三种结果；claim 的 accept 和 refuse），这些由我在主对话里写；
+   - 再做 fetch 的流程和 identify 的补回。
+   - 文档：SKILL.md 加交接表，补回 §6 里属于 paper-fetch 的部分；测试全部通过。
+   - 第一期验收，实测，严格按 SKILL.md 当 agent 来跑（见下面第 4 步前两项）。
+3. 第二期，paper-to-zotero，然后 paper-read：各模块互不依赖的，派 subagent 并行写到同一套接口上，由我整合；文档、测试同上。
+4. 实测，严格按 SKILL.md 当 agent 来跑：
+   - Mask R-CNN 走完整一遍：出版商拿到 PDF → `to_check` → judge 判断接受 → 归位，不去图书馆系统；
+   - 只跑图书馆系统那条路：`to_work` → 浏览器 agent 点 Sign in 和学校入口 → 搜到 → 拿到 PDF；如果出现密码页，推送提醒、等用户；
+   - 一次整理的 dry run（lint 只给证据，判断交给 judge）。
+
+   实测建的条目最后都进回收站，scratch 清理干净，不提交任何个人信息。
+
+## 9. 已定（原“没拍板”）
+
+1. **一篇论文的“那个文件”，版本不一致时怎么办。** 2026-10-31 用户选方案 A。
+   - 现在：第一条拿到文件的路线说了算。开放获取那步要是拿到一份接受稿（OpenAlex 的版本标注常常不准），就不会再去出版商拿正式版。之后如果再接受一份正式版，它会被挪进 stray/。
+   - 方案 A（推荐）：文件的标签定下来之后（judge 或 agent 定），如果它不是想要的版本，这篇在同一遍里接着走后面能给出想要版本的路线（出版商、图书馆系统）。拿到想要的版本，它就成为这篇的文件；先前那份保留下来，作为另一个版本一起挂进 Zotero，标题照它的标签。代价：开放获取版本不是正式版的论文，要多走经学校的请求，每个间隔 15 秒。
+   - 方案 B：维持“第一个文件说了算”，只修 stray/ 的问题：之后接受的正式版替换先前的文件，先前那份作为另一个版本保留。
+   - 方案 C：只多试出版商那一步，不去图书馆系统。
+
+## 10. issue 去向
+
+- `20261030-paper-fetch-script-agent-division.md`：由这份 spec 解决。
+- `20261030-paper-to-zotero-short-title-cannot-judge.md`：§3.1 的“拿不准交给 judge”解决。
+- `20261030-paper-to-zotero-proxy-login-not-a-gate.md`：§3.2 的“不认关口、交给浏览器 agent”解决，它原来提的识别密码框这个方向不采纳。
+- `20261030-paper-to-zotero-cvf-link-missing.md`：CVF 写进 publishers.md，作为带日期的提示交给 agent 去找，不在 fulltext_links 里写某一家的代码。
+- `20261020-paper-to-zotero-cross-origin-frames.md`、`20261021-paper-to-zotero-ieee-akamai-rate-limit.md`：停下的页面交给浏览器 agent，这两个 issue 原来担心的情况，在新流程里有人接手。实测之后再看要不要关。
