@@ -1,6 +1,6 @@
 # vllm-serve：按 design principles 返工（2026-10-31）
 
-> 来源：[20261029-vllm-serve-remote-multi-gpu.md](../issues/20261029-vllm-serve-remote-multi-gpu.md) 的“按 design-principles 自查”一节。用户：「在你问我问题之前，你先全局地看一下那个 design principle……因为我觉得你之前是没有按照我这个思路来的」。依据 [docs/design-principles.md](../design-principles.md)（`56bd02a`，加上本次补进 §3 的一句）。
+> 来源：[20261029-vllm-serve-remote-multi-gpu-fixed.md](../issues/archive/20261029-vllm-serve-remote-multi-gpu-fixed.md) 的“按 design-principles 自查”一节。用户：「在你问我问题之前，你先全局地看一下那个 design principle……因为我觉得你之前是没有按照我这个思路来的」。依据 [docs/design-principles.md](../design-principles.md)（`56bd02a`，加上本次补进 §3 的一句）。
 > 取代 [20261030-vllm-serve-shared-machines-spec.md](20261030-vllm-serve-shared-machines-spec.md) 的以下几处，其余照旧：3.3（启动等待）；3.4 的下载时机（下载挪进守护进程）；3.5 的 `idle_minutes = 0` 一条，以及末尾“评审后补上的几处根因”中的三处（`--api-key` 时带密钥、启动前试绑端口、“第一条错误行”）；`up` 判断端口上是谁的做法（3.1、3.2）。
 
 ## 1. 为什么返工

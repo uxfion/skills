@@ -1,5 +1,7 @@
 # vllm-serve：在共享的多卡远程服务器上部署大模型（Qwen3.8-27B，两台主机）
 
+> **已解决（2026-10-31），归档。** 17 条按 [20261030](../../specs/20261030-vllm-serve-shared-machines-spec.md) 和 [20261031](../../specs/20261031-vllm-serve-principles-rework-spec.md) 两份 spec 进了 vllm-serve skill；两台主机都实测过，结果在 20261031 spec 第 7 节。主机 A 之后被别人预约，用户已清理；新机器照 shared-machines.md 部署。参考目录关闭时核对过：只在那里的事实有三条还用得上，写进了用到它们的文档（数据并行时 `--max-num-seqs` 按副本计、`hf cache prune` 会删钉住的版本、torch 在 `/tmp` 的残留）；其余都已过时，目录已删。
+
 2026-10-29 至 10-30，另一个项目把 Qwen3.8-27B（BF16，权重 55.6 GB，混合注意力：64 层里 48 层是 gated-delta-net 线性注意力）部署成一个固定的自部署后端。调用方是 Claude Code 无头模式（`claude -p`），走 vLLM 的 Anthropic Messages 接口；2026-10-30 该项目决定改用开源的 pi agent，接口可能换成 OpenAI 兼容的 Chat Completions（第 15 条因此取决于调用方）。每个会话多轮、带工具调用，上下文 4–7 万 token（另一类任务最长 16 万），每轮 `max_tokens` 32000，同时跑 12–40 个会话。
 
 用到两台多人共用的服务器，下文称主机 A、主机 B：
@@ -10,7 +12,7 @@
 | 驱动 | 575.57（CUDA 12.9） | 595.99（CUDA 13.2） |
 | 软件 | vLLM 0.32.0，torch 2.13.0，flashinfer 0.7.0.post1 | 同左 |
 
-两台主机上都没法直接用 skill：下面每一条都在该项目里写了补救，放在 `20261029-vllm-serve-remote-multi-gpu-reference/`（git 忽略，里面有真实主机名），那里的 README 列出了每个文件对应哪一条。
+两台主机上都没法直接用 skill：下面每一条都在该项目里写了补救，当时放在一个 git 忽略的参考目录里（关闭时删除，内容去向见顶部）。
 
 用户的要求（2026-10-30）：「另外我是希望将你这几次的经验或者教训或者部署的思路，优化给uxfion/skills ……这样，之后就可以参考这个vllm skills快速部署了，而不用再另外适配了。……具体差异化的东西可以放项目的文档里，但通用的东西，就放到skills中，这样谁上来都能快速用。」「全面更新那张issue吧，我在uxfion/skills的项目里优化它」「然后profiles是不是也应该新增一个，因为我们用了qwen3.8-27B」。
 
@@ -22,11 +24,11 @@
 
 ## 现状（2026-10-31）
 
-已按两份 spec 实现并在本机验证：[20261030](../specs/20261030-vllm-serve-shared-machines-spec.md)（共享和远程服务器），[20261031](../specs/20261031-vllm-serve-principles-rework-spec.md)（按 design principles 返工，实现记录在它的第 7 节）。主机 B 已实测通过（2026-10-31，单卡和两卡数据并行，`/metrics` 覆盖两个副本；结果在 20261031 spec 第 7 节），部署在共享目录下，另一个项目的旧部署 `hc_llm` 已删。主机 A 也已部署、实测通过（2026-10-31，CUDA 12.9 驱动旁边装着系统 CUDA 13.1，`foreign_cuda` 为空，卡号和 `nvidia-smi` 一致；结果同在 20261031 spec 第 7 节），`hc_llm` 同样已删。两台都测完，可以关闭这张 issue。用户（2026-10-31）：「h200现在不能用了，这段时间都不行，因为别的同学已经预约了。现在就pro6000可以用，后面我再给你找一台。」用户随后清理了主机 A 上的全部内容：「h200上的所有内容都已经被清理，因为是共享的，我不用了就得清理」。新机器照 shared-machines.md 部署。
+已按两份 spec 实现并在本机验证：[20261030](../../specs/20261030-vllm-serve-shared-machines-spec.md)（共享和远程服务器），[20261031](../../specs/20261031-vllm-serve-principles-rework-spec.md)（按 design principles 返工，实现记录在它的第 7 节）。主机 B 已实测通过（2026-10-31，单卡和两卡数据并行，`/metrics` 覆盖两个副本；结果在 20261031 spec 第 7 节），部署在共享目录下，另一个项目的旧部署 `hc_llm` 已删。主机 A 也已部署、实测通过（2026-10-31，CUDA 12.9 驱动旁边装着系统 CUDA 13.1，`foreign_cuda` 为空，卡号和 `nvidia-smi` 一致；结果同在 20261031 spec 第 7 节），`hc_llm` 同样已删。两台都测完，可以关闭这张 issue。用户（2026-10-31）：「h200现在不能用了，这段时间都不行，因为别的同学已经预约了。现在就pro6000可以用，后面我再给你找一台。」用户随后清理了主机 A 上的全部内容：「h200上的所有内容都已经被清理，因为是共享的，我不用了就得清理」。新机器照 shared-machines.md 部署。
 
 ## 进展（2026-10-30）
 
-设计和实现：[20261030-vllm-serve-shared-machines-spec.md](../specs/20261030-vllm-serve-shared-machines-spec.md)，第 4 节逐条写了怎么处理（采纳、换做法、不做）。skill 已改，测试通过，本机按新文档从零演练了一遍（新根目录、vLLM 0.32.0、`paddleocr-vl` 起服务和 paddleocr 实际解析）。还差两台共享服务器上的实测：经 ssh 在远程机器上写文件、起服务被 Claude Code 的自动权限分类拦下，等用户决定是放行还是自己跑。实测前不关这张 issue；要核对的点在 spec 第 7 节末尾。
+设计和实现：[20261030-vllm-serve-shared-machines-spec.md](../../specs/20261030-vllm-serve-shared-machines-spec.md)，第 4 节逐条写了怎么处理（采纳、换做法、不做）。skill 已改，测试通过，本机按新文档从零演练了一遍（新根目录、vLLM 0.32.0、`paddleocr-vl` 起服务和 paddleocr 实际解析）。还差两台共享服务器上的实测：经 ssh 在远程机器上写文件、起服务被 Claude Code 的自动权限分类拦下，等用户决定是放行还是自己跑。实测前不关这张 issue；要核对的点在 spec 第 7 节末尾。
 
 ## 按 design-principles 自查（2026-10-30、31）
 
@@ -56,7 +58,7 @@
 
 **一个部署由谁带到底：不另设机制（2026-10-31）。** 用户：「我一般用这些 skills 都是主动用的嘛，而且都是交给 Agent 去操作的……根据我们的 skills，去部署远程服务器上的一个 VLLM」。
 
-**返工 spec（2026-10-31，已定稿、已实现）：** [20261031-vllm-serve-principles-rework-spec.md](../specs/20261031-vllm-serve-principles-rework-spec.md)。实现前做了两份独立评审（低级错误和技术正确性 14 条、原则和设计 15 条），处理见该 spec 第 6 节；最重的一处——“谁在跑、归谁”撑不住不计时的等待——从根上重切成“一次启动整个交给守护进程，活着看它拿着的运行锁”。
+**返工 spec（2026-10-31，已定稿、已实现）：** [20261031-vllm-serve-principles-rework-spec.md](../../specs/20261031-vllm-serve-principles-rework-spec.md)。实现前做了两份独立评审（低级错误和技术正确性 14 条、原则和设计 15 条），处理见该 spec 第 6 节；最重的一处——“谁在跑、归谁”撑不住不计时的等待——从根上重切成“一次启动整个交给守护进程，活着看它拿着的运行锁”。
 
 **实现（2026-10-31）：** 按返工 spec 实现，测试、本机实测、FlashInfer 采样器实测（没有收益，保留关闭）和三份评审的处理都记在该 spec 第 7 节。SKILL.md 两份（vllm-serve、paddleocr）已改（`535632e`）：前两条逐条给用户看过、同意了，其余用户交给我按 writing-for-agents 定（「我自己看不过来，你按照Writing for agent skill 里面的原则自己决定吧，然后后面统一都要调用 writing for agent skill 优化一遍」），改完又按这个 skill 把所有改过的文本过了一遍。
 

@@ -45,7 +45,7 @@ args = ["--revision", "<40-character commit>", "--host", "0.0.0.0", "--max-num-s
 env = { CUDA_VISIBLE_DEVICES = "1" }
 ```
 
-A full commit hash in `--revision` pins the weights: serve.py downloads that revision, and vLLM loads it offline. After a start without one, `<root>/.cache/huggingface/hub/models--<org>--<name>/refs/main` holds the commit it got.
+A full commit hash in `--revision` pins the weights: serve.py downloads that revision, and vLLM loads it offline. After a start without one, `<root>/.cache/huggingface/hub/models--<org>--<name>/refs/main` holds the commit it got. A pinned commit has no ref, so `hf cache prune` takes it for unused and deletes it: on the shared cache, prune nothing a profile pins.
 
 ## Who reaches the server
 
@@ -56,4 +56,4 @@ A full commit hash in `--revision` pins the weights: serve.py downloads that rev
 
 ## Leaving the machine
 
-A shared server goes back once the user stops using it, its space included (2026-10-31: the H200 host was cleared when other people booked it). Stop the servers there (`down --all`); the root, which may hold the user's other projects, is cleared by the user or, on their word, by you.
+A shared server goes back once the user stops using it, its space included (2026-10-31: the H200 host was cleared when other people booked it). Stop the servers there (`down --all`); the root, which may hold the user's other projects, is cleared by the user or, on their word, by you, along with `/tmp/torchinductor_<login>`, which torch leaves outside it (`TMPDIR` stays the system's).
