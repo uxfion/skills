@@ -158,7 +158,7 @@
   - lint 找重复条目也用同一套候选，导入和整理对“重复”的判断不再各说各的。
 - **同一个 DOI 在库里有两条：** 进 `decide`，由主 agent 选一条，或者按 organize.md 先合并（要用户同意）。
 - **一个“已接受”字段：** 记录里新增 agent 字段 `accepted`，里面列字段检查的条目、draft_item 的警告。接受了的就不再每次重跑都列成待定。字段检查和警告是同一套机制，不各开一个字段。
-- **draft_item 读进 identify 补进来的字段：** PMID 写进 Extra（`PMID: <n>`），摘要写进 abstractNote；作者关键词要不要写成第 1 类标签，这时再定（§9 第 5 条）。
+- **draft_item 读进 identify 补进来的字段：** PMID 写进 Extra（`PMID: <n>`），摘要写进 abstractNote；作者关键词要不要写成第 1 类标签，这时再定（§9 第 5 条）。（实施时改的：摘要和 PMID 本来就经 Zotero 的 CSL 对照表进条目，见 §12。）
 - **tagging.md：** 加 `organ/` 一类（§9 第 6 条）；“Source keywords”一行把 OpenAlex 当成作者关键词来源，是错的，改掉；打标签时可以参考 OpenAlex 关键词（§9 第 5 条）。
 - **lint 只报有把握的事实和证据：**
   - `url_not_record` 只报“网址不是 doi.org/<DOI>”和主机名；只有网址为空时才给补丁；场馆的例外交给 agent。
@@ -310,3 +310,81 @@
 - **库代码的测试**改在脚本的接缝上补，不另开单元测试模块，和设计原则一致。
 - **page_unreachable**：用 identify 现成的页面解析器读 agent 存下的 HTML。
 - **补全字段**：由 identify 自己查，守住结果文件的单一写入者。
+
+## 12. 第二期实施时定的细节（2026-10-31）
+
+§4、§5 定了机制，下面是实施前补定的细节。
+
+**查库候选：一个排序函数，两种来源。**
+- 题目查询（`paper.title_queries`）：完整题目、副标题之前的部分（至少两个词）、去掉标点的题目。
+- 排序（`paper.candidates`）：按题目相似度排，最多 10 条（这个数是我定的），多出来的条数写在 `more` 里，不悄悄丢掉。每条带证据：key、题目、年份、第一作者、DOI、arXiv 号、条目类型、附件标题、相似度。
+- 导入时，来源是 Zotero 快速搜索（题目、作者、年份模式）对这几种查询的结果。everything 模式（连全文一起搜）去掉：它搜到的多是在参考文献里引用了这个题目的论文，说的是“谁引用了它”，不是“它是谁”；题目改动的同一篇，由新增的宽松查询去找。按 arXiv 号对上、而这篇自己有 DOI 的条目（预印本和正式版的一对），照旧作为候选，标 `matched_by: arxiv`。
+- lint 时，来源是一次读进来的全库：一个条目的题目词都出现在另一条的题目、作者或年份里，就是候选。这是在内存里按词模拟快速搜索，因为全库检查不能一条一条去搜。
+- 删掉“一个题目包含另一个”的过滤。能确定是同一篇的仍只有 DOI 和 arXiv 号。
+
+**`same_paper` 交接。**
+- `prepare` 发现记录里有还没定的候选，而已有的交接没有覆盖它们，就写 `<imp>/handoffs/<slug>.<n>.json`。“没定”指：不在 `distinct_from` 里，没有 `same_as`，`found` 也不是 `found`。
+- 记录的形状和 paper-fetch 的一样，judge 的 brief 两边通用：`id`、`kind: same_paper`、`taker: judge`、`slug`、`record`、`paper`（这篇的证据）、`candidates`（各条的证据）、`answers`、`at`。
+- 不另建事件日志，记录本身就是状态：
+  - `p2z.py answer <交接> same --key K`：写 `same_as`；
+  - `distinct [--key K …]`：加进 `distinct_from`，不写 key 就是这个交接里还没定的全部；
+  - `pair --key K`、`unknown --key K`：记在交接文件的 `answered` 里。这篇在 `decide` 里列成等用户，报告也列出来。用户定了，主 agent 用 `answer … same|distinct --by user` 记下。
+- 写了 `same_as`，或者每个候选都进了 `distinct_from`，交接就关了。`prepare` 的行在 `decide` 里写 `{"same_paper": <交接文件路径>}`，judge 的 brief 就从这里来。`found` 的指纹本来就包含 `same_as` 和 `distinct_from`，所以重跑 `prepare` 会自动重查。
+
+**`decide` 新增的两项。**
+- `{"duplicates": [keys]}`：库里有两条带这个 DOI 的条目。主 agent 写 `same_as` 选一条，或者按 organize.md 先合并（要用户同意）。
+- `accepted`（agent 字段）：字符串列表。
+  - 字段检查的条目写成 `<列表>:<字段>`：`mapped:publicationTitle`、`to_extra:foo`、`missing_minimum:date`；
+  - draft_item 的警告照原文写。
+  - `decisions()` 只列没被接受的：`{"checks": [...]}`、`{"warnings": [...]}`。`accepted` 不进 `checks` 的指纹。
+
+**draft_item。**
+- 摘要、PMID、PMCID 本来就经 Zotero 的 CSL 对照表进条目（schema 44：`abstract`→`abstractNote`，`PMID`→`PMID`，只有 journalArticle 有 PMID 和 PMCID 字段）。原来写的“PMID 写进 Extra”是旧 schema 的假设。
+- 改成：标识符（DOI、PMID、PMCID）在条目类型里没有字段时，写进 Extra，写成 `PMID: <n>` 这样。现在只有 DOI 这么做。
+- 作者关键词：等用户定（§9 第 5 条）。
+- OpenAlex 关键词：identify 把它们写进结果的 `openalex_keywords`（`openalex_works` 的 select 加上 `keywords`），不进 CSL，也不进 Zotero，只给打标签的 agent 当参考。
+
+**`renamed_from`。**
+- paper-fetch 的 `reslug` 在新结果里记 `renamed_from: [旧 slug]`。结果的格式变了，paper-fetch 的契约 fixture 重新生成，p2z 的契约测试重跑。
+- p2z 的 draft_item 起草新结果时，如果旧 slug 的记录在、新 slug 的不在，就把记录改名，并更新 `fetched`。
+- `run.result_of` 找不到 `fetched` 时，在同一目录里按 `renamed_from` 跟过去。
+
+**lint。**
+- `url_not_record`：只报“url 不是 `https://doi.org/<DOI>`”，带上主机名；url 为空时才给 patch。删掉 `COPY_HOSTS` 和 NeurIPS 特例。
+- `abbreviation_misplaced`：两个字段都有值、缩写比全称长时，列出两个值，不给 patch。删掉 `looks_abbreviated`。
+- `name_not_tagged` 和 `NAME_PATTERNS` 一起删掉。整理标签时，把摘要和标签交给 judge。
+- `label_clash` 带上 `same_file`（按 md5 比）。
+- `duplicate_of`（按题目）改用上面的候选，带证据。
+- 整理时的判断不写交接文件：lint 的输出本身就是证据。每个 judge 拿约 20 个条目的 lint 行，交回一份改动清单，格式是 `file_and_tag --batch` 或 `update_item --batch` 的；主 agent 合成一份清单给用户。judge 判成“不是同一篇”的一对，下一次整理还会列出来。一次整理里，这类结论在改动清单里写明为什么不动（organize.md 第 5 步本来就要求）。
+
+**批量写入：先列清单，再由 `update_item --batch` 统一写。**
+- `update_item --batch FILE`：每行 `{key | cite, set: {字段: 值}}`（其余键是给人看的说明，忽略），逐条检查、写入、读回。改 PDF 附件的标题时，它本来就会把结构化包一起改名，所以所有写入都走它。
+- `titles_from_labels.py <paper-fetch 目录>`：读每个结果里文件的 md5 和标签，按 md5 找到库里的附件；标题不同的，输出一行 `{key: 附件, set: {title}, from: 旧标题, why, by}`。只列，不写。
+- `fields_from_results.py <结果…>`：结果按 citation key 命名（identify 时 `--slug <citation key>`）。用 draft_item 的同一套转换把结果变成条目，库里条目空着、结果里有的字段输出一行 `{cite, set: {…}}`。只填空字段，不覆盖。`missing_abstract`（有 DOI 的）和 judge 为 `missing_doi` 选定的 DOI 都走这里：先 identify，再列，再写。
+- `file_and_tag`：批量条目可以写 `remove_tags`，命令行可以用 `--remove-tags`。
+
+**`recognize.py`（没有 DOI 的论文走 connector）。**
+- 输入是记录，它的结果是一个 stub，文件的核对结果是 `cannot_judge`。
+- 用 connector 的 saveStandaloneAttachment 发出 PDF，附件标题用文件的标签。按 md5 找到这次建的附件，每 5 秒看一次它有没有父条目，最多 60 秒。只看自己这个附件，不用 `items?since=`（那会把用户同时加的东西也算进来）；查的是本机的 Zotero，不是网站。
+- 出现父条目：写进记录的 `saved`（带 `via: recognizer`），识别器改了附件标题的，改回标签；打印认出来的字段，交给 judge 对照 PDF 第 1 页看对不对。
+- 没出现：把这次建的独立附件移进回收站，报 `not_recognized`，由 agent 照 `check_item` 的骨架手写条目。
+- 之后照常 `save`：附件 md5 相同，不会重复挂。分类、标签、改字段用 `file_and_tag`、`update_item`。
+
+**笔记。**
+- `note put` 收到空内容，报 `empty_note`。
+- 新建的笔记（文件里没有 `key`），如果父条目下已经有同标题的子笔记，就报 `same_title`，带上已有笔记的 key，什么都不写。处理办法是取出那条笔记，把内容并进去。
+
+**paper-read。**
+- `prepare_note.py --cite K -o <scratch>/<cite>.<title>.note.md`：
+  - 用 p2z 的 `note take --title 论文笔记` 取笔记：一条，就改名为 `-o`；没有，就用骨架新建，front matter 写 `parent`；两条，就停下报 `two_notes`，带上两个 key，由主 agent 合并、存回，再重跑。
+  - 旁边总是存一份副本 `<file>.taken`，新建的就存骨架。
+- “PDF 是不是这篇”（改了 §5 第 2 条）：原定“p2z 核对过就算确定”做不到，因为 Zotero 里的附件标题分不出哪份是 `unconfirmed`。改成：reader 的 brief 带上条目的题目、作者、年份、期刊和 DOI，reader 读全文前先对照第 1 页确认，对不上就停下报告。SKILL.md 去掉主 agent 手查的那一步。题目一致不算确定。
+- `check_note --taken FILE`（默认用旁边的 `<note>.taken`）：
+  - 查 Q1–Q6 是否都在，缺的列进 `missing_trunk`；
+  - 查 front matter 和 `## 用在哪里` 是否和副本一致，改过的列进 `changed`；
+  - 任何一项不满足就是 `open`。
+- `structured put` 写进 *Look it up* 和 *Read a paper* 的完成条件。
+
+**交接表。** p2z 的 SKILL.md 列出每个停下点：`same_paper`（judge，`p2z.py answer` 记下）；`duplicates`、字段检查和警告（主 agent，写 `same_as` 或 `accepted`，或者改条目）；一对、不知道（用户，主 agent 用 `answer --by user` 记下）；connector 认出的条目（judge，主 agent 用 `update_item`、`file_and_tag` 改，或者移进回收站）；整理时 lint 的判断（judge，每批约 20 个，交回改动清单）；打标签（subagent 最多 5 个，写进记录的 `tags`）。
+
+**不做的。** 调研里不在 §4、§5 的小项（没编号的子问题标题、没人用的 `first_surname`）这期不动。
