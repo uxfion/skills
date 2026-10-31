@@ -2,8 +2,9 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/find_in_library.py: the records' found / near_matches against the fake Zotero (the lookup's rules
-are tested once, in test_p2zlib.py's Lookup)."""
+"""Tests for scripts/find_in_library.py: the records' found / near_matches, and --file, against the fake Zotero (the
+lookup's rules are tested once, in test_p2zlib.py's Lookup)."""
+import hashlib
 import json
 import tempfile
 import unittest
@@ -97,6 +98,20 @@ class FindInLibrary(unittest.TestCase):
         self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"]), ("near_match", "absent"),
                          "a found without `from` is not trusted")
         self.assertNotIn("key", run.read(old)["found"])
+
+    def test_files_by_md5(self):
+        held, other = self.work.root / "held.pdf", self.work.root / "other.pdf"
+        held.write_bytes(b"%PDF held")
+        other.write_bytes(b"%PDF other")
+        md5 = hashlib.md5(b"%PDF held").hexdigest()
+        self.zot.add_item("AAAAATT2", itemType="attachment", parentItem=A, title="PDF", contentType="application/pdf", md5=md5)
+        r = self.run_("--file", held, other, self.work.root / "gone.pdf")
+        self.assertEqual(r.code, 1, r)
+        self.assertEqual(r.lines[0], {"file": str(held), "md5": md5, "code": "found", "attachment": "AAAAATT2", "parent": A,
+                                      "citationKey": "liu2022progressive", "title": "Progressive Residual Learning"})
+        self.assertEqual([o["code"] for o in r.lines[1:3]], ["not_found", "unreadable"])
+        self.assertEqual(self.run_("--file", other).code, 0, "not_found is an answer")
+        self.assertEqual(self.run_("--file", held, base_url=f"http://127.0.0.1:{closed_port()}").code, 2)
 
     def test_cannot_check(self):
         a = self.record("a", {"item": {"DOI": DOI, "title": "x"}})
