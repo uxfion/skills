@@ -140,8 +140,9 @@ class Claim(unittest.TestCase):
         # The sweep: what this run left in Downloads, with md5 and size; the library is paper-to-zotero's to ask.
         left = fake_pdf(self.dl / "left.pdf", ["Unrelated"])
         r = self.run_("--sweep")
-        self.assertEqual([(e["file"], e["source"], e["md5"], e["size"], e["why"]) for e in r.lines if e["file"].endswith(".pdf")],
+        self.assertEqual([(e["file"], e["source"], e["md5"], e["size"], e["why"]) for e in r.lines[:-1] if e["file"].endswith(".pdf")],
                          [("left.pdf", str(left), run.md5_of(left), left.stat().st_size, "sweep")])
+        self.assertEqual(r.lines[-1]["summary"]["left"], len(r.lines) - 1, "a summary, also when nothing is left")
         self.assertTrue(left.exists())
 
     def test_cannot_go_on(self):

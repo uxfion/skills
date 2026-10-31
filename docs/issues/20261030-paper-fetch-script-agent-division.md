@@ -59,7 +59,6 @@
 - **Mask R-CNN 走完整一遍。** `fetch --pass 1` 在出版商路线停在学校代理（OCLC）的登录页 → `page` 交接 → paper agent 在自己的会话里打开，单点登录还有效，直接进到 IEEE → `fetch --start` 交回 stamp.jsp → 题目太短，核对拿不准 → `file` 交接 → 同一个 agent 看第 1 页，答 `accept --label Published-IEEE` → 页面交接自动关闭 → 重跑 `fetch` 退出 0。没去图书馆系统。
 - **只走图书馆系统。** `fetch --route discovery`：访客视图里就有这篇的 ProQuest 记录，记录页上脚本找不到 PDF → `page` 交接（`no_pdf_link`）→ paper agent 从记录页进到 IEEE（经代理）→ `fetch --start` → `file` 交接 → `accept`，Published-IEEE。这次没用到“点 Sign in”，那一步在上面那次实测里验证过。
 - **先有接受稿，再拿正式版（决策 A）。** UNet++（TMI）：先单跑 `--route accepted`，PMC 文章页的 PDF 链接被核对拒了 → `page` 交接 → paper agent 用 `fetch --start --version accepted` 交回同一页，这次拿到 NIH 作者稿（`nihms-1600374.pdf`），核对通过 → `label` 交接 → agent 答 Accepted-PMC → 这篇不算满足（想要正式版）→ 照常跑完整一遍，开放路线经代理拿到 IEEE 正式版 → `label` 交接交给 judge，答 Published-IEEE → 两份并排，`paper_file` 是正式版 → 重跑退出 0。
-- **看到的、已处理的：** `outcome.tried` 写的是代理的主机名，已改成网站本身的（`2eb4330`）。
-- **看到的、留给以后的：**
-  - PMC：批量运行第一次请求 PDF 链接被拒，一分钟后 paper agent 对同一文章页 `fetch --start` 就拿到了。可以作为带日期的提示写进 publishers.md。
-  - `claim --sweep` 没有剩余文件时什么也不打印（退出 0），可以考虑输出一行摘要。
+- **看到的、已处理的：** `outcome.tried` 写的是代理的主机名，已改成网站本身的（`2eb4330`）；`claim --sweep` 没有剩余文件时什么也不打印，已改成最后输出一行摘要。
+- **看到的、另记 issue 的：** PMC 的 PDF 链接第一次被拒、一分钟后就拿到了，见 `20261031-paper-fetch-pmc-pdf-first-try-refused.md`。
+- **没测到的：** 图书馆系统的“点 Sign in”（这次访客视图就有记录；上一次实测验证过）；“开放链接碰巧是接受稿”这条路（这次用 `--route accepted` 先拿接受稿，测的是决策 A 的机制）；验证页（没碰到，所以推送转达和 10 分钟等待没在实测里跑到）。

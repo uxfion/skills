@@ -32,7 +32,7 @@ the same content as one beside the result is that file. Downloads is the folder 
 Every outcome is an event appended to <dir>/fetch.jsonl and printed: {event: claim, file, slug?, result: claimed |
 refused | held | left, kind?, code? (the check's verdict), md5, source?, route?, proposal?, evidence?, handoff?, at}
 (proposal and evidence: pflib/run.py); a left file also {why: unmatched | ambiguous | sweep, against?, matched?};
---sweep adds {size}, its file's path is `source`. --file folds the result it touched into its files when it ends
+--sweep adds {size}, its file's path is `source`, then {"summary": {left: n}}. --file folds the result it touched into its files when it ends
 (settle.py); --scan and --watch only append events, and settle.py folds after them.
 Exit 0 = done (--file: filed); 1 = --file not filed (refused, or held for the agent); 2 = cannot go on (no results/
 in the directory, no .started, no Downloads folder, no pdftotext).
@@ -64,9 +64,11 @@ def downloads(work, given):
 
 
 def sweep(work, dl):
-    for f in run.new_downloads(work, dl):
+    files = run.new_downloads(work, dl)
+    for f in files:
         cli.emit(work.append({"event": "claim", "file": f.name, "result": "left", "why": "sweep",
                               "md5": run.md5_of(f), "size": f.stat().st_size, "source": str(f)}))
+    cli.emit({"summary": {"left": len(files)}})
 
 
 def fold(work, slug):
