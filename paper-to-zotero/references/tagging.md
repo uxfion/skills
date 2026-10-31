@@ -8,10 +8,10 @@ This scheme is a starting point, not a closed list. The dimensions, the examples
 
 | Kind | Zotero type | Who writes it | What to do with it |
 | --- | --- | --- | --- |
-| Automatic tags | automatic (1, shown orange) | `draft_item`: arXiv's subject categories, named as Zotero's arXiv translator names them. Older items also carry what the Zotero Connector imported: publishers' index terms, authors' keywords | Keep what is there, and add no other kind. Zotero hides or deletes automatic tags only all at once. |
+| Automatic tags | automatic (1, shown orange) | `draft_item`, only with automatic tags on: the source's own keywords — arXiv's subject categories and the authors' keywords. Older items also carry what the Zotero Connector imported: publishers' index terms and the like | Keep what is there. Zotero hides or deletes automatic tags only all at once, so they never carry what a curated tag should. |
 | Curated tags | manual (0) | the agent, by this file | Add. The existing tags are the spelling reference, not a cap: a concept that already has a tag reuses that spelling, a concept without one gets a new tag — normal for a new paper. List every new tag in the report. Manual tags from before this scheme stay as they are; fold them in (rename to the canonical form or replace) only when the user says so in the session. |
 
-The authors' own keywords (`csl.keyword` in paper-fetch's result) and OpenAlex's (`enrichment.openalex_keywords`) never become tags: they point to concepts that curated tags then name. The user's rule (2026-10-31): automatic tags are a mess to avoid adding to, and curated tags must never be lost.
+**Automatic tags are a switch, off by default**: the config's `automatic_tags` (`true` or `false`, references/install.md) is the user's standing choice, and a user who asks for them in one import gets them for that run (`draft_item --automatic-tags`, or `--no-automatic-tags` the other way). Off, the authors' keywords (`csl.keyword` in paper-fetch's result) and arXiv's categories are hints for the curated tags and nothing more. OpenAlex's keywords (`enrichment.openalex_keywords`) are a model's guesses: a hint always, a tag never. The curated tags are the ones that must never be lost.
 
 ## Curated tag forms
 
@@ -40,8 +40,8 @@ Rules per dimension:
 ## Choosing tags for one paper
 
 1. List the library's existing tags (`uv run scripts/p2z.py read_library tags`) — the spelling reference: one spelling per concept.
-2. From the item's title, abstract, venue and, when needed, the PDF's first page, pick the tags above — the existing spelling where the concept already has a tag, a new tag where it does not. The result's `csl.keyword` (the authors' keywords) and `enrichment.openalex_keywords` (OpenAlex's model's guesses from the title and abstract) point to concepts you then confirm in the text; neither is a tag by itself.
-3. Write curated tags as manual tags (type 0); the only automatic tags are the arXiv categories `draft_item` adds.
+2. From the item's title, abstract, venue and, when needed, the PDF's first page, pick the tags above — the existing spelling where the concept already has a tag, a new tag where it does not. The result's `csl.keyword` (the authors' keywords) and `enrichment.openalex_keywords` (OpenAlex's model's guesses from the title and abstract) point to concepts you then confirm in the text; a curated tag names what you confirmed.
+3. Write curated tags as manual tags (type 0); automatic tags come only from `draft_item`, when they are on.
 4. Report: the curated tags chosen and which of them are new to the library. After a batch, list every new tag once, grouped by prefix, so the user can look them over in one go.
 
 ## Tidying existing items

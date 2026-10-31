@@ -34,7 +34,8 @@ class Contract(unittest.TestCase):
         return run.read(self.root / "records" / f"{slug}.json")
 
     def test_drafted_saved_attached_reported(self):
-        r = call(draft_item, *sorted(self.results.glob("*.json")), "--base-url", f"http://127.0.0.1:{closed_port()}")
+        r = call(draft_item, *sorted(self.results.glob("*.json")), "--automatic-tags", "--base-url", f"http://127.0.0.1:{closed_port()}",
+                 config=config_file(key=None))
         codes = {line["slug"]: line["code"] for line in r.lines[:-1]}
         self.assertEqual(codes, {"109999html": "stub", "liu2022jbhi": "ok", "shinn2023reflexion": "ok"},
                          "a stub has no metadata to draft from: its record holds the result alone, for recognize.py")

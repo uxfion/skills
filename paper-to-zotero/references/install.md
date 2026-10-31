@@ -15,7 +15,7 @@ Zotero 10 or newer, running, with the local API on: Settings → Advanced → "A
 `~/.config/paper-to-zotero/config.json` (`$PAPER_TO_ZOTERO_CONFIG` points elsewhere, for tests), mode 600, outside any repository, holds the write key:
 
 ```json
-{"zotero": {"key": "…", "serverID": "…", "created": "…"}}
+{"zotero": {"key": "…", "serverID": "…", "created": "…"}, "automatic_tags": false}
 ```
 
-`p2z.py ready --authorize` writes it and keeps any other field. An older version kept the OpenAlex key and the institution's proxy and discovery page here too; paper-fetch reads them from its own config now, and `ready` names them under `config.moved` while they remain. `ready.py` warns when others can read the file.
+`p2z.py ready --authorize` writes the key and keeps any other field. `automatic_tags` is the user's: `true` gives drafted items the source's own keywords as automatic tags (references/tagging.md); absent or `false`, none. An older version kept the OpenAlex key and the institution's proxy and discovery page here too; paper-fetch reads them from its own config now, and `ready` names them under `config.moved` while they remain. `ready.py` warns when others can read the file.

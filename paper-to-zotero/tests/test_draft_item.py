@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from helpers import call, closed_port, load, smoke
+from helpers import call, closed_port, config_file, load, smoke
 
 from p2zlib import run
 
@@ -97,8 +97,9 @@ class DraftItem(unittest.TestCase):
         path.write_text(json.dumps(res), encoding="utf-8")
         return path
 
-    def draft(self, *argv, stdin=""):
-        return call(draft_item, *argv, "--base-url", f"http://127.0.0.1:{closed_port()}", stdin=stdin)
+    def draft(self, *argv, stdin="", config=None):
+        return call(draft_item, *argv, "--base-url", f"http://127.0.0.1:{closed_port()}", stdin=stdin,
+                    config=config or config_file(self.root, key=None))
 
     def rec(self, slug):
         return json.loads((self.records / f"{slug}.json").read_text(encoding="utf-8"))
@@ -119,6 +120,8 @@ class DraftItem(unittest.TestCase):
 
     def test_an_arxiv_preprint(self):
         self.draft(self.put(SENET_PREPRINT))
+        self.assertNotIn("tags", self.rec("senet"), "automatic tags are off unless the user turns them on")
+        self.draft(self.put(SENET_PREPRINT), "--redraft", "--automatic-tags")
         rec = self.rec("senet")
         item = rec["item"]
         self.assertEqual((item["itemType"], item["url"], item["repository"], item["archiveID"], item["DOI"], item["date"]),
@@ -130,7 +133,7 @@ class DraftItem(unittest.TestCase):
             "Zotero's arXiv translator's names; FOS entries and repeats dropped")
 
     def test_a_published_version_keeps_what_the_preprint_gave(self):
-        r = self.draft(self.put(SENET_CVPR))
+        r = self.draft(self.put(SENET_CVPR), config=config_file(self.root, key=None, automatic_tags=True))
         rec, item = self.rec("senet"), self.rec("senet")["item"]
         self.assertEqual((item["itemType"], item["proceedingsTitle"], item["conferenceName"], item["publisher"], item["url"]),
                          ("conferencePaper", "2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition", "CVPR 2018",
@@ -188,6 +191,19 @@ class DraftItem(unittest.TestCase):
         self.assertEqual(self.rec("stub"), {"fetched": str(stub)}, "a stub's record: its result, for recognize.py")
         r = self.draft(elsewhere, "-o", self.root / "other")
         self.assertEqual((r.code, (self.root / "other" / "jama.json").is_file()), (0, True))
+
+    def test_the_authors_keywords_are_automatic_tags_only_when_asked(self):
+        kw = result("kw", {"type": "article-journal", "title": "TransUNet", "author": [HU], "DOI": "10.9999/kw",
+                           "keyword": ["Medical Image Segmentation", "U-net", "Medical Image Segmentation"]},
+                    enrichment={"incomplete": [], "openalex_keywords": ["Segmentation"]})
+        path = self.put(kw)
+        self.draft(path)
+        self.assertNotIn("tags", self.rec("kw"))
+        self.draft(path, "--redraft", config=config_file(self.root, key=None, automatic_tags=True))
+        self.assertEqual(self.rec("kw")["tags"], [{"tag": "Medical Image Segmentation", "type": 1}, {"tag": "U-net", "type": 1}],
+                         "the authors' own, each once; OpenAlex's never")
+        self.draft(path, "--redraft", "--no-automatic-tags", config=config_file(self.root, key=None, automatic_tags=True))
+        self.assertEqual(len(self.rec("kw")["tags"]), 2, "off for a run: nothing added, nothing taken away")
 
     def test_a_record_follows_its_renamed_result(self):
         old = self.put(JAMA)

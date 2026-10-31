@@ -15,8 +15,10 @@ zotero/{fetch,records}/). Drafting writes:
   fetched      the result file's absolute path
   item         the Zotero item to create; the agent may revise it
   citationKey  the key given (the result's `cite`, verbatim: a .bib key); otherwise Better BibTeX makes the key
-  tags         arXiv's subject classes as automatic tags, named as Zotero's arXiv translator names them; added to the
-               record's tags
+  tags         with automatic tags on (the config's automatic_tags, or --automatic-tags for this run; off by default),
+               the source's own keywords as automatic tags, added to the record's tags: arXiv's subject classes, named as
+               Zotero's arXiv translator names them, and the authors' keywords (the result's csl.keyword). OpenAlex's
+               keywords, its model's, never.
   warnings     what drafting noticed: a type guessed, a role stored as contributor, the DOI put in extra, fields the
                type has no place for. What the metadata itself is suspected of stays in the result's warnings.
 A record with an item is skipped; --redraft drafts its item again (after pf.py identify --redraft chose another
@@ -43,12 +45,13 @@ stdout: one line per result {slug, code, itemType?, title?, warnings?}, then {"s
   result_invalid  not one of paper-fetch's result files
 Exit 0 = every result drafted or skipped; 1 = some not; 2 = Zotero (asked for its schema once a run) not running.
 """
+import argparse
 import json
 import re
 import sys
 from pathlib import Path
 
-from p2zlib import cli, run, zotero
+from p2zlib import cli, config, run, zotero
 
 # arXiv archives that Zotero's arXiv translator writes as "<Archive> - <Category>"; a category without a subject
 # class (quant-ph, hep-th, gr-qc, ...) is written as its name alone.
@@ -108,6 +111,13 @@ def arxiv_category_tags(categories):
     return tags
 
 
+def author_keywords(csl):
+    """The authors' keywords paper-fetch put in csl.keyword (a list; a CSL string is comma-separated), each once."""
+    value = csl.get("keyword")
+    words = value if isinstance(value, list) else str(value or "").split(",")
+    return list(dict.fromkeys(w.strip() for w in words if isinstance(w, str) and w.strip()))
+
+
 def own(t, *names):
     """The type's own field for the first of the names it has (directly or as a base field); None when none."""
     return next((f for f in (zotero.own_field(t, n) for n in names) if f), None)
@@ -150,7 +160,7 @@ def creators_of(csl, schema, t, item_type, warnings):
 
 
 def item_of(res, schema, warnings):
-    """A result -> (the Zotero item, arXiv's subject classes as tag names)."""
+    """A result -> (the Zotero item, the source's own keywords as tag names: arXiv's subject classes, the authors')."""
     csl, ids = res["csl"], res.get("ids") or {}
     preprint = (res.get("versions") or {}).get("preprint") or {}
     is_preprint = res.get("record_of") == "preprint"
@@ -210,7 +220,8 @@ def item_of(res, schema, warnings):
         item["extra"] = "\n".join(lines)
     if dropped:
         warnings.append(f"fields not in {item_type}, dropped: {', '.join(sorted(dropped))}")
-    return ordered(item, t), arxiv_category_tags(csl.get("categories") or preprint.get("categories"))
+    keywords = arxiv_category_tags(csl.get("categories") or preprint.get("categories")) + author_keywords(csl)
+    return ordered(item, t), list(dict.fromkeys(keywords))
 
 
 def records_dir(result, out):
@@ -221,7 +232,7 @@ def records_dir(result, out):
     return p.parents[2] / "records" if p.parent.name == "results" and p.parents[1].name == "fetch" else None
 
 
-def draft(path, out, redraft, schema_of):
+def draft(path, out, redraft, schema_of, automatic=False):
     try:
         res = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -261,7 +272,7 @@ def draft(path, out, redraft, schema_of):
     if res.get("cite") and not rec.get("citationKey"):
         rec["citationKey"] = res["cite"]
     have = {t.get("tag") for t in rec.get("tags") or [] if isinstance(t, dict)}
-    if any(n not in have for n in tags):
+    if automatic and any(n not in have for n in tags):
         rec["tags"] = list(rec.get("tags") or []) + [{"tag": n, "type": 1} for n in tags if n not in have]
     rec.pop("warnings", None)
     if warnings:
@@ -276,8 +287,11 @@ def main(argv=None):
     p.add_argument("results", nargs="*", metavar="RESULT", help="paper-fetch's result files (default: paths on stdin)")
     p.add_argument("-o", "--out", metavar="DIR", help="the records directory (default: records/ beside the result's fetch/)")
     p.add_argument("--redraft", action="store_true", help="draft the items of records that have one again")
+    p.add_argument("--automatic-tags", action=argparse.BooleanOptionalAction, default=None,
+                   help="the source's own keywords as automatic tags, this run (default: the config's automatic_tags, off)")
     cli.add_base_url(p)
     args = p.parse_args(argv)
+    automatic = config.automatic_tags() if args.automatic_tags is None else args.automatic_tags
     paths = args.results or [ln.strip() for ln in sys.stdin if ln.strip()]
     if not paths:
         p.error("give the result files, or their paths on stdin")
@@ -291,7 +305,7 @@ def main(argv=None):
     def loop():
         out = cli.Lines()
         for path in paths:
-            out.add({"slug": Path(path).stem}, lambda: draft(path, args.out, args.redraft, schema_of))
+            out.add({"slug": Path(path).stem}, lambda: draft(path, args.out, args.redraft, schema_of, automatic))
         return out.finish()
 
     return cli.run(loop)
