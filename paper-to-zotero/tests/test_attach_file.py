@@ -101,6 +101,18 @@ class AttachFile(unittest.TestCase):
         self.assertEqual((r.code, r.lines[0]["unconfirmed"], self.attachments()), (0, ["liu.pdf"], [("Unknown-IEEE", URL)]),
                          "attached all the same, and named")
 
+    def test_a_recognized_stubs_file_is_its_items(self):
+        self.settle(("liu.pdf", b"%PDF-1.4 a stub's file", "published", "Unknown-IEEE", "cannot_judge"))
+        rec = run.read(self.rec)
+        rec["saved"]["via"] = "recognizer"  # recognize.py: Zotero made the item from this very PDF
+        rec.save()
+        self.zot.add_item("RECOGATT", itemType="attachment", parentItem=PARENT, title="Unknown-IEEE", linkMode="imported_file",
+                          contentType="application/pdf", md5=run.md5_of(self.results / "liu.pdf"))
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["files"][0]["attachment"]), (0, "skipped", "RECOGATT"),
+                         "the recognizer's attachment is the file: nothing uploaded twice, nothing left unchecked")
+        self.assertEqual(run.read(self.rec)["attach"][0]["existing"], True)
+
     def test_an_item_with_a_pdf_needs_no_result(self):
         self.zot.add_item("HADPDF01", itemType="attachment", parentItem=PARENT, title="Preprint-arXiv-v1",
                           contentType="application/pdf", linkMode="imported_url")
