@@ -25,7 +25,7 @@ dropped_or_rewritten?, missing_minimum?}, then {"summary"}.
   ok                  the item goes in as written
   needs_attention     see the lists; fix the item, or accept the effect and say so in the report
   unknown_item_type   Zotero rejects the item (`suggestions`: the closest types)
-  no_item             the record has no `item` (draft it with doi_to_item.py)
+  no_item             the record has no `item` (draft it from its result with draft_item.py)
   skipped             reason done: `checks` is up to date (`checks`: its code)
 Exit 0 = every record ok or done, 1 = some record is not, 2 = cannot check (zotero_unreachable, local_api_disabled).
 

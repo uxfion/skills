@@ -105,22 +105,19 @@ class DoneRule(unittest.TestCase):
         self.assertEqual(run.item_key(rec), "MINE0001")
 
 
-class WorkDirectory(unittest.TestCase):
-    def test_log_settings_and_files(self):
+class Results(unittest.TestCase):
+    def test_a_record_reads_its_result(self):
         work = work_dir()
-        work.append({"event": "claim", "slug": "a", "result": "claimed", "none": None})
-        work.append({"event": "try", "slug": "a"})
-        with open(work.log, "a", encoding="utf-8") as fh:
-            fh.write("not json\n")
-        self.assertEqual([e["event"] for e in work.events()], ["claim", "try"])
-        self.assertNotIn("none", work.events("claim")[0])
-        work.set(downloads="/d", session="p2z")
-        work.set(watcher_pid=12, session=None)
-        self.assertEqual(work.settings(), {"downloads": "/d", "watcher_pid": 12})
-        self.assertIsNone(work.file_of("a"))
-        (work.records / "a.preprint.pdf").write_bytes(b"%PDF-1.4")
-        self.assertEqual(work.file_of("a").name, "a.preprint.pdf")
-        self.assertEqual(run.Work.of(work.records / "a.json").root, work.root)
+        res = work.root / "fetch" / "results" / "a.json"
+        res.parent.mkdir(parents=True)
+        res.write_text(json.dumps({"slug": "a", "files": []}))
+        rec = run.read(record(work, "a", {"fetched": str(res)}))
+        self.assertEqual(run.result_of(rec), ({"slug": "a", "files": []}, res))
+        self.assertEqual(run.Work.of(rec.path).root, work.root)
+        for data in ({}, {"fetched": str(res.with_name("gone.json"))}):
+            with self.assertRaises(cli.Stop) as caught:
+                run.result_of(run.read(record(work, "b", data)))
+            self.assertEqual(caught.exception.code, "no_result")
 
 
 class _Records:

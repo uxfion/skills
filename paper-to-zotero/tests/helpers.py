@@ -1,5 +1,5 @@
 """What every test file shares: loading a script, running it in this process or as a subprocess, a config, a closed
-port, and PDFs without poppler (stubs on PATH that print sidecar files, or a minimal real PDF).
+port.
 
     from helpers import load, call, smoke, config_file, closed_port
     trash = load("trash_item")
@@ -105,66 +105,3 @@ def smoke(name, *argv, config=None, env=None, timeout=120):
     done = subprocess.run([UV, "run", "--quiet", "--script", str(SCRIPTS / f"{name}.py"), *map(str, argv)], capture_output=True,
                           text=True, env=environ, timeout=timeout)
     return _no_secret(Result(done.returncode, done.stdout, done.stderr))
-
-
-# ---- PDFs without poppler: stubs that print a file's sidecars -------------------------------------------------
-
-# verify calls: pdftotext -f 1 -l 3 -enc UTF-8 FILE -   (FILE is $7)
-PDFTOTEXT_STUB = """#!/bin/sh
-[ -f "$7.txt" ] || exit 1
-exec /bin/cat "$7.txt"
-"""
-PDFINFO_STUB = """#!/bin/sh
-for f; do :; done
-[ -f "$f.pages" ] || exit 1
-[ -f "$f.dates" ] && /bin/cat "$f.dates"
-printf 'Producer:       stub\\nPages:          '
-exec /bin/cat "$f.pages"
-"""
-
-
-def pdf_string(line):
-    return line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-
-
-def make_pdf(pages):
-    """A minimal real PDF, one uncompressed content stream per page (for the real-pdftotext test)."""
-    objs = [b"<< /Type /Catalog /Pages 2 0 R >>"]
-    kids = " ".join(f"{3 + 2 * i} 0 R" for i in range(len(pages)))
-    objs.append(f"<< /Type /Pages /Kids [{kids}] /Count {len(pages)} >>".encode())
-    for i, page in enumerate(pages):
-        shown = "".join(f"({pdf_string(line)}) Tj T* " for line in page.split("\n"))
-        content = f"BT /F1 12 Tf 14 TL 72 720 Td {shown}ET".encode("latin-1")
-        objs.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {4 + 2 * i} 0 R "
-                    f"/Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>".encode())
-        objs.append(b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream")
-    out, offsets = bytearray(b"%PDF-1.4\n"), []
-    for num, body in enumerate(objs, 1):
-        offsets.append(len(out))
-        out += f"{num} 0 obj\n".encode() + body + b"\nendobj\n"
-    xref = len(out)
-    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
-    out += b"".join(f"{off:010d} 00000 n \n".encode() for off in offsets)
-    out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
-    return bytes(out)
-
-
-def poppler_stubs(directory):
-    """pdftotext and pdfinfo stubs in `directory` (put it on PATH): they print fake_pdf's sidecar files."""
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
-    for name, body in (("pdftotext", PDFTOTEXT_STUB), ("pdfinfo", PDFINFO_STUB)):
-        (directory / name).write_text(body, encoding="utf-8")
-        (directory / name).chmod(0o755)
-    return directory
-
-
-def fake_pdf(path, pages, page_count=None, data=None):
-    """A file that starts like a PDF, with the pages (form feeds between them) the pdftotext stub prints for it and
-    the page count pdfinfo's stub gives; pages=None: no text layer (the stub fails as on a broken file)."""
-    path = Path(path)
-    path.write_bytes(data if data is not None else b"%PDF-1.5\n% " + path.name.encode() + b"\n")
-    if pages is not None:
-        path.with_name(f"{path.name}.txt").write_text("\f".join(pages) + "\f", encoding="utf-8")
-    path.with_name(f"{path.name}.pages").write_text(f"{page_count or len(pages or [1])}\n", encoding="utf-8")
-    return path

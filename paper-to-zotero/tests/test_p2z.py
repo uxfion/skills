@@ -75,7 +75,7 @@ class P2zTest(unittest.TestCase):
         try:
             env = dict(os.environ, HOME=str(tmp), PAPER_TO_ZOTERO_CONFIG=str(tmp / "config.json"))
             done = subprocess.run([sys.executable, str(P2Z), "ready", "--base-url", f"http://127.0.0.1:{port}",
-                                   "--work", str(tmp / "work"), "--downloads", str(tmp)],
+                                   "--dir", str(tmp / "paper-to-zotero")],
                                   capture_output=True, text=True, env=env, timeout=60)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)

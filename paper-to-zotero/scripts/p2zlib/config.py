@@ -1,8 +1,9 @@
-"""The one config file: every setting and secret of the skill, outside any repository.
+"""The skill's config file, outside any repository: the Zotero write key.
 
 ~/.config/paper-to-zotero/config.json ($PAPER_TO_ZOTERO_CONFIG points elsewhere, for tests), mode 600:
-{"zotero": {"key", "serverID"}, "openalex_key", "institution": {"proxy", "discovery"}}. Every field is optional; a
-missing one turns its feature off. No value read here is ever printed.
+{"zotero": {"key", "serverID", "created"}}; ready.py --authorize writes it. Other fields are kept as they are (the
+openalex key and institution an older version kept here are paper-fetch's now, in its own config). No value read
+here is ever printed.
 """
 import json
 import os
@@ -74,14 +75,3 @@ def save_key(key, server_id):
         fh.write("\n")
     os.replace(tmp, p)
     os.chmod(p, 0o600)
-
-
-def institution():
-    """{"proxy": the proxy's domain, lowercased, "discovery": the discovery search page}, None where unset."""
-    inst = section("institution")
-    proxy = text(inst.get("proxy"))
-    return {"proxy": proxy.lower().lstrip(".") if proxy else None, "discovery": text(inst.get("discovery"))}
-
-
-def openalex_key():
-    return text(read(strict=False).get("openalex_key"))
