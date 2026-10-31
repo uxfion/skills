@@ -16,7 +16,7 @@ uv run scripts/serve.py up <profile>     # one JSON line: {"profile", "url", "mo
 CUDA_VISIBLE_DEVICES=4,5 uv run scripts/serve.py up <profile> -- --data-parallel-size 2    # GPUs and arguments for this start
 ```
 
-Speak the OpenAI API at `url` with `model` as the model name. `up` returns at once when the server runs. Otherwise it waits until the server answers or the start fails. The first `up` of a profile downloads its weights, and a start takes from under a minute (a small model) to several (a 27B model, longest on the first start after an install), so call it in the background for anything interactive. Call `up` again before each new batch of work: a server you used an hour ago has stopped, and `up` resets its idle clock.
+Speak the OpenAI API at `url` with `model` as the model name. `up` returns at once when the server runs. Otherwise it waits until the server answers or the start fails. The first `up` of a profile downloads its weights, and a start takes from one or two minutes (a small model) to several (a 27B model, longest on the first start after an install), so call it in the background for anything interactive. Call `up` again before each new batch of work: a server you used an hour ago has stopped, and `up` resets its idle clock.
 
 Arguments after `--` and the caller's environment shape this start only (a variable the profile's `env` sets stays the profile's). A choice that must hold at the next start, which another caller may trigger after an idle stop, belongs in a profile.
 

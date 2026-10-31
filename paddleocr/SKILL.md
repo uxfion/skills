@@ -7,7 +7,7 @@ description: Parses a PDF or page images (papers and other documents, scans, scr
 
 From a PDF or page images to text an agent can read whole and trust: `<stem>.md`, the document page by page in reading order, and `<stem>.json`, its record. The record keeps what the models gave, as given, and every change made since, each with who made it and why: the processing's, then the agent's and the user's. The Markdown is generated from the record. The model reads pixels, so scans, screenshots and tables embedded as images come out as text too; figures stay images.
 
-Script paths are relative to this file's directory. `scripts/parse.py` runs the models; `scripts/doc.py` does everything after: `render`, `show`, `commit`, `figure`. Their `--help` is the reference for flags, the folder layout and the finding codes. `parse.py` needs the `paddleocr` uv tool on an NVIDIA GPU; `paddleocr_missing`, a `vl_server_*` error, a crash at start-up, a hang, or no `pdftotext` / `pdftoppm` → [references/install.md](references/install.md).
+Script paths are relative to this file's directory. `scripts/parse.py` runs the models; `scripts/doc.py` does everything after: `render`, `show`, `commit`, `figure`. Their `--help` is the reference for flags, the folder layout and the finding codes. `parse.py` needs the `paddleocr` uv tool on an NVIDIA GPU; `paddleocr_missing`, a `vl_server_*` error, a crash at start-up, a hang of the native backend, or no `pdftotext` / `pdftoppm` → [references/install.md](references/install.md).
 
 A paper (a journal or conference article, a preprint, a thesis chapter) → also [references/papers.md](references/papers.md): how papers number figures, tables and equations, and what goes wrong in them.
 
