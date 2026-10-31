@@ -34,13 +34,13 @@ Every PDF has its package (SKILL.md, *Reading a library paper*); `read_library p
 
 ## Tidying tags and collections
 
-Take one collection at a time. Draft per item what [tagging.md](tagging.md) prescribes — source keywords kept, curated tags to add, tags proposed for removal, pre-scheme manual tags to rename when the user has released them, a collection change if any — into `changes.jsonl` (a JSON object per line, the batch format every writing script reads), and show the change list. For many items, tagging subagents (at most 5, about 20 items each) draft their shares from each item's title, abstract, venue and tags — the common name an abstract gives its model included — and you merge them:
+Take one collection at a time. Draft per item what [tagging.md](tagging.md) prescribes — automatic tags kept, curated tags to add, tags proposed for removal, pre-scheme manual tags to rename when the user has released them, a collection change if any — into `changes.jsonl` (a JSON object per line, the batch format every writing script reads), and show the change list. For many items, tagging subagents (at most 5, about 20 items each) draft their shares from each item's title, abstract, venue and tags — the common name an abstract gives its model included — and you merge them:
 
 ```bash
 uv run scripts/p2z.py file_and_tag --batch changes.jsonl --dry-run
 ```
 
-An entry names its item by `key` or `cite`. Its `tags` is the item's *complete* target set (include the source keywords you are keeping, or the command removes them); `collection` replaces the item's collections. An item that only needs something *added*, *removed* or taken out of one collection takes `add_tags` / `remove_tags` / `add_collection` / `remove_collection` instead, which leave the rest as it is (for items named on the command line: `--add-tags-file` / `--remove-tags` / `--add-collection` / `--remove-collection`). Only after the user confirms, run it without `--dry-run`. The first batch calibrates the scheme with the user; later batches follow it. What to remove or merge: tagging.md, *Tidying existing items*. An item whose metadata is broken (no date, venue or DOI) is noted for a field fix, not repaired in a tag batch.
+An entry names its item by `key` or `cite`. Its `tags` is the item's *complete* target set (include the automatic tags you are keeping, or the command removes them); `collection` replaces the item's collections. An item that only needs something *added*, *removed* or taken out of one collection takes `add_tags` / `remove_tags` / `add_collection` / `remove_collection` instead, which leave the rest as it is (for items named on the command line: `--add-tags-file` / `--remove-tags` / `--add-collection` / `--remove-collection`). Only after the user confirms, run it without `--dry-run`. The first batch calibrates the scheme with the user; later batches follow it. What to remove or merge: tagging.md, *Tidying existing items*. An item whose metadata is broken (no date, venue or DOI) is noted for a field fix, not repaired in a tag batch.
 
 ## Fixing fields
 

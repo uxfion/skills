@@ -69,7 +69,7 @@ uv run scripts/p2z.py prepare <imp>/records/*.json
   - Published without a DOI (NeurIPS up to 2021, ICML/PMLR, ICLR and TMLR on OpenReview): `url` the venue's own page for the paper — for OpenReview the forum page, not the PDF.
   - Only a preprint: item type `preprint`, `repository` the server, the server's DOI (`10.48550/arXiv.<id>` for arXiv) and its abstract page as `url`, `archiveID` `arXiv:<id>`. Only on OpenReview (rejected, a workshop): the arXiv version if there is one, else a preprint with `repository` OpenReview.
   - Other versions only as identifiers in `extra`: `arXiv: <id>` whenever an arXiv version exists.
-- Tags (`[{"tag", "type"}]`): the source's own keywords as type 1 — arXiv categories (`draft_item` adds them), author keywords from the article page, PubMed or OpenAlex, not MeSH or IEEE index terms — and your curated tags per [tagging.md](tagging.md) as type 0, spelled like the existing tags from `p2z.py read_library tags`.
+- Tags (`[{"tag", "type"}]`): your curated tags per [tagging.md](tagging.md) as type 0, spelled like the existing tags from `p2z.py read_library tags`, beside the arXiv categories `draft_item` added as type 1. The authors' keywords (`csl.keyword`) and OpenAlex's (`enrichment.openalex_keywords`) are hints for choosing them, never tags.
 
 **Destination.** The user named a collection → its key from the tree `ready` printed (ambiguous or missing → list candidate paths and ask); several are fine. No collection named → suggest one from the paper's topic and ask, in the same message as any candidate question. No suggestion possible, or nobody to ask → the collection `tmp` (`p2z.py make_collection --name tmp` once if absent) and say so in the report. Put the key (or keys) in the record's `collection`.
 
