@@ -1,0 +1,32 @@
+{
+  "slug": "109999html",
+  "slug_given": false,
+  "request": {
+    "given": "10.9999/html"
+  },
+  "warnings": [
+    "no_csl_record"
+  ],
+  "files": [
+    {
+      "name": "109999html.pdf",
+      "md5": "8b125ef0973bf22a0ebe0224552a2557",
+      "kind": "published",
+      "label": {
+        "title": "Unknown",
+        "version": "unknown",
+        "source": null,
+        "detail": [],
+        "by": "settle",
+        "why": "no label given"
+      },
+      "check": "cannot_judge",
+      "url": null
+    }
+  ],
+  "outcome": {
+    "status": "got",
+    "tried": [],
+    "stop": null
+  }
+}

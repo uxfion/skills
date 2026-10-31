@@ -97,8 +97,10 @@ class Work:
         atomic_write(self.settings_path, json.dumps(merged, ensure_ascii=False, indent=2) + "\n")
 
     def file_of(self, slug):
-        """The result's own file, of whichever kind, or None."""
-        return next((f for f in (self.results / (slug + s) for s in FILE_SUFFIXES) if f.is_file()), None)
+        """The paper's own file beside the result, of whichever kind but a supplement (which comes beside it), or
+        None: what fetching is for."""
+        return next((f for f in (self.results / (slug + s) for s in FILE_SUFFIXES if s != paper.KINDS["supplement"])
+                     if f.is_file()), None)
 
     def files_of(self, slug):
         """Every file beside the result, in KINDS order."""
@@ -298,10 +300,10 @@ def write_links(res, value, incomplete=()):
 def place(work, slug, src, kind, consume=True):
     """File src as the result's file of that kind -> ("claimed" | "stray", its new path). src is consumed when
     `consume` (a file of this run), else copied and left where it was. First come, first served: the copy is linked to
-    its final name, so a result that already has its file (the paper came another way meanwhile) sends this one to
-    stray/."""
+    its final name, so a result that already has the paper's file (it came another way meanwhile) sends another to
+    stray/; a supplement has a place of its own beside it, one per result."""
     target = work.results / (slug + paper.KINDS[kind])
-    if work.file_of(slug) is not None:
+    if target.exists() if kind == "supplement" else work.file_of(slug) is not None:
         return "stray", move(src, work.stray, target.name, consume)
     tmp = work.results / f".{slug}.{uuid.uuid4().hex[:8]}.tmp"
     shutil.copy2(src, tmp)

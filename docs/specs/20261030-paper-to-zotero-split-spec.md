@@ -648,6 +648,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 | `tests/helpers.py`、`tests/run_all.py`、调度脚本 | | |
 
 - **防止两份 `titles.py` 越走越远**：p2z 加一个测试。旁边装了 paper-fetch 时，比较两份 `titles.py` 是否一样，不一样就失败；没装就跳过。
+- （2026-10-30 实现时加的）**结果文件格式的契约测试**：paper-fetch 的 `test_contract.py` 用它自己的脚本（在假网站上 identify、redraft、claim、accept、label、settle）生成三份典型结果，存成 `tests/fixtures/results/`，格式一变就失败（`PF_REGEN_FIXTURES=1` 重新生成）；p2z 的 `test_contract.py` 在旁边装了 paper-fetch 时读这些样例，跑 `draft_item`、`attach_file`、`report` 和"要 agent 定什么"的判断。实测过：结果里的字段一改名，两边的测试都会失败。写样例时还发现 paper-fetch 把补充材料当成第二个文件挪进 stray/，已改成正文只放一份、补充材料另占一个位置。
 - **断开 import**：
   - `run.py` 在模块开头就 import 了 `verify` 和 `web`，拆的时候要断开；
   - `web.py` 和 `zotero.py` 都在用的时候才 import `run.atomic_write`，改成各自 import 自己那份。

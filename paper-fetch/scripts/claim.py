@@ -29,7 +29,8 @@ other (a PDF in Zotero's storage, the user's own) is copied and left where it wa
 The file's name says its kind, the version it was wanted as (paper.KINDS): <slug>.pdf published, .accepted.pdf,
 .preprint.pdf, .supplement.pdf, .html snapshot; --version names it, and is the version proposed for its attachment
 title. What the file actually is goes into its label (--label). Filing is first come, first served: a result that
-has its file already sends the copy to <dir>/stray/. Downloads is the folder ready.py found (run.json), or
+has the paper's file already sends another to <dir>/stray/ (a supplement has a place of its own beside it, one
+per result). Downloads is the folder ready.py found (run.json), or
 --downloads DIR.
 
 Every outcome is an event appended to <dir>/fetch.jsonl and printed: {event: claim | accept, file, slug?,
