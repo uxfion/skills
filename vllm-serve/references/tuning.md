@@ -36,7 +36,7 @@ Multi-turn sessions (agents) live on the prefix cache: each turn resends the who
 ## Parallel layout
 
 - When one GPU holds a copy, use data parallel (`--data-parallel-size`): one copy per GPU behind one URL, requests balanced by load, nothing exchanged between GPUs. Tensor parallel only when a copy does not fit; its size must divide the attention, KV and linear-attention heads (`config.json`; here 2, 4 or 8, never 3).
-- Two H200 in data parallel served 12 sessions at ~600 tok/s in total, ~50 per session. Two RTX PRO 6000 in tensor parallel, each shared with another user's training, gave 200–330 in total.
+- Two H200 in data parallel served 12 sessions at ~600 tok/s in total, ~50 per session. Two RTX PRO 6000 in tensor parallel, each shared with another user's training, gave 200–330 in total. Two idle RTX PRO 6000, 512-token answers to short prompts (2026-10-31): one GPU gave 370 tok/s for 16 requests at once, both in data parallel 720 for 32.
 
 ## Speculative decoding
 
