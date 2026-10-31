@@ -1,6 +1,8 @@
 {
   "slug": "liu2022jbhi",
   "slug_given": true,
+  "cite": "liu2022jbhi",
+  "wanted": "published",
   "request": {
     "given": "10.1109/JBHI.2022.3142076"
   },
@@ -49,6 +51,9 @@
     "published": [],
     "incomplete": []
   },
+  "enrichment": {
+    "incomplete": []
+  },
   "warnings": [],
   "files": [
     {
@@ -60,7 +65,7 @@
         "version": "published",
         "source": "IEEE",
         "detail": [],
-        "by": "agent",
+        "by": "judge",
         "why": "the volume and issue"
       },
       "check": "ok",
@@ -70,6 +75,11 @@
   "outcome": {
     "status": "got",
     "tried": [],
-    "stop": null
+    "last": {
+      "event": "answer",
+      "route": null,
+      "result": "label",
+      "url": null
+    }
   }
 }

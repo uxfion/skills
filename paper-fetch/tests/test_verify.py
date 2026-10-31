@@ -72,27 +72,23 @@ class Verdict(Base):
         self.assertNotIn("file_version", ev)
         self.assertEqual(res["md5"], hashlib.md5((self.tmp / "r.pdf").read_bytes()).hexdigest())
 
-    def test_cover_sheet_then_title(self):
+    def test_only_a_title_on_page_one_is_certain(self):
+        # a cover sheet or a proceedings' front matter, or a paper citing this one: the agent looks at the pages
         res = self.check(COVER, PAPER_PAGE)
-        self.assertEqual(res["code"], "ok_on_page_2")
-        self.assertTrue(res["evidence"]["cover_page_suspected"])
+        self.assertEqual((res["code"], verify.outcome(res["code"])), ("ok_on_page_2", "uncertain"))
         self.assertIsNotNone(res["evidence"]["excerpt_title_page"])
-
-    def test_title_on_page_three_is_a_collection(self):
         res = self.check("Proceedings front matter", "Table of contents", PAPER_PAGE)
-        self.assertEqual(res["code"], "ok_on_page_3")
-        self.assertTrue(res["evidence"]["collection_suspected"])
-
-    def test_long_file_with_title_on_page_two(self):
-        res = self.check("Program of the workshop", PAPER_PAGE, page_count=120)
-        self.assertEqual(res["code"], "ok_on_page_2")
-        self.assertTrue(res["evidence"]["collection_suspected"])
+        self.assertEqual((res["code"], verify.outcome(res["code"])), ("ok_on_page_3", "uncertain"))
+        self.assertEqual(verify.outcome(self.check(PAPER_PAGE)["code"]), "pass")
+        self.assertEqual([verify.outcome(c) for c in ("doi_mismatch", "not_a_pdf", "cannot_judge", "title_not_found")],
+                         ["refuse", "refuse", "uncertain", "uncertain"])
+        self.assertEqual(verify.outcome("cannot_judge", stub=True), "pass", "a stub has nothing to check against")
 
     def test_title_absent_fails_with_evidence(self):
         res = self.check("A different paper about lungs\nSomeone Else\nAbstract ...")
         self.assertEqual(res["code"], "title_not_found")
         self.assertNotIn(res["code"], verify.PASS_CODES)
-        self.assertIn("claim.py --accept", verify.HINTS["title_not_found"])
+        self.assertIn("pf.py answer", verify.HINTS["title_not_found"])
         self.assertEqual(res["evidence"]["doi_found"], False)
 
     def test_doi_and_author_null_when_item_lacks_them(self):
@@ -284,15 +280,12 @@ class Html(Base):
                             "<body>Please sign in</body></html>")
         self.assertEqual(res["code"], "title_not_found")
 
-    def test_proxy_error_page(self):
-        res = self.snapshot("<html><title>Host Needed</title><body>The host is not configured.</body></html>")
-        self.assertEqual(res["code"], "not_the_article")
-        self.assertEqual(res["evidence"]["denial_marker"], "host needed")
-
-    def test_access_and_robot_pages(self):
-        for body in ("Access denied", "Just a moment...", "Your institution does not subscribe to this content"):
+    def test_error_and_access_pages_are_uncertain(self):
+        # no word list decides what a page is: without the title, the agent looks
+        for body in ("Host Needed", "Access denied", "Just a moment...", "Your institution does not subscribe"):
             res = self.snapshot(f"<html><title>Journal</title><body>{body}</body></html>")
-            self.assertEqual(res["code"], "not_the_article", body)
+            self.assertEqual((res["code"], verify.outcome(res["code"])), ("title_not_found", "uncertain"), body)
+        self.assertEqual(self.snapshot("<html><title></title><body></body></html>")["code"], "not_the_article")
 
     def test_denial_page_that_has_the_title_passes(self):
         res = self.snapshot(f"<html><title>{TITLE}</title><body>You do not have access. Abstract ...</body></html>")
@@ -341,8 +334,7 @@ class Records(Base):
     def test_summary_fields(self):
         res = self.check(PAPER_PAGE)
         self.assertEqual(verify.summary_fields(res["code"], res["evidence"]),
-                         {"title_page": 1, "page_count": 1, "kind": "published", "cover_page_suspected": False,
-                          "collection_suspected": False})
+                         {"title_page": 1, "page_count": 1, "kind": "published"})
         res = self.check("Cardiac Imaging\nWei Liu")
         self.assertIn("title_words", verify.summary_fields(res["code"], res["evidence"]))
         res = self.check(f"Erratum\n{TITLE}")

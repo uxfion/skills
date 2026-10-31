@@ -34,17 +34,22 @@ class Fold(unittest.TestCase):
         r = call(settle, self.path)
         self.assertEqual((r.code, r.lines[0]["status"], r.lines[0]["files"]), (0, "not_got", []), r)
         res = self.result()
-        self.assertEqual(res["outcome"], {"status": "not_got", "tried": ["www.ncbi.nlm.nih.gov"], "stop": None})
+        self.assertEqual(res["outcome"], {"status": "not_got", "tried": ["www.ncbi.nlm.nih.gov"],
+                                          "last": {"event": "try", "route": "open", "result": "no_pdf",
+                                                   "url": "https://www.ncbi.nlm.nih.gov/pmc/x.pdf"}})
         self.assertIn("settled_at", res)
         self.assertEqual(res["csl"]["title"], TITLE, "identify's fields stay as they were")
 
-    def test_a_gate_in_front_of_the_user_is_waiting(self):
-        self.work.append({"event": "stop", "pass": 1, "slug": "doe2024deep", "route": "publisher", "why": "gate",
-                          "gate": True, "url": "https://doi.org/10.1016/j.media.2024.103100"})
-        self.assertEqual(call(settle, self.path).lines[0]["status"], "waiting")
-        self.work.append({"event": "try", "pass": 1, "slug": "doe2024deep", "route": "publisher",
-                          "result": "gate_timeout", "by": "agent"})
-        self.assertEqual(call(settle, self.path).lines[0]["status"], "not_got", "a try after the stop: not waiting")
+    def test_an_open_handoff_is_waiting(self):
+        url = "https://doi.org/10.1016/j.media.2024.103100"
+        page = run.handoff(self.work, "page", run.read(self.path), pass_=1, route="publisher", url=url)
+        call(settle, self.path)
+        self.assertEqual({k: self.result()["outcome"][k] for k in ("status", "waiting_on")}, {"status": "waiting", "waiting_on": ["page"]})
+        run.answer(self.work, page["id"], "gate_timeout", reason="nobody passed the sign-in in time")
+        call(settle, self.path)
+        self.assertEqual((self.result()["outcome"]["status"], self.result()["outcome"]["last"]),
+                         ("not_got", {"event": "answer", "route": None, "result": "gate_timeout", "url": None}),
+                         "answered: not waiting, and why stays")
 
     def test_the_file_its_check_and_label(self):
         paper = fake_pdf(self.work.root / "dl.pdf", [f"{TITLE}\nJane Doe"])

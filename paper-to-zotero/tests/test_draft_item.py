@@ -152,11 +152,11 @@ class DraftItem(unittest.TestCase):
         self.assertIn("not in Zotero's table", r.lines[0]["warnings"][0])
 
     def test_reruns_redrafts_and_what_is_refused(self):
-        bib = {**JAMA, "slug": "numpy2020", "slug_given": True}
+        bib = {**JAMA, "slug": "numpy2020", "slug_given": True, "cite": "numpy2020"}
         path = self.put(bib)
         self.draft(path)
         rec = self.rec("numpy2020")
-        self.assertEqual(rec["citationKey"], "numpy2020", "a given slug is the citation key")
+        self.assertEqual(rec["citationKey"], "numpy2020", "the key given is the citation key")
         rec.update(collection="RIBA5MZJ", tags=[{"tag": "mine", "type": 0}], citationKey="harris2020")
         rec["item"]["title"] = "Revised by the agent"
         (self.records / "numpy2020.json").write_text(json.dumps(rec), encoding="utf-8")

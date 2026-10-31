@@ -5,9 +5,10 @@
 # ///
 """Before fetching: the facts a run needs, and its directory.
 
-One call answers: are pdftotext and pdfinfo (poppler-utils) on PATH; what the config file holds (presence only,
-never a value); where the browser puts downloads; is opencli there and its Chrome extension connected (opencli's own
-`doctor`: its version, the issues it names). It makes <dir> with results/, links/, inbox/, stray/, unverified/,
+One call answers: are pdftotext and pdfinfo (poppler-utils) on PATH, and pdftoppm (pages of a handed-over file as
+images; without it the handoff carries text only); what the config file holds (presence only, never a value: a
+discovery search URL without {title} is reported, discovery_template); where the browser puts downloads; is opencli there and its Chrome extension connected (opencli's own
+`doctor`: its version, the issues it names). It makes <dir> with results/, links/, handoffs/, inbox/, unverified/,
 scratch/ and the .started marker (an existing marker is left alone: a resumed run), writes <dir>/run.json
 (downloads, session: what the later scripts read), and lists what already lies in <dir>, deleting nothing: a PDF that
 never reached anyone belongs to the user.
@@ -37,7 +38,7 @@ from pflib import cli, config, run
 
 DEFAULT_DIR = os.path.join(os.environ.get("TMPDIR") or "/tmp", "paper-fetch")
 SESSION = "pf"  # the opencli browser session of every run
-LAYOUT = ("results", "links", "inbox", "stray", "unverified")  # listed file by file; scratch/ is never a leftover
+LAYOUT = ("results", "links", "handoffs", "inbox", "unverified")  # listed file by file; scratch/ is never a leftover
 NOT_LEFTOVERS = (".started", "scratch", "run.json", "pace.json", "pace.json.lock")
 PS_DOWNLOADS = ("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
                 "(New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path")
@@ -50,8 +51,13 @@ def config_summary(conf):
     out = {"file": str(path), "exists": path.is_file(), "openalex_key": bool(conf.get("openalex_key")),
            "institution": {"proxy": bool(inst.get("proxy")), "discovery": bool(inst.get("discovery"))}}
     if not inst.get("discovery"):
-        out["ask_user"] = ("institution.discovery: the discovery route needs the library's search page (a Primo search "
-                           "URL); ask the user for it in your first message and add it to the config")
+        out["ask_user"] = ("institution.discovery: the discovery route needs the library's search page; ask the user "
+                           "for it in your first message and add it to the config as a search URL with {title} where "
+                           "the title goes")
+    elif "{title}" not in inst["discovery"]:
+        out["discovery_template"] = ("institution.discovery holds no {title}: search the library's discovery page for any "
+                                     "words once, then write that search's URL into the config with {title} in place "
+                                     "of the words (tell the user before changing their config)")
     if path.is_file() and path.stat().st_mode & 0o077:
         out["warning"] = "loose_permissions: run chmod 600 on the config file"
     return out
@@ -151,8 +157,8 @@ def main(argv=None):
     def go():
         conf = config.read(strict=True)
         code, hint = "ok", None
-        poppler = {name: shutil.which(name) for name in ("pdftotext", "pdfinfo")}
-        if not all(poppler.values()):
+        poppler = {name: shutil.which(name) for name in ("pdftotext", "pdfinfo", "pdftoppm")}
+        if not (poppler["pdftotext"] and poppler["pdfinfo"]):
             code = "no_pdftotext"
             hint = "pdftotext and pdfinfo (poppler-utils) are needed to check PDFs: tell the user, install it only on their OK."
         downloads = resolve_downloads(args.downloads)

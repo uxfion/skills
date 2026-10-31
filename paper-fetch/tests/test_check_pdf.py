@@ -35,7 +35,7 @@ class CheckPdf(unittest.TestCase):
         other = fake_pdf(self.work.scratch / "other.pdf", ["Another Paper Entirely\nAda Roe"])
         r = call(check_pdf, self.rec, "--file", other)
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["file"]), (1, "title_not_found", str(other)))
-        self.assertIn("claim.py --accept", r.lines[0]["hint"])
+        self.assertIn("pf.py answer", r.lines[0]["hint"])
         self.assertEqual(self.rec.read_text(), before)
         self.assertEqual(call(check_pdf, self.rec, self.rec, "--file", other).code, 2, "--file: one result")
         with mock.patch.dict(os.environ, {"PATH": str(self.work.scratch / "empty")}):

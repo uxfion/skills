@@ -3,96 +3,74 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Walk one pass of the chain for the results without a file: each route over all of them, then the next.
+"""Walk one pass of the chain for the results that still need their file: each route over all of them, then the next.
 
   route       its candidates                                                                   SKILL.md's chain
   open        the result's links of the published version, then those of unknown version      1
   publisher   https://doi.org/<DOI> (else the CSL's URL), the papers grouped by publisher      2
-  discovery   the paper's records in the library's discovery system (config institution.discovery)   3
+  discovery   the paper's records in the library's discovery system (config institution.discovery, a search
+              URL with {title} where the title goes)                                          3
   accepted    the links of the accepted manuscript                                            4
   preprint    the links of the preprint                                                       5
   snapshot    the article page's HTML, filed as <slug>.html (only with --route: the last pass)
 
-A paper stops at the first file that passes the check. A candidate that needs no browser (needs_browser false or
-unknown) is first asked over plain HTTP; what is not a PDF goes to the browser (the opencli session in run.json, a
-background window, --window foreground for the last pass). On a page the browser takes the PDF the page itself offers
-(pflib/browser.py: the declared PDF, an embedded document or viewer, a link saying PDF; three at most): requested
-inside the page with its cookies (through the institution's proxy: the same path on the proxied host), else opened as
-a click would — a download, a pdf.js viewer, or an HTML page that is looked through once more (IEEE's stamp.jsp). The
-discovery route takes the search's links whose text is the title (0.9 alike, arXiv records last) and works each page.
-Each candidate's version goes along to the check and the file's name: the version it was wanted as. An arXiv link is
-fetched as its latest version (https://arxiv.org/pdf/<id>v<N>: the vN identify recorded, versions.preprint.latest,
-else one request to arXiv's API for all of the pass's arXiv links).
+A paper stops at the first file that settles it (run.satisfied): a file of the version the result wants, or a file
+whose version is not labelled yet; once labelled below the wanted version, the paper goes on down the chain when the
+pass is run again. A candidate that needs no browser (needs_browser false or unknown) is first asked over plain HTTP;
+what is not a PDF goes to the browser (the opencli session: --session, else run.json's; a background window,
+--window foreground for the last pass). On a page the browser takes the PDF the page itself offers
+(pflib/browser.py: the declared PDF, an embedded document or viewer, a link saying PDF; three at most, the next one
+tried when a file is refused): requested inside the page with its cookies (through the institution's proxy: the same
+path on the proxied host), else opened as a click would — a download, a pdf.js viewer, or an HTML page that is looked
+through once more (IEEE's stamp.jsp). The discovery route takes the search's links whose text is the title (0.9
+alike, arXiv records last) and works each page. Each candidate's version goes along to the check and the file's
+name: the version it was wanted as. An arXiv link is fetched as its latest version (https://arxiv.org/pdf/<id>v<N>:
+the vN identify recorded, versions.preprint.latest, else one request to arXiv's API for all of the pass's arXiv links).
 
-What the file is, the agent settles (SKILL.md, Get the file), from the host's word first and the file's second. Each
-claim event carries the title proposed from how the file came (paper.proposal: the site's or the route's version,
-the site's name, the arXiv vN) and the host's word, recorded while it describes this very file: the url; the page
-the file came from, with its title, its citation_* and dc.* tags and its words around the paper's title (where a
-page puts its labels, dates, volume and issue); the link taken on it (its text and the text around it). An arXiv
-file's host word is arXiv's for that version: its comment and journal reference. A file Chrome downloaded on a link
-this command opened gets the same as an arrival event. When a pass goes through, a `to_label` line for each result
-with a PDF that has no label yet (claim.py --label) lists the host's word, then the file's: {slug, code: to_label,
-file, proposal, route, url, page, meta, words, link, stamp, dates, head (page 1's first 1000 characters)}.
+Every file goes through the check (run.claim): pass -> filed; refused -> the next candidate; uncertain -> held, with a
+`file` handoff, and the paper waits. Where fetch cannot get a PDF from a page — a sign-in, a challenge, no PDF link,
+no record in the discovery search — it judges nothing: it writes a `page` handoff with what it saw, the paper waits on
+that route, and the walk goes on with the others. The paper's agent works the page and hands back with
+`--start <url> --session pf-<slug>`, or answers with a verdict (pf.py answer; run.VERDICTS). The bulk walk skips a
+paper with an open page or file handoff, and a paper an answer holds on its route this pass (blocked, gate_timeout);
+a run with --session or --start does not skip its paper. When the walk ends, each filed file without a label gets a
+`label` handoff holding the host's word recorded at download — the page's title, metadata and words around the
+paper's title, the link taken, arXiv's comment on the version — then the file's (page 1). The browser itself failing
+(OpenCLI's BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs: pflib/run.py; pf.py todo lists
+them, pf.py answer answers them.
 
-A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, wrong_file (the
-check refused it: unverified/), stray, not_in_discovery, error — or the agent's verdict. A page the browser cannot get
-past stops the whole command (exit 1), the tab left on it: a `stop` event {slug, pass, route, url, gate?, why:
-no_pdf_link | refused | sign_in (a discovery system showing a guest part of its results) | gate (a PDF link that
-opened a page only the user passes and was still on it after the click's wait: ScienceDirect's PDF host asks its own
-"Are you a robot?"; the link, not the article page, is what opens in front of the user), page, title}, no try, so a
-rerun asks that page again. A page that looks like a gate (GATE_TITLE, GATE_TEXT: a login, a challenge) is `gate: true`
-and opened again in a foreground window, in front of the user; any other stays in the background for the agent, who
-works it (sign_in: the system's own sign-in, clicked through to its login page, the gate). The agent looks, acts, and
-either reruns the same command or records a verdict.
-  --verdict V            the agent's conclusion on the paper's last stop (one result); with --route R: on the whole
-                         route for the results given (the papers behind a gate that timed out, a page nobody passes)
-  --start URL [--version V]  one result: a candidate the agent found (a PMC page, a repository); never the route's try
-Verdicts (VERDICTS below, the one table): no_access, no_pdf, gate_timeout, proxy_unconfigured, site_blocked,
-not_public, skipped_by_user. Before each candidate the result's file is looked for (the watcher may have filed it;
-while no watcher runs, this command scans Downloads itself, for the paper under way too). Requests to one host keep
-their gap (web.GAPS; full text through the institution 15 s).
+A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, held, wrong_file,
+error — or an agent's verdict on its page handoff. A page handoff is no try, so the paper's agent's rerun asks that
+page again.
+  --start URL [--version V]  one result: a candidate the paper's agent found or opened the way to (a page past a
+                         sign-in, a PMC page, a repository); never the route's try
+Before each candidate the result's file is looked for (the watcher may have filed it; while no watcher runs, this
+command scans Downloads itself). Requests to one host keep their gap (web.GAPS; full text through the institution
+15 s), in the machine's pace file.
 
-stdout: the try, stop and skip lines as they happen, the to_label lines, then {"summary": {results, with_file,
-to_label, routes, stopped?}}. When it ends, a stop too, it folds the results it was given (and any other its scan of
-Downloads filed a file for) into their files and outcome, as settle.py does.
-Exit 0 = the pass went through (papers may still lack a file); 1 = stopped on a page; 2 = cannot run (no opencli,
-results of two directories, no pdftotext).
+stdout: the try and skip lines as they happen, one short line per handoff ({handoff, slug, kind, taker, path}), then
+{"summary": {results, satisfied, handoffs: {kind: n}, routes}}. When it ends it folds the results it was given (and
+any other its scan of Downloads filed a file for) into their files and outcome, as settle.py does.
+Exit 0 = the pass went through with nothing open; 1 = handoffs are open for the agent (or the browser failed); 2 =
+cannot run (no opencli, results of two directories, no pdftotext).
 
 Examples:
   uv run scripts/fetch.py --pass 1 <dir>/results/*.json
-  uv run scripts/fetch.py --pass 1 --verdict no_access <dir>/results/<slug>.json
-  uv run scripts/fetch.py --pass 1 --start https://pmc.ncbi.nlm.nih.gov/articles/PMC123/ <dir>/results/<slug>.json
+  uv run scripts/fetch.py --pass 1 --session pf-<slug> --start https://pmc.ncbi.nlm.nih.gov/articles/PMC123/ <dir>/results/<slug>.json
   uv run scripts/fetch.py --pass 3 --route snapshot <dir>/results/<slug>.json
 """
 import os
-import re
 import time
 import urllib.parse
 from pathlib import Path
 
 from pflib import cli, config, paper, run, verify, web
-from pflib.browser import Browser
+from pflib.browser import Browser, BrowserDown
 
 ROUTES = ("open", "publisher", "discovery", "accepted", "preprint")
-VERDICTS = {
-    "no_access": "the institution has no access to it",
-    "no_pdf": "the page offers no PDF",
-    "gate_timeout": "a gate nobody passed in time",
-    "proxy_unconfigured": "the proxy does not serve this host (Host Needed)",
-    "site_blocked": "the site blocks this browser",
-    "not_public": "not public (withdrawn, embargoed, not out yet)",
-    "skipped_by_user": "the user said to skip it",
-}
-# A discovery system shows a guest part of its results. Signed out: a control that offers to sign in (Primo shows one
-# beside its account menu until then), or a notice saying so. Living lists: add a system's wording.
-SIGN_IN_CONTROL = re.compile(r"^(?:sign ?in|log ?in|登录|登入)\b", re.I)
-SIGNED_OUT = re.compile(r"sign in to (?:get|see|view) (?:the )?(?:complete|full|all) results|"
-                        r"log ?in to (?:get|see|view) (?:the )?(?:complete|full|all) results|登录.{0,8}完整", re.I)
-# What a page only the user can pass looks like (a login, a challenge): its title, or its text. A living list.
-GATE_TITLE = re.compile(r"sign.?on|sign ?in|log ?in|登录|请稍候|請稍候|just a moment|robot|captcha|verif", re.I)
-GATE_TEXT = re.compile(r"verify you are (?:a )?human|checking if the site connection is secure|正在进行安全验证", re.I)
 PAGE_CANDIDATES = 3   # tried on one page at most
 WORDS_BEFORE, WORDS_AFTER = 600, 900  # a page's words kept around the paper's title
+PAGE_TEXT_CHARS = 4000                # of a page handed to an agent
 CLICK_WAIT = float(os.environ.get("PAPER_FETCH_CLICK_WAIT", "20"))        # an opened page: to show a viewer or its PDF link
 DOWNLOAD_WAIT = float(os.environ.get("PAPER_FETCH_DOWNLOAD_WAIT", "60"))  # the tab stayed, Chrome downloads: PMC took 45-60 s
 DISCOVERY_WAIT = float(os.environ.get("PAPER_FETCH_DISCOVERY_WAIT", "30"))  # the results to render
@@ -100,9 +78,11 @@ MAX_BYTES = 200 * 1024 * 1024
 
 
 class Stopped(Exception):
-    def __init__(self, why, url, title=None, note=None, front=None):
+    """A page fetch could not get a PDF from: why, the page's url and title, what was tried."""
+
+    def __init__(self, why, url, title=None, note=None):
         super().__init__(why)
-        self.why, self.url, self.title, self.note, self.front = why, url, title, note, front
+        self.why, self.url, self.title, self.note = why, url, title, note
 
 
 class Pass:
@@ -111,7 +91,7 @@ class Pass:
         if len(works) != 1:
             raise cli.Stop("mixed_work_dirs", exit=cli.CANNOT, hint="Pass the results of one directory.",
                            work_dirs=sorted(map(str, works)))
-        self.args, self.results, self.work, self.route, self.stopped = args, results, run.Work(works.pop()), None, None
+        self.args, self.results, self.work, self.route = args, results, run.Work(works.pop()), None
         self.arxiv = None  # arXiv id -> arXiv's word on its latest version (arxiv_entry)
         self.pacer = web.Pacer(web.pace_path())
         inst, settings = config.institution(), self.work.settings()
@@ -119,17 +99,21 @@ class Pass:
         dl = settings.get("downloads")
         self.scanner = run.Scanner(self.work, dl) if dl and Path(dl).is_dir() else None
         self.filed = set()  # slugs a scan filed a file for
-        self.browser = Browser(settings.get("session") or "pf", args.window)
+        self.browser = Browser(args.session or settings.get("session") or "pf", args.window)
+        self.inner = None  # a reading page's own stop, kept for the outer page's handoff
 
     def log(self, event, **fields):
         line = self.work.append({"event": event, "pass": self.args.pass_, **fields})
         cli.emit(line)
         return line
 
-    def has_file(self, res):
+    def scan(self):
         if self.scanner and not run.watcher_alive(self.work):
             self.filed.update(e["slug"] for e in self.scanner.scan() if e.get("slug"))
-        return self.work.file_of(res.slug) is not None
+
+    def has_file(self, res):
+        self.scan()
+        return run.satisfied(self.work, res)
 
     def touched(self):
         """The results to fold when the command ends: those it was given, and any other a scan filed a file for."""
@@ -138,14 +122,17 @@ class Pass:
                                if (self.work.results / f"{s}.json").is_file()]
 
     def claim(self, res, data, url, version, html=False, page=None, link=None):
-        """Bytes -> inbox -> checked and filed -> (the try's result, {check: the check's code}). `page` is the page
-        the file came from (find()'s answer), `link` the candidate taken on it: evidence for the file's label."""
+        """Bytes -> inbox -> checked and filed -> (the try's result: ok | held | wrong_file, {check}). `page` is the
+        page the file came from (find()'s answer), `link` the candidate taken on it: evidence for the file's label."""
         self.work.inbox.mkdir(exist_ok=True)
         path = self.work.inbox / f"{res.slug}.{self.route}.{'html' if html else 'pdf'}"
         path.write_bytes(data)
         event = run.claim(self.work, path, res.slug, kind=version if version in paper.KINDS else None, source=url,
-                          via=self.route, came=self.came(url, page, link))
-        return {"claimed": "ok", "unverified": "wrong_file"}.get(event["result"], event["result"]), {"check": event.get("code")}
+                          via=self.route, came=self.came(url, page, link), pass_=self.args.pass_)
+        result = {"claimed": "ok", "held": "held", "refused": "wrong_file"}[event["result"]]
+        if event.get("handoff"):
+            self.announce(event["handoff"], res.slug, "file")
+        return result, {"check": event.get("code")}
 
     def came(self, url, page=None, link=None):
         """How a file came, for its claim or arrival event: the route, the url (an arXiv one without a version as the
@@ -174,10 +161,14 @@ class Pass:
             except web.Blocked:  # a script met a 429 there; the browser asks anyway, after the gap
                 pass
 
+    def announce(self, hid, slug, kind):
+        cli.emit({"handoff": hid, "slug": slug, "kind": kind, "taker": run.HANDOFF_TAKERS[kind],
+                  "path": str(self.work.handoffs / f"{hid}.json")})
+
     # ---- one candidate ----------------------------------------------------------------------------------------
 
     def get(self, res, cand):
-        """Try one candidate -> (result, extra fields); Stopped on a page the agent must look at."""
+        """Try one candidate -> (result, extra fields); Stopped on a page fetch cannot get a PDF from."""
         url, version, note = cand["url"], cand.get("version"), None
         if cand.get("needs_browser") is not True:
             try:
@@ -200,7 +191,7 @@ class Pass:
 
     def downloaded(self, res, before):
         """After an open: while the tab keeps the document it had (before), Chrome is downloading -> whether the
-        paper's file got filed, within DOWNLOAD_WAIT; False at once when another document opened."""
+        paper got its file, within DOWNLOAD_WAIT; False at once when another document opened."""
         deadline = time.monotonic() + DOWNLOAD_WAIT
         while before is not None and time.monotonic() < deadline:
             if self.has_file(res):
@@ -225,7 +216,8 @@ class Pass:
             if data:
                 result, extra = self.claim(res, data, info.get("href"), version, page=shown,
                                            link={"url": info.get("href"), "why": "viewer"})
-                return result, {**extra, "note": "the page's pdf.js viewer"}
+                if result != "wrong_file":
+                    return result, {**extra, "note": "the page's pdf.js viewer"}
         tried, page = 0, info.get("href") or ""
         for cand in (info.get("candidates") or [])[:PAGE_CANDIDATES]:
             if self.has_file(res):
@@ -239,19 +231,24 @@ class Pass:
         if self.has_file(res):
             return "ok", {"note": "filed from Downloads"}
         after = b.find() or info
+        inner, self.inner = self.inner, None
         raise Stopped("refused" if tried else "no_pdf_link", after.get("href") or info.get("href"), after.get("title"),
-                      "; ".join(x for x in (note, f"{tried} PDF links tried" if tried else None) if x) or None)
+                      "; ".join(x for x in (note, f"{tried} PDF links tried" if tried else None,
+                                            f"a reading page: {inner.why} at {inner.url}" if inner else None) if x)
+                      or None)
 
     def click(self, res, cand, page, version, depth, shown=None):
-        """One PDF link of a page: requested inside the page, else opened as a click would -> (result, extra), or None.
-        `page` is the page the link is on; `shown`, the page the file's evidence names (on_page's)."""
+        """One PDF link of a page: requested inside the page, else opened as a click would -> (result, extra), or None
+        to try the next (nothing came, or the file was refused). `page` is the page the link is on; `shown`, the page
+        the file's evidence names (on_page's)."""
         b, link, here = self.browser, cand["url"], page
         page = shown or page
         req = request_url(link, here.get("href") or "", self.proxy)
         self.pace(req)
         data, why = b.fetch(req)
         if data:
-            return self.claim(res, data, link, version, page=page, link=cand)
+            got = self.claim(res, data, link, version, page=page, link=cand)
+            return got if got[0] != "wrong_file" else None
         before = b.document()
         b.open(req)
         if self.downloaded(res, before):
@@ -264,20 +261,17 @@ class Pass:
             if now.get("viewer"):
                 data = b.viewer()
                 if data:
-                    result, extra = self.claim(res, data, link, version, page=page, link=cand)
-                    return result, {**extra, "note": "read from the pdf.js viewer"}
+                    got = self.claim(res, data, link, version, page=page, link=cand)
+                    return (got[0], {**got[1], "note": "read from the pdf.js viewer"}) if got[0] != "wrong_file" else None
             elif depth == 0 and now.get("candidates"):
                 try:
                     return self.on_page(res, version, f"in-page: {why}", depth=1, outer=page)
                 except Stopped as s:
-                    if s.why == "gate":
-                        raise
+                    self.inner = s
                     return None
             if self.has_file(res):  # a page that downloads in the end
                 return self.downloaded_here(res, link, page, cand)
             time.sleep(1.0)
-        if now and now.get("doc") != before and GATE_TITLE.search(now.get("title") or ""):  # waited: no check passes by itself
-            raise Stopped("gate", now.get("href"), now.get("title"), "the PDF link opened a gate", front=req)
         return None
 
     # ---- routes -----------------------------------------------------------------------------------------------
@@ -296,7 +290,7 @@ class Pass:
             url = landing(res)
             return [{"url": url, "version": None, "needs_browser": True}] if url else []
         title = res.subject.title
-        return [{"url": with_query(self.discovery, title), "version": None, "needs_browser": True}] if title else []
+        return [{"url": discovery_url(self.discovery, title), "version": None, "needs_browser": True}] if title else []
 
     def page_words(self, res):
         """The current page's words about the paper: its text around the paper's title, where a page puts its labels,
@@ -321,7 +315,7 @@ class Pass:
                 own = res.subject.arxiv
                 if own and preprint.get("latest"):
                     self.arxiv[own] = {"version": preprint["latest"], "comment": preprint.get("comment")}
-            links = [l.get("url") for r in self.results if not self.work.file_of(r.slug)
+            links = [l.get("url") for r in self.results if not run.satisfied(self.work, r)
                      for l in ((run.links_of(r) or {}).get("items") or []) if isinstance(l, dict)]
             ids = [paper.arxiv_link(u)[0] for u in links] + [aid]
             ids = list(dict.fromkeys(i for i in ids if i and i not in self.arxiv))
@@ -348,30 +342,9 @@ class Pass:
                           if entry.get(key))
         return {"href": f"https://arxiv.org/abs/{aid}{vn}", **({"words": words} if words else {})}
 
-    def to_label(self):
-        """A to_label line for each result with a PDF that has no label (no `label` event for it): what its label is
-        settled from -> how many. A snapshot needs none: its bytes say what it is."""
-        n = 0
-        for res in self.results:
-            f = self.work.file_of(res.slug)
-            if f is None or run.label_of(self.work, res.slug, f.name) or paper.kind_of_file(f.name) == "snapshot":
-                continue
-            n += 1
-            e = run.arrived(self.work, res.slug, run.md5_of(f)) or {}
-            ev = e.get("evidence") or {}
-            page, link, file = ev.get("page") or {}, ev.get("link") or {}, ev.get("file") or {}
-            head = " / ".join(line for line in (file.get("excerpt") or "").splitlines() if line.strip())[:1000]
-            cli.emit({"slug": res.slug, "code": "to_label", "file": f.name, "proposal": (e.get("proposal") or {}).get("title"),
-                      "route": e.get("route"), "url": ev.get("url"), "page": page.get("title") or page.get("href"),
-                      "meta": page.get("meta"), "words": page.get("words"),
-                      "link": " | ".join(filter(None, (link.get("text"), link.get("near")))) or link.get("why"),
-                      "stamp": file.get("arxiv_stamp"), "dates": file.get("pdf_dates"), "head": head or None,
-                      "hint": f"Settle what the file is, then label it: pf.py claim --dir {self.work.root} --label TITLE "
-                              f"--why WHY --slug {res.slug} (SKILL.md, Get the file)."})
-        return n
-
     def discover(self, res, cand):
-        """The paper's records among the discovery system's results, each page worked in turn."""
+        """The paper's records among the discovery system's results, each page worked in turn; Stopped with the search
+        page when no link there is the paper's (signed out, another spelling, not held: the paper's agent looks)."""
         b = self.browser
         err = b.open(cand["url"])
         if err:
@@ -384,11 +357,10 @@ class Pass:
             if matches or time.monotonic() >= deadline:
                 break
             time.sleep(1.5)
-        page = b.text()
-        if SIGNED_OUT.search(page.get("text") or "") or any(map(SIGN_IN_CONTROL.match, b.controls())):  # a guest's results prove nothing
-            raise Stopped("sign_in", page.get("href"), page.get("title"), "the discovery system shows a guest part of its results")
         if not matches:
-            return "not_in_discovery", {"note": f"{len(anchors)} links, none with this title"}
+            page = b.text()
+            raise Stopped("no_record", page.get("href") or cand["url"], page.get("title"),
+                          f"{len(anchors)} links on the search page, none with this title")
         stopped = None
         for m in sorted(matches, key=lambda a: "arxiv" in a["href"].lower()):
             if b.open(m["href"]):
@@ -399,8 +371,6 @@ class Pass:
             try:
                 return self.on_page(res, None)
             except Stopped as s:
-                if s.why == "gate":
-                    raise
                 stopped = s
         raise stopped or Stopped("error", cand["url"], note="no result page opened")
 
@@ -413,63 +383,79 @@ class Pass:
             return "error", {"note": "the page gave no HTML"}
         return self.claim(res, data, href, "snapshot", html=True, page={"href": href})
 
-    def stop(self, res, url, s):
-        """Stop the pass here. A page that looks like a gate is opened again in a foreground window, in front of the
-        user, who passes it; any other stays in the background for the agent."""
-        self.stopped = s.why
-        page = self.browser.text()
-        gate = bool(GATE_TITLE.search(s.title or page.get("title") or "") or GATE_TEXT.search((page.get("text") or "")[:3000]))
-        if gate:
-            self.browser.open(s.front or url, front=True)
-        self.log("stop", slug=res.slug, route=self.route, url=url, why=s.why, page=s.url, title=s.title, note=s.note,
-                 gate=gate or None)
-        hint = ("A gate, now in front of the user: say what to do there (sign in, tick the box), wait with pf.py wait "
-                "<result>, then rerun the same command." if gate else
-                "The tab stays on this page: hand it to a browser agent (SKILL.md, Get the file), then rerun the same "
-                "command; or record its conclusion with --verdict.")
-        cli.emit({"slug": res.slug, "code": "stopped", "route": self.route, "why": s.why, "gate": gate, "url": s.url,
-                  "title": s.title, "hint": hint})
-        return cli.ACT
+    def hand_page(self, res, url, s):
+        """A page fetch cannot get a PDF from -> its `page` handoff's id (an open one for the same page and paper is
+        reused): what fetch saw there, for the paper's agent."""
+        same = next((h for h in run.open_handoffs(self.work, slug=res.slug)
+                     if h["kind"] == "page" and h.get("route") == self.route and h.get("url") == url), None)
+        if same:
+            self.announce(same["id"], res.slug, "page")
+            return same["id"]
+        text = (self.browser.text().get("text") or "")[:PAGE_TEXT_CHARS]
+        record = run.handoff(self.work, "page", res, pass_=self.args.pass_, route=self.route, url=url,
+                             code=s.why, note=s.note, evidence={"page": {"href": s.url, "title": s.title},
+                                                                "words": text or None})
+        self.announce(record["id"], res.slug, "page")
+        return record["id"]
 
     def walk(self, routes):
-        """The routes in turn over the results without a file -> the exit code."""
-        logged = {e.get("slug") for e in self.work.events("pass") if e.get("pass") == self.args.pass_}
+        """The routes in turn over the results that still need their file -> ACT when the browser failed, else OK."""
+        self.routes = routes
+        events = self.work.events()
+        logged = {e.get("slug") for e in events if e.get("event") == "pass" and e.get("pass") == self.args.pass_}
         for res in self.results:  # from here on a download for it is filed, whoever starts it (run.wanted)
-            if not self.work.file_of(res.slug) and res.slug not in logged:
+            if not run.satisfied(self.work, res, events) and res.slug not in logged:
                 self.work.append({"event": "pass", "pass": self.args.pass_, "slug": res.slug})
         for res in self.results:
-            if not self.work.file_of(res.slug) and run.links_of(res) is None:
+            if not run.satisfied(self.work, res, events) and run.links_of(res) is None:
                 cli.emit({"slug": res.slug, "code": "not_prepared", "hint": "Its links are missing or were found for "
                           "other ids: run pf.py fulltext_links on it; until then only the page routes try it."})
-        for route in routes:
-            self.route = route
-            if route == "discovery" and not self.discovery:
-                cli.emit({"route": route, "code": "no_discovery", "hint": "Ask the user once for their library's discovery "
-                          "search page; add it to the config as institution.discovery."})
-                continue
-            todo = [r for r in self.results if not self.work.file_of(r.slug)]
-            if route == "publisher":  # one publisher's papers together
-                todo.sort(key=lambda r: (r.subject.doi or "").split("/")[0])
-            get = {"discovery": self.discover, "snapshot": self.snapshot}.get(route, self.get)
-            for res in todo:
-                tries = [e for e in self.work.events("try") if e.get("slug") == res.slug
-                         and e.get("pass") == self.args.pass_ and e.get("route") == route]
-                if any(t.get("url") is None for t in tries):
-                    continue  # the agent closed this route for the paper in this pass
-                for cand in self.candidates(res, route):
-                    if self.has_file(res):
-                        cli.emit({"slug": res.slug, "code": "skipped", "reason": "has_file"})
-                        break
-                    if any(t.get("url") == cand["url"] for t in tries):
-                        continue
-                    try:
-                        result, extra = get(res, cand)
-                    except Stopped as s:
-                        return self.stop(res, cand["url"], s)
-                    self.log("try", slug=res.slug, route=route, url=cand["url"], version=cand.get("version"),
-                             result=result, **extra)
-                    if result == "ok":
-                        break
+        mine = bool(self.args.session)  # an agent's run on its own paper: open handoffs do not hold it
+        paused = set()
+        try:
+            for route in routes:
+                self.route = route
+                if route == "discovery" and not (self.discovery and "{title}" in self.discovery):
+                    cli.emit({"route": route, "code": "no_discovery", "hint": "The config's institution.discovery is "
+                              "missing, or holds no {title}: ask the user once for their library's discovery search "
+                              "page and write it as a search URL with {title} where the title goes (ready.py says how)."})
+                    continue
+                events = self.work.events()
+                todo = [r for r in self.results if r.slug not in paused and not run.satisfied(self.work, r, events)
+                        and not run.held_on_route(self.work, r.slug, self.args.pass_, events)
+                        and (mine or not any(h["kind"] in ("page", "file")
+                                             for h in run.open_handoffs(self.work, events, r.slug)))]
+                if route == "publisher":  # one publisher's papers together
+                    todo.sort(key=lambda r: (r.subject.doi or "").split("/")[0])
+                get = {"discovery": self.discover, "snapshot": self.snapshot}.get(route, self.get)
+                for res in todo:
+                    tries = [e for e in self.work.events("try") if e.get("slug") == res.slug
+                             and e.get("pass") == self.args.pass_ and e.get("route") == route]
+                    for cand in self.candidates(res, route):
+                        if self.has_file(res):
+                            cli.emit({"slug": res.slug, "code": "skipped", "reason": "has_file"})
+                            break
+                        if any(t.get("url") == cand["url"] for t in tries):
+                            continue
+                        try:
+                            result, extra = get(res, cand)
+                        except Stopped as s:
+                            self.hand_page(res, cand["url"], s)
+                            paused.add(res.slug)
+                            break
+                        self.log("try", slug=res.slug, route=route, url=cand["url"], version=cand.get("version"),
+                                 result=result, **extra)
+                        if result == "held":
+                            paused.add(res.slug)
+                        if result in ("ok", "held"):
+                            break
+        except BrowserDown as e:
+            record = run.handoff(self.work, "browser_down", note=str(e), pass_=self.args.pass_, route=self.route)
+            self.announce(record["id"], None, "browser_down")
+            cli.emit({"code": "browser_down", "hint": "The browser failed (OpenCLI could not reach Chrome): run "
+                      "`opencli doctor`, restart the daemon if it says so, else ask the user to open Chrome; then "
+                      "answer the handoff `resolved` and rerun.", "detail": str(e)})
+            return cli.ACT
         return cli.OK
 
 
@@ -480,10 +466,9 @@ def landing(res):
     return sub.url
 
 
-def with_query(base, title):
-    parts = urllib.parse.urlsplit(base)
-    query = [(k, v) for k, v in urllib.parse.parse_qsl(parts.query, keep_blank_values=True) if k != "query"]
-    return urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode([("query", title)] + query)))
+def discovery_url(template, title):
+    """The discovery system's search for a title: the config's search URL with the title, URL-encoded, at {title}."""
+    return template.replace("{title}", urllib.parse.quote_plus(title))
 
 
 def request_url(link, page_href, proxy):
@@ -498,56 +483,39 @@ def request_url(link, page_href, proxy):
     return link
 
 
-def verdict(walk, res, args):
-    """--verdict: the agent's conclusion, logged as this pass's try."""
-    if args.route or args.start:
-        return walk.log("try", slug=res.slug, route="start" if args.start else args.route, url=args.start,
-                        result=args.verdict, by="agent")
-    stops = [e for e in walk.work.events("stop") if e.get("slug") == res.slug and e.get("pass") == args.pass_]
-    if not stops:
-        raise cli.Stop("nothing_stopped", hint="This paper has not stopped in this pass: name the route with --route.")
-    return walk.log("try", slug=res.slug, route=stops[-1]["route"], url=stops[-1]["url"], result=args.verdict, by="agent")
-
-
 def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("results", nargs="+", metavar="RESULT", help="result files: <dir>/results/<slug>.json")
     p.add_argument("--pass", dest="pass_", type=int, default=1, choices=(1, 2, 3), help="which pass of the chain")
     p.add_argument("--route", choices=ROUTES + ("snapshot",), help="this route only")
-    p.add_argument("--start", metavar="URL", help="one result: a candidate the agent found")
+    p.add_argument("--start", metavar="URL", help="one result: a candidate the agent found or opened the way to")
     p.add_argument("--version", choices=list(paper.KINDS), help="with --start: the version it is")
-    p.add_argument("--verdict", choices=sorted(VERDICTS), help="the agent's conclusion (see above)")
+    p.add_argument("--session", metavar="NAME", help="the opencli session (a paper's agent: pf-<slug>); default run.json's")
     p.add_argument("--window", choices=("background", "foreground"), default="background",
                    help="where pages open (foreground: the last pass, with the user)")
     args = p.parse_args(argv)
-    if (args.start or (args.verdict and not args.route)) and len(args.results) != 1:
-        p.error("--start, and --verdict without --route, take exactly one result")
+    if args.start and len(args.results) != 1:
+        p.error("--start takes exactly one result")
     if args.version and not args.start:
         p.error("--version goes with --start")
 
-    def one_pass(walk, results, invalid):
-        if args.verdict:
-            for res in results:
-                verdict(walk, res, args)
-            return cli.OK
+    def one_pass(walk, results):
         verify.require_pdftotext()
-        if args.start:
-            walk.route, res = "start", results[0]
-            url = walk.arxiv_url(args.start)
-            try:
-                result, extra = walk.get(res, {"url": url, "version": args.version, "needs_browser": None})
-            except Stopped as s:
-                return walk.stop(res, url, s)
-            walk.log("try", slug=res.slug, route="start", url=url, version=args.version, result=result, **extra)
-            return cli.OK
-        routes = [args.route] if args.route else list(ROUTES)
-        code = walk.walk(routes)
-        unlabelled = walk.to_label() if code == cli.OK else None
-        cli.emit({"summary": {"results": len(results), "with_file": sum(1 for r in results if walk.work.file_of(r.slug)),
-                              **({"to_label": unlabelled} if unlabelled is not None else {}),
-                              "routes": routes, **({"stopped": walk.stopped} if walk.stopped else {}),
-                              **({"invalid": invalid} if invalid else {})}})
-        return code if code or not invalid else cli.ACT
+        if not args.start:
+            return walk.walk([args.route] if args.route else list(ROUTES))
+        walk.route, res = "start", results[0]
+        url = walk.arxiv_url(args.start)
+        try:
+            result, extra = walk.get(res, {"url": url, "version": args.version, "needs_browser": None})
+        except Stopped as s:
+            walk.hand_page(res, url, s)
+            return cli.ACT
+        except BrowserDown as e:
+            record = run.handoff(walk.work, "browser_down", note=str(e), pass_=args.pass_, route="start")
+            walk.announce(record["id"], None, "browser_down")
+            return cli.ACT
+        walk.log("try", slug=res.slug, route="start", url=url, version=args.version, result=result, **extra)
+        return cli.OK
 
     def go():
         results, invalid = [], 0
@@ -561,9 +529,19 @@ def main(argv=None):
             return cli.ACT
         walk = Pass(args, results)
         try:
-            return one_pass(walk, results, invalid)
-        finally:  # whatever the pass did, a stop included, the results it touched say it
+            code = one_pass(walk, results)
+        finally:  # whatever the pass did, a handoff included, the results it touched say it (their labels asked for)
             run.settle(walk.work, walk.touched())
+        slugs, counts = {r.slug for r in results}, {}
+        for h in run.open_handoffs(walk.work):
+            if h.get("slug") in slugs or h.get("slug") is None:
+                counts[h["kind"]] = counts.get(h["kind"], 0) + 1
+        if not args.start:  # the walk's summary; --start's line is its try
+            cli.emit({"summary": {"results": len(results),
+                                  "satisfied": sum(1 for r in results if run.satisfied(walk.work, r)),
+                                  **({"handoffs": counts} if counts else {}), "routes": walk.routes,
+                                  **({"invalid": invalid} if invalid else {})}})
+        return cli.ACT if code or counts or invalid else cli.OK
 
     return cli.run(go)
 

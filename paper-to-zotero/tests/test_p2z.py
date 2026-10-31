@@ -104,7 +104,7 @@ class PrepareAndSave(unittest.TestCase):
         work.records.mkdir()
         pdf = results / "new.pdf"
         pdf.write_bytes(b"%PDF-1.4 a new paper")
-        got = {"status": "got", "tried": [], "stop": None}
+        got = {"status": "got", "tried": [], "last": None}
         author = [{"creatorType": "author", "firstName": "Wei", "lastName": "Liu"}]
         papers = {
             "new": ({"itemType": "journalArticle", "title": "A New Paper", "DOI": "10.1000/new.1", "date": "2024"},
@@ -112,7 +112,7 @@ class PrepareAndSave(unittest.TestCase):
                         {"name": "new.pdf", "md5": work_run.md5_of(pdf), "kind": "published", "check": "ok",
                          "label": {"title": "Published-Example"}}]}),
             "dup": ({"itemType": "journalArticle", "title": "Paper Near Something", "date": "2024"},
-                    {"record_of": "published", "outcome": {"status": "not_got", "tried": [], "stop": None}, "files": []}),
+                    {"record_of": "published", "outcome": {"status": "not_got", "tried": [], "last": None}, "files": []}),
             "pre": ({"itemType": "preprint", "title": "Reflexion: Language Agents with Verbal Reinforcement",
                      "archiveID": "arXiv:2303.11366", "date": "2023"},
                     {"record_of": "preprint", "versions": {"published": [{"ids": {"doi": "10.1000/pub.9"}, "venue": "NeurIPS"}],

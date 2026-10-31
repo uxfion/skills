@@ -47,13 +47,15 @@ class Ready(unittest.TestCase):
         self.assertEqual((out["code"], out["downloads_dir"], out["resumed"], out["leftovers"]),
                          ("ok", str(self.dl), False, []), "a fresh directory has no leftovers")
         self.assertEqual((out["dir"], out["results_dir"], out["session"]), (str(self.work.root), str(self.work.results), "pf"))
-        for name in ("results", "links", "inbox", "stray", "unverified", "scratch"):
+        for name in ("results", "links", "handoffs", "inbox", "unverified", "scratch"):
             self.assertTrue(getattr(self.work, name).is_dir(), name)
         self.assertEqual(out["config"]["institution"], {"proxy": True, "discovery": False})
         self.assertTrue(out["config"]["openalex_key"])
         self.assertIn("ask_user", out["config"])
         self.assertNotIn("sk-SECRET", r.out, "presence only, never a value")
-        self.assertEqual(out["poppler"], {"pdftotext": str(self.bin / "pdftotext"), "pdfinfo": str(self.bin / "pdfinfo")})
+        self.assertEqual({k: out["poppler"][k] for k in ("pdftotext", "pdfinfo")},
+                         {"pdftotext": str(self.bin / "pdftotext"), "pdfinfo": str(self.bin / "pdfinfo")})
+        self.assertIn("pdftoppm", out["poppler"], "pages as images for a handoff, when poppler has it")
         self.assertEqual(out["opencli"], {"path": str(self.bin / "opencli"), "version": "2.1.0", "connected": True, "issues": []})
         self.assertEqual(self.work.settings(), {"downloads": str(self.dl), "session": "pf"})
         # A resumed run: the marker stays, the leftovers are listed and none is deleted.
@@ -73,6 +75,9 @@ class Ready(unittest.TestCase):
         self.assertEqual(self.run_("--downloads", self.dl, env=nowhere).lines[0]["downloads_dir"], str(self.dl))
         self.config.chmod(0o644)
         self.assertIn("warning", self.run_().lines[0]["config"])
+        # A discovery search URL without {title}: an older config, reported with how to write it.
+        config_file(self.tmp, institution={"discovery": "https://library.example/search?query=old"})
+        self.assertIn("discovery_template", self.run_().lines[0]["config"])
 
     def test_opencli(self):
         out = self.run_(env={"OPENCLI_STUB_VERSION": "1.7.3"}).lines[0]["opencli"]

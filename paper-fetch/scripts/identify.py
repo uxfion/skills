@@ -5,58 +5,85 @@
 # ///
 """Identify papers: each DOI, arXiv id or paper page becomes a result file with the paper's metadata and versions.
 
-  identify.py [ID...] [--slug S] [-o DIR]       ID: a DOI, doi.org url, arXiv id or arxiv.org url, or a paper's page;
-                                                none: stdin, one per line, `ID[<TAB>slug]` ('#' comments)
-  identify.py --redraft TARGET RESULT           the result becomes the published version TARGET (its DOI or page)
-  identify.py --search "TITLE" [--author NAME]  Crossref's candidates for a title; writes nothing
+  identify.py [ID...] [--slug KEY] [--wanted V] [-o DIR]   ID: a DOI, doi.org url, arXiv id or arxiv.org url, or a
+                                                         paper's page; none: stdin, one per line, `ID[<TAB>KEY]` ('#'
+                                                         comments); V: published (default) | accepted | preprint
+  identify.py --redraft TARGET RESULT                    the result becomes the published version TARGET (its DOI or page)
+  identify.py --redraft URL RESULT --html FILE           ... from the page's HTML as a browser saved it (FILE), URL the
+                                                         page it came from: for a page that refuses plain HTTP
+  identify.py --search "TITLE" [--author NAME]           Crossref's top 5 for a title, for an agent to judge; writes nothing
 
 Nothing is downloaded. Each paper gets DIR/results/<slug>.json (pflib/run.py has the format); DIR is the directory a
-caller names (an import: <scratch>/paper-to-zotero/fetch), else ${TMPDIR:-/tmp}/paper-fetch. The slug is the one
-given (a citation key), else <first author's surname><year><first title word of 4+ letters> (liu2022progressive),
--2, -3 ... when another paper has it.
+caller names (an import: <scratch>/paper-to-zotero/fetch), else ${TMPDIR:-/tmp}/paper-fetch. KEY is a citation key
+(a .bib's, given as it is): the result keeps it verbatim in `cite`, and its file-safe form (unsafe characters as _)
+is the slug; without one the slug is <first author's surname><year><first title word of 4+ letters>
+(liu2022progressive), -2, -3 ... when another paper has it. `wanted` is the version the caller wants (a caller that
+keeps the preprint passes preprint). A result identified again keeps its slug_given, cite and wanted unless given anew.
 
 Metadata. A DOI's CSL-JSON comes from doi.org and is normalized into CSL's own vocabulary, which Crossref's records
 do not use: types (journal-article -> article-journal, proceedings-article -> paper-conference, book-chapter ->
-chapter, posted-content -> article, ...), keys (event -> event-title, publisher-location -> publisher-place,
-short-container-title -> container-title-short), a missing `issued` from published / published-online /
-published-print / created (with a warning), the subtitle joined to the title, markup stripped from title and abstract.
+chapter, posted-content -> article, ...), keys (event -> event-title, an event object by its name, publisher-location
+-> publisher-place, short-container-title -> container-title-short), a missing `issued` from published /
+published-online / published-print / created (with a warning), the subtitle joined to the title, markup stripped
+from title and abstract. A record whose DOI differs from the one asked for (an alias) gives its own, with a warning.
 `source` is where the metadata came from, as Zotero's libraryCatalog says it: DOI.org (Crossref), DOI.org
 (Datacite), or the page's host. What CSL has no variable for stays under its own name (arXiv's `categories`). A
 chapter of a known proceedings series (LNCS and co., asked of Crossref once) becomes a paper-conference: the volume as
 container-title, the series as collection-title. A paper's page is read over plain HTTP: its citation_* tags give
-the CSL (paper-conference, article-journal or chapter by the venue tag).
+the CSL (paper-conference, article-journal or chapter by the venue tag; the abstract from citation_abstract, else a
+description tag; a date as 2023-12-10, "10 December 2023" or "Dec 10, 2023", only its year when the rest is
+ambiguous, as in 10/12/2023, with a warning).
+
+Lookups. Every result with a DOI asks OpenAlex (filter doi:a|b|..., the config's openalex_key as api_key) and Europe
+PMC (DOI:"a" OR ..., resultType core), 50 DOIs a request for all of a run's papers, for what its CSL lacks: the
+abstract (OpenAlex's, rebuilt from its inverted index, else Europe PMC's; a warning names where it came from, and
+says so when the two differ: OpenAlex's is kept), PMID and PMCID (Europe PMC's, else OpenAlex's). Author keywords
+are not added yet (author_keywords() is where a source goes). A source that does not answer (a network error, a 5xx,
+a 429) is in enrichment.incomplete and does not fail the line; identifying the paper again asks it again, and what
+it gave before stays meanwhile.
 
 Versions. An arXiv preprint gets versions.preprint (its ids, arXiv's latest vN and comment, title, abstract, authors,
 arXiv's categories) and versions.published: the published versions the authors declared to arXiv, and Crossref works
-whose title matches (90%), each {ids: {doi}, venue, year, title, title_differs, type, sources}; sources that did not
-answer are in versions.incomplete, and identifying the same id again asks them again (not once it is redrafted).
-Choosing one is the caller's: then --redraft. A published paper's versions are empty.
+whose title matches (90%), each {ids: {doi}, venue, year, title, title_differs, type, sources}. arXiv is asked once
+per 100 ids for all of a run's preprints. Sources that did not answer are in versions.incomplete, and identifying
+the same id again asks them again (not once it is redrafted); a source still silent keeps what it gave the last
+time (its published versions, arXiv's latest and comment). Choosing one is the caller's: then --redraft. A published
+paper's versions are empty.
 
 Redraft: --redraft TARGET RESULT. The result's metadata becomes TARGET's (a DOI, or the paper's page); the preprint
-stays in versions.preprint, its title joins alt_titles, files already got stay.
+stays in versions.preprint, its title joins alt_titles, files already got stay; warnings when the page and the
+preprint list different numbers of authors, and when the result had no arXiv id (no preprint route to its text, no
+arXiv line for the item). With --html FILE the page is read from FILE (saved from the browser) through the same
+parser, URL standing for the page; a stub result (page_unreachable) is filled the same way.
 
-Lines on stdout, one per ID, then {"summary"}: {id, slug?, code, path?, record_of?, title?, warnings?}.
-  ok                written; renamed_from: a slug given for a paper whose result had a derived one, now its name
+Search: --search TITLE [--author NAME]. Lines {doi, title, venue, year, type, authors: [family names], similarity:
+the title's to TITLE (0..1), first_author_differs?: true when NAME is given and is not the first author's}, Crossref's
+top 5 in its order, unfiltered: which one is the paper is the judge's or the agent's call.
+
+Lines on stdout, one per ID, then {"summary"}: {id, slug?, code, path?, record_of?, title?, incomplete?, warnings?}.
+  ok                written; renamed_from: a key given for a paper whose result had a derived slug, now its name
   skipped           reason exists: a result for this paper is there (redraft: same_doi, it has that DOI already);
-                    slug_not_applied: the slug given, when fetching had begun under the old one (give it to the
-                    caller by hand: paper-to-zotero's record citationKey)
-  slug_taken        the slug given names another paper's result: nothing written
+                    slug_not_applied: the key's slug, when fetching had begun under the old one (the key is in cite)
+  slug_taken        the key's slug names another paper's result: nothing written
   needs_pinning     a title, not an identifier (a `title:` line): find the paper's DOI or arXiv id first
   no_identifier     neither a DOI, an arXiv id nor a page url
   not_found         doi.org does not know the DOI
-  no_csl_record     doi.org has no metadata for the DOI          a stub result is written: {slug, request, warnings};
-  page_unreachable  the page refuses a plain HTTP request         files claimed for it are checked against nothing
-  no_citation_meta  the page has no citation_title tag            (cannot_judge); identify it again to replace it
+  no_csl_record     doi.org has no metadata for the DOI          a stub result is written: {slug, slug_given, cite?,
+  page_unreachable  the page refuses a plain HTTP request         wanted, request, warnings}; files claimed for it are
+  no_citation_meta  the page has no citation_title tag            checked against nothing (cannot_judge); identify it
+                                                                  again, or --redraft it (a page: with --html), to replace it
   doi_org_error     doi.org or the DOI's agency failed (5xx): run again later
   not_published     (--redraft) a 10.48550 DOI is the preprint itself
   doi_org_unreachable, source_blocked (429: nothing is asked of the host before `until`): exit 2, the rest not_run
-Exit 0 = every line ok or skipped; 1 = not; 2 = cannot go on. Requests keep a gap per host, shared through
-the machine's pace file (pflib/web.py); env DOI_BASE_URL, CROSSREF_BASE_URL, ARXIV_API_URL point the services elsewhere (tests).
+Exit 0 = every line ok or skipped; 1 = not; 2 = cannot go on. Requests keep a gap per host, shared through the
+machine's pace file (pflib/web.py); env DOI_BASE_URL, CROSSREF_BASE_URL, ARXIV_API_URL, OPENALEX_BASE_URL,
+EUROPEPMC_BASE_URL point the services elsewhere (tests).
 
 Examples:
   uv run scripts/identify.py 1505.04597 -o <scratch>/paper-fetch
-  printf '10.1109/CVPR.2016.90\\the2016deep\\n' | uv run scripts/identify.py -o <dir>
+  printf '10.1109/CVPR.2016.90\\tHe:2016:ResNet\\n' | uv run scripts/identify.py --wanted preprint -o <dir>
   uv run scripts/identify.py --redraft 10.1007/978-3-319-24574-4_28 <dir>/results/ronneberger2015unet.json
+  uv run scripts/identify.py --redraft https://example.org/paper/1 <dir>/results/<slug>.json --html <dir>/scratch/page.html
   uv run scripts/identify.py --search "U-Net: Convolutional Networks for Biomedical Image Segmentation" --author Ronneberger
 """
 import html
@@ -68,15 +95,20 @@ import unicodedata
 import urllib.parse
 from pathlib import Path
 
-from pflib import cli, paper, run, web
+from pflib import cli, config, paper, run, web
 
 CSL_ACCEPT = "application/vnd.citationstyles.csl+json"
 # The hosts requests are paced and stopped under: the real services', also when a test points the urls elsewhere.
 HOST_DOI, HOST_CROSSREF = "doi.org", "api.crossref.org"
 ANSWERED = ("ok", "no_title")
 CANDIDATE_SIMILARITY = 0.9
+WANTED = ("published", "accepted", "preprint")
 # NeurIPS 2022-2025 DOIs, registered for the printed proceedings: they lead to its sales page, not to the paper.
 SALES_PAGE_DOI = re.compile(r"^10\.52202/", re.I)
+NO_ABSTRACT = "record has no abstract"
+PREPRINT_ABSTRACT = "the published record has no abstract; the preprint's is in versions.preprint"
+MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+          "november", "december")
 
 # Book series whose volumes are conference proceedings, as Crossref names them: a chapter in one is a conference paper.
 # A living list: add a series when one shows up.
@@ -133,17 +165,38 @@ ERRATUM_TYPES = {"article-journal", "paper-conference", "chapter"}
 PAGE_TYPES = {"conference": "paper-conference", "journal": "article-journal", "book": "chapter"}
 
 
-class Session:
-    """What one run shares: the pacer of the directory, and arXiv's answers."""
+def pending(first, due, answered):
+    """first, then the ids due that have no answer yet: what one batched lookup asks for."""
+    return list(dict.fromkeys([first] + [i for i in due if i not in answered]))
 
-    def __init__(self, work=None):
+
+class Session:
+    """What one run shares: the machine's pacer, the OpenAlex key, and the answers of the sources asked about many ids
+    at once (arXiv, OpenAlex, Europe PMC): the first lookup asks for every id expect()ed and not yet answered."""
+
+    def __init__(self):
         self.pacer = web.Pacer(web.pace_path())
-        self.arxiv = {}  # arXiv id -> (its entry, the source's code)
+        self.key = config.openalex_key()
+        self.arxiv, self.openalex, self.epmc = {}, {}, {}  # id -> (its record, the source's code)
+        self.due_arxiv, self.due_dois = [], []
+
+    def expect(self, arxiv=(), dois=()):
+        self.due_arxiv += list(arxiv)
+        self.due_dois += [d.lower() for d in dois]
 
     def arxiv_entry(self, aid):
         if aid not in self.arxiv:
-            self.arxiv.update(web.arxiv_entries([aid], self.pacer))
+            self.arxiv.update(web.arxiv_entries(pending(aid, self.due_arxiv, self.arxiv), self.pacer))
         return self.arxiv[aid]
+
+    def lookups(self, doi):
+        """((OpenAlex's work, its code), (Europe PMC's record, its code)) for a DOI."""
+        doi = doi.lower()
+        if doi not in self.openalex:
+            batch = pending(doi, self.due_dois, self.openalex)
+            self.openalex.update(web.openalex_works(batch, self.pacer, self.key))
+            self.epmc.update(web.europepmc_records(batch, self.pacer))
+        return self.openalex[doi], self.epmc[doi]
 
 
 # ---- what was asked for -------------------------------------------------------------------------------------
@@ -307,6 +360,9 @@ def normalize(record, doi, agency, warnings, proceedings=None):
     """doi.org's record -> CSL in CSL's own vocabulary (the module docstring lists what changes)."""
     csl = {CSL_KEYS.get(k, k): v for k, v in record.items() if not (k in CSL_KEYS and CSL_KEYS[k] in record)}
     csl = {k: v for k, v in csl.items() if csl_value(k, v)}
+    event = record.get("event")
+    if "event-title" not in csl and isinstance(event, dict) and strip_markup(first_str(event.get("name"))):
+        csl["event-title"] = strip_markup(first_str(event.get("name")))
     raw_type = first_str(record.get("type"))
     csl["type"] = CSL_TYPES.get(raw_type, raw_type)
     signals = erratum_signals(record, csl["type"])
@@ -320,7 +376,7 @@ def normalize(record, doi, agency, warnings, proceedings=None):
     if record.get("abstract"):
         csl["abstract"] = strip_markup(first_str(record["abstract"]))
     if not csl.get("abstract"):
-        warnings.append("record has no abstract")
+        warnings.append(NO_ABSTRACT)
     if not has_date(record.get("issued")):
         key = next((k for k in DATE_FALLBACKS if has_date(record.get(k))), None)
         if key:
@@ -344,9 +400,6 @@ def normalize(record, doi, agency, warnings, proceedings=None):
                         f"the volume and the series{note}")
     elif csl["type"] in ("article-journal", "paper-conference", "chapter") and not first_str(csl.get("container-title")):
         warnings.append("record has no container-title")
-    record_doi = first_str(record.get("DOI"))
-    if record_doi and record_doi.lower() != doi.lower():
-        warnings.append(f"record DOI {record_doi!r} differs from requested {doi!r}; using the record's")
     if SALES_PAGE_DOI.match(doi):
         warnings.append("this DOI leads to the printed proceedings' sales page: the paper's page is on "
                         "proceedings.neurips.cc")
@@ -358,6 +411,8 @@ def from_doi(s, doi, aid, warnings):
     """A DOI's normalized CSL -> (csl, the DOI in the registry's spelling)."""
     record, agency = fetch_csl(s, doi)
     record_doi = first_str(record.get("DOI"))
+    if record_doi and record_doi.lower() != doi.lower():
+        warnings.append(f"record DOI {record_doi!r} differs from requested {doi!r}; using the record's")
     if record_doi and not aid:  # the registry's spelling (an arXiv DOI keeps its canonical form)
         doi = record_doi
     proceedings = (proceedings_from_crossref(s, doi)
@@ -365,35 +420,124 @@ def from_doi(s, doi, aid, warnings):
     return normalize(record, doi, agency, warnings, proceedings), doi
 
 
-def from_page(s, url, warnings):
-    """A paper's page -> (its citation_* tags as CSL, the page's final url, its DOI or None)."""
-    try:
-        body, headers, final = web.read(url, full=True, pacer=s.pacer, headers={"User-Agent": web.BROWSER_UA, "Accept": "text/html"})
-    except web.NoData as e:
-        if e.code == "source_blocked":
-            raise cli.Stop("source_blocked", exit=cli.CANNOT, hint="That host answered 429: read the page in the "
-                                                                   "browser instead.", **e.extra) from None
-        raise cli.Stop("page_unreachable", **({"status": e.status} if e.status else e.extra),
-                       hint="The page refuses a plain HTTP request (or cannot be reached): read it in the browser.") from None
+def date_parts(text, warnings):
+    """[year, month?, day?] of a page's date: 2023-12-10 or 2023-12 (web.meta_date's forms), "10 December 2023",
+    "Dec. 10, 2023", "December 2023"; only the year, with a warning, when the rest cannot be read for certain (10/12/2023:
+    which is the month?); None without a year."""
+    text = (text or "").strip()
+    m = re.fullmatch(r"(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?", text)
+    if m:
+        return [int(g) for g in m.groups() if g]
+    year = re.search(r"(?<!\d)(?:1[89]|20)\d{2}(?!\d)", text)
+    if not year:
+        return None
+    rest = text[:year.start()] + " " + text[year.end():]
+    months = [n for w in re.findall(r"[^\W\d_]{3,}", rest) for n, name in enumerate(MONTHS, 1) if name.startswith(w.lower())]
+    days = [int(d) for d in re.findall(r"(?<!\d)(\d{1,2})(?:st|nd|rd|th)?(?!\d)", rest)]
+    parts = [int(year.group(0))]
+    if len(months) == 1:
+        parts.append(months[0])
+        if len(days) == 1 and 1 <= days[0] <= 31:
+            parts.append(days[0])
+    if (days or months) and len(parts) < 2 + bool(days):
+        warnings.append(f"the page's date {text!r} read as {parts}: check it")
+    return parts
+
+
+def from_page(s, url, warnings, body=None):
+    """A paper's page, read over plain HTTP or, `body` given, from its HTML as a browser saved it -> (its citation_*
+    tags as CSL, the page's final url, its DOI or None)."""
+    headers, final = None, url
+    if body is None:
+        try:
+            body, headers, final = web.read(url, full=True, pacer=s.pacer, headers={"User-Agent": web.BROWSER_UA, "Accept": "text/html"})
+        except web.NoData as e:
+            if e.code == "source_blocked":
+                raise cli.Stop("source_blocked", exit=cli.CANNOT, hint="That host answered 429: read the page in the "
+                                                                       "browser instead.", **e.extra) from None
+            raise cli.Stop("page_unreachable", **({"status": e.status} if e.status else e.extra),
+                           hint="The page refuses a plain HTTP request (or cannot be reached): save its HTML from the "
+                                "browser, then identify.py --redraft <url> <result> --html <file>.") from None
     m = web.page_meta(body, final, headers)
     if not web.first_meta(m["meta"], "citation_title", "dc.title"):
         raise cli.Stop("no_citation_meta", url=final, hint="The page has no citation_title tag (an OpenReview page behind "
-                                                           "a challenge, a site without the tags).")
+                                                           "a challenge: save its HTML from the browser, then --redraft "
+                                                           "<url> <result> --html <file>; a site without the tags).")
     if not m["venue_kind"]:
         warnings.append("the page names no venue (citation_conference_title / citation_journal_title): made a "
                         "paper-conference, check the type and the venue")
     abstract = web.first_meta(m["meta"], "citation_abstract", "dcterms.abstract") or m["abstract"]
     authors = [{"family": a["lastName"], **({"given": a["firstName"]} if a.get("firstName") else {})}
                if a.get("lastName") else {"literal": a.get("name")} for a in m["authors"]]
-    date = re.findall(r"\d+", m["date"] or "")[:3]
+    date = date_parts(m["date"], warnings)
     values = {"type": PAGE_TYPES.get(m["venue_kind"], "paper-conference"), "title": m["title"], "author": authors,
               "abstract": abstract, "container-title": m["venue"], "volume": m["volume"], "issue": m["issue"],
-              "page": m["pages"], "issued": {"date-parts": [[int(x) for x in date]]} if date else None, "DOI": m["doi"],
+              "page": m["pages"], "issued": {"date-parts": [date]} if date else None, "DOI": m["doi"],
               "publisher": m["publisher"], "ISSN": m["issn"], "ISBN": m["isbn"], "URL": final,
               "source": paper.host_of(final)}
-    if not m["date"]:
+    if not date:
         warnings.append("the page gives no date: set it from the venue's year")
     return {k: v for k, v in values.items() if v}, final, m["doi"] or None
+
+
+# ---- OpenAlex and Europe PMC: what the CSL lacks ------------------------------------------------------------
+
+def inverted_text(index):
+    """OpenAlex's abstract_inverted_index ({word: [positions]}) as text; '' when there is none."""
+    if not isinstance(index, dict):
+        return ""
+    at = {p: w for w, ps in index.items() if isinstance(ps, list) for p in ps if isinstance(p, int)}
+    return " ".join(at[p] for p in sorted(at)).strip()
+
+
+def pm_id(value, prefix=""):
+    """A PMID (prefix '') or PMCID (prefix 'PMC') from a bare id or an id url; None when there is none."""
+    m = re.search(r"(\d+)/?$", str(value or "").strip())
+    return prefix + m.group(1) if m else None
+
+
+def author_keywords(work, record):
+    """The paper's author keywords from OpenAlex's work and Europe PMC's record: where a keyword source plugs in (CSL
+    `keyword`). None yet: OpenAlex's `keywords` are its tagging model's, not the authors' (help.openalex.org, the work
+    object), and which source to trust is still open. A source that needs a field asks for it (web.openalex_works'
+    select)."""
+    return []
+
+
+def enrich(s, doi, csl, warnings, old=None):
+    """What the CSL lacks, by the paper's DOI, from OpenAlex and Europe PMC (the module docstring says what) -> the
+    sources that did not answer. `old`: the CSL an earlier identify wrote; what it had stays while a source is silent."""
+    if not doi:
+        return []
+    (work, oa_code), (record, epmc_code) = s.lookups(doi)
+    silent = sorted(name for name, code in (("openalex", oa_code), ("europepmc", epmc_code)) if code not in ANSWERED)
+    oa_abstract, epmc_abstract = inverted_text(work.get("abstract_inverted_index")), strip_markup(first_str(record.get("abstractText")))
+    found = {"abstract": oa_abstract or epmc_abstract, "keyword": author_keywords(work, record),
+             "PMID": pm_id(record.get("pmid")) or pm_id((work.get("ids") or {}).get("pmid")),
+             "PMCID": pm_id(record.get("pmcid"), "PMC") or pm_id((work.get("ids") or {}).get("pmcid"), "PMC")}
+    for key, value in found.items():
+        if csl.get(key):
+            continue
+        if not value and silent and (old or {}).get(key):
+            value = old[key]
+            if key == "abstract":
+                warnings.append(f"abstract kept from the earlier identify ({', '.join(silent)} did not answer)")
+        elif value and key == "abstract":
+            warnings.append(f"abstract from {'OpenAlex' if oa_abstract else 'Europe PMC'} (the record has none)")
+            a, b = paper.norm_title(oa_abstract), paper.norm_title(epmc_abstract)
+            if a and b and a not in b and b not in a:
+                warnings.append(f"OpenAlex's and Europe PMC's abstracts differ: OpenAlex's kept; Europe PMC's begins "
+                                f"{epmc_abstract[:120]!r}: check which is the paper's")
+        if value:
+            csl[key] = value
+            if key == "abstract":
+                warnings[:] = [w for w in warnings if w not in (NO_ABSTRACT, PREPRINT_ABSTRACT)]
+    return silent
+
+
+def ids_of_csl(ids, csl):
+    ids.update(pmid=first_str(csl.get("PMID")) or None, pmcid=first_str(csl.get("PMCID")) or None)
+    return ids
 
 
 # ---- versions -----------------------------------------------------------------------------------------------
@@ -432,25 +576,34 @@ def crossref_fields(work):
             "type": work.get("type")}
 
 
-def crossref_search(s, titles, family, rows=10, posted=False):
-    """Crossref works whose title (with or without its subtitle) is at least CANDIDATE_SIMILARITY alike to one of the
-    titles; arXiv DOIs (and posted content, unless `posted`) left out. NoData when Crossref does not answer."""
-    params = {"query.bibliographic": titles[0], "rows": rows, "select": "DOI,title,subtitle,container-title,type,issued,event"}
-    if family:
-        params["query.author"] = family
+def crossref_works(s, title, family, rows, select="DOI,title,subtitle,container-title,type,issued,event"):
+    """Crossref's works for a title (and first author), in its order, each with a DOI. NoData when Crossref does not
+    answer."""
+    params = {"query.bibliographic": title, "rows": rows, "select": select, **({"query.author": family} if family else {})}
     data = web.read_json(crossref_url("works"), params=params, host=HOST_CROSSREF, pacer=s.pacer)
     try:
         works = data["message"]["items"]
     except (KeyError, TypeError):
         raise web.NoData("bad_response") from None
+    return [w for w in works if isinstance(w, dict) and first_str(w.get("DOI"))] if isinstance(works, list) else []
+
+
+def title_match(titles, work, fields):
+    """How alike a Crossref work's title (with or without its subtitle) is to the closest of the titles, 0..1."""
+    plain = strip_markup(first_str(work.get("title")))
+    return max(paper.title_similarity(t, c) for t in titles for c in (plain, fields["title"] or ""))
+
+
+def crossref_search(s, titles, family):
+    """Crossref works whose title is at least CANDIDATE_SIMILARITY alike to one of the titles; arXiv DOIs and posted
+    content left out. NoData when Crossref does not answer."""
     out = []
-    for work in works if isinstance(works, list) else []:
-        doi = first_str(work.get("DOI")) if isinstance(work, dict) else ""
-        if not doi or doi.lower().startswith("10.48550/") or (work.get("type") == "posted-content" and not posted):
+    for work in crossref_works(s, titles[0], family, 10):
+        doi = first_str(work.get("DOI"))
+        if doi.lower().startswith("10.48550/") or work.get("type") == "posted-content":
             continue
         f = crossref_fields(work)
-        plain = strip_markup(first_str(work.get("title")))
-        if max(paper.title_similarity(t, c) for t in titles for c in (plain, f["title"] or "")) >= CANDIDATE_SIMILARITY:
+        if title_match(titles, work, f) >= CANDIDATE_SIMILARITY:
             out.append(candidate("crossref", doi=doi, venue=f["venue"], year=f["year"], title=f["title"], type=f["type"]))
     return out
 
@@ -492,8 +645,9 @@ def merge_candidates(found, titles):
     return out
 
 
-def versions_of_preprint(s, aid, csl, alt_titles):
-    """A preprint's versions: itself (arXiv's latest vN and comment) and its published versions."""
+def versions_of_preprint(s, aid, csl, alt_titles, old=None):
+    """A preprint's versions: itself (arXiv's latest vN and comment) and its published versions. `old`: the versions
+    an earlier identify found; a source that does not answer now keeps what it gave then."""
     titles = [t for t in [csl.get("title"), *alt_titles] if isinstance(t, str) and t.strip()]
     entry, arxiv_code = s.arxiv_entry(aid)
     answers, codes = {"arxiv": from_arxiv(entry), "crossref": []}, {"arxiv": arxiv_code, "crossref": "no_title"}
@@ -504,11 +658,17 @@ def versions_of_preprint(s, aid, csl, alt_titles):
         except web.NoData as e:
             codes["crossref"] = e.code
     complete(s, answers["arxiv"], answers["crossref"])
-    preprint = {"ids": {"arxiv": aid, "doi": f"10.48550/arXiv.{aid}"}, "latest": entry.get("version"),
-                "comment": entry.get("comment"), "title": csl.get("title"), "abstract": csl.get("abstract"),
+    silent, old = sorted(k for k, code in codes.items() if code not in ANSWERED), old or {}
+    for source in silent:
+        answers[source] = [candidate(source, doi=(c.get("ids") or {}).get("doi"), venue=c.get("venue"), year=c.get("year"),
+                                     title=c.get("title"), type=c.get("type"), journal_ref=c.get("journal_ref"))
+                           for c in old.get("published") or [] if isinstance(c, dict) and source in (c.get("sources") or [])]
+    said = (old.get("preprint") or {}) if "arxiv" in silent else entry
+    preprint = {"ids": {"arxiv": aid, "doi": f"10.48550/arXiv.{aid}"}, "latest": said.get("latest", said.get("version")),
+                "comment": said.get("comment"), "title": csl.get("title"), "abstract": csl.get("abstract"),
                 "author": csl.get("author") or [], **({"categories": csl["categories"]} if csl.get("categories") else {})}
     return {"preprint": preprint, "published": merge_candidates(answers["arxiv"] + answers["crossref"], titles),
-            "incomplete": sorted(k for k, code in codes.items() if code not in ANSWERED)}
+            "incomplete": silent}
 
 
 # ---- slugs and the results there already ----------------------------------------------------------------------
@@ -544,15 +704,46 @@ def known(work):
     return out
 
 
+def for_good(res):
+    """Whether a result there is identified for good: not a stub, its versions complete or chosen (redrafted)."""
+    return not res.stub and (bool((res.get("request") or {}).get("redraft"))
+                             or not (res.get("versions") or {}).get("incomplete"))
+
+
+def lookups_due(res):
+    """Whether a result's OpenAlex / Europe PMC lookups are to be made (never made, or a source did not answer)."""
+    done = res.get("enrichment")
+    return not res.stub and (not isinstance(done, dict) or bool(done.get("incomplete")))
+
+
+def expect(s, work, items, seen):
+    """Tell the session the arXiv ids and DOIs this run will ask about, so that each source is asked for them
+    together: every item's, but those of results there for good (their DOI still, when its lookups are due)."""
+    aids, dois = [], []
+    for ident, _ in items:
+        try:
+            doi, aid, _ = parse_identifier(ident)
+        except cli.Stop:
+            continue
+        there = seen["known"].get(request_key(ident))
+        res = run.read(work.results / f"{there}.json") if there else None
+        if res is None or not for_good(res):
+            aids += [aid.lower()] if aid else []
+            dois += [doi] if doi != "page" else []
+        elif lookups_due(res) and res.ids.get("doi"):
+            dois.append(res.ids["doi"])
+    s.expect(aids, dois)
+
+
 # ---- identify one -------------------------------------------------------------------------------------------
 
-def identify(s, work, ident, slug_given, seen):
+def identify(s, work, ident, cite, wanted, seen):
     raw = ident.strip()
     doi, aid, version = parse_identifier(raw)
     key = request_key(raw)
     if key in seen["this_run"]:
         return cli.skipped("duplicate", slug=seen["this_run"][key])
-    slug = safe_slug(slug_given) if slug_given else None
+    slug = safe_slug(cite) if cite else None
     there, renamed, refused = seen["known"].get(key), None, None
     if there:
         res = run.read(work.results / f"{there}.json")
@@ -560,12 +751,14 @@ def identify(s, work, ident, slug_given, seen):
             moved = reslug(work, res, slug, seen)
             renamed, refused = (there, None) if moved else (None, slug)
             res, there = moved or res, slug if moved else there
-        redrafted = bool((res.get("request") or {}).get("redraft"))  # its version is chosen: never the preprint again
-        if not res.stub and (redrafted or not (res.get("versions") or {}).get("incomplete")):
+        if for_good(res):                             # its version is chosen, or complete: kept, never the preprint again
             seen["this_run"][key] = there
+            silent = touch(s, res, cite, wanted)
             if renamed:
-                return {"slug": there, "path": str(res.path), "renamed_from": renamed}
-            return cli.skipped("exists", slug=there, path=str(res.path), **({"slug_not_applied": refused} if refused else {}))
+                return {"slug": there, "path": str(res.path), "renamed_from": renamed,
+                        **({"incomplete": silent} if silent else {})}
+            return cli.skipped("exists", slug=there, path=str(res.path), **({"slug_not_applied": refused} if refused else {}),
+                               **({"incomplete": silent} if silent else {}))
         slug = there                                  # a stub, or versions to complete: written again in place
     if slug and slug != there and (work.results / f"{slug}.json").exists():
         other = run.read(work.results / f"{slug}.json")
@@ -585,31 +778,61 @@ def identify(s, work, ident, slug_given, seen):
         if stop.code not in ("no_csl_record", "page_unreachable", "no_citation_meta"):
             raise
         slug = slug or free(work, clean(re.sub(r"^https?://(www\.)?", "", raw), 48) or "paper", key, seen)
-        stub = {"slug": slug, "slug_given": bool(slug_given), "request": {"given": raw}, "warnings": [stop.code]}
-        write(work, slug, stub)
+        write(work, slug, {**head(slug, cite, wanted, result_at(work, slug)), "request": {"given": raw},
+                           "warnings": [stop.code]})
         seen["this_run"][key] = slug
         raise cli.Stop(stop.code, hint=stop.hint, slug=slug, path=str(work.results / f"{slug}.json"),
                        stub=True, **stop.extra) from None
-    ids.update(pmid=first_str(csl.get("PMID")) or None, pmcid=first_str(csl.get("PMCID")) or None)
     if not slug:
         slug = free(work, derive_slug(csl) or clean(raw, 60) or "paper", key, seen)
-    result = {"slug": slug, "slug_given": bool(slug_given), "request": {"given": raw}, "record_of": record_of,
-              "ids": ids, "csl": csl, "alt_titles": [],
-              "versions": versions_of_preprint(s, aid.lower(), csl, []) if record_of == "preprint" and aid
-              else {"published": [], "incomplete": []}, "warnings": warnings}
-    path = work.results / f"{slug}.json"
-    if path.exists():                                 # versions completed, or a stub replaced: keep what was got
-        old = run.read(path)
-        for k in ("files", "outcome", "settled_at"):
-            if k in old:
-                result[k] = old[k]
+    path, old = work.results / f"{slug}.json", result_at(work, slug)  # versions completed, or a stub replaced
+    alt = [t for t in (old or {}).get("alt_titles") or [] if isinstance(t, str)]
+    versions = (versions_of_preprint(s, aid.lower(), csl, alt, old.get("versions") if old else None)
+                if record_of == "preprint" and aid else {"published": [], "incomplete": []})
+    silent = enrich(s, ids["doi"], csl, warnings, old.csl if old else None)
+    result = {**head(slug, cite, wanted, old), "request": {"given": raw}, "record_of": record_of,
+              "ids": ids_of_csl(ids, csl), "csl": csl, "alt_titles": alt, "versions": versions,
+              "enrichment": {"incomplete": silent}, "warnings": warnings}
+    for k in ("files", "outcome", "settled_at"):     # what was got stays
+        if old and k in old:
+            result[k] = old[k]
     write(work, slug, result)
     seen["this_run"][key] = slug
+    incomplete = sorted(versions["incomplete"] + silent)
     return {"slug": slug, "path": str(path), "record_of": record_of, "title": (csl.get("title") or "")[:80],
-            **({"versions": len(result["versions"]["published"])} if record_of == "preprint" else {}),
-            **({"incomplete": result["versions"]["incomplete"]} if result["versions"]["incomplete"] else {}),
+            **({"versions": len(versions["published"])} if record_of == "preprint" else {}),
+            **({"incomplete": incomplete} if incomplete else {}),
             **({"renamed_from": renamed} if renamed else {}), **({"slug_not_applied": refused} if refused else {}),
             **({"warnings": warnings} if warnings else {})}
+
+
+def result_at(work, slug):
+    path = work.results / f"{slug}.json"
+    return run.read(path) if path.exists() else None
+
+
+def head(slug, cite, wanted, old):
+    """A result's head: its slug, and slug_given, cite and wanted as given now, else as `old` (the result there, or
+    None) has them."""
+    old = old or {}
+    cite = cite or old.get("cite")
+    return {"slug": slug, "slug_given": bool(cite and safe_slug(cite) == slug) or bool(old.get("slug_given")),
+            **({"cite": cite} if cite else {}), "wanted": wanted or old.get("wanted") or "published"}
+
+
+def touch(s, res, cite, wanted):
+    """A result kept as it is: the key and the version given now written into it, its lookups made when due -> the
+    sources that still did not answer."""
+    before = json.dumps(res, sort_keys=True)
+    res.update({k: v for k, v in (("cite", cite), ("wanted", wanted)) if v})
+    silent = []
+    if lookups_due(res):
+        warnings = [w for w in res.get("warnings") or [] if isinstance(w, str)]
+        silent = enrich(s, res.ids.get("doi"), res.csl, warnings)
+        res.update(ids=ids_of_csl(dict(res.ids), res.csl), enrichment={"incomplete": silent}, warnings=warnings)
+    if json.dumps(res, sort_keys=True) != before:
+        res.save()
+    return silent
 
 
 def reslug(work, res, slug, seen):
@@ -648,12 +871,13 @@ def write(work, slug, result):
 
 # ---- redraft ------------------------------------------------------------------------------------------------
 
-def redraft(s, res, target):
-    """The result becomes the published version given by DOI or page; the preprint stays in versions.preprint."""
+def redraft(s, res, target, body=None):
+    """The result becomes the published version given by DOI or page (`body`: the page's HTML, saved from the
+    browser); the preprint stays in versions.preprint."""
     warnings = []
-    doi, aid, _ = parse_identifier(target)
+    doi, aid, _ = ("page", target, "") if body is not None else parse_identifier(target)
     if doi == "page":
-        csl, final, page_doi = from_page(s, aid, warnings)
+        csl, final, page_doi = from_page(s, aid, warnings, body)
         new_doi = paper.normalize_doi(page_doi or "") or None
     else:
         if aid:
@@ -674,28 +898,50 @@ def redraft(s, res, target):
         alt.append(old_title)
     preprint = versions.get("preprint") or {}
     if not csl.get("abstract") and preprint.get("abstract"):
-        warnings = [w for w in warnings if w != "record has no abstract"]
-        warnings.append("the published record has no abstract; the preprint's is in versions.preprint")
-    res.update(record_of="published", ids={"doi": new_doi, "arxiv": None, "pmid": first_str(csl.get("PMID")) or None,
-                                           "pmcid": first_str(csl.get("PMCID")) or None},
-               csl=csl, alt_titles=alt, versions=versions, warnings=warnings)
+        warnings = [w for w in warnings if w != NO_ABSTRACT]
+        warnings.append(PREPRINT_ABSTRACT)
+    authors = [a for a in preprint.get("author") or [] if isinstance(a, dict)]
+    if doi == "page" and csl.get("author") and authors and len(csl["author"]) != len(authors):
+        warnings.append(f"the page lists {len(csl['author'])} authors, the preprint {len(authors)}: check the creators")
+    if not res.stub and not (res.ids.get("arxiv") or (preprint.get("ids") or {}).get("arxiv")):
+        warnings.append("no arXiv id on the result before the redraft: no preprint route to its text and no arXiv "
+                        "line for the item")
+    silent = enrich(s, new_doi, csl, warnings)
+    res.update(record_of="published", ids=ids_of_csl({"doi": new_doi, "arxiv": None}, csl), csl=csl, alt_titles=alt,
+               versions=versions, enrichment={"incomplete": silent}, warnings=warnings)
     res["request"] = {**(res.get("request") or {}), "redraft": target}
+    res.setdefault("wanted", "published")
     res.save()
     return {"code": "ok", "redraft": target, "path": str(res.path), "title": (csl.get("title") or "")[:80],
-            **({"alt_titles": alt} if alt else {}), **({"warnings": warnings} if warnings else {})}
+            **({"alt_titles": alt} if alt else {}), **({"incomplete": silent} if silent else {}),
+            **({"warnings": warnings} if warnings else {})}
 
 
 # ---- search -------------------------------------------------------------------------------------------------
 
+def same_name(a, b):
+    """Whether two surnames are one, accents, case and spacing aside (or one holds the other: van der Maaten, Maaten)."""
+    a, b = clean(a), clean(b)
+    return bool(a and b and (a in b or b in a))
+
+
 def search(title, author):
     s = Session()
     try:
-        found = crossref_search(s, [title], author, rows=5, posted=True)
+        works = crossref_works(s, title, author, 5, select="DOI,title,subtitle,container-title,type,issued,event,author")
     except web.NoData as e:
         raise cli.Stop("source_blocked" if e.code == "source_blocked" else "crossref_unreachable", exit=cli.CANNOT,
                        hint="Crossref did not answer; try the opencli adapters (SKILL.md, Identify a paper).", **e.extra) from None
-    lines = [{"doi": c["doi"], "title": c["title"], "venue": c["venue"], "year": c["year"],
-              "type": CSL_TYPES.get(c.get("type"), c.get("type")), "code": "ok"} for c in found]
+    lines = []
+    for work in works:
+        f = crossref_fields(work)
+        families = [first_str(a.get("family") or a.get("name")) for a in work.get("author") or [] if isinstance(a, dict)]
+        line = {"doi": first_str(work.get("DOI")), "title": f["title"], "venue": f["venue"], "year": f["year"],
+                "type": CSL_TYPES.get(f["type"], f["type"]), "authors": families,
+                "similarity": round(title_match([title], work, f), 2), "code": "ok"}
+        if author and not same_name(author, families[0] if families else ""):
+            line["first_author_differs"] = True
+        lines.append(line)
     return cli.finish(lines, extra={"query": title})
 
 
@@ -705,27 +951,30 @@ def default_dir():
     return Path(os.environ.get("TMPDIR") or "/tmp") / "paper-fetch"
 
 
-def wanted(args):
-    """[(id, slug or None)] from the arguments, else stdin."""
+def items_of(args):
+    """[(id, citation key or None)] from the arguments, else stdin."""
     if args.ids:
         return [(i, args.slug) for i in args.ids]
     out = []
     for line in sys.stdin.read().splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
             continue
-        ident, _, slug = line.partition("\t")
-        out.append((ident.strip(), slug.strip() or None))
+        ident, _, cite = line.partition("\t")
+        out.append((ident.strip(), cite.strip() or None))
     return out
 
 
 def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("ids", nargs="*", metavar="ID", help="DOIs, arXiv ids or paper pages (none: stdin)")
-    p.add_argument("--slug", help="the result's name (a citation key); with one ID")
+    p.add_argument("--slug", metavar="KEY", help="the citation key (cite; its file-safe form names the result); with one ID")
+    p.add_argument("--wanted", choices=WANTED, help="the version the caller wants (default: published)")
     p.add_argument("-o", "--out", metavar="DIR", help="paper-fetch's directory (default: ${TMPDIR:-/tmp}/paper-fetch)")
     p.add_argument("--redraft", nargs=2, metavar=("TARGET", "RESULT"), help="the published version's DOI or page, and "
                                                                            "the result to redraft")
-    p.add_argument("--search", metavar="TITLE", help="Crossref's candidates for a title (writes nothing)")
+    p.add_argument("--html", metavar="FILE", help="with --redraft: the page's HTML, saved from the browser; TARGET is "
+                                                  "the page's url")
+    p.add_argument("--search", metavar="TITLE", help="Crossref's top 5 for a title (writes nothing)")
     p.add_argument("--author", metavar="NAME", help="with --search: the first author's surname")
     args = p.parse_args(argv)
     if sum(map(bool, (args.ids, args.redraft, args.search))) > 1:
@@ -734,6 +983,10 @@ def main(argv=None):
         p.error("--slug names one ID's result")
     if args.author and not args.search:
         p.error("--author goes with --search")
+    if args.html and not (args.redraft and re.match(r"https?://", args.redraft[0], re.I)):
+        p.error("--html goes with --redraft, whose TARGET is then the url of the page the HTML was saved from")
+    if args.html and not Path(args.html).is_file():
+        p.error(f"--html {args.html}: no such file")
     if args.search:
         return cli.run(lambda: search(args.search, args.author))
     if args.redraft:
@@ -741,20 +994,21 @@ def main(argv=None):
 
         def one():
             res = run.read(path)
-            line = redraft(Session(res.work), res, target)
+            line = redraft(Session(), res, target, Path(args.html).read_bytes() if args.html else None)
             return cli.finish([{"slug": res.slug, **line}])
         return cli.run(one)
     work = run.Work(args.out or default_dir())
 
     def all_of():
-        items = wanted(args)
+        items = items_of(args)
         if not items:
             raise cli.Stop("no_ids", hint="Give DOIs, arXiv ids or pages, as arguments or on stdin.")
         work.root.mkdir(parents=True, exist_ok=True)
-        s, seen = Session(work), {"known": known(work), "this_run": {}}
+        s, seen = Session(), {"known": known(work), "this_run": {}}
+        expect(s, work, items, seen)
         out = cli.Lines()
-        for ident, slug in items:
-            out.add({"id": ident}, lambda: identify(s, work, ident, slug, seen))
+        for ident, cite in items:
+            out.add({"id": ident}, lambda: identify(s, work, ident, cite, args.wanted, seen))
         return out.finish()
 
     return cli.run(all_of)

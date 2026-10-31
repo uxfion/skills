@@ -199,17 +199,18 @@ def ordered(attachments):
 
 def superseded(attachments):
     """Which of one item's attachments another one replaces -> [(attachment, the one that replaces it)]. Only titles
-    in the scheme that name a source count: among the paper's versions one per source stays, the first in ordered();
-    among supplements one per source and detail; among snapshots one per source, the later added. Different sources
-    stand side by side. A file without a vN beside one with a vN, the two alike otherwise, is no one's to replace:
-    its version number is not known, so both stay."""
+    in the scheme that name a source count: of each version of the paper one per source stays, the first in ordered()
+    (an older arXiv vN gives way to a newer one; an accepted manuscript stands beside the published version); among
+    supplements one per source and detail; among snapshots one per source, the later added. Different sources stand
+    side by side. A file without a vN beside one with a vN, the two alike otherwise, is no one's to replace: its
+    version number is not known, so both stay."""
     groups = {}
     for a in ordered(attachments):
         if not a.get("standard") or not a.get("source"):
             continue
         version = a.get("version")
         if version in PAPER_VERSIONS:
-            key = ("paper", a["source"])
+            key = (version, a["source"])
         elif version == "supplement":
             key = ("supplement", a["source"], tuple(a.get("detail") or ()))
         elif version == "snapshot":

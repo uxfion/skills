@@ -14,7 +14,7 @@ records directory is -o, by default records/ beside the result's fetch/ (an impo
 zotero/{fetch,records}/). Drafting writes:
   fetched      the result file's absolute path
   item         the Zotero item to create; the agent may revise it
-  citationKey  the slug, when it was given (a .bib key); otherwise Better BibTeX makes the key
+  citationKey  the key given (the result's `cite`, verbatim: a .bib key); otherwise Better BibTeX makes the key
   tags         arXiv's subject classes as automatic tags, named as Zotero's arXiv translator names them; added to the
                record's tags
   warnings     what drafting noticed: a type guessed, a role stored as contributor, the DOI put in extra, fields the
@@ -237,8 +237,8 @@ def draft(path, out, redraft, schema_of):
     item, tags = item_of(res, schema_of(records), warnings)
     rec["fetched"] = str(Path(path).absolute())
     rec["item"] = item
-    if res.get("slug_given") and not rec.get("citationKey"):
-        rec["citationKey"] = res["slug"]
+    if res.get("cite") and not rec.get("citationKey"):
+        rec["citationKey"] = res["cite"]
     have = {t.get("tag") for t in rec.get("tags") or [] if isinstance(t, dict)}
     if any(n not in have for n in tags):
         rec["tags"] = list(rec.get("tags") or []) + [{"tag": n, "type": 1} for n in tags if n not in have]

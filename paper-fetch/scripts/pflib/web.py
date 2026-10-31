@@ -25,6 +25,9 @@ Paper pages. page_meta() reads a landing page's citation_* tags (Highwire Press,
 publishers for), with Dublin Core (dc.*), PRISM and Open Graph (og:*) standing in where one is missing, and
 <link rel=alternate type=application/pdf>.
 
+Batched lookups. arxiv_entries() asks arXiv for 100 ids a request; openalex_works() and europepmc_records() ask
+OpenAlex and Europe PMC for DOI_BATCH DOIs a request, each answer keyed by id with the source's code.
+
 The institution's proxy (config institution.proxy, EZproxy style) serves a host under its own domain: the host with
 real dashes doubled and dots as dashes, then .<proxy> (ieeexplore.ieee.org -> ieeexplore-ieee-org.<proxy>).
 """
@@ -532,3 +535,60 @@ def unproxy(url, proxy=None):
         return url
     netloc = host + (f":{parts.port}" if parts.port else "")
     return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+
+# ---- OpenAlex and Europe PMC, many DOIs a request -----------------------------------------------------------------
+
+# Paced and stopped under the real services' hosts, also when a test points the urls elsewhere.
+OPENALEX_HOST, EUROPEPMC_HOST = "api.openalex.org", "www.ebi.ac.uk"
+DOI_BATCH = 50  # DOIs a request asks for (OpenAlex ORs up to 100 values of a filter)
+
+
+def openalex_works(dois, pacer=None, key=None, select="id,doi,ids,abstract_inverted_index"):
+    """{DOI, lowercased: (OpenAlex's work that has it as its own DOI, else {}; the source's code)}, one request per
+    DOI_BATCH DOIs (filter doi:a|b|..., env OPENALEX_BASE_URL points it elsewhere; key: the api_key). OpenAlex's doi
+    filter also matches a work through one of its locations' DOIs (a published work listing its arXiv copy): such a
+    work is not that DOI's. Every DOI of a request that failed gets ({}, NoData's code)."""
+    out, dois = {}, list(dict.fromkeys(d.lower() for d in dois))
+    for start in range(0, len(dois), DOI_BATCH):
+        chunk = dois[start:start + DOI_BATCH]
+        params = {"filter": "doi:" + "|".join(chunk), "per-page": 200, "select": select, **({"api_key": key} if key else {})}
+        try:
+            data = read_json(endpoint("OPENALEX_BASE_URL", "https://api.openalex.org") + "/works", params=params,
+                             host=OPENALEX_HOST, pacer=pacer)
+            works = data.get("results") if isinstance(data, dict) else None
+            if not isinstance(works, list):
+                raise NoData("bad_response")
+        except NoData as e:
+            out.update({d: ({}, e.code) for d in chunk})
+            continue
+        got = {paper.normalize_doi(str(w.get("doi") or "")): w for w in works if isinstance(w, dict)}
+        out.update({d: (got.get(d, {}), "ok") for d in chunk})
+    return out
+
+
+def europepmc_records(dois, pacer=None):
+    """{DOI, lowercased: (Europe PMC's core record with that DOI, one with a PMID first, else {}; the source's code)},
+    one request per DOI_BATCH DOIs (DOI:"a" OR DOI:"b" ..., env EUROPEPMC_BASE_URL points it elsewhere). Every DOI of
+    a request that failed gets ({}, NoData's code)."""
+    out, dois = {}, list(dict.fromkeys(d.lower() for d in dois))
+    for start in range(0, len(dois), DOI_BATCH):
+        chunk = dois[start:start + DOI_BATCH]
+        params = {"query": " OR ".join(f'DOI:"{d}"' for d in chunk), "resultType": "core", "format": "json",
+                  "pageSize": 2 * len(chunk)}
+        try:
+            data = read_json(endpoint("EUROPEPMC_BASE_URL", "https://www.ebi.ac.uk") + "/europepmc/webservices/rest/search",
+                             params=params, host=EUROPEPMC_HOST, pacer=pacer)
+            hits = ((data.get("resultList") or {}).get("result")) if isinstance(data, dict) else None
+            if not isinstance(hits, list):
+                raise NoData("bad_response")
+        except NoData as e:
+            out.update({d: ({}, e.code) for d in chunk})
+            continue
+        got = {}
+        for hit in hits:
+            doi = str(hit.get("doi") or "").lower() if isinstance(hit, dict) else ""
+            if doi and (doi not in got or (hit.get("pmid") and not got[doi].get("pmid"))):
+                got[doi] = hit
+        out.update({d: (got.get(d, {}), "ok") for d in chunk})
+    return out

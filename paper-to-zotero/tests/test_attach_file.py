@@ -52,7 +52,7 @@ class AttachFile(unittest.TestCase):
             entries.append({"name": name, "md5": run.md5_of(self.results / name), "kind": kind, "check": check,
                             "label": {"title": title}})
         res = json.loads(self.result.read_text())
-        res.update(files=entries, outcome={"status": status, "tried": [], "stop": None})
+        res.update(files=entries, outcome={"status": status, "tried": [], "last": None})
         self.result.write_text(json.dumps(res))
 
     def run_(self, *argv):
@@ -91,11 +91,15 @@ class AttachFile(unittest.TestCase):
                          ("ok", {"from": "Preprint-arXiv-v2", "to": "Accepted-arXiv-v2"}), "this run's own attachment, relabelled")
         self.assertEqual(self.attachments()[0][0], "Accepted-arXiv-v2")
 
-    def test_a_file_nobody_judged_waits_for_the_agent(self):
+    def test_an_unconfirmed_file_and_a_stubs(self):
         self.settle(("liu.pdf", b"%PDF-1.4 cannot tell", "published", "Unknown-IEEE", "cannot_judge"))
         r = self.run_(self.rec)
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["files"], self.attachments()), (1, "unchecked", ["liu.pdf"], []))
-        self.assertIn("claim --dir <its dir> --accept", r.lines[0]["hint"])
+        self.assertIn("no-doi-record.md", r.lines[0]["hint"], "a stub's file goes the connector path")
+        self.settle(("liu.pdf", b"%PDF-1.4 a poster with the same words", "published", "Unknown-IEEE", "unconfirmed"))
+        r = self.run_(self.rec)
+        self.assertEqual((r.code, r.lines[0]["unconfirmed"], self.attachments()), (0, ["liu.pdf"], [("Unknown-IEEE", URL)]),
+                         "attached all the same, and named")
 
     def test_an_item_with_a_pdf_needs_no_result(self):
         self.zot.add_item("HADPDF01", itemType="attachment", parentItem=PARENT, title="Preprint-arXiv-v1",
@@ -113,8 +117,6 @@ class AttachFile(unittest.TestCase):
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), "fetched for the published version: attached beside it")
 
     def test_what_is_refused(self):
-        self.settle(("liu.pdf", b"%PDF-1.4 x", "published", "Published IEEE", "ok"))
-        self.assertEqual(self.run_(self.rec).lines[0]["code"], "bad_label")
         self.settle(("liu.pdf", b"%PDF-1.4 x", "published", "Published-IEEE", "ok"))
         (self.results / "liu.pdf").write_bytes(b"%PDF-1.4 another download")
         r = self.run_(self.rec)

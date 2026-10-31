@@ -39,10 +39,11 @@ REST API until crossref() adds it).
   arxiv(id, title, ...)         /arxiv/api/query: an Atom feed of the entries in id_list (a version suffix asks for
                                 that version) and / or matching search_query (every word of it, field prefixes and
                                 operators aside); start, max_results.
-  openalex(doi, locations)      /openalex/works/doi:<doi>: id, doi, best_oa_location, locations (see location());
-                                unknown 404.
-  europepmc(doi, full_text)     /epmc/europepmc/webservices/rest/search?query=DOI:"..." (or PMCID:...): hitCount,
-                                resultList.result (see full_text_url()).
+  openalex(doi, locations)      /openalex/works/doi:<doi>: id, doi, best_oa_location, locations (see location()), and
+                                the fields given (abstract_inverted_index, ids); unknown 404. /openalex/works?filter=
+                                doi:a|b|...: results, the works with those DOIs (bare or as doi.org urls).
+  europepmc(doi, full_text)     /epmc/europepmc/webservices/rest/search?query=DOI:"..." (or PMCID:..., several ORed):
+                                hitCount, resultList.result (see full_text_url()).
 Pages, anywhere else: page(path, title, meta=, links=, iframe=, head=, body=) serves html_page(...), an article page
 with citation_* / dc.* meta tags, "PDF" links and an iframe; pdf(path, text) serves pdf_bytes(text); gate(path, kind) a
 page that stands in the way (GATES: a login form, a bot challenge). Every builder returns the URL it serves.
@@ -160,6 +161,7 @@ class FakeWeb:
         self.route("/crossref/works", self._crossref_search)
         self.route("/crossref/works/*", self._crossref_work)
         self.route("/arxiv/api/query", self._arxiv)
+        self.route("/openalex/works", self._openalex_list)
         self.route("/openalex/works/*", self._openalex)
         self.route("/epmc/europepmc/webservices/rest/search", self._europepmc)
 
@@ -332,6 +334,12 @@ class FakeWeb:
         work = self.oa_works.get(m.group(1).casefold()) if m else None
         return (200, {}, work) if work else (404, {}, {"error": "Not Found", "message": "not found"})
 
+    def _openalex_list(self, req):
+        m = re.fullmatch(r"doi:(.+)", req.query.get("filter", ""), re.I)
+        asked = [re.sub(r"^https?://(?:dx\.)?doi\.org/", "", d, flags=re.I).casefold() for d in m.group(1).split("|")] if m else []
+        works = [self.oa_works[d] for d in dict.fromkeys(asked) if d in self.oa_works]
+        return 200, {}, {"meta": {"count": len(works), "per_page": int(req.query.get("per-page", 25))}, "results": works}
+
     # ---- Europe PMC -------------------------------------------------------------------------------------------------
 
     def europepmc(self, doi, full_text=(), **fields):
@@ -346,8 +354,8 @@ class FakeWeb:
 
     def _europepmc(self, req):
         query = req.query.get("query", "")
-        m = re.search(r'\b(DOI|PMCID):"?([^"\s)]+)"?', query, re.I)
-        hits = [r for r in self.epmc if m and str(r.get(m.group(1).lower()) or "").casefold() == m.group(2).casefold()]
+        asked = {(k.lower(), v.casefold()) for k, v in re.findall(r'\b(DOI|PMCID):"?([^"\s)]+)"?', query, re.I)}
+        hits = [r for r in self.epmc if any(str(r.get(k) or "").casefold() == v for k, v in asked)]
         size = int(req.query.get("pageSize", 25))
         return 200, {}, {"version": "6.9", "hitCount": len(hits), "request": {"queryString": query, "pageSize": size},
                          "resultList": {"result": hits[:size]}}

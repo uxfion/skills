@@ -48,6 +48,7 @@ class Report(unittest.TestCase):
         z.add_item("ATTUNK01", itemType="attachment", parentItem="UNSURE01", title="Unknown-Elsevier", contentType="application/pdf")
         z.add_item("HAD00001", itemType="journalArticle", title="Had It", date="2021", citationKey="doe2021had")
         z.add_item("ATTOLD01", itemType="attachment", parentItem="HAD00001", title="PDF", contentType="application/pdf", md5="m9")
+        z.add_item("ATTWDN01", itemType="attachment", parentItem="HAD00001", title="Unknown-Springer", contentType="application/pdf")
         self.work = run.Work(Path(tempfile.mkdtemp(prefix="p2z-report-")))
         self.work.records.mkdir()
         self.results = self.work.root / "fetch" / "results"
@@ -56,7 +57,7 @@ class Report(unittest.TestCase):
     def record(self, slug, files=(), outcome=None, **rec):
         """A record and its result: files [(name, md5, kind, label title, check, accepted_reason?)]."""
         res = self.results / f"{slug}.json"
-        res.write_text(json.dumps({"slug": slug, "outcome": outcome or {"status": "got", "tried": [], "stop": None}, "files": [
+        res.write_text(json.dumps({"slug": slug, "outcome": outcome or {"status": "got", "tried": [], "last": None}, "files": [
             {"name": f[0], "md5": f[1], "kind": f[2], "label": {"title": f[3]}, "check": f[4],
              **({"accepted_reason": f[5]} if len(f) > 5 else {})} for f in files]}))
         path = self.work.records / f"{slug}.json"
@@ -73,15 +74,17 @@ class Report(unittest.TestCase):
         self.record("kim", [("kim.preprint.pdf", "m2", "preprint", "Preprint-arXiv-v1", "accepted", "a scan")],
                     saved={"key": "PRE00001"}, keep_preprint="the user wants the preprint",
                     attach=[{"attachment": "ATTPRE01", "md5": "m2", "title": "Preprint-arXiv-v1", "kind": "preprint"}])
-        self.record("roe", [("roe.pdf", "m5", "published", "Unknown-Elsevier", "ok")], saved={"key": "UNSURE01"},
+        self.record("roe", [("roe.pdf", "m5", "published", "Unknown-Elsevier", "unconfirmed", "page 1 is a poster")],
+                    saved={"key": "UNSURE01"},
                     attach=[{"attachment": "ATTUNK01", "md5": "m5", "title": "Unknown-Elsevier", "kind": "published"}])
         doe = run.read(self.record("doe", [("doe.pdf", "m9", "published", "Published-Springer", "ok")],
-                                   attach=[{"attachment": "ATTOLD01", "md5": "m9", "title": "PDF", "kind": "published", "existing": True}]))
+                                   attach=[{"attachment": "ATTWDN01", "md5": "m6", "title": "Unknown-Springer", "kind": "published"},
+                                           {"attachment": "ATTOLD01", "md5": "m9", "title": "PDF", "kind": "published", "existing": True}]))
         run.stamp(doe, "found", {"code": "found", "key": "HAD00001"})  # the item was in the library: it had this file
         doe.save()
-        stop = {"route": "publisher", "why": "no_pdf_link", "url": "https://pub.example/a"}
+        last = {"event": "answer", "route": "publisher", "result": "no_access", "url": "https://pub.example/a"}
         self.record("lost", [("lost.html", "m7", "snapshot", "Snapshot-Example", "ok")], blocker="the last pass with the user",
-                    outcome={"status": "not_got", "tried": ["repo.example", "pub.example"], "stop": stop})
+                    outcome={"status": "not_got", "tried": ["repo.example", "pub.example"], "last": last})
         r = self.run_("--json")
         self.assertEqual(r.code, 0, r)
         out = json.loads(r.out)
@@ -93,21 +96,23 @@ class Report(unittest.TestCase):
         self.assertEqual((rows["kim"]["file"], rows["roe"]["file"], rows["lost"]["key"], rows["lost"]["file"]), ("PDF", "PDF", None, None))
         self.assertEqual(out["summary"], {"total": 5, "in_library": 4, "with_pdf": 4, "with_snapshot": 0, "missing": 1, "blocked": 1})
         s = out["sections"]
-        self.assertEqual(s["not_obtained"], [{"slug": "lost", "status": "not_got", "tried": ["repo.example", "pub.example"],
-                                              "stop": stop, "snapshot": True}])
+        self.assertEqual(s["not_obtained"], [{"slug": "lost", "status": "not_got", "waiting_on": [],
+                                              "tried": ["repo.example", "pub.example"], "last": last, "snapshot": True}])
         self.assertEqual([(a["slug"], a["title"]) for a in s["alternate_versions"]], [("kim", "Preprint-arXiv-v1")])
         self.assertEqual([(a["slug"], a["title"]) for a in s["unknown_versions"]], [("roe", "Unknown-Elsevier")])
         self.assertEqual(s["preprint_kept"], [{"slug": "kim", "reason": "the user wants the preprint"}])
         self.assertEqual(s["accepted"], [{"slug": "kim", "file": "kim.preprint.pdf", "reason": "a scan"}])
+        self.assertEqual(s["unconfirmed"], [{"slug": "roe", "file": "roe.pdf", "reason": "page 1 is a poster"}])
         self.assertEqual(sorted((c["attachment"], c["reason"].split(" ")[0]) for c in s["attachments_to_clean"]),
-                         [("PRESS001", "'Accepted-IEEE-in_press',"), ("SNAP0001", "snapshot"), ("TWICE001", "the")],
-                         "the arXiv preprint, another source, stays")
+                         [("ATTWDN01", "'Unknown-Springer',"), ("SNAP0001", "snapshot"), ("TWICE001", "the")],
+                         "the accepted manuscript and the arXiv preprint stay beside the published version; the file "
+                         "paper-fetch withdrew goes")
         self.assertEqual(s["renames"], [{"slug": "doe", "attachment": "ATTOLD01", "title": "PDF", "suggested": "Published-Springer"}])
         self.assertEqual(s["new_tags"], [{"tag": "method/BrandNew", "items": ["liu2022paper"]}])
         self.assertFalse({"leftovers", "stops"} & set(s), "what the fetching left behind is paper-fetch's")
         md = self.run_().out
         for heading in ("| citationKey |", "liu2022paper (record: liu2022)", "### 无法获取", "not_got | repo.example, pub.example | "
-                        "publisher no_pdf_link https://pub.example/a", "### 待清理附件", "### 版本未定",
+                        "publisher no_access https://pub.example/a", "### 未确认的文件", "### 待清理附件", "### 版本未定",
                         "### 建议改名", "trash_item.py --dry-run --key ", "Published-IEEE; Accepted-IEEE-in_press"):
             self.assertIn(heading, md)
 

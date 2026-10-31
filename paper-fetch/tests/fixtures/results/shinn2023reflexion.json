@@ -1,6 +1,7 @@
 {
   "slug": "shinn2023reflexion",
   "slug_given": false,
+  "wanted": "published",
   "request": {
     "given": "2303.11366",
     "redraft": "10.52202/075280-0377"
@@ -81,6 +82,9 @@
     ],
     "incomplete": []
   },
+  "enrichment": {
+    "incomplete": []
+  },
   "warnings": [
     "date is year-only",
     "this DOI leads to the printed proceedings' sales page: the paper's page is on proceedings.neurips.cc"
@@ -97,7 +101,7 @@
         "detail": [
           "v4"
         ],
-        "by": "agent",
+        "by": "judge",
         "why": "v4's comment"
       },
       "check": "ok",
@@ -112,7 +116,7 @@
         "version": "supplement",
         "source": "NeurIPS",
         "detail": [],
-        "by": "agent",
+        "by": "paper_agent",
         "why": "the venue's appendix"
       },
       "check": "accepted",
@@ -123,6 +127,11 @@
   "outcome": {
     "status": "got",
     "tried": [],
-    "stop": null
+    "last": {
+      "event": "answer",
+      "route": null,
+      "result": "accept",
+      "url": null
+    }
   }
 }

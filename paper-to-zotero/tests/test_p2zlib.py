@@ -375,10 +375,11 @@ class Rules(unittest.TestCase):
         self.assertEqual([a["key"] for a in paper.ordered(atts)],
                          ["FINAL", "CVF", "PRESS", "V10", "V1", "NOV", "U", "OLD2", "OLD", "SUPD", "SUP", "S2", "S1"])
         self.assertEqual(sorted((a["key"], b["key"]) for a, b in paper.superseded(atts)),
-                         [("PRESS", "FINAL"), ("S1", "S2"), ("V1", "V10")],
-                         "v10 beats v1 as a number; a file without a vN beside v10 is undecided: both stay")
-        published = att("PUB", "Published-arXiv", "2023-01-01")  # a higher version still decides without a vN
-        self.assertIn(("V10", "PUB"), [(a["key"], b["key"]) for a, b in paper.superseded(atts + [published])])
+                         [("S1", "S2"), ("V1", "V10")],
+                         "v10 beats v1 as a number; a file without a vN beside v10 is undecided: both stay; the accepted "
+                         "manuscript stands beside the published version")
+        published = att("PUB", "Published-arXiv", "2023-01-01")
+        self.assertEqual(paper.superseded(atts + [published]), paper.superseded(atts), "versions stand side by side")
 
     def test_tags_dedupe_keeping_the_last(self):
         tags, problems, warnings = paper.normalize_tags(["a", {"tag": "a", "type": 1}, {"tag": "b", "type": True}, ""])

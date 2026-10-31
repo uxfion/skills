@@ -7,11 +7,13 @@
 record's `attach`.
 
 The item is the one this run created (saved.key), else the one the lookup confirmed (found.key); never a near match.
-The files are those of the result (the record's `fetched`) whose check is ok or accepted, the paper's and any
-supplement, each under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which paper-fetch
-settled. A result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is
-attached until it is — unless the library item has a PDF of the paper already, and the result was never fetched for
-another. A file paper-fetch could not judge against the paper (check cannot_judge) waits for the agent's look. Each
+The files are those of the result (the record's `fetched`) whose check is ok, accepted or unconfirmed, every version
+of the paper and any supplement, each under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...),
+which paper-fetch settled. An unconfirmed file (the agent could not tell it is the paper's) is attached all the same
+and named on the line: the report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A
+result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is attached until
+it is — unless the library item has a PDF of the paper already, and the result was never fetched for another. A
+stub's file (check cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead. Each
 file's md5 is compared with the result's before anything is uploaded. A child of the item already holding a file (same
 md5) settles it without an upload and keeps its own title (`existing`: a title that differs from the label is the
 report's to suggest, the user's to approve); an empty attachment left by a cut-off run is reused. A label settled
@@ -20,17 +22,16 @@ DOI link. `attach` is a list, an entry per file: {attachment, md5, title, filena
 file later (another md5) is attached afresh.
 
 stdout: one line per record {slug, code, reason?, status?, key?, files?: [{name, code, attachment?, title?,
-renamed?: {from, to}, suggested_title?}], unchecked?: [names]}, then {"summary"}.
+renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [names]}, then {"summary"}.
   ok            a file attached, or renamed after its label (with --dry-run: would be; nothing written)
   skipped       reason no_file_yet (the result has no file to attach; `status` is its outcome's: got, waiting,
                 not_got. Not a failure, so save can run after every pass) | attached (every file is in `attach` under
                 its title, or the item had it: suggested_title when its title differs from the label's) |
                 library_has_pdf (the item has a PDF of the paper, and the result was never fetched for another)
-  unchecked     the result's only files are ones paper-fetch could not judge (`files`): look at them, then accept the
-                paper's with paper-fetch's claim --accept, settle, and rerun
+  unchecked     the result's only files are a stub's (`files`): Zotero's recognizer identifies the paper from its
+                PDF (references/no-doi-record.md)
   unsettled     the result has no outcome: settle it (paper-fetch's pf.py settle), then rerun
   file_changed  a file's md5 is not the one in the result: settle the result again, then rerun
-  bad_label     a file's label title is not an attachment title: label the file again (paper-fetch's claim --label)
   no_result     the record names no result file (`fetched`), or it cannot be read: draft_item.py writes it
   no_item_key   the record has no item in Zotero yet (create_item; a possible duplicate is the agent's to settle)
   not_found | not_a_parent | unsupported_file | readback_mismatch | unexpected_response | write_denied |
@@ -43,12 +44,11 @@ Example:
 """
 from pathlib import Path
 
-from p2zlib import cli, paper, run, titles, zotero
+from p2zlib import cli, paper, run, zotero
 
-ATTACHABLE = ("ok", "accepted")
-HINT_UNCHECKED = ("paper-fetch could not judge these files against the paper: read page 1 (the pdf skill); the paper's "
-                  "-> paper-fetch's claim --dir <its dir> --accept <file> --slug <slug> --reason …, then pf.py settle and "
-                  "this again; not the paper's -> leave it to the next pass.")
+ATTACHABLE = ("ok", "accepted", "unconfirmed")
+HINT_UNCHECKED = ("A stub's files: paper-fetch had no metadata to check them against. Zotero's recognizer identifies the "
+                  "paper from its PDF: references/no-doi-record.md.")
 
 
 def setup(args, records):
@@ -67,7 +67,9 @@ def library_has_pdf(rec):
 
 
 def wanted(res, path):
-    """The result's files -> ([(file entry, path, title)] to attach, [names] of the files no check passed or refused)."""
+    """The result's files -> ([(file entry, path, title)] to attach, [names] of a stub's files, which no check
+    passed). A title is paper-fetch's label, in the scheme: a judge's, checked when given, or settle's
+    Unknown-<Source>."""
     out, unchecked = [], []
     for f in res.get("files") or []:
         if not isinstance(f, dict):
@@ -76,10 +78,6 @@ def wanted(res, path):
             unchecked.append(f.get("name"))
             continue
         title = ((f.get("label") or {}).get("title") or "").strip()
-        if not titles.parse_title(title):
-            raise cli.Stop("bad_label", file=f.get("name"), title=title,
-                           hint="Not an attachment title (<Version>-<Source>-<detail>): label the file again with "
-                                "paper-fetch's claim --label, then this again.")
         file = path.parent / f["name"]
         try:
             md5 = run.md5_of(file)
@@ -137,8 +135,9 @@ def process(rec, ctx):
     if attach:
         rec["attach"] = attach
     done = all(ln["code"] == "skipped" for ln in lines)
+    unconfirmed = [f["name"] for f, _, _ in files if f.get("check") == "unconfirmed"]
     return {**(cli.skipped("attached") if done else {"code": "ok"}), **({"key": key} if key else {}), "files": lines,
-            **({"unchecked": unchecked} if unchecked else {})}
+            **({"unconfirmed": unconfirmed} if unconfirmed else {}), **({"unchecked": unchecked} if unchecked else {})}
 
 
 def main(argv=None):

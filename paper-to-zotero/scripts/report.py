@@ -13,16 +13,20 @@ created or the one the lookup confirmed; attachments are the titles of the item'
 Preprint-arXiv-v3). In JSON a row also has file: PDF (a PDF of the paper, of any version) / snapshot / null.
 
 Sections, each only when it has something to say:
-  无法获取 (not obtained)      records with no PDF (got, attached or in the library): the result's outcome (waiting,
-                               not_got), the sites tried, where it stopped
+  无法获取 (not obtained)      records with no PDF (got, attached or in the library): the result's outcome (waiting
+                               on which handoffs, not_got), the sites tried, the last stop or answer
   替代版本 (alternate versions) files this run attached as an Accepted or Preprint version
   版本未定 (version not settled) files this run attached as Unknown: no label was settled for them
   保留预印本 (preprint kept)    records whose item stays the preprint although a published version was found, and why
-  接收的文件 (accepted files)   files the agent accepted although the check refused them, and why (check accepted)
+  接收的文件 (accepted files)   files the agent accepted although the check could not pass them, and why (check
+                               accepted)
+  未确认的文件 (unconfirmed files)  files attached although the agent could not tell they are the paper's, and why
+                               (check unconfirmed)
   待清理附件 (attachments to clean)  around the file this run attached: what it replaces by paper.superseded (an
-                               older or lesser file from the same source), a snapshot standing in for the PDF that
-                               is now attached, the same file twice; with the trash_item.py line to run on the
-                               user's word
+                               older file of the same version from the same source), a snapshot standing in for the
+                               PDF that is now attached, the same file twice; a file this run attached that
+                               paper-fetch has since withdrawn (an unconfirmed file a confirmed one replaced); with
+                               the trash_item.py line to run on the user's word
   建议改名 (suggested renames)  files the item had already, whose title is outside the scheme or differs from the
                                record's label: the title, and the label's when there is one; renamed only on the
                                user's word (update_item.py --key <attachment> --set title=...)
@@ -108,11 +112,17 @@ def sections_of(gathered, rows, zot):
         files, outcome = result_files(rec)
         attach = [a for a in rec.get("attach") or [] if isinstance(a, dict)] if isinstance(rec.get("attach"), list) else []
         if row["file"] != "PDF" and not any(f.get("kind") != "supplement" and str(f.get("name")).endswith(".pdf") for f in files):
-            out["not_obtained"].append({"slug": rec.slug, "status": outcome.get("status"), "tried": outcome.get("tried") or [],
-                                        "stop": outcome.get("stop"),
+            out["not_obtained"].append({"slug": rec.slug, "status": outcome.get("status"), "waiting_on": outcome.get("waiting_on") or [],
+                                        "tried": outcome.get("tried") or [], "last": outcome.get("last"),
                                         "snapshot": row["file"] == "snapshot" or any(f.get("kind") == "snapshot" for f in files)})
+        kept = {f.get("md5") for f in files}
         for entry in attach:
             mine = None if entry.get("existing") else next((a for a in atts if a["key"] == entry.get("attachment")), None)
+            if mine and row["key"] and files and entry.get("md5") not in kept:
+                out["attachments_to_clean"].append({"slug": rec.slug, "key": row["key"], "attachment": mine["key"],
+                                                    "reason": f"'{mine['title']}', withdrawn by paper-fetch: an unconfirmed "
+                                                              "file a confirmed one replaced"})
+                continue
             if mine and entry.get("kind") != "supplement" and mine["version"] in ("accepted", "preprint", "unknown"):
                 out["unknown_versions" if mine["version"] == "unknown" else "alternate_versions"].append(
                     {"slug": rec.slug, "title": mine["title"], "attachment": mine["key"]})
@@ -126,8 +136,9 @@ def sections_of(gathered, rows, zot):
                     out["renames"].append({"slug": rec.slug, "attachment": had["key"], "title": had["title"], "suggested": label})
         if rec.get("keep_preprint"):
             out["preprint_kept"].append({"slug": rec.slug, "reason": rec["keep_preprint"]})
-        out["accepted"] += [{"slug": rec.slug, "file": f.get("name"), "reason": f.get("accepted_reason")}
-                            for f in files if f.get("check") == "accepted"]
+        for check in ("accepted", "unconfirmed"):
+            out[check] += [{"slug": rec.slug, "file": f.get("name"), "reason": f.get("accepted_reason")}
+                           for f in files if f.get("check") == check]
     created = {(rec.get("saved") or {}).get("key"): row for (rec, _, _), row in zip(gathered, rows) if (rec.get("saved") or {}).get("key")}
     added = defaultdict(list)
     for (_, lib, _), row in zip(gathered, rows):
@@ -153,16 +164,19 @@ def markdown(rows, summary, sections):
     cite = {r["slug"]: r["citationKey"] or r["slug"] for r in rows}
     headings = {"not_obtained": "无法获取 (not obtained)", "alternate_versions": "替代版本 (alternate versions)",
               "unknown_versions": "版本未定 (version not settled)", "preprint_kept": "保留预印本 (preprint kept)",
-              "accepted": "接收的文件 (accepted files)", "attachments_to_clean": "待清理附件 (attachments to clean)",
+              "accepted": "接收的文件 (accepted files)", "unconfirmed": "未确认的文件 (unconfirmed files)",
+              "attachments_to_clean": "待清理附件 (attachments to clean)",
               "renames": "建议改名 (suggested renames)", "new_tags": "新标签 (new tags)"}
-    shapes = {"not_obtained": (["citationKey", "outcome", "tried", "stopped at", "snapshot"], lambda r: [
-                  cite[r["slug"]], r["status"] or "not fetched", ", ".join(r["tried"]),
-                  " ".join(str(v) for v in (r["stop"] or {}).values() if v), "yes" if r["snapshot"] else None]),
+    shapes = {"not_obtained": (["citationKey", "outcome", "tried", "last", "snapshot"], lambda r: [
+                  cite[r["slug"]], (r["status"] or "not fetched") + (f" ({', '.join(r['waiting_on'])})" if r["waiting_on"] else ""),
+                  ", ".join(r["tried"]), " ".join(str(v) for k, v in (r["last"] or {}).items() if v and k != "event"),
+                  "yes" if r["snapshot"] else None]),
               "alternate_versions": (["citationKey", "attachment"], lambda r: [cite[r["slug"]], f"{r['title']} ({r['attachment']})"]),
               "unknown_versions": (["citationKey", "attachment"], lambda r: [cite[r["slug"]], f"{r['title']} ({r['attachment']})"]),
               "renames": (["citationKey", "attachment", "title", "label"], lambda r: [cite[r["slug"]], r["attachment"], r["title"], r["suggested"]]),
               "preprint_kept": (["citationKey", "why"], lambda r: [cite[r["slug"]], r["reason"]]),
               "accepted": (["citationKey", "file", "why"], lambda r: [cite.get(r["slug"], r["slug"]), r["file"], r["reason"]]),
+              "unconfirmed": (["citationKey", "file", "why"], lambda r: [cite.get(r["slug"], r["slug"]), r["file"], r["reason"]]),
               "attachments_to_clean": (["citationKey", "item key", "attachment", "reason"], lambda r: [cite[r["slug"]], r["key"], r["attachment"], r["reason"]]),
               "new_tags": (["tag", "items"], lambda r: [r["tag"], ", ".join(r["items"])])}
     for name in (n for n in headings if n in sections):
