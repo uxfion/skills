@@ -2,7 +2,7 @@
 
 - 来源：用户 · 2026-10-29。在设计论文笔记的读法时提出，那张 issue 是 [20261028-paper-to-zotero-paper-notes.md](20261028-paper-to-zotero-paper-notes.md)。当时问题树刚定下来（那张 issue 的已定 28），用户说「A。 先不要在问了。有个设计上的非常重要的问题」，接着说了下面这段话。
 - 参考资料：`20261029-paper-to-zotero-split-reference/`，git 不跟踪。里面放 Zotero 和 Better Notes 对外接口的调研。笔记格式、Better Notes 源码、实测结果放在论文笔记那张 issue 的参考资料文件夹里。
-- 状态：open，按 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` 改造中。§10 第 0 到 4 步已完成（2026-10-30）：存基线、笔记转换、paper-fetch、p2z 改成读结果文件、改说法；待验证 2（真编辑器核对）已做完。下一步是第 5 步，搭 paper-read 的框架。
+- 状态：open，按 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` 改造中。§10 第 0 到 5 步已完成（2026-10-30）：存基线、笔记转换、paper-fetch、p2z 改成读结果文件、改说法、paper-read 的框架；待验证 2（真编辑器核对）已做完。剩第 6 步收尾（README 已更新；记忆、推送和重装等用户发话），以及 §11 里真写进库的那一半和 code-review。
 - 和论文笔记那张 issue 的关系：读论文的流程、问题树和笔记格式，原来都打算放进 p2z（那张 issue 的"分工"一节）。如果按这张 issue 拆分，它们就归新的读论文 skill，p2z 只负责把笔记存进 Zotero、再取出来。
 
 ## 用户原话

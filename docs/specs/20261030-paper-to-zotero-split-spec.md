@@ -363,6 +363,7 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
   5. 达到标准后，用 `note.py put` 存进 Zotero。
 - **"树上还有没答完的节点就不存"，这条检查归 paper-read**，在交给 p2z 之前做，p2z 不认识问题树。论文笔记那张 issue 的已定 29 原来写的是"p2z 就不存"，已经跟着改了。
 - **从 p2z 搬来的**：SKILL.md "Reading a library paper"里讲怎么读结构化包的部分。`structured take/put` 的命令说明留在 p2z。
+- （2026-10-30 搭好，实现时加的两样：一是操作目录多了"从论文里查一件事"：先读论文笔记，不够再取结构化包，学到的论文本身的东西写回笔记，这是论文笔记那张 issue"agent 怎么用"的第 1、2 条，也是最常用的一项；二是 `scripts/check_note.py`，按标题末尾的状态判断树上还有没有没答完的节点、一句话写了没有，"没答完就不存"这条检查交给脚本，不靠 agent 目测。参考文件 `reading.md` 写读论文 subagent 的说明，`notes.md` 写"用在哪里"、主题笔记、更正，都照已定的写，没定的标"待定"。）
 
 ## 5. 笔记：格式和转换
 
@@ -691,7 +692,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 
    （2026-10-30 已做，`a5440e0` 到第 3、4 步的文档提交。核对过：`draft_item` 对三篇基线论文生成的条目和基线逐字段一致，SENet 的预印本和 CVPR 正式版两种都对上；在假 Zotero 上用基线的三份 PDF 跑 `attach_file`，附件标题和 md5 和基线一致。配置里搬走的两项按用户的话，等用户用过新版再提醒删。）
 4. **改说法**：搬过去的和留下来的代码、文档里，"work directory"都改成"scratch directory"，并写明路径。现在 SKILL.md 和 17 个脚本里有这个说法。（2026-10-30 随第 3 步一起做完：p2z 剩下的脚本、两边的文档里都改成 `<scratch>/paper-to-zotero` 或 paper-fetch 的 `<dir>`。）
-5. **paper-read**：按 §4.3 搭框架。
+5. **paper-read**：按 §4.3 搭框架。（2026-10-30 已做，见 §4.3 的补记。）
 6. **收尾**：
    - 更新 README 的 skill 列表（根目录 AGENTS.md 的规定）；
    - 更新记忆 `paper-access-environment`、`paper-to-zotero-skill-status`；

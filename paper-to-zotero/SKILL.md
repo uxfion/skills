@@ -10,7 +10,7 @@ Everything in Zotero: items with their PDFs, filed and tagged; the library tidie
 | operation | where |
 |---|---|
 | Import papers: a title, DOI, arXiv id, link, list, .bib or search results | [references/import.md](references/import.md) |
-| Read a library paper | *Reading a library paper* below |
+| A library paper's structured package and PDF, to read or parse | *Reading a library paper* below |
 | Tidy or fix the library: tags, collections, fields, duplicates, attachment titles, the trash | [references/organize.md](references/organize.md) |
 | A note: take it out as Markdown, put it back | references/organize.md, *Notes* |
 | Export a collection as BibTeX | references/organize.md, *Exporting BibTeX* |
@@ -31,12 +31,12 @@ Every PDF in the library has a **structured package** beside it: a zip under the
 uv run scripts/p2z.py structured take --cite <citation key> -o <scratch>
 ```
 
-`--key` names the item by its key; named by title or author, `read_library items --q '<surname title words>'` finds the key first. `take` picks the best version; `--title <attachment title>` picks another (`read_library pdf --cite …` lists them, best first, with each file's path). The package unzips to `<scratch>/<cite>.<title>/`: read it by the paddleocr skill's steps 2 and 3, settling the open findings your answer rests on and checking each number you cite against `pdf`, the authority. Then:
+`--key` names the item by its key; named by title or author, `read_library items --q '<surname title words>'` finds the key first. `take` picks the best version; `--title <attachment title>` picks another (`read_library pdf --cite …` lists them, best first, with each file's path). The package unzips to `<scratch>/<cite>.<title>/`. Reading it — and the paper's note before it, where what the paper says is already answered — is the paper-read skill's (*Look it up*, *Read a paper*). Then:
 
 - `package: null` (the PDF came in where there was no GPU): parse `input`, the link `take` made, with the paddleocr skill, `-o <scratch>`; a parse beyond fixing in place: the same with `--force`;
 - after a parse, a settled finding or a fix: `uv run scripts/p2z.py structured put <scratch>/<cite>.<title>/`, so the next reader gets your work (an unchanged folder is skipped).
 
-Done when your answer rests on what you read in the package, and every folder you changed is put back.
+Done when every folder you changed is put back.
 
 ## Limits
 
