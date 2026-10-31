@@ -189,7 +189,9 @@ class Identifying(Base):
         self.assertEqual(self.ident(CVPR).lines[0]["slug"], "he2016deep")
         r = self.ident(stdin=f"{CVPR}\the2016resnet\n")
         self.assertEqual((r.lines[0]["code"], r.lines[0]["slug"], r.lines[0]["renamed_from"]), ("ok", "he2016resnet", "he2016deep"))
-        self.assertEqual((self.res("he2016resnet")["slug_given"], self.path("he2016deep").exists()), (True, False))
+        self.assertEqual((self.res("he2016resnet")["slug_given"], self.res("he2016resnet")["renamed_from"],
+                          self.path("he2016deep").exists()), (True, ["he2016deep"], False),
+                         "the result says its old name, so a record drafted under it follows")
         self.work.append({"event": "pass", "pass": 1, "slug": "he2016resnet"})
         r = self.ident(stdin=f"{CVPR}\thekaiming2016\n")
         self.assertEqual((r.lines[0]["reason"], r.lines[0]["slug"], r.lines[0]["slug_not_applied"]),
@@ -518,8 +520,10 @@ class Lookups(Base):
         self.web.doi("10.9999/med1", self.MED)
         self.web.doi("10.9999/med2", {**self.MED, "title": "Another Trial", "DOI": "10.9999/med2"})
         self.web.openalex("10.9999/med1", abstract_inverted_index={"We": [0], "tested": [1], "something.": [2]},
-                          ids={"pmid": "https://pubmed.ncbi.nlm.nih.gov/111"})
-        self.web.europepmc("10.9999/med1", pmid="222", pmcid="PMC333", abstractText="<h4>Background</h4>A different abstract.")
+                          ids={"pmid": "https://pubmed.ncbi.nlm.nih.gov/111"},
+                          keywords=[{"id": "https://openalex.org/keywords/trial", "display_name": "Trial", "score": 0.6}])
+        self.web.europepmc("10.9999/med1", pmid="222", pmcid="PMC333", abstractText="<h4>Background</h4>A different abstract.",
+                           keywordList={"keyword": ["Clinical trial", "Something", "Clinical trial"]})
         self.web.europepmc("10.9999/med2", pmid="444")
         self.web.openalex("10.9999/med2", abstract_inverted_index={"OpenAlex's": [0], "abstract.": [1]})
         self.web.europepmc(JBHI, pmid="555", abstractText="Another abstract entirely.")
@@ -530,9 +534,13 @@ class Lookups(Base):
         self.assertEqual(r.code, 0, r)
         med1, med2, jbhi = (self.res(o["slug"]) for o in r.lines[:-1])
         self.assertEqual({k: med1["csl"].get(k) for k in ("abstract", "PMID", "PMCID", "keyword")},
-                         {"abstract": "Background A different abstract.", "PMID": "222", "PMCID": "PMC333", "keyword": None},
-                         "Europe PMC's abstract (PubMed's) and PMID; no keywords yet")
-        self.assertEqual((med1["ids"]["pmid"], med1["ids"]["pmcid"], med1["enrichment"]), ("222", "PMC333", {"incomplete": []}))
+                         {"abstract": "Background A different abstract.", "PMID": "222", "PMCID": "PMC333",
+                          "keyword": ["Clinical trial", "Something"]},
+                         "Europe PMC's abstract (PubMed's), PMID and the authors' keywords, each once")
+        self.assertEqual((med1["ids"]["pmid"], med1["ids"]["pmcid"], med1["enrichment"]),
+                         ("222", "PMC333", {"incomplete": [], "openalex_keywords": ["Trial"]}),
+                         "OpenAlex's keywords are a hint beside the metadata, never in it")
+        self.assertNotIn("keyword", med2["csl"], "no keywordList: no keywords")
         self.assertIn("abstract from Europe PMC (the record has none)", med1["warnings"])
         self.assertTrue(any(w.startswith("Europe PMC's and OpenAlex's abstracts differ: Europe PMC's kept") for w in med1["warnings"]))
         self.assertNotIn("record has no abstract", med1["warnings"])

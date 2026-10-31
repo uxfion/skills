@@ -17,13 +17,15 @@ A caller reads results/ and nothing else. Request gaps live in the machine's pac
 
 A result file, results/<slug>.json, one JSON object:
   slug, slug_given      the file's name; whether the caller chose it (--slug)
+  renamed_from          [old slugs]: names the result had before a key given later renamed it (before fetching began)
   cite                  the citation key exactly as the caller gave it (a .bib key may hold ':' or '/'), else absent
   wanted                the version the caller wants: published (default) | accepted | preprint
   request               {given}: what identify was asked for (an id or url)
   record_of             preprint | published: which version the CSL describes
   ids                   {doi, arxiv, pmid, pmcid}, each a string or null
   csl                   the paper's metadata as normalized CSL-JSON (identify.py says how), with `source` the agency
-                        that gave it and, by name, what CSL has no variable for (arXiv's `categories`)
+                        that gave it and, by name, what CSL has no variable for (arXiv's `categories`); `keyword` is
+                        the authors' keywords as a list
   alt_titles            [str]: other titles the paper went by
   versions              {preprint?: {ids, latest, comment, title, abstract, author, categories?}, published: [{ids, venue,
                         year, title, title_differs, type, sources}], incomplete: [sources that did not answer]}
@@ -34,7 +36,8 @@ A result file, results/<slug>.json, one JSON object:
                         tried], last: {event, route, result, url} | null (the last try, handoff or answer)}; status:
                         got (a file of the paper is there, an unconfirmed one included; a supplement alone is not),
                         waiting (none yet, and a page or file handoff is open: an agent may still bring one), not_got
-  enrichment            {incomplete: [sources]}: identify's lookups (OpenAlex, Europe PMC) that did not answer
+  enrichment            {incomplete: [sources]: identify's lookups (OpenAlex, Europe PMC) that did not answer,
+                        openalex_keywords?: [str]: OpenAlex's model's keywords, a hint for tagging, never metadata}
   warnings              [str]: what identify noticed (an erratum-like title, a date filled in from another field)
   settled_at            when files and outcome were last folded
 A stub result (identify could not identify the paper: a page with no metadata) holds only slug, slug_given, cite?,

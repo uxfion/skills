@@ -37,10 +37,11 @@ ambiguous, as in 10/12/2023, with a warning).
 Lookups. Every result with a DOI asks OpenAlex (filter doi:a|b|..., the config's openalex_key as api_key) and Europe
 PMC (DOI:"a" OR ..., resultType core), 50 DOIs a request for all of a run's papers, for what its CSL lacks: the
 abstract (Europe PMC's, which is PubMed's, else OpenAlex's, rebuilt from its inverted index; a warning names where
-it came from, and says so when the two differ: Europe PMC's is kept), PMID and PMCID (Europe PMC's, else OpenAlex's). Author keywords
-are not added yet (author_keywords() is where a source goes). A source that does not answer (a network error, a 5xx,
-a 429) is in enrichment.incomplete and does not fail the line; identifying the paper again asks it again, and what
-it gave before stays meanwhile.
+it came from, and says so when the two differ: Europe PMC's is kept), PMID and PMCID (Europe PMC's, else OpenAlex's),
+and the authors' keywords as a list in `keyword` (Europe PMC's keywordList). OpenAlex's keywords, its model's guesses
+from title and abstract, go to enrichment.openalex_keywords: a hint for whoever tags the paper, never metadata. A
+source that does not answer (a network error, a 5xx, a 429) is in enrichment.incomplete and does not fail the line;
+identifying the paper again asks it again, and what it gave before stays meanwhile.
 
 Versions. An arXiv preprint gets versions.preprint (its ids, arXiv's latest vN and comment, title, abstract, authors,
 arXiv's categories) and versions.published: the published versions the authors declared to arXiv, and Crossref works
@@ -496,23 +497,34 @@ def pm_id(value, prefix=""):
     return prefix + m.group(1) if m else None
 
 
-def author_keywords(work, record):
-    """The paper's author keywords from OpenAlex's work and Europe PMC's record: where a keyword source plugs in (CSL
-    `keyword`). None yet: OpenAlex's `keywords` are its tagging model's, not the authors' (help.openalex.org, the work
-    object), and which source to trust is still open. A source that needs a field asks for it (web.openalex_works'
-    select)."""
-    return []
+def author_keywords(record):
+    """The authors' own keywords, as Europe PMC's record lists them (keywordList: PubMed's author keywords, the
+    article's for a PMC paper), each once, in their order; [] when it has none. OpenAlex's `keywords` are not the
+    authors': its tagging model's, from title and abstract (help.openalex.org, the work object)."""
+    words = ((record.get("keywordList") or {}).get("keyword")) if isinstance(record.get("keywordList"), dict) else None
+    return list(dict.fromkeys(w.strip() for w in words if isinstance(w, str) and w.strip())) if isinstance(words, list) else []
+
+
+def openalex_keywords(work):
+    """OpenAlex's keywords for the work (its model's, from title and abstract): a hint for whoever tags the paper,
+    never metadata; [] when it has none."""
+    return [k["display_name"] for k in work.get("keywords") or [] if isinstance(k, dict) and k.get("display_name")]
 
 
 def enrich(s, doi, csl, warnings, old=None):
     """What the CSL lacks, by the paper's DOI, from OpenAlex and Europe PMC (the module docstring says what) -> the
-    sources that did not answer. `old`: the CSL an earlier identify wrote; what it had stays while a source is silent."""
+    result's `enrichment`: {incomplete: the sources that did not answer, openalex_keywords?}. `old`: the result an
+    earlier identify wrote; what it had stays while a source is silent."""
     if not doi:
-        return []
+        return {"incomplete": []}
     (work, oa_code), (record, epmc_code) = s.lookups(doi)
     silent = sorted(name for name, code in (("openalex", oa_code), ("europepmc", epmc_code)) if code not in ANSWERED)
+    hints = openalex_keywords(work)
+    if not hints and "openalex" in silent:
+        hints = ((old or {}).get("enrichment") or {}).get("openalex_keywords")
+    old = (old or {}).get("csl")
     oa_abstract, epmc_abstract = inverted_text(work.get("abstract_inverted_index")), strip_markup(first_str(record.get("abstractText")))
-    found = {"abstract": epmc_abstract or oa_abstract, "keyword": author_keywords(work, record),
+    found = {"abstract": epmc_abstract or oa_abstract, "keyword": author_keywords(record),
              "PMID": pm_id(record.get("pmid")) or pm_id((work.get("ids") or {}).get("pmid")),
              "PMCID": pm_id(record.get("pmcid"), "PMC") or pm_id((work.get("ids") or {}).get("pmcid"), "PMC")}
     for key, value in found.items():
@@ -532,7 +544,7 @@ def enrich(s, doi, csl, warnings, old=None):
             csl[key] = value
             if key == "abstract":
                 warnings[:] = [w for w in warnings if w not in (NO_ABSTRACT, PREPRINT_ABSTRACT)]
-    return silent
+    return {"incomplete": silent, **({"openalex_keywords": hints} if hints else {})}
 
 
 def ids_of_csl(ids, csl):
@@ -789,11 +801,12 @@ def identify(s, work, ident, cite, wanted, seen):
     alt = [t for t in (old or {}).get("alt_titles") or [] if isinstance(t, str)]
     versions = (versions_of_preprint(s, aid.lower(), csl, alt, old.get("versions") if old else None)
                 if record_of == "preprint" and aid else {"published": [], "incomplete": []})
-    silent = enrich(s, ids["doi"], csl, warnings, old.csl if old else None)
+    enrichment = enrich(s, ids["doi"], csl, warnings, old)
+    silent = enrichment["incomplete"]
     result = {**head(slug, cite, wanted, old), "request": {"given": raw}, "record_of": record_of,
               "ids": ids_of_csl(ids, csl), "csl": csl, "alt_titles": alt, "versions": versions,
-              "enrichment": {"incomplete": silent}, "warnings": warnings}
-    for k in ("files", "outcome", "settled_at"):     # what was got stays
+              "enrichment": enrichment, "warnings": warnings}
+    for k in ("files", "outcome", "settled_at", "renamed_from"):     # what was got stays
         if old and k in old:
             result[k] = old[k]
     write(work, slug, result)
@@ -828,8 +841,9 @@ def touch(s, res, cite, wanted):
     silent = []
     if lookups_due(res):
         warnings = [w for w in res.get("warnings") or [] if isinstance(w, str)]
-        silent = enrich(s, res.ids.get("doi"), res.csl, warnings)
-        res.update(ids=ids_of_csl(dict(res.ids), res.csl), enrichment={"incomplete": silent}, warnings=warnings)
+        enrichment = enrich(s, res.ids.get("doi"), res.csl, warnings, res)
+        silent = enrichment["incomplete"]
+        res.update(ids=ids_of_csl(dict(res.ids), res.csl), enrichment=enrichment, warnings=warnings)
     if json.dumps(res, sort_keys=True) != before:
         res.save()
     return silent
@@ -843,7 +857,8 @@ def reslug(work, res, slug, seen):
     if (res.get("slug_given") or (work.results / f"{slug}.json").exists() or work.files_of(old)
             or any(e.get("slug") == old for e in work.events())):
         return None
-    write(work, slug, {**res, "slug": slug, "slug_given": True})
+    write(work, slug, {**res, "slug": slug, "slug_given": True,
+                       "renamed_from": list(dict.fromkeys([*(res.get("renamed_from") or []), old]))})
     res.path.unlink()
     for k, v in list(seen["known"].items()):
         if v == old:
@@ -906,9 +921,10 @@ def redraft(s, res, target, body=None):
     if not res.stub and not (res.ids.get("arxiv") or (preprint.get("ids") or {}).get("arxiv")):
         warnings.append("no arXiv id on the result before the redraft: no preprint route to its text and no arXiv "
                         "line for the item")
-    silent = enrich(s, new_doi, csl, warnings)
+    enrichment = enrich(s, new_doi, csl, warnings)
+    silent = enrichment["incomplete"]
     res.update(record_of="published", ids=ids_of_csl({"doi": new_doi, "arxiv": None}, csl), csl=csl, alt_titles=alt,
-               versions=versions, enrichment={"incomplete": silent}, warnings=warnings)
+               versions=versions, enrichment=enrichment, warnings=warnings)
     res["request"] = {**(res.get("request") or {}), "redraft": target}
     res.setdefault("wanted", "published")
     res.save()

@@ -128,8 +128,11 @@ class Record(dict):
 
 
 def result_of(rec):
-    """The record's result, read as plain JSON -> (result, its path); Stop no_result when it cannot be read."""
+    """The record's result, read as plain JSON -> (result, its path); Stop no_result when it cannot be read. A result
+    renamed since (paper-fetch's renamed_from) is followed to its new name."""
     path = Path(str(rec.get("fetched") or ""))
+    if rec.get("fetched") and not path.exists() and path.parent.is_dir():
+        path = next((p for p in sorted(path.parent.glob("*.json")) if path.stem in (renamed_from(p) or ())), path)
     try:
         res = json.loads(path.read_text(encoding="utf-8")) if rec.get("fetched") else None
     except (OSError, ValueError) as e:
@@ -139,6 +142,14 @@ def result_of(rec):
         raise Stop("no_result", hint="The record names no result file (`fetched`): draft it from its result with "
                                      "draft_item.py.")
     return res, path
+
+
+def renamed_from(result_path):
+    try:
+        value = json.loads(Path(result_path).read_text(encoding="utf-8")).get("renamed_from")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return value if isinstance(value, list) else None
 
 
 def read(path):

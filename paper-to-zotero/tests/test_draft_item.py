@@ -11,6 +11,8 @@ from pathlib import Path
 
 from helpers import call, closed_port, load, smoke
 
+from p2zlib import run
+
 draft_item = load("draft_item")
 
 
@@ -23,7 +25,7 @@ AUTHORS = [{"creatorType": "author", "primary": True}, {"creatorType": "editor"}
 SCHEMA = {"version": 44, "itemTypes": [
     {"itemType": "journalArticle", "creatorTypes": AUTHORS,
      "fields": fields("title", "abstractNote", "publicationTitle", "publisher", "place", "date", "volume", "issue", "pages",
-                      "language", "DOI", "citationKey", "url", "ISSN", "libraryCatalog", "extra")},
+                      "language", "DOI", "citationKey", "url", "PMID", "PMCID", "ISSN", "libraryCatalog", "extra")},
     {"itemType": "conferencePaper", "creatorTypes": AUTHORS,
      "fields": fields("title", "abstractNote", "conferenceName", "publisher", "place", "date", "volume", "pages", "series",
                       "DOI", "ISBN", "citationKey", "url", "ISSN", "libraryCatalog", "extra",
@@ -40,7 +42,8 @@ SCHEMA = {"version": 44, "itemTypes": [
                         "page": ["pages"], "DOI": ["DOI"], "URL": ["url"], "ISSN": ["ISSN"], "abstract": ["abstractNote"],
                         "publisher": ["publisher"], "event-title": ["meetingName", "conferenceName"],
                         "publisher-place": ["place"], "source": ["libraryCatalog"], "language": ["language"],
-                        "version": ["versionNumber"], "collection-title": ["seriesTitle", "series"]},
+                        "version": ["versionNumber"], "collection-title": ["seriesTitle", "series"],
+                        "PMID": ["PMID"], "PMCID": ["PMCID"]},
                "date": {"issued": "date", "accessed": "accessDate"}},
     "names": {"author": "author", "editor": "editor", "contributor": "contributor"},
 }}
@@ -146,6 +149,14 @@ class DraftItem(unittest.TestCase):
         self.assertEqual((thesis["extra"], thesis["university"]), ("DOI: 10.9999/thesis", "MIT"), "no DOI field: extra")
         self.assertIn("thesis has no DOI field; DOI written to extra", r.lines[0]["warnings"])
         self.assertEqual((page["url"], page["libraryCatalog"]), ("https://openreview.net/forum?id=x", "openreview.net"))
+        med = {"title": "Ultrasound", "author": [HU], "DOI": "10.9999/med", "PMID": "123", "PMCID": "PMC456"}
+        self.draft(self.put(result("journal", {**med, "type": "article-journal"})),
+                   self.put(result("proc", {**med, "type": "paper-conference"})))
+        journal, proc = self.rec("journal")["item"], self.rec("proc")["item"]
+        self.assertEqual((journal["PMID"], journal["PMCID"], journal.get("extra")), ("123", "PMC456", None),
+                         "Zotero's schema 44 gives journalArticle PMID and PMCID fields")
+        self.assertEqual((proc.get("PMID"), proc["extra"]), (None, "PMID: 123\nPMCID: PMC456"),
+                         "no field for them: extra, where Zotero reads them")
         odd = result("odd", {"type": "song", "title": "A Song", "DOI": "10.9999/song"})
         r = self.draft(self.put(odd))
         self.assertEqual(self.rec("odd")["item"]["itemType"], "journalArticle")
@@ -176,6 +187,18 @@ class DraftItem(unittest.TestCase):
         self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]]), (1, ["already_saved", "result_invalid", "no_records_dir"]))
         r = self.draft(elsewhere, "-o", self.root / "other")
         self.assertEqual((r.code, (self.root / "other" / "jama.json").is_file()), (0, True))
+
+    def test_a_record_follows_its_renamed_result(self):
+        old = self.put(JAMA)
+        self.draft(old)
+        old.unlink()  # paper-fetch's identify renamed the result to the key given later
+        new = self.put({**JAMA, "slug": "jama2023trials", "slug_given": True, "renamed_from": ["jama"]})
+        rec = run.read(self.records / "jama.json")
+        self.assertEqual(run.result_of(rec)[1], new, "a record not yet moved still finds its result")
+        r = self.draft(new)
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["renamed_from"]), ("skipped", "jama"))
+        self.assertEqual(((self.records / "jama.json").exists(), self.rec("jama2023trials")["fetched"]), (False, str(new)),
+                         "the record is renamed and points at the result: no orphan, no second draft")
 
     def test_zotero_not_running(self):
         (self.root / "scratch" / "schema.json").unlink()

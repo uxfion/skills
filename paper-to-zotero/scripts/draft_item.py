@@ -20,14 +20,16 @@ zotero/{fetch,records}/). Drafting writes:
   warnings     what drafting noticed: a type guessed, a role stored as contributor, the DOI put in extra, fields the
                type has no place for. What the metadata itself is suspected of stays in the result's warnings.
 A record with an item is skipped; --redraft drafts its item again (after pf.py identify --redraft chose another
-version) and keeps the agent's fields, unless the item is in Zotero already.
+version) and keeps the agent's fields, unless the item is in Zotero already. A result renamed since its record was
+drafted (its renamed_from) takes the record along: the record is renamed and points at it (`renamed_from` on the
+line).
 
 Rules beyond the tables:
   - record_of preprint makes a preprint, whatever the CSL's type; an arXiv one gets url arxiv.org/abs/<id> (with
     the vN the request named), repository arXiv, archiveID arXiv:<id>. Any other item's url is https://doi.org/<DOI>,
     or the CSL's URL (a paper's page) when there is no DOI.
-  - A journalArticle gets no publisher, as in Zotero's own DOI import; a type without a DOI field gets "DOI: <DOI>"
-    in extra.
+  - A journalArticle gets no publisher, as in Zotero's own DOI import; a type without a field for the DOI, PMID or
+    PMCID gets it in extra ("PMID: <n>"), where Zotero reads it.
   - A published version whose result keeps versions.preprint takes the preprint's abstract and authors when its own
     record has none, and "arXiv: <id>" in extra.
   - The CSL's `version` is the metadata record's (DataCite's), not the paper's: not written.
@@ -56,6 +58,8 @@ ARXIV_ARCHIVES = {
 ARXIV_CATEGORY = re.compile(r"(.+?)\s*\(([a-z][a-z-]*)(?:\.([A-Za-z][A-Za-z-]*))?\)")
 # CSL variables the rules write, or that are not the paper's; the other variables go through the schema's table.
 BY_RULE = {"URL", "DOI", "citation-key", "version"}
+# Identifiers kept in extra ("PMID: <n>", as Zotero reads it) when the type has no field for them; DOI by its own rule.
+IDENTIFIERS = ("PMID", "PMCID")
 
 
 def first_str(value):
@@ -155,7 +159,7 @@ def item_of(res, schema, warnings):
         warnings.append(f"CSL type {csl_type!r} is not in Zotero's table: drafted as journalArticle, check the type")
     t = zotero.types_of(schema)[item_type]
     by_rule = BY_RULE | ({"publisher"} if item_type == "journalArticle" else set())
-    item, dropped = {"itemType": item_type}, []
+    item, dropped, id_lines = {"itemType": item_type}, [], []
     for csl_key, fields in schema["csl"]["fields"]["text"].items():
         value = csl.get(csl_key)
         if csl_key in by_rule or value is None:
@@ -167,6 +171,8 @@ def item_of(res, schema, warnings):
             target = own(t, *fields)
             if target:
                 item[target] = value
+            elif csl_key in IDENTIFIERS:
+                id_lines.append(f"{csl_key}: {value}")
             else:
                 dropped.append(csl_key)
     for csl_key, field in schema["csl"]["fields"]["date"].items():
@@ -194,6 +200,7 @@ def item_of(res, schema, warnings):
     elif doi:
         lines.insert(0, f"DOI: {doi}")
         warnings.append(f"{item_type} has no DOI field; DOI written to extra")
+    lines += [ln for ln in id_lines if ln not in lines]
     pre_aid = None if is_preprint else (preprint.get("ids") or {}).get("arxiv")
     if pre_aid and not any(re.match(rf"arxiv:\s*{re.escape(pre_aid)}\b", ln, re.I) for ln in lines):
         lines.append(f"arXiv: {pre_aid}")
@@ -227,9 +234,15 @@ def draft(path, out, redraft, schema_of):
                                                               "-o <scratch>/paper-to-zotero/records.")
     records.mkdir(parents=True, exist_ok=True)
     target = records / f"{res['slug']}.json"
+    moved = next((old for old in res.get("renamed_from") or [] if not target.exists() and (records / f"{old}.json").exists()), None)
+    if moved:  # the result was renamed after its record was drafted: the record follows it
+        (records / f"{moved}.json").rename(target)
     rec = run.read(target) if target.exists() else run.Record(target, {})
+    if moved:
+        rec["fetched"] = str(Path(path).absolute())
+        rec.save()
     if rec.item and not redraft:
-        return cli.skipped("exists")
+        return cli.skipped("exists", **({"renamed_from": moved} if moved else {}))
     if rec.item and (rec.get("saved") or rec.get("attach")):
         return {"code": "already_saved", "hint": "The item is in Zotero already (or being created): change it there "
                                                  "with update_item.py."}

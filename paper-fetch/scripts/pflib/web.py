@@ -544,7 +544,7 @@ OPENALEX_HOST, EUROPEPMC_HOST = "api.openalex.org", "www.ebi.ac.uk"
 DOI_BATCH = 50  # DOIs a request asks for (OpenAlex ORs up to 100 values of a filter)
 
 
-def openalex_works(dois, pacer=None, key=None, select="id,doi,ids,abstract_inverted_index"):
+def openalex_works(dois, pacer=None, key=None, select="id,doi,ids,abstract_inverted_index,keywords"):
     """{DOI, lowercased: (OpenAlex's work that has it as its own DOI, else {}; the source's code)}, one request per
     DOI_BATCH DOIs (filter doi:a|b|..., env OPENALEX_BASE_URL points it elsewhere; key: the api_key). OpenAlex's doi
     filter also matches a work through one of its locations' DOIs (a published work listing its arXiv copy): such a
