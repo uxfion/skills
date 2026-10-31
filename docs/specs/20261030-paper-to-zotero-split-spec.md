@@ -173,7 +173,7 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 - **`item`**：用 CSL 按 schema 对照表加上规则生成，agent 可以改。版本在建记录之前就选定了，平常只生成一次。建了记录以后才改主意换版本时，先 `identify --redraft`，再 `draft_item --redraft` 重新生成。`item` 变了，`prepare` 的块就会过期，重新查库、重新预览。
 - **`citationKey`**：结果文件的 `slug_given` 为真时取 slug，否则留空，交给 Zotero 和 Better BibTeX 生成。
 - **agent 的字段**照旧：`tags`、`collection`、`distinct_from`、`same_as`、`keep_preprint`、`blocker`。
-- **块**照旧：`checks`、`found`、`near_matches`、`saved`、`attach`。
+- **块**照旧：`checks`、`found`、`near_matches`、`saved`、`attach`。（实现时改的：`attach` 改成列表，结果文件里每挂一个文件记一项，带上 `kind`。一篇论文可以同时有正文和补充材料两个文件，原来的单个对象装不下。）
 - **`warnings`**：只留建条目时的提醒，比如类型没对上、作者存成了 contributor、DOI 放进了 extra、有字段被丢掉。元数据本身的提醒，比如疑似勘误，留在结果文件里。
 
 **移出记录、归 paper-fetch 的**：
@@ -304,8 +304,8 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
   - 按题目找 DOI，交给 paper-fetch 的 `identify --search`；
   - 不再自己读 PDF 摘录，要判断文件时按 §4.1 交给 paper-fetch；
   - 代理网址只按通用的代理写法来认。学校的代理域名是 paper-fetch 的配置，p2z 不读。审阅时核对过，本机配置的代理也符合通用写法。
-- **`ready`**：Zotero、写入 key、授权、分类树；建 `<scratch>/paper-to-zotero/`。
-- **`report`**：库里的部分，加上结果文件里的 `files[].check` 和 `outcome`。
+- **`ready`**：Zotero、写入 key、授权、分类树；建 `<scratch>/paper-to-zotero/`。（实现时改的：给了 `--dir` 才建目录，整理文库用不着；配置里还留着搬走的两项时，`config.moved` 列出来。）
+- **`report`**：库里的部分，加上结果文件里的 `files[].check` 和 `outcome`。（实现时改的："残留"和"停下与门禁"两节去掉，前者是 paper-fetch 清理时的事，后者已在 `outcome.stop` 里，由"无法获取"一节列出。）
 - **`p2z.py`**：
   - `prepare` 是 `find_in_library` 加 `check_item`；
   - `save` 照旧是 `create_item` 加 `attach_file`；
@@ -342,7 +342,7 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
 - 存取笔记；
 - 存取结构化包。
 
-保留"Identity"、"Authorization"、"Save and attach"、"Read back and report"，以及"Clear residue"和"Limits"里属于它的那一半。
+保留"Identity"、"Authorization"、"Save and attach"、"Read back and report"，以及"Clear residue"和"Limits"里属于它的那一半。（实现时改的：导入的全部步骤，包括建条目挂附件、读回汇报、清理残留，都放进 `import.md`，SKILL.md 只留各项操作都用得上的：操作目录、Identity、Authorization、Read back（写过的都从库里读回）、临时目录、读库里的论文、Limits。这几步只属于导入，留在 SKILL.md 会把一条流程切成两处，读导入的 agent 要来回翻。）
 
 **测试**：
 - 留下的 14 个，加上从拆分的那些测试里取属于它的部分；
@@ -688,7 +688,9 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
    - 删掉已经搬走的代码和测试；先跟用户说，再删掉配置里搬走的两项；
    - 写 `references/import.md`，改其他参考文件，重写 SKILL.md；
    - 测试全部通过。
-4. **改说法**：搬过去的和留下来的代码、文档里，"work directory"都改成"scratch directory"，并写明路径。现在 SKILL.md 和 17 个脚本里有这个说法。
+
+   （2026-10-30 已做，`a5440e0` 到第 3、4 步的文档提交。核对过：`draft_item` 对三篇基线论文生成的条目和基线逐字段一致，SENet 的预印本和 CVPR 正式版两种都对上；在假 Zotero 上用基线的三份 PDF 跑 `attach_file`，附件标题和 md5 和基线一致。配置里搬走的两项按用户的话，等用户用过新版再提醒删。）
+4. **改说法**：搬过去的和留下来的代码、文档里，"work directory"都改成"scratch directory"，并写明路径。现在 SKILL.md 和 17 个脚本里有这个说法。（2026-10-30 随第 3 步一起做完：p2z 剩下的脚本、两边的文档里都改成 `<scratch>/paper-to-zotero` 或 paper-fetch 的 `<dir>`。）
 5. **paper-read**：按 §4.3 搭框架。
 6. **收尾**：
    - 更新 README 的 skill 列表（根目录 AGENTS.md 的规定）；

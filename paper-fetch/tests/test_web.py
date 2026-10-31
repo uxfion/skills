@@ -292,7 +292,7 @@ for _ in range(3):
 
 
 class Lock(unittest.TestCase):
-    """Two processes on one pace.json (the work directory is under $TMPDIR: point it at /mnt/c to try drvfs)."""
+    """Two processes on one pace.json (the directory is under $TMPDIR: point it at /mnt/c to try drvfs)."""
 
     def setUp(self):
         self.work = tempfile.mkdtemp(prefix="pf-lock-")

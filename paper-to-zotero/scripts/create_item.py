@@ -28,7 +28,7 @@ Exit 0 = every record created or skipped; 1 = not; 2 = cannot go on (Zotero not 
 key rejected, another Zotero than the key's); a file that is not a record stops the run before anything is written.
 
 Example:
-  uv run scripts/create_item.py <work>/records/*.json
+  uv run scripts/create_item.py <scratch>/paper-to-zotero/records/*.json
 """
 from p2zlib import cli, paper, run, zotero
 

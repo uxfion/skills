@@ -223,7 +223,7 @@ def main_records(doc, process, argv=None, *, configure=None, check=None, setup=N
 def records_parser(doc, *, zotero=False, dry_run=False):
     """The parser a script on record files starts from: the record paths, --dry-run (dry_run), --base-url (zotero)."""
     p = parser(doc)
-    p.add_argument("records", nargs="*", metavar="RECORD", help="record files: <work>/records/*.json")
+    p.add_argument("records", nargs="*", metavar="RECORD", help="record files: <scratch>/paper-to-zotero/records/*.json")
     if dry_run:
         p.add_argument("--dry-run", action="store_true", help="show what would be written; write nothing")
     if zotero:
@@ -242,7 +242,7 @@ def each_record(args, process, *, setup=None, all_valid=False, answers=()):
 
     from . import run as work
     if not args.records:
-        raise Stop("no_records", hint="Pass the record files: <work>/records/*.json.")
+        raise Stop("no_records", hint="Pass the record files: <scratch>/paper-to-zotero/records/*.json.")
     entries = []
     for path in args.records:
         try:

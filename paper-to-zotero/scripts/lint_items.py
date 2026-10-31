@@ -71,7 +71,7 @@ DOI_TYPES = {"journalArticle", "conferencePaper"}
 NAME = r"([A-Z][\w^+\-]*[A-Z0-9][\w^+\-]*)(?![\w^+\-])(?!\s+[A-Z][a-z])"
 NAME_PATTERNS = (re.compile(r"\b[Ww]e\s+(?:propose|present|introduce|develop|name|call)\s+(?:it\s+)?" + NAME),
                  re.compile(r"\b(?:approach|framework|model|method|system|network|pipeline|agent),\s+" + NAME + r","))
-# Hosts of copies, not of a version of record (SKILL.md step 2: url is the version of record). A living list.
+# Hosts of copies, not of a version of record (references/import.md step 3: url is the version of record). A living list.
 COPY_HOSTS = {"openaccess.thecvf.com", "papers.miccai.org", "arxiv.org", "www.arxiv.org", "www.proquest.com",
               "openreview.net", "europepmc.org", "pmc.ncbi.nlm.nih.gov", "www.ncbi.nlm.nih.gov", "www.ecva.net",
               "www.biorxiv.org", "www.medrxiv.org", "www.researchgate.net", "www.semanticscholar.org"}

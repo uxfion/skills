@@ -33,7 +33,7 @@ a run left behind (paper-fetch's claim --sweep lists them). Lines {file, md5, co
 parent?, citationKey?, title?}: found names the attachment, its parent item and that item's citation key and title.
 
 Examples:
-  uv run scripts/find_in_library.py <work>/records/*.json
+  uv run scripts/find_in_library.py <scratch>/paper-to-zotero/records/*.json
   uv run scripts/find_in_library.py --file ~/Downloads/2006.11239v2.pdf
 """
 from pathlib import Path

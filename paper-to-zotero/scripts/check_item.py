@@ -17,7 +17,7 @@ effect knowingly:
                          creatorType or name (the whole item is rejected), attachment- or note-only keys
   missing_minimum        this skill's floor for a paper: title, creators, date, DOI or url, a venue field
 Behaviour verified against Zotero 10.0.3 (Item.fromJSON, Item.setField, Item.setCreator, Creators.cleanData). The
-schema is read from Zotero once a run (kept in <work>/scratch/schema.json).
+schema is read from Zotero once a run (kept in <scratch>/paper-to-zotero/scratch/schema.json).
 
 Records: the files given. `checks` is computed again only when it is not done (absent, or the item changed since);
 each line says why (`reason`). stdout: one line per record {slug, code, reason?, itemType, mapped?, to_extra?,
@@ -46,7 +46,7 @@ A minimal item:
 }
 
 Example:
-  uv run scripts/check_item.py <work>/records/*.json
+  uv run scripts/check_item.py <scratch>/paper-to-zotero/records/*.json
 """
 import difflib
 import re

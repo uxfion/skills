@@ -8,9 +8,9 @@ suspends the institution's account, not just this browser. A gap counts on the h
 redirect to another host under that host before following it. A host that answers 429 is stopped: no request goes to
 it until the stop ends, and Blocked carries the Retry-After and the end.
   Pacer()      this process only; a stop lasts as long as the pacer (an organizing tool: one process is the run).
-  Pacer(work)  shared by every script of an import run through <work>/pace.json, so a rerun keeps the gaps and a 429
+  Pacer(work)  shared by every script of one directory through <dir>/pace.json, so a rerun keeps the gaps and a 429
                holds across processes: until its Retry-After, else STOP seconds. Every wait reads the file, and every
-               read-modify-write holds an exclusive flock on <work>/pace.json.lock (it holds on drvfs, /mnt/c, too). A
+               read-modify-write holds an exclusive flock on <dir>/pace.json.lock (it holds on drvfs, /mnt/c, too). A
                process reserves its slot under the lock and sleeps outside it, so a long gap on one host does not hold
                up another.
 pace.json: {"last": {host: epoch seconds of the last request, or of the slot reserved for the next},
@@ -59,7 +59,7 @@ INSTITUTION_GAP_ENV = "PAPER_FETCH_INSTITUTION_GAP"
 GAPS = {"api.crossref.org": 1.0, "export.arxiv.org": 3.0, "doi.org": 0.5, "api.openalex.org": 0.1,
         "www.ebi.ac.uk": 0.2, "www.medrxiv.org": 10.0, "www.biorxiv.org": 10.0, INSTITUTION: 15.0}
 DEFAULT_GAP = 1.0
-# Seconds a 429 without Retry-After stops a host for a work directory's scripts; a living value.
+# Seconds a 429 without Retry-After stops a host for the scripts of one <dir>; a living value.
 STOP = 3600.0
 PACE_FILE = "pace.json"
 # Proxies other than the configured one that a stored url may still carry.
@@ -96,8 +96,8 @@ class Blocked(Exception):
 
 class Pacer:
     """When each host was last asked and which hosts a 429 stopped: in this process, or (work given: a directory or
-    anything with a .root) in <work>/pace.json. `last` and `stopped` ({host: retry_after}) are this process's own, or
-    with a work directory the file's as of the last wait or stop."""
+    anything with a .root) in <dir>/pace.json. `last` and `stopped` ({host: retry_after}) are this process's own, or
+    with a directory the file's as of the last wait or stop."""
 
     def __init__(self, work=None):
         self.last, self.stopped = {}, {}
@@ -150,9 +150,9 @@ class Pacer:
     @contextlib.contextmanager
     def state(self):
         """pace.json under the lock (a dict with "last" and "stopped", expired stops left out); what the block
-        changes is written back atomically when it ends without an error. Work-directory pacers only."""
+        changes is written back atomically when it ends without an error. Pacers with a directory only."""
         if self.path is None:
-            raise ValueError("a pacer without a work directory has no pace.json")
+            raise ValueError("a pacer without a directory has no pace.json")
         fd = os.open(self.lock, os.O_RDWR | os.O_CREAT, 0o644)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX)
