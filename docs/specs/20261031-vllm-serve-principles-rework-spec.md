@@ -37,7 +37,7 @@
 
 `up` 起一个守护进程。下载权重（需要时）和启动 vLLM 都由这个守护进程做，输出全部写进 `<profile>.log`。
 
-状态文件记着这次启动所处的阶段，有三个值：`downloading`、`starting`、`running`。
+状态文件记着这次启动所处的阶段：`downloading`、`starting`、`running`、`stopping`。守护进程退出前，把状态文件换成它怎么结束的记录（见第 2 节）。
 
 **守护进程活着，等于它拿着 `<profile>.run` 这把锁。**
 
@@ -55,7 +55,7 @@
 - 下载看不到进度：现在下载的进度也在日志里，`status` 能看出它正在下载。
 - 下载停不下来：现在 `down` 能停掉任何阶段，正在下载的也一样。
 - `download_failed` 不再单列：下载失败就是这次启动失败，日志里有 hf 自己的报错。
-- 原来把下载放在 `up` 里、排在启动之前，是为了“不占启动期限”。现在没有期限了，这个理由也就没了。
+- 原来把下载放在 `up` 里、排在启动之前，是为了“不占启动期限”。现在下载不计入任何期限（vLLM 加载的 30 分钟上限只从 vLLM 启动算起），这个理由也就没了。
 
 ### 3.2 `up`：短暂拿锁做决定，在锁外等
 
@@ -79,7 +79,7 @@
   - 拿到锁时，如果运行锁已经放开，或者状态显示正在停止，就回到“决定要不要起服务”那一步。
   - 守护进程决定空闲自停时，也在这把锁里决定，所以不会把正在停的服务交出去。
 
-在锁外，`up` 一直等，直到状态里记下的地址上 `/health` 返回 200，或者守护进程退出（运行锁被放开），不计时。
+在锁外，`up` 一直等，直到状态里记下的地址上 `/health` 返回 200，或者守护进程退出（运行锁被放开）。`up` 自己不计时；vLLM 加载 30 分钟还没应答，守护进程会停掉它（第 2 节），等着的 `up` 看到的就是守护进程退出。
 
 - **守护进程退出时**，报 `server_failed`：写明它是在哪个阶段退出的，附日志路径和最后 20 行。
 - **启动时的那行提示里写出日志路径**：`[vllm-serve] starting <profile> …; log: <路径>`。
@@ -99,12 +99,12 @@
 **`down`**
 
 - 有活着的守护进程，就在决定锁里给它发 SIGTERM、把状态标成 `stopping`（只拿一瞬间，见第 7 节），然后在锁外等它退出。守护进程先停 vLLM（或下载），再退出。正在等的 `up` 看到它退出，就报 `server_failed`。
-- `down` 等运行锁被放开，最多等 90 s。
+- `down` 等它发了信号的那个守护进程退出，最多等 90 s。
 - 停不了别的登录的进程时，报 `not_permitted`。
 
 **`status`**
 
-- 显示：阶段、启动者、卡、负载、日志路径。
+- 显示：阶段、启动者、卡、负载、日志路径；已停的 profile 还显示上一次启动怎么结束的、算不算失败。
 - 地址取自状态文件。
 
 ### 3.4 其余机制的去留
@@ -145,7 +145,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 
 | 停下的地方 | 谁接手 | 看什么、做什么 | 接着运行 |
 | --- | --- | --- | --- |
-| `server_failed` | 调用方 agent | 在下一次 `up` 之前读日志：重新启动会覆盖它。日志长就派一个后台 sonnet subagent，brief 给它日志路径和 install.md 的排障一节，让它带回原因那几行和对应的条目。然后按 install.md 改：改 profile、换卡、装缺的东西、等卡空出来，或者 `down` 掉我们自己空闲的服务 | `up` |
+| `server_failed` | 调用方 agent | 读日志（下一次启动会把它留作 `<profile>.prev.log`）。日志长就派一个后台便宜模型的 subagent（Claude Code 用 `sonnet`，Codex 用 `luna`），brief 给它日志路径和 install.md 的排障一节，让它带回原因那几行和对应的条目。然后按 install.md 改：改 profile、换卡、装缺的东西、等卡空出来，或者 `down` 掉我们自己空闲的服务 | `up` |
 | 后台的 `up` 迟迟不返回 | 调用方 | `status` 看阶段，日志看还有没有进展：下载在不在动、在哪一步；再对照 install.md 的 “Timings” 和其中关于静默阶段的提示，以及 `nvidia-smi` 的显存是不是还在涨 | 判断卡住了就 `down`，正在等的 `up` 会返回 `server_failed` |
 | `port_busy` | 调用方查清事实，只有要停别人在用的服务，或者端口上是用户自己手动起的服务时，才问用户 | `detail` 点出的 profile 用 `status` 看是否空闲；别的程序用 `ss -ltnp`、`ps -o user= -p <pid>` 查 | 自己的两个 profile 撞了端口，就给部署 profile 一个自己的端口，然后 `up` |
 | `not_permitted` | 那个登录，或者用户 | `detail` 写明属于谁 | 由那个登录 `down`，或者等它空闲自停；root 所有的文件由用户 `chown`，之后 `up` |
@@ -154,7 +154,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 | `differs`（随成功一起返回） | 调用方 | 运行中的模型、端口、参数和卡 | 照用即可；要让改动生效，等 `status` 显示空闲后 `down`，再 `up` |
 | `foreign_cuda`（随成功一起返回） | 调用方，再报给用户 | install.md 里讲 `foreign_cuda` 的那一条 | 修好后 `down`，再 `up`；返回里不再有 `foreign_cuda` 才算好 |
 | `status` 里某个 profile 一行报错 | 调用方 | 同 `unknown_profile` | `status` |
-| 上一次启动没人看着时失败了（`up` 打印 “the last start … failed”，或 `status` 的 `last` 里 `failed` 为 true） | 调用方 | 读那份日志，同 `server_failed` | 改好再 `up` |
+| 上一次启动失败了，可能没人看到（`up` 打印 “the last start … failed”，或 `status` 的 `last` 里 `failed` 为 true） | 调用方 | 读那份日志，同 `server_failed` | 新启动已经开始：原因还在就先 `down`，改好再 `up` |
 | 在共享机器上选卡 | 调用方 | shared-machines.md | 要保留就写进部署 profile 的 env，只用一次就放在调用方的环境里，然后 `up` |
 
 ### 3.6 其他文档
@@ -195,7 +195,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 - `paddleocr/SKILL.md`
 - `docs/specs/20261030-vllm-serve-shared-machines-spec.md`：顶上加一行，写明被取代的部分
 - issue：记下进展，原话里的目录换成占位符
-- `docs/design-principles.md`：本次补的那一句单独提交，它不属于 vllm-serve 返工的范围
+- `docs/design-principles.md`：§1、§3 各补一句，§4 开头写明所有文档都遵守 writing-for-agents；都单独提交，它们不属于 vllm-serve 返工的范围
 
 ## 5. 验证
 
@@ -252,7 +252,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 **换一种方式采纳。**
 
 - 守护进程活着的判断：评审建议用 `/proc/<pid>/cmdline` 或进程的启动时间；这里改用运行锁，由内核负责放锁，最确定。
-- 重试会覆盖日志：评审建议日志改成追加写，或保留上一份；这里只在交接里写“下一次 `up` 之前先读日志”，不加新机制。
+- 重试会覆盖日志：评审建议日志改成追加写，或保留上一份；这里原定只在交接里写“下一次 `up` 之前先读日志”。实现中用户定了方案 A，保留上一份日志（第 2 节）。
 - 下载卡住没有出路：评审建议给下载单独设一条路；这里把下载挪进守护进程，让它和启动成为同一件事。
 - FlashInfer 采样器：评审建议直接去掉这条默认设置；这里先实测再定。
 
@@ -281,7 +281,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 **验证**
 
 - 测试：25 个，全部通过，约 85 s；加载上限和“上一次怎么结束”都有测试，包括下载时间不计入上限、过时的状态文件算作“死前没留记录”。
-- 本机实测（vLLM 0.31，RTX 5090 D）：`up paddleocr-vl` 130 s 起来（其中 CUDA graph 捕获 76 s，比 Timings 原写的 25–50 s 长，已补进 install.md）；paddleocr 解析一页有标题、正文和表格的 PDF，backend `vllm-server`，`checks: ok`，内容逐字对；`status` 显示 `running` 和负载；`down` 2 s。后台 `up`、启动中途 `down`：`down` 32 s 返回（vLLM 在捕获 CUDA graph 时不理 SIGTERM，30 s 后被 SIGKILL），等着的 `up` 返回 `server_failed`，日志最后一行是 `[vllm-serve] SIGTERM (serve.py down, or the system): stopping`，没有残留进程，显存回到启动前。旧代码的 `down --all` 没跑：动手前查过，本机没有在跑的服务。
+- 本机实测（vLLM 0.31，RTX 5090 D）：`up paddleocr-vl` 130 s 起来（其中 CUDA graph 捕获 76 s，比 Timings 原写的 25–50 s 长，已补进 install.md）；paddleocr 解析一页有标题、正文和表格的 PDF，backend `vllm-server`，`checks: ok`，内容逐字对；`status` 显示 `running` 和负载；`down` 2 s。后台 `up`、启动中途 `down`：`down` 32 s 返回（vLLM 在捕获 CUDA graph 时不理 SIGTERM，30 s 后被 SIGKILL），等着的 `up` 返回 `server_failed`，日志最后一行是 `[vllm-serve] SIGTERM (serve.py down, or the system): stopping`，没有残留进程，显存回到启动前。旧代码的 `down --all` 没跑：动手前查过，本机没有在跑的服务。加上“怎么结束”的记录以后，在本机真实服务上又跑了一遍 `up`、`down`、`status`：日志末行是 `[vllm-serve] ended: stopped by SIGTERM (serve.py down, or the system)`，`status` 的 `last` 里 `failed` 为 false，旧日志留成了 `paddleocr-vl.prev.log`。
 - FlashInfer 采样器（第 5 节第 3 步）：新根目录装 0.32.0 加 `vllm download-kernels`（安装 1.5 min，kernel 11 min，其中 jit-cache 要现下），`paddleocr-vl`，每轮 512 个请求、128 并发、每个固定生成 512 token，带 temperature 0.8、top_p 0.9、top_k 50。打开采样器能用（日志 “Using FlashInfer for top-p & top-k sampling.”），预热后 5 轮 45–54k token/s，中位数 51k；关闭 5 轮 53.6–54.9k，中位数 54k。没有收益，保留 `VLLM_USE_FLASHINFER_SAMPLER=0`，量到的数写进 install.md 当理由；本机 0.31 不用动。
 - 最后一遍：我自己通读；两份只读评审（技术正确性 11 条加文档、测试几处；原则和设计 9 条）；一个没看过对话的 agent 照 SKILL.md 稿子走“远程部署”和“paddleocr 等服务卡住”两个场景（10 条）。采纳的已改：`down` 不标 `stopping`（两份评审都提了）、profile 写坏会让 `status` 崩、停子进程不等进程组、判断缓存不看 profile 的 env、被杀的 `up` 之后误报失败、`down --all` 遇错就停、锁里复查空闲的超时缩到 2 s、第二个 SIGTERM、符号链接竞争、`server_failed` 和 `port_busy` 的交接写法（远程日志经 ssh、子 agent 的模型名、可直接复用对方的服务）、“判断卡住”的标准、显存不够时别停别人在用的部署、已有根目录直接用、Verify 的 `up` 等选好卡再做、paddleocr 卡住后要查原因。没采纳：多个登录共用一个根目录（改成写明一个根目录归一个登录）、超长部署的选卡提醒、把要问用户的决定攒到一起问（和“一次只问一个”冲突）。
 - 实现中又定了两条，见第 2 节：vLLM 加载 30 分钟上限；出了问题让后来的 agent 知道去查。代码、测试、install.md 和 shared-machines.md 已改。
