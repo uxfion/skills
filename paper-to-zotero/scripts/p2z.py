@@ -15,13 +15,19 @@ Two commands run several scripts over the same record files, one after the other
                       again.
   save RECORD...      create_item, then attach_file: the item, then its file. Each skips what it has done, so save can
                       run after every pass of fetch.
-Each line: {slug, code: decide | failed | ok, decide?: [what is the agent's to settle], failed?: [the scripts whose
-line for it is not done], steps: {script: its code}}. `decide` comes from the record and its result: near matches
-(write same_as, or add the key to distinct_from), a preprint item whose result lists published versions (identify
---redraft and draft_item --redraft, or write keep_preprint with the reason), checks that are not ok, sources that did
-not answer (prepare, or for versions identify, again later). Then
-{"summary"}. --dry-run and --base-url go
-to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a script could not go on (the next steps did not
+Each line: {slug, code: decide | failed | ok, decide?: [what is still open], failed?: [the scripts whose line for
+it is not done], steps: {script: its code}}. `decide` comes from the record and its result, each entry naming who
+settles it:
+  same_paper      the open handoff's path and waiting_on: judge (it answers with answer.py) | user (a judge answered
+                  pair or unknown; the agent records the user's word with answer.py --by user)
+  duplicates      several library items carry the paper's identifier: the agent writes same_as (or merges them first,
+                  on the user's word)
+  published_versions  a preprint item whose result lists published versions: identify --redraft and draft_item
+                  --redraft, or keep_preprint with the reason
+  checks, warnings    check_item's flags (run.check_flags) and draft_item's warnings that `accepted` does not hold:
+                  revise the item, or accept them
+  unanswered      sources that did not answer: prepare (for versions, identify) again later
+Then {"summary"}. --dry-run and --base-url go to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a script could not go on (the next steps did not
 run).
 """
 import json
@@ -67,13 +73,21 @@ def decisions(rec):
     block = lambda name: rec.get(name) if isinstance(rec.get(name), dict) else {}  # noqa: E731
     res = run.result_of(rec)[0] if rec.get("fetched") else {}
     versions = res.get("versions") if isinstance(res.get("versions"), dict) else {}
-    out = []
-    if rec.get("near_matches") and block("found").get("code") != "found":
-        out.append({"near_matches": [m.get("key") for m in rec["near_matches"] if isinstance(m, dict)]})
+    accepted, out, still = set(rec.get("accepted") or []), [], set(run.unsettled(rec))
+    if still:
+        h = run.open_handoff(rec)
+        waiting = {a.get("key") for a in (h or {}).get("answered") or [] if a.get("answer") in ("pair", "unknown")}
+        out.append({"same_paper": h["path"] if h else None, "waiting_on": "user" if h and still <= waiting else "judge"})
+    if block("found").get("duplicates") and not rec.get("same_as"):
+        out.append({"duplicates": [block("found").get("key"), *block("found")["duplicates"]]})
     if res.get("record_of") == "preprint" and versions.get("published") and not rec.get("keep_preprint"):
         out.append({"published_versions": len(versions["published"])})
-    if block("checks") and block("checks").get("code") != "ok":
-        out.append({"checks": block("checks").get("code")})
+    flags = [f for f in run.check_flags(block("checks")) if f not in accepted]
+    if flags:
+        out.append({"checks": flags})
+    warnings = [w for w in rec.get("warnings") or [] if isinstance(w, str) and w not in accepted]
+    if warnings:
+        out.append({"warnings": warnings})
     unanswered = sorted({s for name in run.PREPARED for s in block(name).get("incomplete") or []}
                         | set(versions.get("incomplete") or [] if res.get("record_of") == "preprint" else []))
     if unanswered:

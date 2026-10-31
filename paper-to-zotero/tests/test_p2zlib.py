@@ -212,6 +212,7 @@ class Client(unittest.TestCase):
 class Lookup(unittest.TestCase):
     """Zotero.lookup: is this paper in the library, and what is only like it."""
     A, ATT, B, C, D, E, F = "AAAAAAA1", "AAAAATT1", "BBBBBBB1", "CCCCCCC1", "DDDDDDD1", "EEEEEEE1", "FFFFFFF1"
+    G, GATT = "GGGGGGG1", "GGGGATT1"
 
     @classmethod
     def setUpClass(cls):
@@ -237,13 +238,17 @@ class Lookup(unittest.TestCase):
         z.add_item(self.E, itemType="journalArticle", title="Deep Residual Learning for Image Recognition: Extended", date="2017")
         z.add_item(self.F, itemType="preprint", title="Pair Paper Title", date="2024", DOI="10.48550/arXiv.2401.00001",
                    archiveID="arXiv:2401.00001", url="https://arxiv.org/abs/2401.00001")
+        z.add_item(self.G, itemType="journalArticle", title="U-Net: Convolutional Networks for Biomedical Image Segmentation",
+                   date="2015", creators=[{"creatorType": "author", "firstName": "Olaf", "lastName": "Ronneberger"}])
+        z.add_item(self.GATT, itemType="attachment", parentItem=self.G, title="Published-Springer",
+                   contentType="application/pdf", linkMode="imported_url")
 
     def look(self, distinct_from=(), same_as=None, **item):
         found, near = self.zot.lookup(item, distinct_from=distinct_from, same_as=same_as)
-        return found, [(m["key"], m["reason"]) for m in near]
+        return found, [m["key"] for m in near], near
 
     def test_a_doi_confirms_and_describes_what_the_library_holds(self):
-        found, near = self.look(DOI="https://doi.org/10.1109/JBHI.2022.3142076", title="x")
+        found, near, _ = self.look(DOI="https://doi.org/10.1109/JBHI.2022.3142076", title="x")
         self.assertEqual((found["code"], found["key"], found["matched_by"], near), ("found", self.A, "doi", []))
         self.assertEqual((found["citationKey"], found["collections"], found["date"]), ("liu2022progressive", ["C1AAAAAA"], "2022-09"))
         self.assertEqual([(a["key"], a["version"], a["standard"], a["md5"], a["title"]) for a in found["attachments"]],
@@ -251,35 +256,44 @@ class Lookup(unittest.TestCase):
 
     def test_an_arxiv_id_confirms_unless_the_item_has_its_own_doi(self):
         for item in ({"archiveID": "arXiv:2401.00001"}, {"DOI": "10.48550/arXiv.2401.00001v2"}):
-            found, near = self.look(title="x", **item)
+            found, near, _ = self.look(title="x", **item)
             self.assertEqual((found["code"], found["key"], found["matched_by"]), ("found", self.F, "arxiv"), item)
-        found, near = self.look(itemType="journalArticle", DOI="10.1000/pub.1", title="Pair Paper Title", extra="arXiv: 2401.00001")
-        self.assertEqual(found["code"], "not_found")
-        self.assertEqual(near[0][0], self.F)
-        self.assertTrue(near[0][1].startswith("preprint/published pair"))
+        found, near, full = self.look(itemType="journalArticle", DOI="10.1000/pub.1", title="Its Published Title", extra="arXiv: 2401.00001")
+        self.assertEqual((found["code"], near, full[0]["matched_by"]), ("not_found", [self.F], "arxiv"),
+                         "a preprint/published pair is a candidate, whatever its title")
 
-    def test_a_title_never_confirms(self):
-        found, near = self.look(title="Deep Residual Learning for Image Recognition")
-        self.assertEqual(found["code"], "not_found")
-        self.assertEqual(near, [(self.C, "same title; no identifier confirms it"),
-                                (self.E, "the library title contains this title")], "the same title first")
-        found, near = self.look(DOI="10.1000/pub.2", title="Pair Paper Title")
-        self.assertEqual(near[0][0], self.F)
-        self.assertIn("same title, another DOI", near[0][1])
-        self.assertEqual(self.look(title="Nothing like this at all")[1], [])
-        self.assertEqual(self.look(title="Nothing like this at all")[0]["searched"][0]["qmode"], "titleCreatorYear")
+    def test_a_title_never_confirms_every_hit_is_a_candidate_with_its_evidence(self):
+        found, near, full = self.look(title="Deep Residual Learning for Image Recognition")
+        self.assertEqual((found["code"], near), ("not_found", [self.C, self.E]), "most like the title first")
+        self.assertEqual({k: full[1][k] for k in ("year", "itemType", "doi", "arxiv", "attachments")},
+                         {"year": "2017", "itemType": "journalArticle", "doi": None, "arxiv": None, "attachments": []})
+        self.assertGreater(full[0]["similarity"], full[1]["similarity"])
+        found, near, full = self.look(DOI="10.1000/pub.2", title="Pair Paper Title")
+        self.assertEqual((near, full[0]["arxiv"]), ([self.F], "2401.00001"), "the same title under another DOI")
+        found, near, full = self.look(title="U-Net — Convolutional Networks for Biomedical Image Segmentation")
+        self.assertEqual((near, full[0]["first_author"], full[0]["attachments"]), ([self.G], "Ronneberger", ["Published-Springer"]),
+                         "the title without its punctuation finds a copy written with a colon")
+        found, near, _ = self.look(title="Nothing like this at all")
+        self.assertEqual(near, [])
+        self.assertEqual({s["qmode"] for s in found["searched"]}, {"titleCreatorYear"}, "full text is not searched")
+
+    def test_candidates_beyond_ten_are_counted(self):
+        for i in range(12):
+            self.fake.add_item(f"MANY{i:04d}", itemType="journalArticle", title=f"Learned Image Compression Study {i}")
+        found, near, _ = self.look(title="Learned Image Compression")
+        self.assertEqual((len(near), found["more"]), (10, 2))
 
     def test_distinct_from_drops_items_at_every_step(self):
-        self.assertEqual(self.look([self.A], DOI="10.1109/JBHI.2022.3142076", title="Deep Residual Learning for Image Recognition")[1][0][0],
+        self.assertEqual(self.look([self.A], DOI="10.1109/JBHI.2022.3142076", title="Deep Residual Learning for Image Recognition")[1][0],
                          self.C, "the DOI hit dropped: the title step")
-        self.assertEqual(self.look([self.C], title="Deep Residual Learning for Image Recognition")[1], [(self.E, "the library title contains this title")])
-        found, near = self.look([self.C, self.E], title="Deep Residual Learning for Image Recognition")
+        self.assertEqual(self.look([self.C], title="Deep Residual Learning for Image Recognition")[1], [self.E])
+        found, near, _ = self.look([self.C, self.E], title="Deep Residual Learning for Image Recognition")
         self.assertEqual((found["code"], near), ("not_found", []))
-        found, near = self.look([self.F], archiveID="arXiv:2401.00001", title="Something Else Entirely")
-        self.assertEqual((found["code"], near[0][0]), ("not_found", self.D))
+        found, near, _ = self.look([self.F], archiveID="arXiv:2401.00001", title="Something Else Entirely")
+        self.assertEqual((found["code"], near[0]), ("not_found", self.D))
 
     def test_same_as_settles_it(self):
-        found, near = self.look(same_as=self.C, title="Deep Residual Learning for Image Recognition")
+        found, near, _ = self.look(same_as=self.C, title="Deep Residual Learning for Image Recognition")
         self.assertEqual((found["code"], found["key"], found["matched_by"], near), ("found", self.C, "same_as", []))
         with self.assertRaises(cli.Stop) as caught:
             self.look(same_as="NOPE0000", title="x")
@@ -287,7 +301,7 @@ class Lookup(unittest.TestCase):
 
     def test_a_hit_on_a_child_counts_for_its_parent(self):
         self.fake.add_item("NOTE0001", itemType="note", parentItem=self.D, note="see 10.1000/only.in.a.note")
-        found, near = self.look(DOI="10.1000/only.in.a.note", title="y")
+        found, near, _ = self.look(DOI="10.1000/only.in.a.note", title="y")
         self.assertEqual(found["code"], "not_found", "the parent's own fields do not carry the DOI")
         self.assertEqual(found["searched"][0]["hits"], 1)
 

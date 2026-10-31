@@ -59,7 +59,10 @@ class FindInLibrary(unittest.TestCase):
                          (A, "doi", 1, "absent"))
         self.assertNotIn("hint", r.lines[0])
         self.assertEqual([m["key"] for m in r.lines[1]["near_matches"]], [C, E])
-        self.assertIn("same_as", r.lines[1]["hint"])
+        handoff = json.loads(open(r.lines[1]["handoff"], encoding="utf-8").read())
+        self.assertEqual((handoff["kind"], handoff["taker"], handoff["paper"]["title"], [c["key"] for c in handoff["candidates"]]),
+                         ("same_paper", "judge", "Deep Residual Learning for Image Recognition", [C, E]),
+                         "the open candidates go to a judge, with the evidence in the file")
         self.assertEqual(r.lines[-1]["summary"], {"total": 4, "ok": 2, "skipped": 0, "failed": 2})
         a, b, c = (run.read(p) for p in paths[:3])
         self.assertEqual((a["found"]["code"], a["found"]["key"], a["near_matches"]), ("found", A, []))

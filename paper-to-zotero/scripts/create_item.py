@@ -17,8 +17,8 @@ stdout: one line per record {slug, code, key?, version?, citationKey?, collectio
 {"summary"}.
   ok                   created (with --dry-run: would be; nothing written)
   skipped              reason saved (this run created it) | exists (the library has it: `found`, matched_by)
-  possible_duplicate   the library has something like it (`near_matches`): the agent writes same_as or
-                       distinct_from in the record, then runs this again; nothing is created meanwhile
+  possible_duplicate   the library may hold it (`near_matches`, the same_paper `handoff` a judge answers with
+                       answer.py); nothing is created meanwhile
   no_item | item_invalid | no_collection | collection_not_found | invalid_tags    the record's fault: nothing written
   write_denied | write_failed      Zotero did not take it (nothing created; the pending mark is gone)
   readback_mismatch    created (`saved` written) but not filed, tagged or keyed as sent: fix it with file_and_tag.py
@@ -91,8 +91,9 @@ def process(rec, ctx):
             return {"code": "ok", "recovered": True, **saved_line(rec["saved"], collections)}
         return cli.skipped("exists", key=found["key"], matched_by=found["matched_by"],
                            **({"duplicates": found["duplicates"]} if found.get("duplicates") else {}))
-    if near:
-        return {"code": "possible_duplicate", "near_matches": run.near_lines(near), "hint": run.HINT_NEAR}
+    if run.unsettled(rec):
+        return {"code": "possible_duplicate", "near_matches": run.near_lines(near), "handoff": run.ask_same_paper(rec),
+                "hint": run.HINT_NEAR}
     if args.dry_run:
         return {"code": "ok", "title": obj["title"][:80], "collection": collections, "tags": len(obj["tags"])}
     rec["saved"] = {"pending": True, "at": run.now_iso()}

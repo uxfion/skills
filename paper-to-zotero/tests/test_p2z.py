@@ -137,7 +137,9 @@ class PrepareAndSave(unittest.TestCase):
         self.assertEqual(code, 1, lines)
         by = {line["slug"]: line for line in lines[:-1]}
         self.assertEqual(set(by["new"]["steps"]), {"find_in_library", "check_item"})
-        self.assertEqual(by["dup"]["decide"][0], {"near_matches": ["LIKE0001"]})
+        same = by["dup"]["decide"][0]
+        self.assertEqual((same["waiting_on"], [c["key"] for c in json.loads(Path(same["same_paper"]).read_text())["candidates"]]),
+                         ("judge", ["LIKE0001"]), "the open candidate is a judge's, through its handoff")
         self.assertIn({"published_versions": 1}, by["pre"]["decide"], "the result lists a published version")
         code, again = p2z("prepare")
         self.assertTrue(all(v.startswith("skipped") for v in again[0]["steps"].values()), again[0])

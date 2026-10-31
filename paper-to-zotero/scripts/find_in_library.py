@@ -8,10 +8,10 @@
 
 Only an identifier confirms a paper is there: the DOI (a doi.org url and an Extra "DOI:" line count), else the
 arXiv id — unless the record's item has a DOI of its own that the library lacks: then an arXiv hit is its preprint,
-a near match. A title never confirms: the same title, or one title inside the other, is a near match, and so is
-the same title under another DOI (a preprint's 10.48550 DOI, a correction notice). The agent settles a near match
-in the record: `same_as: KEY` (it is this paper) or KEY added to `distinct_from` (another paper), then runs this
-again; items in distinct_from are left out at every step.
+a candidate. A title never confirms: whatever a quick search for the title finds is a candidate (near_matches), with
+the evidence a judge needs (zotero.Zotero.lookup). Open candidates go into a same_paper handoff (handoffs/<slug>.<n>
+.json, run.py), which a judge answers with answer.py: same_as or distinct_from in the record; then this runs again,
+and items in distinct_from are left out at every step.
 
 `found` is computed again only when it is not done: absent (an older run's `found`, written without `from`,
 counts as absent), or the item's identifiers or title, same_as or distinct_from changed since; each line says why
@@ -22,7 +22,8 @@ stdout: one line per record {slug, code, reason?, key?, citationKey?, matched_by
 near_matches?}, then {"summary"}.
   found        in the library (`matched_by`: doi | arxiv | same_as; `duplicates` when several items match)
   not_found    not in the library; nothing is like it
-  near_match   not confirmed, but `near_matches` lists what is like it, each with its reason: the agent's to settle
+  near_match   not confirmed, but candidates are open (`near_matches`), and `handoff` is the same_paper handoff
+               that hands them to a judge (also on a rerun while they stay open)
   no_item      the record has no `item` to look up
   skipped      reason done: `found` is up to date
 Exit 0 = every record found, not found or done; 1 = a near match or no item; 2 = cannot check
@@ -44,13 +45,15 @@ def setup(args, records):
     return zotero.Zotero(args.base_url)
 
 
-def summary(found, near):
+def summary(rec, found):
     if found["code"] == "found":
         return {"code": "found", "key": found["key"], "citationKey": found["citationKey"] or None,
                 "matched_by": found["matched_by"], "title": found["title"][:80], "attachments": len(found["attachments"]),
                 **({"duplicates": found["duplicates"]} if found.get("duplicates") else {})}
-    if near:
-        return {"code": "near_match", "near_matches": run.near_lines(near), "hint": run.HINT_NEAR}
+    handoff, still = run.ask_same_paper(rec), set(run.unsettled(rec))
+    if handoff:
+        return {"code": "near_match", "near_matches": run.near_lines(m for m in rec["near_matches"] if m["key"] in still),
+                "handoff": handoff, "hint": run.HINT_NEAR}
     return {"code": "not_found"}
 
 
@@ -59,9 +62,12 @@ def process(rec, zot):
         return {"code": "no_item", "hint": run.HINT_NO_ITEM}
     due = run.due(rec, "found")
     if due is None:
+        line = summary(rec, rec["found"])
+        if line["code"] == "near_match":  # done, and still open: the judge's
+            return line
         return cli.skipped("done", found=rec["found"]["code"], **({"key": rec["found"]["key"]} if rec["found"].get("key") else {}))
-    found, near = run.look_up(rec, zot)
-    line = summary(found, near)
+    found, _ = run.look_up(rec, zot)
+    line = summary(rec, found)
     return {"code": line.pop("code"), "reason": due, **line}
 
 

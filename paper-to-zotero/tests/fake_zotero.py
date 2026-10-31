@@ -181,7 +181,7 @@ class FakeZotero:
         else:
             hay = [v for k, v in d.items() if isinstance(v, str) and (k != "citationKey" or self.search_sees_citekey)]
             hay += [t.get("tag", "") for t in d.get("tags") or []]
-        return any(q.casefold() in h.casefold() for h in hay)
+        return all(any(w.casefold() in h.casefold() for h in hay) for w in q.split())  # Zotero: every word, in any field
 
     def listing(self, path, query):
         """Rows for an items listing path, before paging; None when the path is not one."""

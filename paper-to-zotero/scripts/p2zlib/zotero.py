@@ -40,7 +40,6 @@ HINT_DISABLED = ("Ask the user to enable the local API in Zotero Settings > Adva
 HINT_NOT_FOUND = "No item with that key; find it with read_library.py items --q, or by --cite."
 HINT_CITE_NOT_FOUND = "No item carries this citationKey (case matters); find it with read_library.py items --q, or name it by its item key."
 HINT_CITE_AMBIGUOUS = "Several items carry this citationKey; name the one you mean by its item key."
-SUBTITLE_SEPARATORS = (": ", " - ", " – ", " — ")
 
 
 def detail(body, limit=400):
@@ -302,35 +301,35 @@ class Zotero:
     def lookup(self, item, *, distinct_from=(), same_as=None):
         """Is the paper an item describes in the library? -> (found, near_matches), a record's two blocks without
         their `from`. Only an identifier confirms: the DOI, else the arXiv id — unless the item has a DOI of its own
-        that the library lacks, which makes an arXiv hit its preprint: a near match. A title never confirms: the same
-        title, or one inside the other, is a near match. Items in distinct_from are dropped at every step, and a step
-        left empty goes on to the next; same_as names the item outright."""
+        that the library lacks, which makes an arXiv hit its preprint: a candidate (matched_by arxiv). Everything a
+        quick search for the title finds (paper.title_queries) is a candidate too, ranked by paper.candidates with
+        its evidence and its attachments' titles, for a judge; `more` in found counts those left out. Items in
+        distinct_from are dropped at every step; same_as names the item outright."""
         if same_as:
             row = self.item(same_as)
             if row is None:
                 raise Stop("not_found", hint="same_as names no item of the library; correct it or remove it.", same_as=same_as)
             return {"code": "found", **self.describe(row), "matched_by": "same_as"}, []
         doi, aid = paper.identifiers(item)
-        title, excluded, searched = (item.get("title") or "").strip(), set(distinct_from or ()), []
-        rows = lambda q, qmode=None: [r for r in self._search(q, qmode, searched) if r["key"] not in excluded]
-        matches, near, matched_by = [], [], None
+        excluded, searched = set(distinct_from or ()), []
+        rows = lambda q, qmode=None: [r for r in self._search(q, qmode, searched) if r["key"] not in excluded]  # noqa: E731
+        matches, pairs, matched_by = [], [], None
         if doi:
             matches, matched_by = [r for r in rows(doi, "fields") if paper.same_paper(item, data(r)) == "doi"], "doi"
         if not matches and aid:
             hits = [r for r in rows(aid, "fields") if paper.same_paper(item, data(r)) == "arxiv"]
-            if hits and doi:
-                near = [(r, f"preprint/published pair: the library item matches by arXiv id only, and this item has "
-                            f"its own DOI {doi}", "arxiv") for r in hits]
-            else:
-                matches, matched_by = hits, "arxiv"
-        if not matches and not near and paper.norm_title(title):
-            near = self._title_near(item, doi, rows)
+            pairs, matches, matched_by = (hits, [], None) if doi else ([], hits, "arxiv")
         if matches:
             more = {"duplicates": [r["key"] for r in matches[1:]]} if len(matches) > 1 else {}
             return {"code": "found", **self.describe(matches[0]), "matched_by": matched_by, **more}, []
-        return {"code": "not_found", "searched": searched}, [
-            {"key": r["key"], "title": data(r).get("title"), "itemType": data(r).get("itemType"), "reason": why,
-             **({"matched_by": by} if by else {})} for r, why, by in near]
+        hits = {r["key"]: (r, "arxiv") for r in pairs}
+        for q in paper.title_queries(item.get("title")):
+            for r in rows(q):
+                hits.setdefault(r["key"], (r, None))
+        near, more = paper.candidates(item, [(key, data(r), by) for key, (r, by) in hits.items()])
+        for c in near:
+            c["attachments"] = [a["title"] for a in self.attachments(c["key"])]
+        return {"code": "not_found", "searched": searched, **({"more": more} if more else {})}, near
 
     def _search(self, q, qmode, searched):
         """The top-level items a quick search hits; a hit on an attachment or note counts for its parent."""
@@ -347,27 +346,6 @@ class Zotero:
                     found[key] = parent
         searched.append({"q": q, "qmode": qmode or "titleCreatorYear", "hits": len(found)})
         return list(found.values())
-
-    def _title_near(self, item, doi, rows):
-        """[(row, reason, None)] for the library titles equal to the item's (first) or holding it or held by it."""
-        title = item["title"].strip()
-        found = {r["key"]: r for r in rows(title)}
-        if not found:
-            found = {r["key"]: r for r in rows(title, "everything")}
-        head = next((title.split(sep, 1)[0].strip() for sep in SUBTITLE_SEPARATORS if sep in title), "")
-        if head and len(head.split()) >= 2:
-            found.update({r["key"]: r for r in rows(head) if r["key"] not in found})
-        want, out = paper.norm_title(title), []
-        for r in found.values():
-            have, other = paper.norm_title(data(r).get("title")), paper.doi_of(data(r))
-            if paper.same_paper(item, data(r)) == "title":
-                out.append((0, r, f"same title, another DOI: the library item has {other}, this item {doi}"
-                            if doi and other and other != doi else "same title; no identifier confirms it"))
-            elif have and want in have:
-                out.append((1, r, "the library title contains this title"))
-            elif have and have in want:
-                out.append((1, r, "this title contains the library title"))
-        return [(r, why, None) for _, r, why in sorted(out, key=lambda e: e[0])]
 
     def describe(self, row):
         """What the library holds for an item: {key, version, citationKey, title, date, collections, tags, attachments}."""
