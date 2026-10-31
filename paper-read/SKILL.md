@@ -22,7 +22,13 @@ From a paper in the Zotero library to its **paper note**: what the paper says, a
 
 **Files** live in the scratch directory (`<scratch>`: the session's scratchpad, else `${TMPDIR:-/tmp}`), never in a project: a paper's package unzips to `<scratch>/<cite>.<title>/` and its note file sits beside it, `<scratch>/<cite>.<title>.note.md`. They go once the note is in Zotero.
 
-Before the first operation: `../paper-to-zotero/SKILL.md` must be there (and `../paddleocr/SKILL.md` when a package is missing); no such file → stop and tell the user which skill to install.
+**Sibling skills.** Each skill is installed on its own, beside this one; look for its `SKILL.md` there when the operation starts:
+
+| operation | needs | missing → |
+|---|---|---|
+| every operation | paper-to-zotero (`../paper-to-zotero/`): takes the note, the package and the PDF out of Zotero and puts the note back | stop; tell the user to install it |
+| a paper whose PDF has no structured package | paddleocr (`../paddleocr/`): parses the PDF | read the PDF itself, and tell the user the skill to install |
+| a paper not yet in the library | paper-to-zotero's import, which needs paper-fetch | as paper-to-zotero's own table says |
 
 ## Look it up
 

@@ -6,7 +6,7 @@ From what the user gives to Zotero items with their PDFs, filed and tagged, and 
 
 ## 0. Ready
 
-paper-fetch is installed beside this skill: `../paper-fetch/SKILL.md`. Read it now; this file names its sections, and its scripts run as `uv run ../paper-fetch/scripts/pf.py <command>`. No such file → stop and tell the user the paper-fetch skill has to be installed.
+Read `../paper-fetch/SKILL.md` now (SKILL.md, *Sibling skills*: no such file → stop): this file names its sections, and its scripts run as `uv run ../paper-fetch/scripts/pf.py <command>`.
 
 ```bash
 uv run scripts/p2z.py ready --dir <imp>
@@ -92,7 +92,7 @@ Run it after every pass of step 4: each step skips what is done (`saved`, an `at
 
 `attach_file` attaches every file of the result whose check passed (`ok`, or `accepted` by you), the paper's and any supplement, each under its label (an unlabelled file came out of paper-fetch as `Unknown-<Source>`); a label settled later renames this run's attachment at the next `save`. `unsettled`: the result was never folded — `pf.py settle --dir <imp>/fetch`, then `save` again; `file_changed`: the same. `library_has_pdf`: the item had a PDF of the paper and nothing was fetched for it. `unchecked` (or `unchecked` names on an `ok` line): files paper-fetch could not judge against the paper — read page 1, accept the paper's (`pf.py claim --dir <imp>/fetch --accept <file> --slug <slug> --reason …`), settle, `save` again. A file the item had already keeps its own title: the report suggests the rename, which waits for the user. The attachment's `url` is the item's canonical page (`item.url`, else `https://doi.org/<DOI>`). It reuses a half-made attachment and never duplicates a file; if it still fails, hand the file to the user with its path.
 
-Then the structured packages of the PDFs this run attached (the paddleocr skill parses them: `../paddleocr/SKILL.md`; missing → name the PDFs in the report as without a package, and tell the user the skill to install): `uv run scripts/p2z.py structured take --key <their items' keys> --missing -o <imp>/structured`, one parse of the links it printed with the paddleocr skill (`-o <imp>/structured`, in the background), then `structured put <imp>/structured/*/`. Their findings stay open: a paper is settled when a task first reads it. A PDF left without its package (no GPU, a failed parse) is archived all the same: name it in the report, and the next reader makes it.
+Then the structured packages of the PDFs this run attached, which the paddleocr skill parses (SKILL.md, *Sibling skills*): `uv run scripts/p2z.py structured take --key <their items' keys> --missing -o <imp>/structured`, one parse of the links it printed with the paddleocr skill (`-o <imp>/structured`, in the background), then `structured put <imp>/structured/*/`. Their findings stay open: a paper is settled when a task first reads it. A PDF left without its package (no GPU, a failed parse) is archived all the same: name it in the report, and the next reader makes it.
 
 Done when every record's item is in the library (`saved.key`, or `found` confirmed), every file the result passed is in the record's `attach`, and every PDF attached has its package or is named in the report as without one.
 

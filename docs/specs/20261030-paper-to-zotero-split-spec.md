@@ -630,6 +630,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 ## 8. skill 之间的调用和共用代码（已定 7、8）
 
 - **按操作检查兄弟 skill 在不在**：在自己目录旁边找，比如 `../paper-fetch/SKILL.md`。只在要用它的操作开始时查：导入要查 paper-fetch，缺结构化包时要查 paddleocr，整理文库不用查。找不到就停下，说出要加载的 skill 的名字。
+  （2026-10-30 实现时改的：三个 SKILL.md 开头各放一张兄弟 skill 表，列出哪项操作要哪个 skill、缺了怎么办，作为唯一的说明，别处只指过去。原稿说"整理文库不用查"不对：整理里按版本改附件名、按题目查 DOI 都要 paper-fetch，表里写明这两项要它、其余整理照常。README 里每个 skill 也注明依赖。）
 - **交接只靠文件**：拿不到就停下，不猜。
 - **调用处写明对方的名字**。
 - **小的共用代码各带一份，不做共享库**：文件头写明从哪里拷来、哪个提交。先例是 mattpocock 的 `pr`，它的 CREDITS.md 写着 "a hard dependency would break standalone installs"。

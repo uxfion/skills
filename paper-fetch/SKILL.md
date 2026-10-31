@@ -20,12 +20,17 @@ From "a paper" to a file of it you can trust: which paper it is, what is known a
 
 **The user helps; the work is yours.** The run is the same whether or not the user is watching: you fetch every paper yourself. The user may log in, pass a CAPTCHA or click a download at any moment, and that only speeds things up — the watcher files their downloads. Say early what you can foresee needing them for ("3 of these need the institutional login — if you can, log in now: Ctrl+N, a normal window"). Only the last pass waits for them.
 
-## Instruments
+## Skills and tools it relies on
 
-- `opencli-usage` skill — web access: discover adapters at run time (`opencli list <query>`: JSON, paged with `--offset`). Seen in 2026-09: API-type `arxiv`, `openalex`, `semanticscholar` (429 without a key — one 429 means skip it), `pubmed` (abstract, author keywords, PMID), `dblp`, `openreview`, `hf paper`; browser-type `google-scholar`, `cnki`, `wanfang`. Behind a proxy every call prints a harmless `UNDICI-EHPA` warning on stderr: send stderr to `<dir>/scratch/opencli.log`.
-- `opencli-browser` skill — the user's real, logged-in Chrome: `browser <command> --session pf` with `open / state / find / get / click / wait / eval / tab / close`, `web read --url`. Windows open in the background (`--window background`), so the user's focus stays theirs; the last pass opens them in the foreground for the user.
-- `pdf` skill — reading a page of a file the check refused or could not read.
-- `papers-cool-search` skill — papers.cool search and venue listings as JSON, one request at a time.
+Each skill is installed on its own, beside this one (`../<name>/`); paper-to-zotero calls this skill when it imports, and nothing here needs it.
+
+| what | for | missing → |
+|---|---|---|
+| `opencli-usage` skill, OpenCLI 2.x | web access: discover adapters at run time (`opencli list <query>`: JSON, paged with `--offset`). Seen in 2026-09: API-type `arxiv`, `openalex`, `semanticscholar` (429 without a key — one 429 means skip it), `pubmed` (abstract, author keywords, PMID), `dblp`, `openreview`, `hf paper`; browser-type `google-scholar`, `cnki`, `wanfang`. Behind a proxy every call prints a harmless `UNDICI-EHPA` warning on stderr: send stderr to `<dir>/scratch/opencli.log` | `ready` reports it: references/install.md, the user's to install |
+| `opencli-browser` skill | the user's real, logged-in Chrome: `browser <command> --session pf` with `open / state / find / get / click / wait / eval / tab / close`, `web read --url`. Windows open in the background (`--window background`), so the user's focus stays theirs; the last pass opens them in the foreground | the browser routes and every gate wait: references/install.md |
+| poppler-utils (`pdftotext`, `pdfinfo`) | checking every file against the paper | nothing can be filed (`no_pdftotext`): references/install.md |
+| `pdf` skill | reading a page of a file the check refused or could not read | render the page to an image yourself (`pdftoppm`) |
+| `papers-cool-search` skill | papers.cool search and venue listings as JSON, one request at a time | arXiv-style titles go up the other rungs of *Reaching a page* |
 
 Read [references/publishers.md](references/publishers.md) whenever a publisher page is yours to work (`fetch` stopped on it, a discovery system, a click), and [references/install.md](references/install.md) when `ready` reports something missing.
 

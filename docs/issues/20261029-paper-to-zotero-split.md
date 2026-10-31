@@ -423,6 +423,7 @@
     advisor 审完又抓出两处，都已改（`0661b77`）：库里条目本来就有 PDF 的论文不交给 paper-fetch，它的结果文件就永远没汇总，`save` 每次都会报 `unsettled`，现在跳过并注明 `library_has_pdf`；paper-fetch 判断不了的文件被悄悄略过，结果说"拿到了"、`save` 却说"还没文件"，现在报 `unchecked` 并给出接收的步骤。之后按 spec §11 跑了 dry-run 那一半的端到端对照，和基线一致；真写进库那一半留到收尾时问用户。
 75. 第 5 步搭好 paper-read 的框架（`744c353`）。§11 的"整理"只读对照也做了：拆分前后在"医疗图像"分类上的 `export_bib`、`read_library`、`lint_items` 输出一致。最后按 §11 跑 code-review，两路：编码规范、spec。改了的：四处逻辑问题（接收已归档的文件被挪进 stray/、再认一次会把重认过的正式版改回预印本、后给的引用键被丢掉、库里同一篇的第二个文件没地方定标签），重复的 `host_of`，文档里重复的段落和缺的完成标准，`export_bib -o`、`note put` 的 `action`、几处遮蔽和复用的变量名、过长的文档行，拷来的代码注明出处。有意不改的、实现时定的，都记在 spec §11 末尾。
 76. 我问 §11 真写进库那一半做不做，给了 A 现在做、B 等下次真导入时顺便、C 不做，推荐 B。用户：「A」。照做：三个条目真建进 `tmp`、挂上 PDF，读回和基线逐项一致，然后移进回收站。回收站里这三条（Mask R-CNN、Squeeze-and-Excitation Networks、Array programming with NumPy）等用户清空。
+77. 用户问：「Paper to zotero 里面有提到需要哪些 skills 吗？就是依赖关系」。查下来是有，但散在 import.md、install.md、SKILL.md 好几处，没有一张集中的表，而且漏了整理文库对 paper-fetch 的依赖（按版本改附件名、查 DOI），README 也没写依赖。我提议每个 SKILL.md 开头放一张兄弟 skill 表，别处指过去，README 注明依赖。用户：「可以，改吧」。已改，spec §8 记了。
 
 ## 调研（2026-10-29，看的是代码）
 
