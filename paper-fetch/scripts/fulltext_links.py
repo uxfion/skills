@@ -38,7 +38,8 @@ script; requests to a host keep their gap.
 
 stdout: one line per result {slug, code, reason?, links, sources: {source: its code}, first?}, then {"summary"}.
   ok              links written (`first`: the first link's version, needs_browser and host)
-  no_identifier   no DOI, no arXiv id and no page of the venue's: nothing to look up
+  no_identifier   no DOI, no arXiv id and no page of the venue's: nothing to look up (a stub identified from a web
+                  address gets that address as its one link, of unknown version: source `request`)
   no_answer       no source answered; the links file is written with every source incomplete, so a rerun asks again
   skipped         reason done: links up to date
 Source codes: ok | not_found | no_identifier | refused (the page answered 401/403) | source_blocked | http_<n> |
@@ -265,7 +266,7 @@ def identifiers(res):
 def setup(args, results):
     config.read(strict=True)
     work = results[0].work if results else None
-    return {"key": config.openalex_key(), "proxy": config.institution()["proxy"], "pacer": web.Pacer(work),
+    return {"key": config.openalex_key(), "proxy": config.institution()["proxy"], "pacer": web.Pacer(web.pace_path()),
             "dry_run": args.dry_run}
 
 
@@ -274,6 +275,14 @@ def process(res, ctx):
     if reason is None:
         return cli.skipped("done", links=len(run.links_of(res).get("items") or []))
     ids = identifiers(res)
+    given = str((res.get("request") or {}).get("given") or "")
+    if not any(ids.values()) and re.match(r"https?://", given, re.I):  # a stub from a web address: the user's own pointer
+        links = finalize([raw_link(given, "request")], None, None, ctx["proxy"])
+        if not ctx["dry_run"]:
+            run.write_links(res, {"items": links})
+        return {"code": "ok", "reason": reason, "links": len(links), "sources": {"request": "ok"},
+                "first": {"version": links[0]["version"], "needs_browser": links[0]["needs_browser"],
+                          "host": paper.host_of(links[0]["url"])}}
     if not any(ids.values()):
         return {"code": "no_identifier",
                 "hint": "The result has no DOI, arXiv id or venue page: identify the paper by its DOI or arXiv id "

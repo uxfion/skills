@@ -7,12 +7,14 @@ PAPER_FETCH_INSTITUTION_GAP, because licences forbid systematic downloading and 
 suspends the institution's account, not just this browser. A gap counts on the host actually requested: get() paces a
 redirect to another host under that host before following it. A host that answers 429 is stopped: no request goes to
 it until the stop ends, and Blocked carries the Retry-After and the end.
-  Pacer()      this process only; a stop lasts as long as the pacer (an organizing tool: one process is the run).
-  Pacer(work)  shared by every script of one directory through <dir>/pace.json, so a rerun keeps the gaps and a 429
-               holds across processes: until its Retry-After, else STOP seconds. Every wait reads the file, and every
-               read-modify-write holds an exclusive flock on <dir>/pace.json.lock (it holds on drvfs, /mnt/c, too). A
-               process reserves its slot under the lock and sleeps outside it, so a long gap on one host does not hold
-               up another.
+  Pacer()           this process only; a stop lasts as long as the pacer.
+  Pacer(pace_path()) shared by every script on this machine through one pace file (pace_path(): $PAPER_FETCH_PACE,
+               else <cache>/paper-fetch/pace.json): the gaps are courtesy to a site, whatever run asks it, so every
+               run, every agent's run and every rerun keep them, and a 429 holds across processes: until its
+               Retry-After, else STOP seconds. Every wait reads the file, and every read-modify-write holds an
+               exclusive flock on <pace file>.lock (it holds on drvfs, /mnt/c, too). A process reserves its slot under
+               the lock and sleeps outside it, so a long gap on one host does not hold up another. Pacer(<dir>) uses
+               <dir>/pace.json (tests point $PAPER_FETCH_PACE into their own directory).
 pace.json: {"last": {host: epoch seconds of the last request, or of the slot reserved for the next},
 "stopped": {host: {"at", "until", "retry_after"}}}; a stop past its end is dropped on the next write.
 
@@ -22,6 +24,9 @@ service's base URL, which a test may point elsewhere.
 Paper pages. page_meta() reads a landing page's citation_* tags (Highwire Press, which Google Scholar asks
 publishers for), with Dublin Core (dc.*), PRISM and Open Graph (og:*) standing in where one is missing, and
 <link rel=alternate type=application/pdf>.
+
+Batched lookups. arxiv_entries() asks arXiv for 100 ids a request; openalex_works() and europepmc_records() ask
+OpenAlex and Europe PMC for DOI_BATCH DOIs a request, each answer keyed by id with the source's code.
 
 The institution's proxy (config institution.proxy, EZproxy style) serves a host under its own domain: the host with
 real dashes doubled and dots as dashes, then .<proxy> (ieeexplore.ieee.org -> ieeexplore-ieee-org.<proxy>).
@@ -59,7 +64,7 @@ INSTITUTION_GAP_ENV = "PAPER_FETCH_INSTITUTION_GAP"
 GAPS = {"api.crossref.org": 1.0, "export.arxiv.org": 3.0, "doi.org": 0.5, "api.openalex.org": 0.1,
         "www.ebi.ac.uk": 0.2, "www.medrxiv.org": 10.0, "www.biorxiv.org": 10.0, INSTITUTION: 15.0}
 DEFAULT_GAP = 1.0
-# Seconds a 429 without Retry-After stops a host for the scripts of one <dir>; a living value.
+# Seconds a 429 without Retry-After stops a host for every script on the machine; a living value.
 STOP = 3600.0
 PACE_FILE = "pace.json"
 # Proxies other than the configured one that a stored url may still carry.
@@ -94,20 +99,29 @@ class Blocked(Exception):
                 **({"until": iso(self.until)} if self.until is not None else {})}
 
 
-class Pacer:
-    """When each host was last asked and which hosts a 429 stopped: in this process, or (work given: a directory or
-    anything with a .root) in <dir>/pace.json. `last` and `stopped` ({host: retry_after}) are this process's own, or
-    with a directory the file's as of the last wait or stop."""
+def pace_path():
+    """The machine's pace file: $PAPER_FETCH_PACE, else <XDG cache, ~/.cache>/paper-fetch/pace.json."""
+    given = os.environ.get("PAPER_FETCH_PACE")
+    if given:
+        return Path(given).expanduser()
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "paper-fetch" / PACE_FILE
 
-    def __init__(self, work=None):
+
+class Pacer:
+    """When each host was last asked and which hosts a 429 stopped: in this process, or (where given: a pace file, or
+    a directory holding pace.json) in that file. `last` and `stopped` ({host: retry_after}) are this process's own, or
+    with a file the file's as of the last wait or stop."""
+
+    def __init__(self, where=None):
         self.last, self.stopped = {}, {}
-        root = work if work is None or isinstance(work, (str, os.PathLike)) else work.root
         self.path = self.lock = None
-        if root is not None and fcntl is None:
+        if where is not None and fcntl is None:
             log("no file locks on this system: requests are paced in this process only")
-        elif root is not None:
-            self.path = Path(root) / PACE_FILE
-            self.lock = self.path.with_name(PACE_FILE + ".lock")
+        elif where is not None:
+            where = Path(where)
+            self.path = where / PACE_FILE if where.is_dir() else where
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.lock = self.path.with_name(self.path.name + ".lock")
 
     def wait(self, host):
         """Sleep until the host's gap has passed and count this request; Blocked when a 429 stopped the host."""
@@ -152,7 +166,7 @@ class Pacer:
         """pace.json under the lock (a dict with "last" and "stopped", expired stops left out); what the block
         changes is written back atomically when it ends without an error. Pacers with a directory only."""
         if self.path is None:
-            raise ValueError("a pacer without a directory has no pace.json")
+            raise ValueError("a pacer without a file has no pace.json")
         fd = os.open(self.lock, os.O_RDWR | os.O_CREAT, 0o644)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX)
@@ -521,3 +535,60 @@ def unproxy(url, proxy=None):
         return url
     netloc = host + (f":{parts.port}" if parts.port else "")
     return urllib.parse.urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+
+# ---- OpenAlex and Europe PMC, many DOIs a request -----------------------------------------------------------------
+
+# Paced and stopped under the real services' hosts, also when a test points the urls elsewhere.
+OPENALEX_HOST, EUROPEPMC_HOST = "api.openalex.org", "www.ebi.ac.uk"
+DOI_BATCH = 50  # DOIs a request asks for (OpenAlex ORs up to 100 values of a filter)
+
+
+def openalex_works(dois, pacer=None, key=None, select="id,doi,ids,abstract_inverted_index,keywords"):
+    """{DOI, lowercased: (OpenAlex's work that has it as its own DOI, else {}; the source's code)}, one request per
+    DOI_BATCH DOIs (filter doi:a|b|..., env OPENALEX_BASE_URL points it elsewhere; key: the api_key). OpenAlex's doi
+    filter also matches a work through one of its locations' DOIs (a published work listing its arXiv copy): such a
+    work is not that DOI's. Every DOI of a request that failed gets ({}, NoData's code)."""
+    out, dois = {}, list(dict.fromkeys(d.lower() for d in dois))
+    for start in range(0, len(dois), DOI_BATCH):
+        chunk = dois[start:start + DOI_BATCH]
+        params = {"filter": "doi:" + "|".join(chunk), "per-page": 200, "select": select, **({"api_key": key} if key else {})}
+        try:
+            data = read_json(endpoint("OPENALEX_BASE_URL", "https://api.openalex.org") + "/works", params=params,
+                             host=OPENALEX_HOST, pacer=pacer)
+            works = data.get("results") if isinstance(data, dict) else None
+            if not isinstance(works, list):
+                raise NoData("bad_response")
+        except NoData as e:
+            out.update({d: ({}, e.code) for d in chunk})
+            continue
+        got = {paper.normalize_doi(str(w.get("doi") or "")): w for w in works if isinstance(w, dict)}
+        out.update({d: (got.get(d, {}), "ok") for d in chunk})
+    return out
+
+
+def europepmc_records(dois, pacer=None):
+    """{DOI, lowercased: (Europe PMC's core record with that DOI, one with a PMID first, else {}; the source's code)},
+    one request per DOI_BATCH DOIs (DOI:"a" OR DOI:"b" ..., env EUROPEPMC_BASE_URL points it elsewhere). Every DOI of
+    a request that failed gets ({}, NoData's code)."""
+    out, dois = {}, list(dict.fromkeys(d.lower() for d in dois))
+    for start in range(0, len(dois), DOI_BATCH):
+        chunk = dois[start:start + DOI_BATCH]
+        params = {"query": " OR ".join(f'DOI:"{d}"' for d in chunk), "resultType": "core", "format": "json",
+                  "pageSize": 2 * len(chunk)}
+        try:
+            data = read_json(endpoint("EUROPEPMC_BASE_URL", "https://www.ebi.ac.uk") + "/europepmc/webservices/rest/search",
+                             params=params, host=EUROPEPMC_HOST, pacer=pacer)
+            hits = ((data.get("resultList") or {}).get("result")) if isinstance(data, dict) else None
+            if not isinstance(hits, list):
+                raise NoData("bad_response")
+        except NoData as e:
+            out.update({d: ({}, e.code) for d in chunk})
+            continue
+        got = {}
+        for hit in hits:
+            doi = str(hit.get("doi") or "").lower() if isinstance(hit, dict) else ""
+            if doi and (doi not in got or (hit.get("pmid") and not got[doi].get("pmid"))):
+                got[doi] = hit
+        out.update({d: (got.get(d, {}), "ok") for d in chunk})
+    return out

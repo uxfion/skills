@@ -19,7 +19,7 @@ from pathlib import Path
 from helpers import call, fake_pdf, load, poppler_stubs
 from test_identify import CSL, JBHI, NEURIPS, REFLEXION, Base
 
-identify, claim, settle = load("identify"), load("claim"), load("settle")
+identify, claim, settle, answer = load("identify"), load("claim"), load("settle"), load("answer")
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "results"
 VOLATILE = ("settled_at",)
 
@@ -43,20 +43,25 @@ class Contract(Base):
             self.assertNotEqual(r.code, 2, r)
             return r
 
+        def label(slug, name, title, why):
+            """The judge's answer to the label handoff the claim opened for a filed file."""
+            md5 = run.md5_of(self.work.results / name)
+            [h] = [h for h in run.open_handoffs(self.work, slug=slug) if h["kind"] == "label" and h["md5"] == md5]
+            run_(answer, h["path"], "label", "--label", title, "--why", why, "--by", "judge")
+
         run_(identify, "-o", self.work.root, stdin=f"{JBHI}\tliu2022jbhi\n{REFLEXION}\n10.9999/html\n")
         reflexion = self.work.results / "shinn2023reflexion.json"
         run_(identify, "--redraft", NEURIPS, reflexion)
         title, author = CSL[JBHI]["title"], "Heng Liu"
         run_(claim, "--dir", self.work.root, "--file", fake_pdf(inbox / "liu.pdf", [f"{title}\n{author}"]), "--slug", "liu2022jbhi")
-        run_(claim, "--dir", self.work.root, "--label", "Published-IEEE", "--why", "the volume and issue", "--slug", "liu2022jbhi")
+        label("liu2022jbhi", "liu2022jbhi.pdf", "Published-IEEE", "the volume and issue")
         pre = fake_pdf(inbox / "shinn.preprint.pdf", ["Reflexion: Language Agents with Verbal Reinforcement Learning\nNoah Shinn"])
         run_(claim, "--dir", self.work.root, "--file", pre, "--slug", "shinn2023reflexion")
-        run_(claim, "--dir", self.work.root, "--label", "Accepted-arXiv-v4", "--why", "v4's comment", "--slug", "shinn2023reflexion")
+        label("shinn2023reflexion", "shinn2023reflexion.preprint.pdf", "Accepted-arXiv-v4", "v4's comment")
         supp = fake_pdf(inbox / "shinn.supplement.pdf", ["Appendix A"])
-        run_(claim, "--dir", self.work.root, "--accept", supp, "--slug", "shinn2023reflexion", "--reason", "the appendix",
-             "--version", "supplement")
-        run_(claim, "--dir", self.work.root, "--label", "Supplement-NeurIPS", "--why", "the venue's appendix",
-             "--slug", "shinn2023reflexion", "--file", "shinn2023reflexion.supplement.pdf")
+        held = run_(claim, "--dir", self.work.root, "--file", supp, "--slug", "shinn2023reflexion").lines[0]
+        run_(answer, self.work.handoffs / f"{held['handoff']}.json", "accept", "--reason", "the appendix", "--version",
+             "supplement", "--label", "Supplement-NeurIPS", "--why", "the venue's appendix", "--by", "paper_agent")
         stub = next(p.stem for p in self.work.results.glob("*.json") if p.stem not in ("liu2022jbhi", "shinn2023reflexion"))
         run_(claim, "--dir", self.work.root, "--file", fake_pdf(inbox / "stub.pdf", ["Some paper"]), "--slug", stub)
         run_(settle, "--dir", self.work.root)

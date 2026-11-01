@@ -83,7 +83,7 @@ class P2zTest(unittest.TestCase):
         self.assertIn('"code": "zotero_unreachable"', done.stdout)
 
     def test_one_sentence_docstrings(self):
-        for name in ("ready.py", "p2z.py"):
+        for name in sorted(p.name for p in SCRIPTS.glob("*.py")):  # p2z.py --help lists each first line
             line = first_doc_line(SCRIPTS / name)
             self.assertTrue(line.endswith("."), f"{name}: first docstring line must be one sentence: {line!r}")
             self.assertLess(len(line), 140, name)
@@ -104,7 +104,7 @@ class PrepareAndSave(unittest.TestCase):
         work.records.mkdir()
         pdf = results / "new.pdf"
         pdf.write_bytes(b"%PDF-1.4 a new paper")
-        got = {"status": "got", "tried": [], "stop": None}
+        got = {"status": "got", "tried": [], "last": None}
         author = [{"creatorType": "author", "firstName": "Wei", "lastName": "Liu"}]
         papers = {
             "new": ({"itemType": "journalArticle", "title": "A New Paper", "DOI": "10.1000/new.1", "date": "2024"},
@@ -112,7 +112,7 @@ class PrepareAndSave(unittest.TestCase):
                         {"name": "new.pdf", "md5": work_run.md5_of(pdf), "kind": "published", "check": "ok",
                          "label": {"title": "Published-Example"}}]}),
             "dup": ({"itemType": "journalArticle", "title": "Paper Near Something", "date": "2024"},
-                    {"record_of": "published", "outcome": {"status": "not_got", "tried": [], "stop": None}, "files": []}),
+                    {"record_of": "published", "outcome": {"status": "not_got", "tried": [], "last": None}, "files": []}),
             "pre": ({"itemType": "preprint", "title": "Reflexion: Language Agents with Verbal Reinforcement",
                      "archiveID": "arXiv:2303.11366", "date": "2023"},
                     {"record_of": "preprint", "versions": {"published": [{"ids": {"doi": "10.1000/pub.9"}, "venue": "NeurIPS"}],
@@ -137,7 +137,9 @@ class PrepareAndSave(unittest.TestCase):
         self.assertEqual(code, 1, lines)
         by = {line["slug"]: line for line in lines[:-1]}
         self.assertEqual(set(by["new"]["steps"]), {"find_in_library", "check_item"})
-        self.assertEqual(by["dup"]["decide"][0], {"near_matches": ["LIKE0001"]})
+        same = by["dup"]["decide"][0]
+        self.assertEqual((same["waiting_on"], [c["key"] for c in json.loads(Path(same["same_paper"]).read_text())["candidates"]]),
+                         ("judge", ["LIKE0001"]), "the open candidate is a judge's, through its handoff")
         self.assertIn({"published_versions": 1}, by["pre"]["decide"], "the result lists a published version")
         code, again = p2z("prepare")
         self.assertTrue(all(v.startswith("skipped") for v in again[0]["steps"].values()), again[0])

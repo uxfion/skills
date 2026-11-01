@@ -3,6 +3,8 @@
 # dependencies = []
 # ///
 """Tests for scripts/fulltext_links.py against the fake web's OpenAlex, Europe PMC and venue pages."""
+import json
+import os
 import tempfile
 import unittest
 from unittest import mock
@@ -42,6 +44,7 @@ class FulltextLinks(unittest.TestCase):
                     pmcid="PMC123")
         self.work = run.Work(tempfile.mkdtemp(prefix="pf-links-"))
         self.config = config_file(self.work.root, openalex_key=KEY)
+        self.enterContext(mock.patch.dict(os.environ, {"PAPER_FETCH_PACE": str(self.work.root / "pace.json")}))
         self.enterContext(mock.patch.dict(web.GAPS, {"api.openalex.org": 0, "www.ebi.ac.uk": 0, "127.0.0.1": 0}))
 
     def result(self, slug, doi=None, *, url=None, type="article-journal", **fields):
@@ -184,11 +187,18 @@ class FulltextLinks(unittest.TestCase):
         stub = result_file(self.work.root, "stub", csl=None)
         bad = self.work.results / "bad.json"
         bad.write_text("[1, 2]")
-        r = self.run_(noid, allfail, stub, bad)
+        given = result_file(self.work.root, "given", csl=None)
+        res = json.loads(given.read_text())
+        res["request"] = {"given": "https://example.org/papers/given.pdf"}
+        given.write_text(json.dumps(res))
+        r = self.run_(noid, allfail, stub, bad, given)
         self.assertEqual(r.code, 1)
-        self.assertEqual([(o["slug"], o["code"]) for o in r.lines[:4]],
+        self.assertEqual([(o["slug"], o["code"]) for o in r.lines[:5]],
                          [("noid", "no_identifier"), ("allfail", "no_answer"), ("stub", "no_identifier"),
-                          ("bad", "result_invalid")])
+                          ("bad", "result_invalid"), ("given", "ok")])
+        self.assertEqual([(x["url"], x["source"], x["version"]) for x in self.links_of(given)["items"]],
+                         [("https://example.org/papers/given.pdf", "request", "unknown")],
+                         "a stub from a web address: that address is its one link")
         self.assertEqual(self.links_of(allfail)["incomplete"], ["europepmc", "openalex"])
         self.assertFalse((self.work.links / "noid.json").exists(), "nothing to look up: nothing written")
         unreadable = config_file()

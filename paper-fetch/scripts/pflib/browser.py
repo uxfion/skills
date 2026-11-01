@@ -23,6 +23,9 @@ from urllib.parse import urljoin
 from .cli import CANNOT, Stop
 
 OPEN_TIMEOUT, EVAL_TIMEOUT = 60, 120
+# OpenCLI's code when it cannot reach Chrome at all (no extension, no daemon, an attach that failed): the browser is
+# down, not the page. A living list.
+DOWN_CODES = ("BROWSER_CONNECT",)
 CHUNK = 1_000_000  # base64 characters per read
 
 VIEWER_FIND = r"""const W=[window];for(const f of document.querySelectorAll('iframe,frame')){try{if(f.contentWindow&&f.contentWindow.document)W.push(f.contentWindow)}catch(e){}}
@@ -56,12 +59,17 @@ CHUNK_JS = "/*pf:chunk*/(()=>{const s=window.__pf_b64;return typeof s==='string'
 CLEAR_JS = "/*pf:clear*/(()=>{delete window.__pf_b64;return true})()"
 
 
+class BrowserDown(Exception):
+    """OpenCLI could not reach the browser itself (DOWN_CODES): nothing on any page can be tried until it is back."""
+
+
 class Browser:
     def __init__(self, session="pf", window="background"):
         self.session, self.window = session, window
 
     def run(self, *args, timeout=EVAL_TIMEOUT, window=False):
-        """One `opencli browser` command in this session -> (its result's data, None) or (None, the error)."""
+        """One `opencli browser` command in this session -> (its result's data, None) or (None, the error);
+        BrowserDown when OpenCLI cannot reach the browser at all."""
         argv = ["opencli", "browser", *args, "--session", self.session] + (["--window", self.window] if window else [])
         try:
             p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
@@ -76,7 +84,10 @@ class Browser:
         if isinstance(got, dict) and got.get("ok"):
             return got.get("data"), None
         error = (got.get("error") if isinstance(got, dict) else None) or {}
-        return None, (error.get("message") or error.get("code") or f"exit {p.returncode}").splitlines()[0]
+        message = (error.get("message") or error.get("code") or f"exit {p.returncode}").splitlines()[0]
+        if error.get("code") in DOWN_CODES:
+            raise BrowserDown(f"{error['code']}: {message}")
+        return None, message
 
     def answer(self, *args):
         """An opencli command whose data is an object -> the object, {} on any failure."""

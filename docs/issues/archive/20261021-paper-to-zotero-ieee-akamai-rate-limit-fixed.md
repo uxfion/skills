@@ -1,7 +1,10 @@
 # paper-to-zotero：IEEE 连续取 PDF 后返回 Akamai 限流页，会被当成"没有 PDF"
 
+> 已解决（2026-10-31）：spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` §3.3、§10。这里担心的“限流页被记成没有 PDF、转去下一条路”不会再发生：脚本找不到 PDF 时写 `page` 交接，paper agent 看到限流页答 `blocked`，这篇停在原路线，下一遍再试。观察到的现象写进 paper-fetch 的 `references/publishers.md`（IEEE Xplore 一节），作为带日期的提示。触发的确切次数没测。
+
+
 - 来源：2026-10-21，调研附件版本时（[20261020-paper-to-zotero-pdf-version-by-title-fixed.md](archive/20261020-paper-to-zotero-pdf-version-by-title-fixed.md)），一个 sonnet 探查 agent 在用户的 Chrome 里连续打开 IEEE Xplore 的 PDF 时遇到。用户没有说过这件事；下面的观察来自那个 agent 的报告（结论在那张 issue 的"IEEE 探查"一条）。
-- 状态：open
+- 状态：已解决（2026-10-31）
 
 ## 现场
 

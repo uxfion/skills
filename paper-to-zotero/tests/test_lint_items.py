@@ -26,6 +26,12 @@ def problems(r):
     return {key: {p["code"]: p for p in line["problems"]} for key, line in reported(r).items()}
 
 
+def by_title(r):
+    """{key: its duplicate_of by title} (an item may carry a duplicate_of by DOI beside it)."""
+    return {key: p for key, line in reported(r).items() for p in line["problems"]
+            if p["code"] == "duplicate_of" and p["by"] == "title"}
+
+
 class LintItems(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -40,17 +46,16 @@ class LintItems(unittest.TestCase):
         z = self.zot
         z.reset()
         add(z, A, itemType="journalArticle", title="Paper about segmentation networks", DOI="10.1000/A",
-            collections=["COLL0001"], date="2021", url="https://x/a",
-            abstractNote="In this work we propose FooNet, a network for segmentation, and we present Weight-Decomposed Low-Rank Adaptation.")
+            collections=["COLL0001"], date="2021", url="https://x/a", abstractNote="x")
         add(z, B, itemType="journalArticle", title="A second record of that paper", DOI="10.1000/a",
-            collections=["COLL0002"], date="2021", abstractNote="x", tags=[{"tag": "FooNet"}])
+            collections=["COLL0002"], date="2021", abstractNote="x")
         add(z, "WWWWWWWW", itemType="webpage", title="Project page", url="https://proxy.example/x")
         add(z, D, {"parsedDate": None}, itemType="conferencePaper", title="An old conference paper",
             date="十一月 23, 2021", collections=["COLL0001"])
         add(z, "CCCCCCCC", itemType="conferencePaper", title="A CVPR paper", DOI="10.1109/CVPR.2019.00453",
             abstractNote="x", date="2019", url="https://openaccess.thecvf.com/content_CVPR_2019/html/x.html")
         add(z, "NNNNNNNN", itemType="conferencePaper", title="A NeurIPS paper", DOI="10.52202/075280-3121",
-            abstractNote="x", date="2023", url="https://doi.org/10.52202/075280-3121")
+            abstractNote="x", date="2023", url="http://dx.doi.org/10.52202/075280-3121")
         add(z, J, itemType="journalArticle", title="A journal paper", DOI="10.1000/j", abstractNote="x",
             publicationTitle="Comput Biol Med", journalAbbreviation="Computers in Biology and Medicine", date="2021")
         add(z, "PPPPPPPP", itemType="preprint", title="Same Title Different Version", DOI="10.48550/arXiv.2101.00001",
@@ -58,7 +63,7 @@ class LintItems(unittest.TestCase):
         add(z, "QQQQQQQQ", itemType="journalArticle", title="Same title, different version", DOI="10.1000/q",
             extra="arXiv: 2101.00001", abstractNote="x", date="2021")
         add(z, K, itemType="journalArticle", title="A paper with nothing to tidy", DOI="10.1000/k", abstractNote="x",
-            date="2021", url="https://pub.example/k")
+            date="2021", url="https://doi.org/10.1000/k")
         add(z, "TTTTTTTT", itemType="journalArticle", title="Paper about segmentation networks", DOI="10.1000/a",
             deleted=True)
         z.add_item("PDF00001", itemType="attachment", parentItem=A, contentType="application/pdf", md5="m1",
@@ -88,6 +93,9 @@ class LintItems(unittest.TestCase):
         att("SNAP0003", "Snapshot-Elsevier", "text/html", dateAdded="2024-02-01")
         att("LINK0001", "PubMed entry", "text/html", linkMode="linked_url")
         att("UNKN0001", "Unknown", md5="u1", url="https://ieeexplore.ieee.org/document/1")  # left without a source on purpose
+        att("FINAL002", "Published-IEEE", md5="f1", dateAdded="2024-06-01")
+        att("ACCEPT01", "Accepted-IEEE", md5="c1")
+        att("ACCEPT02", "Accepted-IEEE", md5="c2")
         r = self.run_("--key", T)
         got = [p for p in reported(r)[T]["problems"] if p["code"] in ("nonstandard_title", "label_clash", "superseded")]
         self.assertEqual(got, [
@@ -97,9 +105,12 @@ class LintItems(unittest.TestCase):
             {"code": "nonstandard_title", "why": "no_source", "attachment": "SNAP0001", "title": "Snapshot",
              "contentType": "text/html", "url": "https://www.sciencedirect.com/science/article/pii/S1",
              "host": "www.sciencedirect.com", "url_site": "Elsevier", "filename": None, "md5": None, "doi": "10.1000/t"},
-            {"code": "label_clash", "title": "Snapshot-Elsevier", "attachments": ["SNAP0002", "SNAP0003"]},
+            {"code": "label_clash", "title": "Published-IEEE", "attachments": ["FINAL001", "FINAL002"], "same_file": True},
+            {"code": "label_clash", "title": "Snapshot-Elsevier", "attachments": ["SNAP0002", "SNAP0003"], "same_file": None},
+            {"code": "label_clash", "title": "Accepted-IEEE", "attachments": ["ACCEPT01", "ACCEPT02"], "same_file": False},
             {"code": "superseded", "attachment": "ARXIV001", "title": "Preprint-arXiv-v1", "by": "ARXIV003",
-             "by_title": "Preprint-arXiv-v3"}], "evidence and no proposed name, the proxy taken off; a link is no file")
+             "by_title": "Preprint-arXiv-v3"}],
+            "evidence and no proposed name, the proxy taken off; a link is no file; one md5 twice, two md5s, none")
 
     def test_the_whole_library(self):
         r = self.run_()
@@ -107,26 +118,70 @@ class LintItems(unittest.TestCase):
         found, lines, summary = problems(r), reported(r), r.lines[-1]["summary"]
         self.assertEqual(found[A]["duplicate_of"], {"code": "duplicate_of", "by": "doi", "keys": [B]},
                          "a trashed copy is not a duplicate")
-        self.assertNotIn("superseded", found[A], "two sources side by side: no problem")
-        self.assertEqual(found[A]["name_not_tagged"]["name"], "FooNet")
-        self.assertNotIn("name_not_tagged", found[B], "the tag is there")
-        self.assertIn("unfiled_webpage", found["WWWWWWWW"])
-        self.assertEqual(set(found[D]), {"date_unparseable", "missing_doi", "missing_abstract", "no_identifier"})
-        self.assertEqual(found[J]["abbreviation_misplaced"]["patch"],
-                         {"publicationTitle": "Computers in Biology and Medicine", "journalAbbreviation": "Comput Biol Med"})
+        self.assertEqual(by_title(r), {}, "P and Q share every title word, but their arXiv id found them; A's namesake is trashed")
         self.assertEqual((found["PPPPPPPP"]["duplicate_of"]["by"], found["PPPPPPPP"]["duplicate_of"]["keys"]),
                          ("arxiv", ["QQQQQQQQ"]))
+        self.assertNotIn("superseded", found[A], "two sources side by side: no problem")
+        self.assertIn("unfiled_webpage", found["WWWWWWWW"])
+        self.assertEqual(set(found[D]), {"date_unparseable", "missing_doi", "missing_abstract", "no_identifier"})
+        self.assertEqual(found[J]["abbreviation_misplaced"], {"code": "abbreviation_misplaced", "publicationTitle":
+                         "Comput Biol Med", "journalAbbreviation": "Computers in Biology and Medicine"}, "no patch")
+        self.assertEqual(found[A]["url_not_record"],
+                         {"code": "url_not_record", "url": "https://x/a", "host": "x", "doi": "10.1000/A"})
+        self.assertEqual(found["CCCCCCCC"]["url_not_record"],
+                         {"code": "url_not_record", "url": "https://openaccess.thecvf.com/content_CVPR_2019/html/x.html",
+                          "host": "openaccess.thecvf.com", "doi": "10.1109/CVPR.2019.00453"}, "a copy or not: the judge's")
+        self.assertEqual(found[B]["url_not_record"], {"code": "url_not_record", "url": None, "host": None,
+                         "doi": "10.1000/a", "patch": {"url": "https://doi.org/10.1000/a"}}, "an empty url is patched")
+        self.assertNotIn("NNNNNNNN", found, "a dx.doi.org link is the DOI's url, a NeurIPS DOI's too")
+        self.assertNotIn("url_not_record", found["PPPPPPPP"], "a preprint's url is its own")
         self.assertNotIn("TTTTTTTT", found)
-        self.assertEqual(found["CCCCCCCC"]["url_not_record"]["patch"], {"url": "https://doi.org/10.1109/CVPR.2019.00453"})
-        self.assertNotIn("patch", found["NNNNNNNN"]["url_not_record"], "the NeurIPS page is the agent's to find")
-        self.assertNotIn("url_not_record", found[A], "a publisher url is the version of record")
-        self.assertNotIn("url_not_record", found.get("PPPPPPPP", {}), "a preprint's url is its own")
         self.assertNotIn(K, found)
         self.assertEqual((lines[A]["collections"], lines[B]["collections"]), (["Medical"], ["Medical/Sub"]))
         self.assertEqual((lines[A]["citationKey"], lines[A]["itemType"], lines[A]["title"]),
                          ("aaaaaaaa", "journalArticle", "Paper about segmentation networks"))
         self.assertEqual((summary["items"], summary["with_problems"]), (10, len(found)))
-        self.assertEqual(summary["by_code"]["duplicate_of"], 4)
+        self.assertEqual((summary["by_code"]["duplicate_of"], summary["by_code"]["url_not_record"]), (4, 5),
+                         "A, B by DOI and P, Q by arXiv id; url: A, B, C, J, Q")
+
+    def test_title_candidates(self):
+        z = self.zot
+        add(z, "RESNETJA", itemType="journalArticle", title="Deep residual learning for image recognition",
+            DOI="10.1000/r1", publicationTitle="Journal of Vision", date="2016-06", abstractNote="x",
+            url="https://doi.org/10.1000/r1", creators=[{"creatorType": "author", "firstName": "Kaiming", "lastName": "He"}])
+        z.add_item("RESNETPD", itemType="attachment", parentItem="RESNETJA", contentType="application/pdf", md5="r1",
+                   title="Published-IEEE")
+        z.add_item("RESNETZP", itemType="attachment", parentItem="RESNETJA", contentType="application/zip", md5="z1",
+                   title="Published-IEEE")  # its structured package: not a file a judge compares
+        add(z, "RESNETCP", itemType="conferencePaper", title="Deep Residual Learning for Image Recognition.", date="2016")
+        add(z, "SEGMENT1", itemType="journalArticle", title="Deep learning for image segmentation", date="2020")
+        add(z, "GANPAPER", itemType="conferencePaper", title="Generative adversarial nets", date="2014",
+            creators=[{"creatorType": "author", "firstName": "Ian", "lastName": "Goodfellow"}])
+        add(z, "GANPAGE1", itemType="webpage", title="Generative Adversarial Nets (Goodfellow, 2014)")
+        add(z, "GANNET01", itemType="journalArticle", title="Generative adversarial network", date="2015")
+        add(z, "GANNETS1", itemType="journalArticle", title="Generative Adversarial Networks", date="2019")
+        found = by_title(self.run_())
+        self.assertEqual(found["RESNETCP"], {"code": "duplicate_of", "by": "title", "paper": {
+            "title": "Deep Residual Learning for Image Recognition.", "year": "2016", "first_author": None, "doi": None,
+            "arxiv": None, "itemType": "conferencePaper", "venue": None, "attachments": []}, "candidates": [
+            {"key": "RESNETJA", "title": "Deep residual learning for image recognition", "year": "2016", "first_author": "He",
+             "doi": "10.1000/r1", "arxiv": None, "itemType": "journalArticle", "venue": "Journal of Vision",
+             "similarity": 1.0, "attachments": ["Published-IEEE"]}]}, "case and a full stop aside, the same title")
+        self.assertEqual([c["key"] for c in found["RESNETJA"]["candidates"]], ["RESNETCP"],
+                         "image segmentation shares some words, not all")
+        self.assertNotIn("SEGMENT1", found, "no other item holds every word of its title")
+        self.assertEqual([c["key"] for c in found["GANPAGE1"]["candidates"]], ["GANPAPER"],
+                         "the author and the year in a title count as the creator and the date")
+        self.assertEqual([c["key"] for c in found["GANNET01"]["candidates"]], ["GANNETS1"],
+                         "a word inside a longer one, as Zotero's quick search: network finds Networks")
+        self.assertNotIn("GANNETS1", found, "and not the other way round")
+
+    def test_candidates_beyond_ten_are_counted(self):
+        for i in range(12):
+            add(self.zot, f"ATTN{i:04d}", itemType="conferencePaper", title="Attention is all you need", date="2017")
+        p = by_title(self.run_("--key", "ATTN0000"))["ATTN0000"]
+        self.assertEqual((len(p["candidates"]), p["more"]), (10, 1), "11 others: 10 shown, the rest counted")
+        self.assertNotIn("ATTN0000", [c["key"] for c in p["candidates"]])
 
     def test_scope_chooses_what_is_reported_not_what_is_compared(self):
         found = problems(self.run_("--collection", "COLL0001"))
@@ -174,18 +229,6 @@ class LintItems(unittest.TestCase):
         self.assertEqual(found["UUUUUUUU"]["missing_doi"]["url"], "https://doi.org/10.1000/A", "the DOI field is empty")
         self.assertNotIn("url_not_record", found["UUUUUUUU"])
         self.assertIn("missing_doi", found["XXXXXXXX"], "an arXiv DOI is not the article's DOI")
-
-    def test_proxies_known_by_their_form(self):
-        add(self.zot, "PROXY001", itemType="journalArticle", title="Read through a library's EZproxy",
-            DOI="10.1109/TMI.2024.1", abstractNote="x", url="https://ieeexplore-ieee-org.ezproxy.example.edu/document/1")
-        add(self.zot, "PROXY002", itemType="journalArticle", title="Read through OCLC's hosted proxy",
-            DOI="10.1016/j.x.2024.2", abstractNote="x", url="https://www-sciencedirect-com.lib.idm.oclc.org/science/article/pii/S1")
-        add(self.zot, "PLAIN001", itemType="journalArticle", title="On the publisher's own site",
-            DOI="10.1016/j.x.2024.3", abstractNote="x", url="https://www.proxy-science.example.com/article/3")
-        found = problems(self.run_("--key", "PROXY001,PROXY002,PLAIN001"))
-        self.assertEqual(found["PROXY001"]["url_not_record"]["patch"], {"url": "https://doi.org/10.1109/TMI.2024.1"})
-        self.assertEqual(found["PROXY002"]["url_not_record"]["patch"], {"url": "https://doi.org/10.1016/j.x.2024.2"})
-        self.assertNotIn("PLAIN001", found)
 
     def test_citation_keys_across_the_library(self):
         z = self.zot

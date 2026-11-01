@@ -42,7 +42,7 @@ def is_package(data, pdf_titles):
 
 
 def first_surname(creators):
-    """The first author's surname (else the first creator's), for matching a byline or a search; None without one."""
+    """The first author's surname (else the first creator's), as a candidate's evidence; None without one."""
     creators = [c for c in creators or [] if isinstance(c, dict)]
     chosen = [c for c in creators if c.get("creatorType") == "author"] or creators
     if not chosen:
@@ -122,6 +122,51 @@ def title_similarity(a, b):
     return difflib.SequenceMatcher(None, a, b).ratio() if a and b else 0.0
 
 
+# ---- candidates: library items that may be the paper --------------------------------------------------------
+# One ranking for both feeders: the import's lookup (Zotero's quick search, zotero.Zotero.lookup) and lint's
+# duplicates (the library read once, lint_items.py). Only an identifier confirms; a candidate goes to a judge.
+
+SUBTITLE_SEPARATORS = (": ", " - ", " – ", " — ")
+CANDIDATES = 10  # candidates a judge is shown, most like the paper first (my number); the rest are counted
+VENUE_FIELDS = ("publicationTitle", "proceedingsTitle", "conferenceName", "bookTitle", "repository", "university",
+                "institution", "websiteTitle")
+
+
+def title_queries(title):
+    """What a quick search for a paper asks, each once: its title, the part before a subtitle (two words or more),
+    the title without punctuation (a retitled copy that differs in a colon or a dash)."""
+    title = " ".join((title or "").split())
+    head = next((title.split(sep, 1)[0].strip() for sep in SUBTITLE_SEPARATORS if sep in title), "")
+    loose = " ".join(re.sub(r"[^\w\s]", " ", title).split())
+    return list(dict.fromkeys(q for q in (title, head if len(head.split()) >= 2 else "", loose) if q))
+
+
+def evidence(data):
+    """What a judge compares two items by: {title, year, first_author, doi, arxiv, itemType, venue}."""
+    doi, aid = identifiers(data)
+    year = re.search(r"\d{4}", data.get("date") or "")
+    return {"title": data.get("title") or "", "year": year.group(0) if year else None,
+            "first_author": first_surname(data.get("creators")), "doi": doi or None, "arxiv": aid or None,
+            "itemType": data.get("itemType"), "venue": next((data[f] for f in VENUE_FIELDS if data.get(f)), None)}
+
+
+def file_titles(attachments):
+    """The titles of an item's files, as a judge compares them: its structured packages (zips under a PDF's title)
+    left out. attachments: rows with title and contentType (zotero.attachment_rows)."""
+    pdfs = {a.get("title") for a in attachments if a.get("contentType") == "application/pdf"}
+    return [a.get("title") for a in attachments if not (a.get("contentType") == PACKAGE and a.get("title") in pdfs)]
+
+
+def candidates(item, rows):
+    """Library items that may be the paper an item describes -> (candidates, more). rows: [(key, data, matched_by)],
+    matched_by "arxiv" for a preprint/published pair, else None. Each candidate is {key, **evidence, similarity,
+    matched_by?}, pairs first, then by title similarity; CANDIDATES at most, `more` counts the rest."""
+    ranked = sorted(({"key": key, **evidence(d), "similarity": round(title_similarity(item.get("title"), d.get("title")), 2),
+                      **({"matched_by": by} if by else {})} for key, d, by in rows),
+                    key=lambda c: ("matched_by" not in c, -c["similarity"]))
+    return ranked[:CANDIDATES], max(0, len(ranked) - CANDIDATES)
+
+
 # ---- files and hosts ----------------------------------------------------------------------------------------
 
 HTML_SNIFF = re.compile(rb"<(?:!doctype\s+html|html|head|body|title|meta)\b", re.I)
@@ -199,17 +244,18 @@ def ordered(attachments):
 
 def superseded(attachments):
     """Which of one item's attachments another one replaces -> [(attachment, the one that replaces it)]. Only titles
-    in the scheme that name a source count: among the paper's versions one per source stays, the first in ordered();
-    among supplements one per source and detail; among snapshots one per source, the later added. Different sources
-    stand side by side. A file without a vN beside one with a vN, the two alike otherwise, is no one's to replace:
-    its version number is not known, so both stay."""
+    in the scheme that name a source count: of each version of the paper one per source stays, the first in ordered()
+    (an older arXiv vN gives way to a newer one; an accepted manuscript stands beside the published version); among
+    supplements one per source and detail; among snapshots one per source, the later added. Different sources stand
+    side by side. A file without a vN beside one with a vN, the two alike otherwise, is no one's to replace: its
+    version number is not known, so both stay."""
     groups = {}
     for a in ordered(attachments):
         if not a.get("standard") or not a.get("source"):
             continue
         version = a.get("version")
         if version in PAPER_VERSIONS:
-            key = ("paper", a["source"])
+            key = (version, a["source"])
         elif version == "supplement":
             key = ("supplement", a["source"], tuple(a.get("detail") or ()))
         elif version == "snapshot":

@@ -1,5 +1,8 @@
 # paper-to-zotero: the proxy's login form — `fetch` names it neither a gate nor the agent's next click
 
+> 已解决（2026-10-31）：spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` §3.3。停在拿不到 PDF 的页面上，fetch 写 `page` 交接，由这篇的 paper agent 看页面、点登录；这里提的“识别密码框”方向没有采纳。第一期验收实测里，paper agent 在学校代理的登录页上直接登上了。
+
+
 Logged 2026-10-30, while saving the baseline for the split (spec `20261030-paper-to-zotero-split-spec.md` §10 step 0). After the split this belongs to paper-fetch's `fetch`.
 
 **What was run.** `p2z.py fetch --pass 1` on three records, one of them `he2020mask` (Mask R-CNN, TPAMI, DOI `10.1109/TPAMI.2018.2844175`).

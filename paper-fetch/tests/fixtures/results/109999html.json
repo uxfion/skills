@@ -1,6 +1,7 @@
 {
   "slug": "109999html",
   "slug_given": false,
+  "wanted": "published",
   "request": {
     "given": "10.9999/html"
   },
@@ -26,7 +27,15 @@
   ],
   "outcome": {
     "status": "got",
+    "waiting_on": [
+      "label"
+    ],
     "tried": [],
-    "stop": null
+    "last": {
+      "event": "handoff",
+      "route": null,
+      "result": "label",
+      "url": null
+    }
   }
 }

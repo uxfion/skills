@@ -104,7 +104,8 @@ class ReadLibrary(unittest.TestCase):
 
     def test_q_and_since(self):
         rows = self.run_("items", "--q", "number 24").lines
-        self.assertEqual({row["key"] for row in rows}, {"K0000024"} | {f"K000024{i}" for i in range(10)})
+        self.assertEqual({row["key"] for row in rows}, {"K0000024", "K0000124", "K0000224"} | {f"K000024{i}" for i in range(10)},
+                         "every word, anywhere in the field, as Zotero's quick search")
         rows = self.run_("items", "--since", "248").lines
         self.assertEqual([row["key"] for row in rows], ["K0000248", "K0000249"])
 

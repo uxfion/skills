@@ -352,7 +352,7 @@
     - Xplore 版有会议页眉、©、DOI，每页都有 "Authorized licensed use limited to: <机构>"；
     - ICCV 两版页码不同，CVPR 两版相同。
   - 会议论文没有 Early Access。"Corrections to …" 是单独的 DOI，一页，标题是 "COMMENTS AND CORRECTIONS"。
-  - 限流页单独记了 issue：[20261021-paper-to-zotero-ieee-akamai-rate-limit.md](../20261021-paper-to-zotero-ieee-akamai-rate-limit.md)。
+  - 限流页单独记了 issue：[20261021-paper-to-zotero-ieee-akamai-rate-limit-fixed.md](20261021-paper-to-zotero-ieee-akamai-rate-limit-fixed.md)。
 - 用户（2026-10-21）：「不同的出版商，甚至不同的文章，可能都会不一样，你不要认为库里这几篇就把某个流程定死，而且出版商也有可能去更新标识之类的，你把握不是很大就交给subagent去判断」。对方案的影响：
   - 规范只定版本的定义和名称，不定"在某家出版商怎么认"。
   - 各家探查到的标识，写进 publishers.md 当带日期的线索（"2026-10 见到"），不当成识别规则。线索和页面实际对不上时，以页面为准。

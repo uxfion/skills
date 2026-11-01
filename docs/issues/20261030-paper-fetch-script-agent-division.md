@@ -27,7 +27,7 @@
 
 **方向（用户定的）。** 脚本只做重复、确定的事；差异化、不确定、没见过的，一律交给 subagent（浏览器操作和小判断用 sonnet）。脚本在把握的边界停下，带着证据交出去，不再加匹配规则。三个 skill 都按这个原则从顶层重新划分工，并且全面查一遍迁移有没有丢东西。
 
-相关：`20261030-paper-to-zotero-short-title-cannot-judge.md`（它提的“加 DOI 规则”方向已被这里取代），`20261030-paper-to-zotero-proxy-login-not-a-gate.md`。
+相关：`archive/20261030-paper-to-zotero-short-title-cannot-judge-fixed.md`（它提的“加 DOI 规则”方向已被这里取代），`archive/20261030-paper-to-zotero-proxy-login-not-a-gate-fixed.md`。
 
 ## 设计（2026-10-31）
 
@@ -51,3 +51,33 @@
 - 这三条网站行为要写进 publishers.md，作为带日期的提示，不写学校名。
 - **已定 2（2026-10-31）**：派 subagent 以一篇论文为单位。用户先提出：「一篇论文应该由一个 sub agent 去维护。具体来说，它也是一个 OpenCL 的 tab。如果出现问题，你就在上面操作浏览器或者去图书馆检索。也就是说，一篇论文对应一个流程，一个流程对应一个 sub agent。不要派多个 sub agent 去做多个操作。但是我说的也有可能不对，你需要跟我讨论一下。」查了记录：以前定的是“一个 subagent 负责一次完整的尝试”（restructure spec 2026-10-20，用户当时说「对，应该是一个subagent一个完整的try」）。讨论后用户选方案 A：脚本先批量跑；脚本没走完的论文，每篇一个 sonnet paper agent，负责这篇的全部剩余步骤，有自己的标签页；只差定标签的成批交给 judge。并发上限：「A  限流不是很担心，因为我们最多同时跑的时候会有限制嘛，最多是5篇论文同时…应该就最多5个同时跑就好了」。
 - **已定 3（2026-10-31）**：一个 agent 碰到拦截时，不做 agent 之间的协调，每个 agent 自己停下、自己报告，这篇在原路线上暂停、不转路线。用户原话：「如果就因为人机验证或者限速等限制，你就直接转头去其他地方查了，那这个查询的记录不就没了吗？这条路径不就直接被你否定掉了吗？」，「我觉得现在应该用方案 3，也就是最简单的方式去实现，后面碰到问题了再说。不要从一开始就把系统做得很复杂，我感觉是没必要的」。
+
+## 第二期定的（2026-10-31）
+
+- **作者关键词**：用户选方案 2，不写进 Zotero，只给打标签的 agent 当参考。查实的事实：Zotero 对自动标签只有“整批隐藏”和“删除本库所有自动标签”，写进去以后分不出来源，也不能单独删掉；库里现有 453 个自动标签，26 个是 arXiv 分类，其余是 IEEE 索引词和以前的关键词混在一起，37 对只差大小写。用户原话：「2 我们自己用agent打的标签不能丢，另外他那个自动标签也很换乱，我也不是很喜欢」。
+- **自动标签做成开关**：问 arXiv 分类时用户先选 B（不写），我删代码时用户叫停：「停，之前写了那么多，不就白费了，直接加个开关不就好了，我想要导入自动标签就导入，不想要就不要」，「这样不是会更优雅吗」。定为配置 `automatic_tags`，默认关，管 arXiv 分类和作者关键词；某次导入另说就只开这一次。
+- **paper-read**：用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。这期先不实现。
+
+## 第一期验收实测（2026-10-31）
+
+按 SKILL.md 当主 agent 跑，paper agent 和 judge 照 SKILL.md 的模板派（sonnet，后台）。三次都通过，没有碰到验证页，没有推送。
+
+- **Mask R-CNN 走完整一遍。** `fetch --pass 1` 在出版商路线停在学校代理（OCLC）的登录页 → `page` 交接 → paper agent 在自己的会话里打开，单点登录还有效，直接进到 IEEE → `fetch --start` 交回 stamp.jsp → 题目太短，核对拿不准 → `file` 交接 → 同一个 agent 看第 1 页，答 `accept --label Published-IEEE` → 页面交接自动关闭 → 重跑 `fetch` 退出 0。没去图书馆系统。
+- **只走图书馆系统。** `fetch --route discovery`：访客视图里就有这篇的 ProQuest 记录，记录页上脚本找不到 PDF → `page` 交接（`no_pdf_link`）→ paper agent 从记录页进到 IEEE（经代理）→ `fetch --start` → `file` 交接 → `accept`，Published-IEEE。这次没用到“点 Sign in”，那一步在上面那次实测里验证过。
+- **先有接受稿，再拿正式版（决策 A）。** UNet++（TMI）：先单跑 `--route accepted`，PMC 文章页的 PDF 链接被核对拒了 → `page` 交接 → paper agent 用 `fetch --start --version accepted` 交回同一页，这次拿到 NIH 作者稿（`nihms-1600374.pdf`），核对通过 → `label` 交接 → agent 答 Accepted-PMC → 这篇不算满足（想要正式版）→ 照常跑完整一遍，开放路线经代理拿到 IEEE 正式版 → `label` 交接交给 judge，答 Published-IEEE → 两份并排，`paper_file` 是正式版 → 重跑退出 0。
+- **看到的、已处理的：** `outcome.tried` 写的是代理的主机名，已改成网站本身的（`2eb4330`）；`claim --sweep` 没有剩余文件时什么也不打印，已改成最后输出一行摘要。
+- **看到的、另记 issue 的：** PMC 的 PDF 链接第一次被拒、一分钟后就拿到了，见 `20261031-paper-fetch-pmc-pdf-first-try-refused.md`。
+- **没测到的：** 图书馆系统的“点 Sign in”（这次访客视图就有记录；上一次实测验证过）；“开放链接碰巧是接受稿”这条路（这次用 `--route accepted` 先拿接受稿，测的是决策 A 的机制）；验证页（没碰到，所以推送转达和 10 分钟等待没在实测里跑到）。
+
+## 第二期验收实测（2026-11-01，paper-to-zotero）
+
+按 import.md、batch.md、organize.md 当主 agent 跑，judge 和 paper agent 照 SKILL.md 的模板派（sonnet，后台）。用户点头后跑（「A」）。
+
+- **SAM（Segment Anything）**：identify 认出预印本，arXiv 第一次没答，再查一次补上；正式版候选 ICCV 2023 交给 judge，判定同一篇（只凭题目和年份：候选不带作者，见下）→ `--redraft`，两边作者人数一致。`prepare` 在库里找到题目候选 MedSAM（《Segment anything in medical images》）→ `same_paper` 交接，两边证据齐全、附件标题不含结构化包 → judge 答 `distinct` → 重跑 `prepare` 没有候选。第 1 遍出版商路线经学校代理拿到 IEEE PDF，judge 看第 1、2 页定为 `Published-IEEE`。
+- **TransUNet（MedIA 2024）**：摘要、PMID、作者关键词由 identify 从 Europe PMC 补上；自动标签开关关着，条目里没有自动标签，PMID 进了 `PMID` 字段。第 1 遍停在 ScienceDirect 文章页 → `page` 交接 → paper agent。页面上第一个 “View PDF” 是推荐文章（另一篇）的，核对拒了；在那个链接上碰到 “Are you a robot?” 验证，推送提醒用户，用户勾过；paper agent 换成这篇自己的链接取到 → `Published-Elsevier`。
+- **Deep Snake（只给 CVF 的 PDF 链接）**：identify 记成 stub（`no_citation_meta`）→ draft_item 写出只有 `fetched` 的记录 → 用 `fetch --start` 取到 PDF（`cannot_judge`）→ judge 从第 1 页图片里的水印定为 `Accepted-CVF` → `save` 报 `unchecked` → `p2z.py recognize`：Zotero 识别出 CVPR 2020 的条目，落在用户窗口当时选中的分类 “Agent”；识别器把附件标题改成 “PDF”，脚本改回标签 → judge 对照第 1 页核对字段 → `update_item` 把 url 改成 doi.org、`file_and_tag` 挪到 `tmp` 并加标签 → `save` 认出 PDF 已挂，没有重复上传。
+- **整理 dry run**：“Agent/M6 主动搜证与定位”（28 条，12 条有问题）→ lint → 8 条缺 DOI 各查一次 Crossref → 一个 judge 判 12 条，全部“不动”（ICLR、ICML、早年 NeurIPS 不发 DOI；NeurIPS 2024/2025 的 url 是会议页面，按规则保留；AI Hospital 的两个题目候选是别的论文）。改动清单为空，没有写库。
+- **收尾**：三个测试条目进了回收站（这次建的）；临时目录删了；Downloads 没留文件；四个浏览器会话都 “tab lease released”。
+- **实测中发现、已修的**（`1ad285c`）：预印本的正式版候选不带作者，judge 没法核第一作者；stub 的请求本身是 PDF 链接，`fulltext_links` 没把它列成候选；`prepare` 把库内候选算成失败；stub 记录的 `no_item` 提示指向 draft_item。ScienceDirect 的 “View PDF” 写进 publishers.md，作为带日期的提示。
+- **没测到的**：结构化包（第二期没改，测试条目随后进回收站，没占 GPU 解析）；识别器超时（`recognizing`）；`pair`、`unknown` 交给用户的那条路；批量写入（`update_item --batch`、`titles_from_labels`、`fields_from_results`）在真实库上的写入——dry run 的清单为空，没走到。
+- **留给用户的设计问题**：整理时有一类发现每次都会被 judge 判“不动”（不发 DOI 的会议缺 DOI、NeurIPS 的会议页面 url），下次整理还会再列、再判一遍。不打补丁（按网站跳过就是补丁），等用户定怎么处理。

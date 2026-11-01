@@ -9,7 +9,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from helpers import call, closed_port, load, smoke
+from helpers import call, closed_port, config_file, load, smoke
+
+from p2zlib import run
 
 draft_item = load("draft_item")
 
@@ -23,7 +25,7 @@ AUTHORS = [{"creatorType": "author", "primary": True}, {"creatorType": "editor"}
 SCHEMA = {"version": 44, "itemTypes": [
     {"itemType": "journalArticle", "creatorTypes": AUTHORS,
      "fields": fields("title", "abstractNote", "publicationTitle", "publisher", "place", "date", "volume", "issue", "pages",
-                      "language", "DOI", "citationKey", "url", "ISSN", "libraryCatalog", "extra")},
+                      "language", "DOI", "citationKey", "url", "PMID", "PMCID", "ISSN", "libraryCatalog", "extra")},
     {"itemType": "conferencePaper", "creatorTypes": AUTHORS,
      "fields": fields("title", "abstractNote", "conferenceName", "publisher", "place", "date", "volume", "pages", "series",
                       "DOI", "ISBN", "citationKey", "url", "ISSN", "libraryCatalog", "extra",
@@ -40,7 +42,8 @@ SCHEMA = {"version": 44, "itemTypes": [
                         "page": ["pages"], "DOI": ["DOI"], "URL": ["url"], "ISSN": ["ISSN"], "abstract": ["abstractNote"],
                         "publisher": ["publisher"], "event-title": ["meetingName", "conferenceName"],
                         "publisher-place": ["place"], "source": ["libraryCatalog"], "language": ["language"],
-                        "version": ["versionNumber"], "collection-title": ["seriesTitle", "series"]},
+                        "version": ["versionNumber"], "collection-title": ["seriesTitle", "series"],
+                        "PMID": ["PMID"], "PMCID": ["PMCID"]},
                "date": {"issued": "date", "accessed": "accessDate"}},
     "names": {"author": "author", "editor": "editor", "contributor": "contributor"},
 }}
@@ -94,8 +97,9 @@ class DraftItem(unittest.TestCase):
         path.write_text(json.dumps(res), encoding="utf-8")
         return path
 
-    def draft(self, *argv, stdin=""):
-        return call(draft_item, *argv, "--base-url", f"http://127.0.0.1:{closed_port()}", stdin=stdin)
+    def draft(self, *argv, stdin="", config=None):
+        return call(draft_item, *argv, "--base-url", f"http://127.0.0.1:{closed_port()}", stdin=stdin,
+                    config=config or config_file(self.root, key=None))
 
     def rec(self, slug):
         return json.loads((self.records / f"{slug}.json").read_text(encoding="utf-8"))
@@ -116,6 +120,8 @@ class DraftItem(unittest.TestCase):
 
     def test_an_arxiv_preprint(self):
         self.draft(self.put(SENET_PREPRINT))
+        self.assertNotIn("tags", self.rec("senet"), "automatic tags are off unless the user turns them on")
+        self.draft(self.put(SENET_PREPRINT), "--redraft", "--automatic-tags")
         rec = self.rec("senet")
         item = rec["item"]
         self.assertEqual((item["itemType"], item["url"], item["repository"], item["archiveID"], item["DOI"], item["date"]),
@@ -127,7 +133,7 @@ class DraftItem(unittest.TestCase):
             "Zotero's arXiv translator's names; FOS entries and repeats dropped")
 
     def test_a_published_version_keeps_what_the_preprint_gave(self):
-        r = self.draft(self.put(SENET_CVPR))
+        r = self.draft(self.put(SENET_CVPR), config=config_file(self.root, key=None, automatic_tags=True))
         rec, item = self.rec("senet"), self.rec("senet")["item"]
         self.assertEqual((item["itemType"], item["proceedingsTitle"], item["conferenceName"], item["publisher"], item["url"]),
                          ("conferencePaper", "2018 IEEE/CVF Conference on Computer Vision and Pattern Recognition", "CVPR 2018",
@@ -146,17 +152,25 @@ class DraftItem(unittest.TestCase):
         self.assertEqual((thesis["extra"], thesis["university"]), ("DOI: 10.9999/thesis", "MIT"), "no DOI field: extra")
         self.assertIn("thesis has no DOI field; DOI written to extra", r.lines[0]["warnings"])
         self.assertEqual((page["url"], page["libraryCatalog"]), ("https://openreview.net/forum?id=x", "openreview.net"))
+        med = {"title": "Ultrasound", "author": [HU], "DOI": "10.9999/med", "PMID": "123", "PMCID": "PMC456"}
+        self.draft(self.put(result("journal", {**med, "type": "article-journal"})),
+                   self.put(result("proc", {**med, "type": "paper-conference"})))
+        journal, proc = self.rec("journal")["item"], self.rec("proc")["item"]
+        self.assertEqual((journal["PMID"], journal["PMCID"], journal.get("extra")), ("123", "PMC456", None),
+                         "Zotero's schema 44 gives journalArticle PMID and PMCID fields")
+        self.assertEqual((proc.get("PMID"), proc["extra"]), (None, "PMID: 123\nPMCID: PMC456"),
+                         "no field for them: extra, where Zotero reads them")
         odd = result("odd", {"type": "song", "title": "A Song", "DOI": "10.9999/song"})
         r = self.draft(self.put(odd))
         self.assertEqual(self.rec("odd")["item"]["itemType"], "journalArticle")
         self.assertIn("not in Zotero's table", r.lines[0]["warnings"][0])
 
     def test_reruns_redrafts_and_what_is_refused(self):
-        bib = {**JAMA, "slug": "numpy2020", "slug_given": True}
+        bib = {**JAMA, "slug": "numpy2020", "slug_given": True, "cite": "numpy2020"}
         path = self.put(bib)
         self.draft(path)
         rec = self.rec("numpy2020")
-        self.assertEqual(rec["citationKey"], "numpy2020", "a given slug is the citation key")
+        self.assertEqual(rec["citationKey"], "numpy2020", "the key given is the citation key")
         rec.update(collection="RIBA5MZJ", tags=[{"tag": "mine", "type": 0}], citationKey="harris2020")
         rec["item"]["title"] = "Revised by the agent"
         (self.records / "numpy2020.json").write_text(json.dumps(rec), encoding="utf-8")
@@ -173,9 +187,35 @@ class DraftItem(unittest.TestCase):
         elsewhere = self.root / "elsewhere.json"
         elsewhere.write_text(json.dumps(JAMA), encoding="utf-8")
         r = self.draft("--redraft", path, stub, elsewhere)
-        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]]), (1, ["already_saved", "result_invalid", "no_records_dir"]))
+        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]]), (1, ["already_saved", "stub", "no_records_dir"]))
+        self.assertEqual(self.rec("stub"), {"fetched": str(stub)}, "a stub's record: its result, for recognize.py")
         r = self.draft(elsewhere, "-o", self.root / "other")
         self.assertEqual((r.code, (self.root / "other" / "jama.json").is_file()), (0, True))
+
+    def test_the_authors_keywords_are_automatic_tags_only_when_asked(self):
+        kw = result("kw", {"type": "article-journal", "title": "TransUNet", "author": [HU], "DOI": "10.9999/kw",
+                           "keyword": ["Medical Image Segmentation", "U-net", "Medical Image Segmentation"]},
+                    enrichment={"incomplete": [], "openalex_keywords": ["Segmentation"]})
+        path = self.put(kw)
+        self.draft(path)
+        self.assertNotIn("tags", self.rec("kw"))
+        self.draft(path, "--redraft", config=config_file(self.root, key=None, automatic_tags=True))
+        self.assertEqual(self.rec("kw")["tags"], [{"tag": "Medical Image Segmentation", "type": 1}, {"tag": "U-net", "type": 1}],
+                         "the authors' own, each once; OpenAlex's never")
+        self.draft(path, "--redraft", "--no-automatic-tags", config=config_file(self.root, key=None, automatic_tags=True))
+        self.assertEqual(len(self.rec("kw")["tags"]), 2, "off for a run: nothing added, nothing taken away")
+
+    def test_a_record_follows_its_renamed_result(self):
+        old = self.put(JAMA)
+        self.draft(old)
+        old.unlink()  # paper-fetch's identify renamed the result to the key given later
+        new = self.put({**JAMA, "slug": "jama2023trials", "slug_given": True, "renamed_from": ["jama"]})
+        rec = run.read(self.records / "jama.json")
+        self.assertEqual(run.result_of(rec)[1], new, "a record not yet moved still finds its result")
+        r = self.draft(new)
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["renamed_from"]), ("skipped", "jama"))
+        self.assertEqual(((self.records / "jama.json").exists(), self.rec("jama2023trials")["fetched"]), (False, str(new)),
+                         "the record is renamed and points at the result: no orphan, no second draft")
 
     def test_zotero_not_running(self):
         (self.root / "scratch" / "schema.json").unlink()

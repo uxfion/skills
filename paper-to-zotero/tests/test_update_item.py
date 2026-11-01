@@ -280,6 +280,59 @@ class UpdateItem(unittest.TestCase):
         self.assertEqual(out[-1]["summary"], {"total": 4, "ok": 1, "skipped": 0, "failed": 3})
         self.assertEqual(self.patches(), [(JOURNAL, {"date": "2023"})])
 
+    def test_batch_entries_run_in_file_order_each_its_own_line(self):
+        lines = [{"key": JOURNAL, "set": {"date": "2023", "DOI": " 10.1/x ", "volume": 13}, "from": "a note", "why": "ignored"},
+                 {"cite": "chen2021conf", "set": {"publicationTitle": "Proc. New"}},
+                 {"cite": "nobody", "set": {"date": "2020"}},
+                 {"key": ATT, "set": {"title": "Accepted-arXiv-v2"}, "by": "judge"},
+                 {"key": JOURNAL, "set": {"date": "2023"}}]
+        batch = self.patch_file("\n".join(map(json.dumps, lines[:2])) + "\n\n" + "\n".join(map(json.dumps, lines[2:])) + "\n")
+        r = self.run_("--batch", batch, "--dry-run")
+        self.assertEqual(r.code, 1, r)
+        self.assertEqual([(o.get("key"), o.get("cite"), o["code"]) for o in r.lines[:-1]],
+                         [(JOURNAL, None, "ok"), (CONF, "chen2021conf", "ok"), (None, "nobody", "cite_not_found"),
+                          (ATT, None, "ok"), (JOURNAL, None, "ok")], "a dry run plans each entry on the item as it is")
+        self.assertEqual(r.lines[-1]["summary"], {"total": 5, "ok": 4, "skipped": 0, "failed": 1, "dry_run": True})
+        self.assertEqual(self.zot.writes(), [])
+
+        r = self.run_("--batch", batch)
+        self.assertEqual(r.code, 1, r)
+        out = r.lines
+        self.assertEqual([o["code"] for o in out[:-1]], ["ok", "ok", "cite_not_found", "ok", "skipped"])
+        self.assertEqual(out[0]["changes"], {"date": {"from": "2022", "to": "2023"}, "DOI": {"from": "", "to": "10.1/x"},
+                                             "volume": {"from": "12", "to": "13"}})
+        self.assertEqual(out[1]["mapped_fields"], {"publicationTitle": "proceedingsTitle"})
+        self.assertEqual(out[4]["reason"], "unchanged", "the second entry for JOURNAL meets the first's write")
+        self.assertEqual(self.patches(), [(JOURNAL, {"date": "2023", "DOI": "10.1/x", "volume": "13"}),
+                                          (CONF, {"proceedingsTitle": "Proc. New"}), (ATT, {"title": "Accepted-arXiv-v2"})])
+        self.assertEqual(out[-1]["summary"], {"total": 5, "ok": 3, "skipped": 1, "failed": 1})
+
+    def test_a_malformed_batch_is_refused_before_zotero_is_asked(self):
+        good = json.dumps({"key": JOURNAL, "set": {"date": "2023"}})
+        for text in ("{not json",
+                     "[1, 2]",
+                     json.dumps({"key": JOURNAL, "cite": "liu2022paper", "set": {"date": "1"}}),
+                     json.dumps({"set": {"date": "1"}}),
+                     json.dumps({"key": "short", "set": {"date": "1"}}),
+                     json.dumps({"cite": " ", "set": {"date": "1"}}),
+                     json.dumps({"key": JOURNAL}),
+                     json.dumps({"key": JOURNAL, "set": {}}),
+                     json.dumps({"key": JOURNAL, "set": {"tags": ["x"]}}),
+                     json.dumps({"key": JOURNAL, "set": {"title": ["a", "b"]}})):
+            r = self.run_("--batch", self.patch_file(good + "\n" + text))
+            self.assertEqual((r.code, len(r.lines), r.lines[0]["code"]), (1, 1, "invalid_batch"), (text, r))
+            self.assertTrue(r.lines[0]["hint"] and r.lines[0]["detail"], text)
+        self.assertEqual(self.run_("--batch", self.patch_file("\n")).lines[0]["detail"], ["no entries"])
+        r = self.run_("--batch", self.patch_file("\n".join([good, json.dumps({"cite": 7, "set": {"x": 1}}),
+                                                            json.dumps({"key": CONF, "set": {"collections": []}})])))
+        self.assertEqual([d.split(":")[0] for d in r.lines[0]["detail"]], ["line 2 (cite 7)", "line 3 (key CONFPAP1)"])
+        self.assertIn("refused_property 'collections'", r.lines[0]["detail"][1])
+        self.assertEqual(self.run_("--batch", self.tmp / "missing.jsonl").lines[0]["code"], "invalid_batch")
+        self.assertEqual(self.zot.requests, [], "nothing was asked of Zotero")
+        batch = self.patch_file(good)
+        for argv in (("--key", JOURNAL), ("--cite", "liu2022paper"), ("--set", "date=1"), ("--patch", batch)):
+            self.assertEqual(self.run_("--batch", batch, *argv).code, 2, f"--batch excludes {argv[0]}")
+
     def test_cannot_check(self):
         r = self.run_("--key", JOURNAL, "--set", "date=2023", base_url=f"http://127.0.0.1:{closed_port()}")
         self.assertEqual((r.code, r.lines[0]["code"]), (2, "zotero_unreachable"))

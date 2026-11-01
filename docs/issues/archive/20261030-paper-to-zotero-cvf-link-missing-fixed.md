@@ -1,5 +1,8 @@
 # paper-to-zotero: `fulltext_links` lists no CVF Open Access copy for a CVPR paper
 
+> 已解决（2026-10-31）：spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` §10。CVF 写进 paper-fetch 的 `references/publishers.md`（*Conference proceedings*），作为带日期的提示，由 agent 去 CVF 的列表页找，fulltext_links 里不写某一家的代码。
+
+
 Logged 2026-10-30, while saving the baseline for the split (spec `20261030-paper-to-zotero-split-spec.md` §10 step 0). After the split this belongs to paper-fetch's `fulltext_links`.
 
 **What was run.** `doi_to_item --doi 1709.01507`, then `doi_to_item --redraft 10.1109/CVPR.2018.00745` (Squeeze-and-Excitation Networks, CVPR 2018), then `prepare`.

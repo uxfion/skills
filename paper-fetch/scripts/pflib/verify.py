@@ -9,8 +9,14 @@ Two ways to pass. A: the whole title, normalized (NFKC, casefold, letters and di
 four or more letters of a title (ligatures, curly quotes and diacritics folded alike on both sides) occur in pages
 1-3 (plain substrings, line-end hyphens joined, whitespace collapsed), AND the item's DOI occurs there too or the
 first author's surname occurs in the byline (the first 1500 characters of page 1, where author lists are; a paper on
-the same topic has most of the title's words and may cite "Author et al." in its introduction) -> ok_by_words. Those
-four are the only passing codes (PASS_CODES).
+the same topic has most of the title's words and may cite "Author et al." in its introduction) -> ok_by_words.
+
+Three outcomes (outcome()): only `ok`, the whole title on page 1, is certain enough to file a file: pass. A file that
+certainly is not the paper is refused: not_a_pdf, doi_mismatch, not_the_article (REFUSE_CODES). Every other code is
+uncertain — ok_on_page_2/3 (a paper citing this one prints its title in its first pages too), ok_by_words, a short
+title (cannot_judge), no text layer, a veto on a title match, title_not_found — and the file is held for an agent to
+look at (run.claim writes the handoff). A stub result, with no metadata to check against, files its file:
+cannot_judge passes there.
 
 Three failures that override a pass, each only when unambiguous. The head of page 1 is the text of page 1 before the
 earliest position of a title (A), and never more than its first 500 characters; when no title is on page 1, it is
@@ -36,24 +42,22 @@ arXiv's margin stamp on page 1 ("arXiv:2303.11366v4 [cs.AI] ...") is `evidence.a
 HTML snapshots: a file whose name does not end in .pdf and whose first 4 KB look like HTML (a .pdf holding HTML is a
 failed download: not_a_pdf). Script, style, noscript, template and svg are dropped, tags removed, entities unescaped;
 the <title>, citation_title, dc.title and og:title lines followed by the first 20000 characters of visible text are
-page 1, and A / B apply. An error, proxy or access page ("Host Needed", "Access denied", a block or robot check, "does
-not subscribe" and the like, in the titles or the first 2000 characters) where A fails, or a page without any text
--> not_the_article.
+page 1, and A / B apply. A page without any text -> not_the_article.
 
 codes:
-  pass:          ok | ok_on_page_2 | ok_on_page_3 (whole title on that page) | ok_by_words (path B)
-  fail:          erratum_suspected | supplement_suspected | doi_mismatch | not_the_article (HTML) | title_not_found |
-                 no_text_layer | not_a_pdf | cannot_judge (no title of 10 characters or more) | file_not_found
+  pass:          ok (the whole title on page 1)
+  refuse:        doi_mismatch | not_the_article (HTML) | not_a_pdf | file_not_found
+  uncertain:     ok_on_page_2 | ok_on_page_3 (whole title on that page) | ok_by_words (path B) | erratum_suspected |
+                 supplement_suspected | title_not_found | no_text_layer | cannot_judge (no title of 10 characters or more)
   cannot check:  no_pdftotext (exit 2)
 
 evidence: page_count, pages_scanned (<= 3), extractor (pdftotext | html), page_chars, title_page (int | null),
 matched_title, title_words ({share, found, total, missing} of the best title), doi_found (bool | null: item has no
 DOI), first_author_found (bool | null), first_author_in_byline (in the first 1500 characters of page 1),
 dois_on_page_1, erratum_marker, supplement_marker (str | null), doi_mismatch (bool | null: not checked), kind,
-arxiv_stamp, cover_page_suspected, collection_suspected, supplementary, encrypted, text_chars, size_bytes,
+arxiv_stamp, supplementary, encrypted, text_chars, size_bytes,
 pdf_version, pdf_dates ({created, modified} as pdfinfo -isodates prints them, each when the PDF has it), excerpt
-(page 1), excerpt_page_2, excerpt_title_page (when the title is on a later page); HTML also html_title,
-denial_marker.
+(page 1), excerpt_page_2, excerpt_title_page (when the title is on a later page); HTML also html_title.
 
 Use: check(path, result) -> {code, evidence, md5, kind}; with a cache, one file met by several results is read once.
 Underneath, extract(path) reads a file and judge(extraction, **subject(result), kind=...) gives one verdict.
@@ -74,29 +78,20 @@ EXCERPT_2_CHARS = 600    # of page 2, past a repository's cover sheet
 SUPPLEMENT_SCAN = 600    # where page 1 is searched for words of supplementary material
 MIN_TITLE_CHARS = 10
 MAX_PAGES = 3
-COVER_MAX_CHARS = 2500  # a cover sheet is short; a paper's first page is not
-LONG_FILE_PAGES = 80    # over this, a title after page 1 suggests a whole booklet
 HEAD_CHARS = 500        # the head of page 1 never reaches further
 WORD_SHARE = 0.8        # path B
 BYLINE_CHARS = 1500     # path B: the first author counts here, before an introduction's citations
 TOOL_TIMEOUT = 60       # seconds, for pdftotext / pdfinfo
 HTML_SCAN_CHARS = 20_000
-DENIAL_SCAN_CHARS = 2000
-PASS_CODES = ("ok", "ok_on_page_2", "ok_on_page_3", "ok_by_words")
+PASS_CODES = ("ok",)
+REFUSE_CODES = ("not_a_pdf", "doi_mismatch", "not_the_article", "file_not_found")
 
 ENCRYPT_RE = re.compile(rb"/Encrypt\s*(?:\d+\s+\d+\s+R|<<)")
 TAG_RE = re.compile(r"</?[A-Za-z][^<>]*>")
-# Phrases typical of the sheet a repository, publisher or institution puts in front of a paper.
-COVER_RE = re.compile(r"downloaded from|repository|this is a|author manuscript|accepted|citation:", re.I)
 # arXiv's margin stamp: "arXiv:2303.11366v4 [cs.AI] 10 Oct 2023", old style "arXiv:hep-th/9901001v1 [hep-th] ...".
 ARXIV_STAMP_RE = re.compile(rf"arXiv:\s?{paper.ARXIV_ID}(?:v\d+)?\s*\[[^\]\n]{{2,24}}\]")
 DOI_RE = re.compile(r"10\.\d{4,9}/[^\s\"<>]+")
 DOI_TRAIL = ".,;:)]}>'\"”’"
-# Pages that are not an article: proxy errors, access refusals, block and robot checks. Living list.
-DENIAL_RE = re.compile(r"host needed|access denied|access to this page has been denied|403 forbidden|access forbidden"
-                       r"|404 not found|page not found|you have been blocked|just a moment|attention required"
-                       r"|verify you are (?:a )?human|are you a robot|request rejected|does not subscribe"
-                       r"|you do not have access|institutional login")
 HTML_SKIP = {"script", "style", "noscript", "template", "svg"}
 HTML_BLOCK = {"p", "div", "br", "li", "ul", "ol", "tr", "td", "th", "table", "section", "article", "header",
               "footer", "nav", "main", "aside", "h1", "h2", "h3", "h4", "h5", "h6", "title", "dd", "dt", "figcaption"}
@@ -106,8 +101,8 @@ B_TRANSLATE = str.maketrans({"ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi"
                              "’": "'", "‘": "'"})
 
 HINTS = {
-    "title_not_found": "compare `excerpt` and `title_words` with the title; if it is the paper after all, read page 1 "
-                       "and accept the file with claim.py --accept FILE --slug SLUG --reason WHY",
+    "title_not_found": "compare `excerpt` and `title_words` with the title; the file's `file` handoff is the paper's "
+                       "agent's to answer (pf.py answer HANDOFF accept | refuse | unknown)",
     "no_text_layer": "no extractable text (scanned, or encrypted beyond pdftotext); read the first page with the pdf "
                      "skill or by eye",
     "not_a_pdf": "not a PDF (an HTML page saved as .pdf?); fetch the file again",
@@ -121,14 +116,13 @@ HINTS = {
     "doi_mismatch": "page 1 prints another DOI (`dois_on_page_1`): another paper or another version; check the "
                     "result's DOI, and name an accepted manuscript or preprint as such (<slug>.accepted.pdf, "
                     "<slug>.preprint.pdf)",
-    "not_the_article": "an error, proxy or access page (`denial_marker`), or a page without text, not the article; "
-                       "do not attach it",
+    "not_the_article": "a page without text, not the article; do not attach it",
     "no_pdftotext": "pdftotext / pdfinfo (poppler-utils, a system package) are required; tell the user and install "
                     "it only with their OK (references/install.md)",
 }
 # The evidence field a failing verdict's summary line carries.
 EXTRA_FIELD = {"erratum_suspected": "erratum_marker", "supplement_suspected": "supplement_marker",
-               "doi_mismatch": "dois_on_page_1", "not_the_article": "denial_marker"}
+               "doi_mismatch": "dois_on_page_1"}
 
 
 def clean(text):
@@ -308,11 +302,10 @@ def read_html(ex, data):
             key = doi_key(v)
             if key and key not in dois:
                 dois.append(key)
-    denial = DENIAL_RE.search(fold(titles + "\n" + visible[:DENIAL_SCAN_CHARS]))
     ex.format, ex.extractor = "html", "html"
     ex.pages = [(titles + "\n" + visible[:HTML_SCAN_CHARS]).strip()]
     ex.text, ex.head_len = visible, len(titles)
-    ex.html_title, ex.meta_dois, ex.denial = doc_title or None, dois, denial.group() if denial else None
+    ex.html_title, ex.meta_dois = doc_title or None, dois
 
 
 # ---- extraction ---------------------------------------------------------------------------------------------
@@ -325,7 +318,7 @@ class Extraction:
         self.format, self.pdf_version, self.encrypted, self.head_bytes = "other", None, False, data[:40].decode("latin-1")
         self.pages, self.count, self.extractor, self.text, self.head_len = [], None, None, "", HEAD_CHARS
         self.dates = {}
-        self.html_title = self.meta_dois = self.denial = None
+        self.html_title = self.meta_dois = None
 
     def prepare(self):
         """Derived forms of the pages, computed once for any number of results."""
@@ -411,13 +404,12 @@ def evidence_base(ex, kind):
           "doi_found": None, "first_author_found": None, "first_author_in_byline": None,
           "dois_on_page_1": ex.page1_dois[:10], "erratum_marker": None, "supplement_marker": None,
           "doi_mismatch": None, "kind": kind, "arxiv_stamp": ex.arxiv_stamp,
-          "cover_page_suspected": False, "collection_suspected": False,
           "supplementary": paper.SUPPLEMENT_WORDS.search(page1[:SUPPLEMENT_SCAN]) is not None,
           "encrypted": ex.encrypted, "text_chars": len(ex.text), "size_bytes": ex.size, "pdf_version": ex.pdf_version,
           "pdf_dates": ex.dates, "excerpt": page1[:EXCERPT_CHARS] if ex.format != "other" else ex.head_bytes,
           "excerpt_page_2": ex.pages[1][:EXCERPT_2_CHARS] if len(ex.pages) > 1 else None, "excerpt_title_page": None}
     if ex.format == "html":
-        ev.update(html_title=ex.html_title, denial_marker=ex.denial)
+        ev.update(html_title=ex.html_title)
     return ev
 
 
@@ -472,10 +464,7 @@ def judge(ex, title, alt_titles=(), doi=None, surname=None, kind="published"):
 
     ev.update(title_page=title_page, title_words=words, doi_found=doi_found, first_author_found=author_found,
               first_author_in_byline=in_byline, erratum_marker=erratum, supplement_marker=supplement,
-              doi_mismatch=mismatch, cover_page_suspected=title_page in (2, 3) and len(page1) < COVER_MAX_CHARS
-              and COVER_RE.search(page1) is not None,
-              collection_suspected=title_page is not None and (
-                  title_page >= 3 or (ex.count is not None and ex.count > LONG_FILE_PAGES and title_page > 1)),
+              doi_mismatch=mismatch,
               excerpt_title_page=pages[title_page - 1][:EXCERPT_CHARS] if title_page and title_page > 1 else None)
     if erratum:
         code = "erratum_suspected"
@@ -487,14 +476,20 @@ def judge(ex, title, alt_titles=(), doi=None, surname=None, kind="published"):
         code = "cannot_judge"
     elif title_page:
         code = "ok" if title_page == 1 else f"ok_on_page_{title_page}"
-    elif ex.format == "html" and ex.denial:
-        code = "not_the_article"
     elif b_pass:
         code = "ok_by_words"
     else:
         code = "title_not_found"
     ev["matched_title"] = matched if title_page else b_title if code == "ok_by_words" else None
     return code, ev
+
+
+def outcome(code, stub=False):
+    """What a verdict does with the file -> pass (file it) | refuse (certainly not the paper) | uncertain (held for an
+    agent). A stub result has nothing to check against: its cannot_judge passes."""
+    if code in PASS_CODES or (stub and code == "cannot_judge"):
+        return "pass"
+    return "refuse" if code in REFUSE_CODES else "uncertain"
 
 
 def check(path, rec, kind=None, cache=None):
@@ -519,8 +514,7 @@ def check(path, rec, kind=None, cache=None):
 
 def summary_fields(code, ev):
     """The short fields a script prints for one verdict, beside its code."""
-    out = {"title_page": ev["title_page"], "page_count": ev["page_count"], "kind": ev["kind"],
-           "cover_page_suspected": ev["cover_page_suspected"], "collection_suspected": ev["collection_suspected"]}
+    out = {"title_page": ev["title_page"], "page_count": ev["page_count"], "kind": ev["kind"]}
     if code in ("ok_by_words", "title_not_found") and ev["title_words"]:
         out["title_words"] = ev["title_words"]["share"]
     if code in EXTRA_FIELD:

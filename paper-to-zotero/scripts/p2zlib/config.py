@@ -1,7 +1,8 @@
 """The skill's config file, outside any repository: the Zotero write key.
 
 ~/.config/paper-to-zotero/config.json ($PAPER_TO_ZOTERO_CONFIG points elsewhere, for tests), mode 600:
-{"zotero": {"key", "serverID", "created"}}; ready.py --authorize writes it. Other fields are kept as they are (the
+{"zotero": {"key", "serverID", "created"}, "automatic_tags"?: true | false}; ready.py --authorize writes the key,
+the user sets automatic_tags (draft_item.py: the source's own keywords as automatic tags; off when absent). Other fields are kept as they are (the
 openalex key and institution an older version kept here are paper-fetch's now, in its own config). No value read
 here is ever printed.
 """
@@ -46,6 +47,11 @@ def section(name, strict=False):
 
 def text(value):
     return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def automatic_tags():
+    """Whether drafted items get the source's own keywords as automatic tags: the user's automatic_tags, off when absent."""
+    return read(strict=False).get("automatic_tags") is True
 
 
 def zotero_key(server_id):
