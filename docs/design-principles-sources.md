@@ -1,0 +1,69 @@
+# Design principles: the user's words
+
+The user's words behind [design-principles.md](design-principles.md), verbatim and dated, by section, each with its scene in a few words. Read this file to check where a principle came from or to settle a doubt about it; the principles to follow are in design-principles.md.
+
+## §1 Who does what
+- 2026-09-21, a first draft that was one 400-line script hard-coding search, scoring and cleanup: 「中间层你完全可以通过你Agent本身的能力去做」
+- 2026-10-12, a figure-grouping prototype tuned page by page fixed 5 figures and broke 3 on unseen papers: 「有没有可能能检测出可能出现问题无法确定，然后交给 agent 辅助解决。因为我感觉你越考虑得全越像修修补补打补丁」; on recall: 「宁可多做也不要漏掉」
+- 2026-10-20, a signed-out discovery system, and I asked the user to find pages: 「这个流程不应该是你skill自己要做的吗？」, 「也不是要写死，你背后的agent应该自己去做的…用sonnet之类比较便宜的模型，去操作浏览器」, 「操作浏览器这类的操作都应该给便宜的模型」, 「claude code的话是sonnet，尽量避免使用opus模型，codex后面再补充，应该是luna模型」, 「对，应该是一个subagent一个完整的try」; Codex: 「codex用luna模型」
+- 2026-10-21: 「如果脚本处理不好，就善于用subagent，准确率也会高很多」; 「这种用于浏览器操作、判断、检验等小任务/简单任务的subagent用sonnet模型就足够了，同时并行数量可以提高到10个」
+- 2026-10-21, a spec that held back PDFs of undecided version: 「我们zotero的目标肯定是获得全文的pdf并存档……如果就是应为不确定版本而丢弃了pdf，就会因小失大了，不确定就标unknown」
+- 2026-10-27, a rename plan that sent ~900 attachments to subagents: 「如果你通过脚本的方式能确定且有把握，那就 OK，不需要subagent介入；但是如果你没有那么十足的把握，就交给 Sonnet subagent」
+- 2026-10-31, one agent per paper: 「一篇论文应该由一个 sub agent 去维护。具体来说，它也是一个 OpenCL 的 tab。如果出现问题，你就在上面操作浏览器或者去图书馆检索。也就是说，一篇论文对应一个流程，一个流程对应一个 sub agent。不要派多个 sub agent 去做多个操作。但是我说的也有可能不对，你需要跟我讨论一下」; on the cap: 「限流不是很担心，因为我们最多同时跑的时候会有限制嘛，最多是5篇论文同时…我觉得，有时候机器人限制或者人机验证限制比较严，应该就最多5个同时跑就好了」
+- 2026-10-31, vllm-serve, on whether one subagent should carry each deployment: 「我一般用这些 skills 都是主动用的嘛，而且都是交给 Agent 去操作的。比方说，我在 PaddleOCR 里面需要用 VLLM server，它就自己去调用啊。在其他项目中，比方说要用 API 跑实验了，我也会在其他的 Agent 里面说明，根据我们的 skills，去部署远程服务器上的一个 VLLM」, then 「适用范围可以补一下」
+- 2026-10-29, research agents sent on sonnet: 「为什么你派出去的是sonnet…这些简单的任务用sonnet subagent是没问题，但是你自己派出去的subagent默认应该是和harness的配置一样的，我没有设置，应该用的是和当前使用模型一致的吧」
+- 2026-10-30, vllm-serve: 「你现在是一个 Agent，你有自主性的，调用这个skill的agent都是有自主性的……通过固定的脚本不一定好用，而且差异也很大……脚本不能做的事情，就交给agent去自己做」
+- 2026-10-30, a paper-fetch test stopped on a library sign-in and no browser agent was sent: 「你可以自己点 login 还有登录，除非是需要我输入账号的这种情况」, 「如果你无法通过脚本解决，而且不知道怎么卡的话，先去了解一下页面上的元素，然后进行相关的操作，就自己去点击操作或者其他的一些动作。我当时记得跟你说过，对于这种浏览器的操作，用的是 Sonnet subagent」, 「出现问题，如果通过你的脚本解决不了，或者我们之前没有遇到过这种问题，你就应该去派 sub agent 去操作。我们之前有规划好的：脚本是去做那些繁琐的重复工作；对于差异化、不确定的东西，都应该交给 subagent 去完成。这样效率是最高的，而且不用写一大堆的匹配之类的。脚本是重复的工作、可复用的工作，像小手脚架一样。然后 A sub agent 是智能的东西，你可以依赖它。因为它是有自主性的，可以通过自己的探索去实现我们的目标」, 「你现在也不能修修补补，需要全面的顶层的设计。根据我们刚才说的那些思路。就是脚本和 agent 之间的差异，要合理分工的」
+- Knowledge stays open — 2026-09-23, on a tag list written as "the vocabulary": 「这只是一个方向或者建议，新的论文进来，你可以新增 tag … 它是可以自行维护的或者新建的」, 「所规范的东西是可以随着 Agent、随着用户去变动的，不是死的」; 2026-10-21, on probes of a few library PDFs: 「不同的出版商，甚至不同的文章，可能都会不一样，你不要认为库里这几篇就把某个流程定死，而且出版商也有可能去更新标识之类的，你把握不是很大就交给subagent去判断」
+
+- 2026-10-31, a block on a site: 「如果就因为人机验证或者限速等限制，你就直接转头去其他地方查了，那这个查询的记录不就没了吗？这条路径不就直接被你否定掉了吗？」; on coordinating agents: 「但是现在我们只有 5 个文献的 sub agent 同时去做，也不会碰到一堆限制。我觉得现在应该用方案 3，也就是最简单的方式去实现，后面碰到问题了再说」
+- 2026-11-01, asked whether the skills' handoffs were well written: 「不同角色（脚本、Agent、用户）这三者在信息流转的过程中，无论是提示词、交接的文档，还是传递的数据，是否都是合理的？」, 「每一次交接都要写清楚对象以及任务，还有要求、产物等等一切有必要的内容或文件」
+- 2026-11-01, three principles drawn from the handoff research (mattpocock/skills read whole; an audit of 73 handoffs across our five skills) — state lives in files, one writer per piece, a taker that cannot finish says so — and local judges up to 10 at once, after the user's 2026-10-21 words above; put to the user: 「可以」
+- 2026-11-01, on a subagent that cannot be resumed (state in files makes a fresh one possible): 「A. Claude Code支持恢复吗？我目前只是在这边用，其他的后面使用了再确定好了，不用这么着急」
+- 2026-11-01, "state lives in files" narrowed to a run that stops and resumes, after the user chose to let a tidy judge again what it judged "leave" before (storing those verdicts costs more than the cheap re-judging): 「A」
+
+## §2 Designing and changing a skill
+- 2026-09-21: 「你需要从顶层全局规划设计一下再开始执行」
+- 2026-10-18: 「这些比较简单的问题可以直接改吧，不用spec这种复杂的流程吧，记得使用Writing for agents」
+- 2026-10-29, note commands proposed before the round trips and the installed plugin were checked: 「我不理解，你之前开发之前都不去做一些详尽的调研的吗？」, 「直接 web search 就行了，这种都应该在确定方案之前做好详细的调研的」
+- 2026-10-30: 「关键节点你需要停下来思考……当前方案是否是最优的？有没有更好更聪明的解法」
+
+## §3 What a good design looks like
+- Patchwork — 2026-10-12, a review round that grew a skill from ~11.5k to ~19k lines with a guard per finding: 「我们并不崇尚复杂、多条件的、不断补充、东补一块西补一块的」; 2026-10-19: 「我整体希望一个比较通用的方法，而不是很专业、针对某一领域的或者修修补补的」; 2026-10-31, on keeping it simple without patching: 「不要从一开始就把系统做得很复杂，我感觉是没必要的」, then 「在整个设计的过程中，你不能修修补补。我最忌讳的就是修修补补，加了一堆条件或者修修补补的东西。如果能从顶层、从根源、从设计、从全局去解决，能用更优雅的方式去解决，那就用这种方式。我担心的点在于，你刚才说只会遇到问题找机制，又说从简单的起步。如果问题越多，你修补得也就越多，最后就会变成一个非常糟糕、修修补补的状态。这是我不希望看到的，我希望是从顶层、从全局观念去解决大部分问题的。整一套都是比较高质量、优雅、高效的，这才是我想要的东西」; 2026-10-31, vllm-serve, after hypothetical guards from a review were set to be dropped: 「A 但是有一些必要的你还是要考虑的，不要过度防御性，你懂我意思吧。有一些基本上都会遇到的，或者本身就该考虑的，你就应该考虑进去。」
+- Settings — 2026-10-31, the code that writes arXiv-category tags being torn out after the user chose to stop writing them: 「停，之前写了那么多，不就白费了，直接加个开关不就好了，我想要导入自动标签就导入，不想要就不要」, 「这样不是会更优雅吗」
+- Upstream — 2026-10-20, a read-time guess of attachment versions refined case by case: 「我指的是一开始保存pdf的时候就应该分清楚，取好名字，因为在下载的时候，我们就清楚了它来自于哪里。规范命名，这个问题不就解决了吗？」, 「你在下游修修补补，改得要死，还是那一样的结果。你从上游根源上解决问题，那所有的一切都解决了吧」, 「pdf version是在出版商网页或者下载pdf以及初步检查的时候就能大致确定的，不要事后再去做，事后再做就缺了很多信息了」
+- Reuse and orchestration — 2026-09-21: 「不要把 OpenCLI 或者 Zotero 里面的一些活给揽到自己身上」; 2026-10-20: 「能复用的尽量复用，不要重复造轮子，而且人家更新的很快也更完善」, 「记住这个原则」, 「你没有源码可以去获取啊，gh也有」; 2026-10-29, on Zotero plugins: 「能复用就尽量复用，我的原则。我们避免去造这种复杂的轮子，能用起来就用别人的，而且本身 Zotero 的插件系统就是比较完善的」; 2026-10-29, on swapping our metadata agent for Zotero's translators: 「查元信息本身agent就比zotero做的好…如果做的好的，我们肯定是要保留的，不会用那个差的方案」, 「其他的功能也是这样，你记一下，下次别犯了，这个原则」
+- Licences — 2026-10-30, a reuse declined for AGPL: 「不用担心许可证，这些都是我自用的，不会商业化，也不会被别人使用，自用的完全不用担心」
+- Pure Python — 2026-10-30, Node offered for the note reader: 「我们现在都是用python去做的，如果突然加个js会不会非常奇怪」, 「Skills 本来就只用纯 Python 的，我从来没有想要引入过 Node。」, 「因为 UV 这一套对于包管理、像命令行一样的脚本调用，这些都管理得很好。而且它还有包内脚本的包管理，可以直接运行。我就不喜欢在外面再去加什么东西，只要一个 UV 就可以解决」
+- Cutting — 2026-10-29, on splitting paper-to-zotero: 「你自己根据 writing for agent 设计原则还有之前就已经探索过的mattpocock/skills设计理念，再全局过一遍，看是否合适，是否优雅、合理、高效」
+- Tests — 2026-10-20: 「减少没必要的测试，专注于高质量实现和少数有效、高质量、高效的测试」, 「繁琐的冗余的没有必要的流程尽量减少……要优雅」
+- Heuristics — 2026-10-12: 「在探索过程中完成一阶段要 review 并且反思…等到探索完成后，再给我简报各个方案和最优方案，让我审一遍，我确定没问题同意后再动手改」
+- Standards — 2026-11-01, on a standard for handoffs: 「如果能设计得通用一点、标准一点，然后在标准之下，因为针对不同的任务，也会有不同的方向或不同的差异。我说的不一定正确，但是你需要考虑一下。如果方向对，或者值得那么做，值得去标准化一部分，我会给每个人定制化一部分。如果方便的话，并且对我们整个项目有益的话，我觉得可以做」
+- Removing steps — 2026-11-01, the same preset (§5): 「有能省掉步骤的方案，优先于把繁琐步骤自动化的方案。」
+
+## §4 Writing for agents
+- 2026-09-24: 「面向用户、需要用户真的自己去读的内容就用中文；面向 Agent 或者 harness、让 Agent 读的，要保持英文」
+- 2026-09-26, the review loop: 「其实刚才那一套工作流其实是非常重要的，你需要总结一下，然后记下来」; 2026-10-20, four amended drafts: 「写得乱七八糟的…不要在原有的基础上改」; on showing changes: 「你一个一个问题问我然后要展现原本是什么，修改建议成什么」
+- 2026-10-30: 「扩展到所有的项目，就是进入到 global instruction，还是需要谨慎考虑的，而且需要经得我的同意」
+- 2026-10-31, vllm-serve's SKILL.md changes shown one at a time, after two of eight: 「我自己看不过来，你按照Writing for agent skill 里面的原则自己决定吧，然后后面统一都要调用 writing for agent skill 优化一遍」; then 「writing-for-agents skill实际上在对于任何面向agents的所有内容的时候都优化。一开始设计也是按照他的思路来，然后开发完成后再统一调用一遍全量优化」, 「不仅仅针对SKILL.md 和它的 references」, 「甚至包括global instruction里的内容，一个CLAUDE.md AGENTS.md 面向agent的文档，更应该遵守这个，另外我自己读的可能很少，同样也要遵守，所以几乎全部文档都应该遵守，这样写出来的也更可读，一切面向agent的东西，还有全部的文档，都要这样走这个流程」; on my first wording, a list of document kinds: 「你这样一个个列举会不会感觉很烦，可以写的大一点，也没关系」, then 「可以在后面加包括但不限于，并列上你刚才举例的，因为我怕有时候他不会认为这种场景，所以列出来还是保留吧，但是可以放在后面」
+- 2026-11-01, on a handoff standard: 「现在模型能力都是比较强的，所以我们尽量要做到少约束。也不是说不约束，必要的应该约束，但在细节方面应该让 Agent 去把控」; then 「后面模型也会不断迭代更新，会变得更强。如果把一步步的细节、那种很繁琐的操作，交给 Agent，模型越强，越多的旧指令会变成无效指令，有时候反而会适得其反，而且浪费了更多的token……必要的应该还是有的，因为在交付的过程中还是要指定要求的嘛。我的原则就是：该收紧的地方收紧，该约束的地方约束；不该约束的地方就放开让 Agent 去做，因为它本身就做得会比较好。」
+- 2026-11-01, after 人 and 一半一半 in a design: 「那你文档里就不应该用“人”这个词啊，那应该说是 main agent 或者 sub agent」, 「你说人就会引起非常大的歧义」; then 「对于那些不恰当，或者你觉得好但实际上读起来很别扭的词（比如刚才你说的“人”以及“一半一半”这种表达），能不能避免一下？如果要用，或者你不确定 ,你可以问我一下，让我确定后再用。不然的话，你说出来的话我都很难读懂」; on mattpocock's glossary: 「我记得mattpocock/skills也提到过它是统一用 glossary 去统一的，但是我感觉没必要那么复杂，我们用到，或者不确定，去问一下用户就行了」
+
+## §5 Deciding with the user
+- 2026-10-13, a redesign presented as a mechanism table with a line budget: 「这个好像不是我定的吧，没有这些具体的硬性规定，只需要你根据writing for agents来就行了… 像你讲的段机制这些，我根本就不了解。你应该讲实际的例子，比如应该怎么过之类的，或者说整体的设计思路、流程，或者是大致的结构… 需要我去判断决定了，你一条一条问我。」
+- 2026-10-20, designing an open issue: 「注意，现在只是讨论阶段，还没有到实行阶段，所以一切都是只读的。另外，有一些补充信息，比如我跟你讨论过程中的补充信息、明确的方向或者一些做法，就应该及时补充进issue中。」
+- 2026-10-29, after a two-question dialog: 「一个一个问题问我，不要用这种交互的形式。你需要直接在对话中讲清楚上下文背景还有问题，然后给出选项和推荐，为什么。另外，如果我觉得哪里不妥，我补充并和你讨论的」; on labels: 「之后别再用这种路x的表达了，很奇怪，要么就123 ABC 方案x」
+- 2026-10-30: 「还有问问题的方式，要一个一个问」, citing grilling: "Each round the user answers reshapes the tree: settled decisions push the frontier outward and unblock questions that depended on them. Recompute the frontier and ask the next round. A question whose answer depends on another question still open in this round belongs to a later round, not this one."
+- 2026-11-01, on a page-candidates design: 「你要有独立思考的能力，不能全信我的话，要提出自己的观点和我讨论」; then, a handoff standard turned into a fixed card at once: 「不能一下子拍板拍死。然后你自己再综合考量一下再决定，不要那么快，我说什么就直接决定什么，因为我有时候只是给一个大致方向，但具体细节可能是不对的，或者部分是有用的。这时候你就需要自己去判断，自己去考量，自己去思考有没有更优的方案或细节」
+- 2026-11-01, after a design was presented: 「另外，从设计原则的角度考虑，这个是否也符合要求？」
+- 2026-11-01, as a preset for agents, after I offered two patches for a record that a judge and the main agent both write: 「动手前先想清楚我真正要的结果，不只看我说的做法（我说的很多话都是方向，具体做法并没有这么规定，因为只看到了当前的仅有的做法）。如果方案像是在绕路，先指出更根本的做法，并问我有没有条件。我确认没条件或坚持原方案，就按原方案认真做好。有能省掉步骤的方案，优先于把繁琐步骤自动化的方案。」
+
+## §6 Briefing subagents
+- 2026-09-21: 「如果有些任务是可以并行去做的，你可以并行几个subagent去完成，提高效率」
+- 2026-10-12, after five subagents each grew their own mechanisms: 「不要派子agent，你直接在主agent上修改」; 2026-10-20, onto a fixed design: 「如果有模块可以并行做的就派发subagent并行做，提高效率」
+- 2026-10-30, files an agent wrote into the repo root: 「为什么在项目根目录下会有 local API 这些东西啊？乱放啊？」
+- 2026-11-01, the brief written in two places by reader (the dispatch in the SKILL.md for the main agent, the brief file for the subagent) and the run's questions to the user in one message, from the handoff-standard design (spec `docs/specs/20261101-skills-handoff-standard-spec.md`); after I first called them two halves: 「我其实现在有一点不太理解，你说的一半一半，我看到很多一半了，这个又是一个什么东西？」, then, explained by the tagging example: 「可以」
+
+## About this document
+
+- 2026-10-30: 「这个点我觉得你应该记到设计思路、设计理念里面了。因为我已经反复提过好多次了」, 「而且，我刚才说的这个设计理念，不仅仅是你一个 skill 用到的，而是所有的 skill 对于脚本和 Agent 之间的关系、如何相互协作以及边界。我说的这些重复的内容你都需要记录」, 「包括经常提到的 writing for agent 的设计思路与理念，还有以前说过的mattpocock/skills的设计理念」, 「其他项目暂时是不需要的，只是我们这个项目中需要」, 「因为我觉得你的 design principle 不应该是根据我的话去组织结构的。因为我的话有时候比较零散或者跳跃，你需要根据自己的形式，或者对我们这个文档的 principle 表达最顺的形式去展现」, 「我的当然也要记，但是是记在末尾的，是无关紧要的。只有去查证的时候，或者你不确定的时候，去看一眼。前面是放最重要的内容的。你不要因小失大」, 「当我经常提到或者纠正你的错误时，如果我的话中包含一些设计理念，或者比较顶层、抽象的内容，你需要：1. 组织语言，把我的话重新排版；2. 找到我说的核心点，组织成比较正式的语言；3. 问我要不要加入到 design principles 里面。这步“判断、组织、整理”的流程，我交给你来自动去做。」

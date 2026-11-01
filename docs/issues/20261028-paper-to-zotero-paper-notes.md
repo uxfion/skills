@@ -461,6 +461,17 @@
   - front matter 和 `## 用在哪里` 和副本一致，改过的列进 `changed`。
 - **结构化包存回去**：查完论文后 `structured put`，写进 *Look it up* 和 *Read a paper* 的完成条件。
 
+## paper-read 的交接（按交接标准，2026-11-01 记下）
+
+交接标准（issue `20261101-skills-handoff-standard.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）这次只改 paper-fetch 和 paper-to-zotero；用户定 paper-read 的交接放进它自己的设计里一起定（「A」），并说「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。审查（那张 issue 参考资料里的 `audit.md`）在 paper-read 里发现：
+- **reader 用什么模型（PR-4）**：SKILL.md:45 写 `opus`，设计原则 §1 说读论文这类活用会话本身的模型。
+- **reader 核对题目，brief 里却没有题目（PR-4）**：reading.md:46 要 reader 先核对"brief 里的题目"，但 SKILL.md:45 和 reading.md:3 给的只有路径和问题。和上面"PDF 是不是这篇"那条一起定。
+- **reader 的写入范围、回报、退回办法（PR-4、PR-5）**：没写它只能写笔记文件；没写回报什么；`check_note` 说还没答完时，怎么退回同一个 reader、消息里带什么，没写。
+- **`unchanged` 对 `skipped`（PR-6）**：SKILL.md:49 等 `unchanged`，`note.py` 打印的是 `skipped`（原因 unchanged）。
+- **结构化包谁来整理（PO-7）**：*Look it up* 会整理，*Read a paper* 不整理，也没提 `structured put`。
+
+设计 paper-read 时按交接标准写：brief 按读者拆成两半，必写产物和完成条件，带那一小段固定规矩，角色写明是主 agent、subagent 还是用户。
+
 ## 拍板以后先做的验证（要写 Zotero）
 
 - 用本地 API 建一条带 `zotero://open-pdf/...?page=N` 链接的笔记，在编辑器里打开，看 Zotero 会不会改写它、标题会变成什么。
