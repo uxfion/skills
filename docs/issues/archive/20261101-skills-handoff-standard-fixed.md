@@ -1,5 +1,7 @@
 # skills：脚本、agent、用户之间的交接写法不一，从 agent 出发的交接常缺输入文件和收回答复的命令
 
+> **已完成（2026-11-01）**：按 spec `docs/specs/20261101-skills-handoff-standard-spec.md` 在 paper-fetch、paper-to-zotero 落地（实施中的修正和真实验证见 spec §13），用户验收后关闭。vllm-serve、paddleocr 的部分在它们各自的 issue，paper-read 的部分在 `20261028-paper-to-zotero-paper-notes.md`，三张 issue 文末附了各自的审查条目原文。
+
 - 来源 · 日期：用户 · 2026-11-01。修页面候选（`archive/20261101-paper-fetch-page-candidates-other-papers-fixed.md`）时，用户问各 skill 的交接文档有没有写好，由此展开。
 - 用户原话（按时间）：
   - 「另外我想了解一下，整个相关 skill 的交接文档有没有写好？以下流程是否都已经设计好了：1. 什么时候脚本处理不了，怎么交接给 sub agent 这一层？2. sub agent 处理完后，怎么交接给脚本或者 main agent？」，接着「也不说按照以下流程吧，就是按照合理的流程，不是严格按照我说的流程」。
@@ -7,21 +9,19 @@
   - 「对，每一次交接都要写清楚对象以及任务，还有要求、产物等等一切有必要的内容或文件……我觉得也不用全部通用吧，但是至少要描述清楚，当然，如果能设计得通用一点、标准一点，然后在标准之下，因为针对不同的任务，也会有不同的方向或不同的差异……如果方向对，或者值得那么做，值得去标准化一部分，我会给每个人定制化一部分。如果方便的话，并且对我们整个项目有益的话，我觉得可以做。跟我讨论一下」
   - 「具体的细节你需要根据设计原则以及 writing for agent以及mattpocock/skills，里的设计思路、设计原则、顶层设计等等，一切比较全面、比较顶层、比较优雅的思路以及设计方案，去过一遍」
   - 「不能一下子拍板拍死。然后你自己再综合考量一下再决定，不要那么快，我说什么就直接决定什么」
-- 参考资料：`20261101-skills-handoff-standard-reference/`（git 不跟踪）：
-  - `mattpocock-findings.md`：通读 mattpocock/skills（`4ae2317`，2026-10-31）后，它在交接、brief、产物、完成条件、统一与定制上的做法，逐条注明出处；
-  - `audit.md`：五个 skill 里 73 处交接（编号 PF-、PZ-、PR-、VS-、PO-），逐处标明写清了什么、缺什么、和代码或别的文档矛盾在哪，另有共享数据的读写表。
-- 状态：open，设计中，方案见 `docs/specs/20261101-skills-handoff-standard-spec.md`。已定：范围 A（只改 paper-fetch、paper-to-zotero）、机制深度 C（有数据跨角色时用机制，brief 只硬性要求两项接口加一小段固定规矩）；其余没拍板。
+- 参考资料（关闭时已删）：`mattpocock-findings.md`（mattpocock/skills 的做法，要点在 spec §2）和 `audit.md`（五个 skill 的 73 处交接；PF-、PZ- 条目已按 spec §6、§7 处理，PR-、VS-、PO- 条目原文搬进了 paper-notes、vllm-serve、paddleocr 三张 issue）。
+- 状态：已完成（2026-11-01），用户验收后关闭。
 
 ## 已经做了的（2026-11-01）
 
-- 设计原则加了几条，用户都同意了（`b920f1b`、`122509d`）：
+- 设计原则加了几条，用户都同意了（合进提交 `2550aea`）：
   - §1：三种角色之间、两个方向的每一处交接都要设计，按接手的那一方（subagent、主 agent 或用户）来写；
   - §1：状态存在文件里，不靠对话记着；每样东西只有一个写入者；做不完的一方要交回；只看本地文件的 judge 最多 10 个同时；
   - §3：多处共用一个样子时，共用的部分定一次，其余按任务定制；
   - §5：用户的话是方向，不是定稿；讲方案时说明它和原则的关系。
 - 设计原则整理了一遍，用户的原话挪到 `docs/design-principles-sources.md`。
 
-## 审查发现（简，详见 `audit.md`）
+## 审查发现（简）
 
 - **写得好的**（可作样板）：paper-fetch 的 paper agent brief（PF-9）、paddleocr 的 settle brief（PO-4：brief 是一个按路径交给 subagent 的文件）、验证码交给用户（PF-16）、p2z 查重的 judge（PZ-6，差一点）。
 - **缺口**，按接手的 agent 要猜多少排：

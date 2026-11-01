@@ -9,19 +9,20 @@ With --file, it looks files up among the library's attachments instead (below).
 
 Only an identifier confirms a paper is there: the DOI (a doi.org url and an Extra "DOI:" line count), else the
 arXiv id — unless the record's item has a DOI of its own that the library lacks: then an arXiv hit is its preprint,
-a candidate. A title never confirms: whatever a quick search for the title finds is a candidate (near_matches), with
-the evidence a judge needs. Open candidates go into a same_paper handoff (handoffs/<slug>.<n>.json), which a judge
-answers with answer.py: same_as or distinct_from in the record; then this runs again, and items in distinct_from are
-left out at every step.
+a candidate; and an identifier several items carry confirms none of them: each is a candidate. A title never
+confirms: whatever a quick search for the title finds is a candidate (near_matches), with the evidence a judge
+needs. Open candidates go into a same_paper handoff (handoffs/<slug>.<n>.json), which a judge answers with
+answer.py, into the handoff; then this runs again: the item answered same is the paper's, and items answered
+distinct are left out at every step.
 
 `found` is computed again only when it is not done: absent (an older run's `found`, written without `from`,
-counts as absent), or the item's identifiers or title, same_as or distinct_from changed since; each line says why
+counts as absent), or the item's identifiers or title, or the handoffs' answers, changed since; each line says why
 (`reason`). A paper added to the library after the lookup is caught by create_item.py, which looks again before
 it creates anything.
 
 stdout: one line per record {slug, code, reason?, key?, citationKey?, matched_by?, title?, attachments?,
 near_matches?}, then {"summary"}.
-  found        in the library (`matched_by`: doi | arxiv | same_as; `duplicates` when several items match)
+  found        in the library (`matched_by`: doi | arxiv | same_paper, a handoff's answer)
   not_found    not in the library; nothing is like it
   near_match   not confirmed, but candidates are open (`near_matches`), and `handoff` is the same_paper handoff
                that hands them to a judge (also on a rerun while they stay open)
@@ -49,8 +50,7 @@ def setup(args, records):
 def summary(rec, found):
     if found["code"] == "found":
         return {"code": "found", "key": found["key"], "citationKey": found["citationKey"] or None,
-                "matched_by": found["matched_by"], "title": found["title"][:80], "attachments": len(found["attachments"]),
-                **({"duplicates": found["duplicates"]} if found.get("duplicates") else {})}
+                "matched_by": found["matched_by"], "title": found["title"][:80], "attachments": len(found["attachments"])}
     handoff, still = run.ask_same_paper(rec), set(run.unsettled(rec))
     if handoff:
         return {"code": "near_match", "near_matches": run.near_lines(m for m in rec["near_matches"] if m["key"] in still),

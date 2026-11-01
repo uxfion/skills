@@ -811,7 +811,7 @@ def identify(s, work, ident, cite, wanted, seen):
     result = {**head(slug, cite, wanted, old), "request": {"given": raw}, "record_of": record_of,
               "ids": ids_of_csl(ids, csl), "csl": csl, "alt_titles": alt, "versions": versions,
               "enrichment": enrichment, "warnings": warnings}
-    for k in ("files", "outcome", "settled_at", "renamed_from"):     # what was got stays
+    for k in ("files", "set_aside", "outcome", "settled_at", "renamed_from"):     # what was got stays
         if old and k in old:
             result[k] = old[k]
     write(work, slug, result)

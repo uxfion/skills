@@ -45,7 +45,8 @@ class Contract(unittest.TestCase):
         self.assertEqual((shinn["item"]["itemType"], shinn["item"]["extra"], [t["tag"] for t in shinn["tags"]]),
                          ("conferencePaper", "arXiv: 2303.11366", ["Computer Science - Artificial Intelligence"]),
                          "the redrafted version keeps what the preprint gave")
-        self.assertEqual(p2z.decisions(shinn), [], "a redrafted result leaves no version to choose")
+        self.assertEqual(p2z.decisions(shinn), [{"tags": str(self.root / "tags" / "shinn2023reflexion.json")}],
+                         "a redrafted result leaves no version to choose, only its curated tags to write")
 
         zot = FakeZotero()
         self.addCleanup(zot.close)

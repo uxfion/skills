@@ -463,7 +463,7 @@
 
 ## paper-read 的交接（按交接标准，2026-11-01 记下）
 
-交接标准（issue `20261101-skills-handoff-standard.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）这次只改 paper-fetch 和 paper-to-zotero；用户定 paper-read 的交接放进它自己的设计里一起定（「A」），并说「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。审查（那张 issue 参考资料里的 `audit.md`）在 paper-read 里发现：
+交接标准（issue `archive/20261101-skills-handoff-standard-fixed.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）这次只改 paper-fetch 和 paper-to-zotero；用户定 paper-read 的交接放进它自己的设计里一起定（「A」），并说「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。审查（那张 issue 参考资料里的 `audit.md`）在 paper-read 里发现：
 - **reader 用什么模型（PR-4）**：SKILL.md:45 写 `opus`，设计原则 §1 说读论文这类活用会话本身的模型。
 - **reader 核对题目，brief 里却没有题目（PR-4）**：reading.md:46 要 reader 先核对"brief 里的题目"，但 SKILL.md:45 和 reading.md:3 给的只有路径和问题。和上面"PDF 是不是这篇"那条一起定。
 - **reader 的写入范围、回报、退回办法（PR-4、PR-5）**：没写它只能写笔记文件；没写回报什么；`check_note` 说还没答完时，怎么退回同一个 reader、消息里带什么，没写。
@@ -479,3 +479,24 @@
 - 检查结构化包里有没有页码：读论文的 agent 要给事实注明页码（已定 5），所以要确认 md 或 json 里带着每段在第几页。
 - 检查"相关"：用本地 API 建一条独立笔记，设 `relations` 指向两个论文条目，看论文条目那一侧的"相关"里能不能看到它。调研时没读 relation 的代码，这一点是推断（`zotero-notes.md` §1）。
 - ~~检查嵌套列表~~：2026-10-29 已在测试笔记 `JXD7NQZI` 上验证。用编辑器打开、改一处、保存之后，第二层列表还在，编辑器把挂着子列表的项的文字包进 `<p>`（拆分 issue 第 23 条）。`note` 原来只转一层列表的问题，由 `note_md.py` 解决。
+
+## 附：审查条目原文
+
+2026-11-01 交接标准审查（只读）时记下的条目，原样搬自那张 issue 的参考资料 `audit.md`（关闭时删除）。行号指当时的文件；评判的依据是当时的 `docs/design-principles.md`。图例：
+
+- **Dir**: S→A script to agent · A→S agent to script · M→Sub main agent to subagent · Sub→M subagent to main · A→U agent to user · U→A / U→S user to agent / to script.
+- **Stated** column, what the text says about: **T** taker (model, how many) · **G** goal · **I** inputs (paths, evidence, read-first) · **R** requirements and limits · **P** product (answers allowed, files, format, location) and how it is recorded · **↻** what resumes · **D** done-when · **U** what happens when the taker cannot settle it · **B** what it reports back. `—` = not stated.
+- **Gaps**: what is missing, unclear, scattered, or contradicted (between files or by the code), each with the lines it rests on.
+- File references without a skill prefix are relative to that skill's directory.
+
+| ID | Where · Dir · trigger | Stated | Gaps (cited) |
+|---|---|---|---|
+| PR-1 | SKILL.md:25–31 · A→U · sibling missing | P stop / read PDF itself / tell the user. | Good. |
+| PR-2 | SKILL.md:33–39 · A→skill · Look it up | P note first; else the package "read by the paddleocr skill's steps 2 and 3" (settle subagent included); what you learned goes back into the note; `note put`. D SKILL.md:39. | Good. |
+| PR-3 | SKILL.md:44 · A→U · PDF title ≠ citation key | P stop and say so. | Good. |
+| PR-4 | SKILL.md:43–45; references/reading.md:3, :46 · M→Sub · Read a paper | T "one subagent on the strongest model (Claude Code: `model: "opus"`)". G answer the trunk and grown questions into the note. I reading.md "whole", paths of PDF, package, note file, the project's bare questions. R reading.md:46–56 (read whole first; one question at a time; PDF wins over package; answer done-criteria :54). P the note file, edited in place. D `check_note` says `complete` (reading.md:56). U states 论文没有说明 / 要看别处. | **Contradiction with the design principles**: design-principles.md:30 "Reading, research, synthesis and design go to subagents on the session's own model" (and the user's 2026-10-29 words, design-principles-sources.md:14) vs SKILL.md:45 `opus`. **Internal contradiction**: reading.md:46 "the PDF's title is the one in the brief", but the brief carries no title (SKILL.md:45; reading.md:3 list only paths and questions), and the reader is not told what to do on a mismatch. **Missing**: write containment (only the note file?), "one level deep", Codex model, count/concurrency for several papers, report-back content. **Ambiguous**: "Brief it with this file whole" (reading.md:3) — paste or path (design-principles.md:89: "Context goes by pointers"); paddleocr passes the path (paddleocr SKILL.md:51). **Scattered**: whether open parse findings are settled before the reader — Read a paper never mentions paddleocr's step 2, while p2z import.md:109 and paddleocr SKILL.md:59 defer settling to "when a task first reads it". |
+| PR-5 | SKILL.md:46 · S→A, M→Sub · `check_note` → `open` | P "send them back to the same reader". | **Missing**: the mechanism (paper-fetch names `SendMessage`, SKILL.md:98) and the message content (the `open` list as printed?). |
+| PR-6 | SKILL.md:47–49; note.py --help · A→S · store | P `note put -i`; `version_conflict` → retake, carry answers over. D `ok`, or `unchanged`. | **Mismatch**: note.py prints `skipped` with reason unchanged, not a code `unchanged` (note --help). Minor. |
+| PR-7 | references/notes.md:5–19 · A→A (project agent) · Used in | T the project's agent. P one line per decision, format given; only your own project's lines. | Good. |
+| PR-8 | references/notes.md:37–41 · A→U, deferred A→A · a correction changes what a project line rests on | P mark `（待重看：… · <date>）`, name it to the user; that project's agent, reading next, rewrites and removes the mark. | Good: taker, trigger, product and close-out all stated. |
+| PR-9 | references/notes.md:45; reading.md:5 · A→U · older notes, topic-note layout, method | 待定; older notes change only on the user's word. | Declared open, not a handoff defect. |

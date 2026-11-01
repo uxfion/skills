@@ -7,8 +7,8 @@
 
   --file F --slug S          a file got for one result (a paper's agent hands over a file it downloaded itself):
                              checked against it; pass -> filed beside the result; certainly not the paper ->
-                             <dir>/unverified/<slug>.file.<ext>; uncertain -> held there, with a `file` handoff for
-                             the paper's agent (pf.py answer)
+                             <dir>/unverified/<slug>.file.<ext>; uncertain -> held there, with a `file` handoff
+                             (pf.py answer; who takes it: SKILL.md, Handoffs)
   --scan                     the new files in the browser's Downloads (newer than <dir>/.started, complete, a PDF),
                              whoever started them: each is checked against every result fetch was asked for and that
                              is not satisfied yet; passing for exactly one -> filed and gone from Downloads; else left

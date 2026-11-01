@@ -2,8 +2,8 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/create_item.py against the fake Zotero: creating, the look before the POST, a cut-off run, and
-what stops a record or the run."""
+"""Tests for scripts/create_item.py against the fake Zotero: creating, the tags file's tags, no item before them, the
+look before the POST, a cut-off run, and what stops a record or the run."""
 import json
 import tempfile
 import unittest
@@ -13,7 +13,7 @@ from fake_zotero import FakeZotero
 
 from p2zlib import run
 
-create = load("create_item")
+create, answer = load("create_item"), load("answer")
 COLL, COLL2 = "COLL0001", "COLL0002"
 DOI = "10.1109/JBHI.2022.3142076"
 
@@ -34,12 +34,19 @@ class CreateItem(unittest.TestCase):
         self.work = run.Work(tempfile.mkdtemp(prefix="p2z-create-"))
         self.work.records.mkdir()
 
-    def record(self, slug, title=None, **extra):
+    def record(self, slug, title=None, curated=("method/diffusion",), **extra):
+        """A record, and its tags file holding `curated` (None: no tags file)."""
         path = self.work.records / f"{slug}.json"
         rec = {"item": {"itemType": "journalArticle", "title": title or f"Paper {slug}", "creators": [{"creatorType": "author",
-               "firstName": "Wei", "lastName": "Liu"}]}, "tags": ["method/diffusion"], "collection": COLL, **extra}
+               "firstName": "Wei", "lastName": "Liu"}]}, "collection": COLL, **extra}
         path.write_text(json.dumps(rec), encoding="utf-8")
+        if curated is not None:
+            self.tag(slug, list(curated))
         return path
+
+    def tag(self, slug, tags):
+        self.work.tags.mkdir(exist_ok=True)
+        (self.work.tags / f"{slug}.json").write_text(json.dumps(tags), encoding="utf-8")
 
     def run_(self, *argv, base_url=None):
         return call(create, *argv, "--base-url", base_url or self.zot.base_url, config=self.config)
@@ -49,7 +56,7 @@ class CreateItem(unittest.TestCase):
 
     def test_creates_filed_tagged_and_keyed(self):
         a = self.record("a", collection=[COLL, COLL2], citationKey="liu_2022")
-        b = self.record("b", tags=[{"tag": "auto", "type": 1}])
+        b = self.record("b", curated=[], tags=[{"tag": "auto", "type": 1}])
         r = self.run_(a, b)
         self.assertEqual(r.code, 0, r)
         line = r.lines[0]
@@ -74,6 +81,35 @@ class CreateItem(unittest.TestCase):
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["wrong"]), (1, "readback_mismatch", {"tags": True}))
         self.assertIn("key", run.read(self.work.records / "d.json")["saved"])
 
+    def test_the_tags_files_curated_tags_go_in_with_the_records_automatic_ones(self):
+        path = self.record("t", curated=["method/Diffusion", {"tag": "venue/CVPR", "new": True}],
+                           tags=[{"tag": "Computer Science - Computer Vision", "type": 1}, {"tag": "method/Diffusion", "type": 1}])
+        r = self.run_(path, "--dry-run")
+        self.assertEqual((r.code, r.lines[0]["tags"]), (0, ["Computer Science - Computer Vision", "method/Diffusion", "venue/CVPR"]),
+                         "the dry run shows the tags the item would carry")
+        r = self.run_(path)
+        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
+        self.assertEqual(self.zot.data(run.read(path)["saved"]["key"])["tags"],
+                         [{"tag": "Computer Science - Computer Vision", "type": 1}, {"tag": "method/Diffusion", "type": 0},
+                          {"tag": "venue/CVPR", "type": 0}], "a tag in both takes the file's type; other keys are notes")
+        self.tag("bad", {"tags": ["x"]})
+        self.assertEqual(self.run_(self.record("bad", curated=None)).lines[0]["code"], "invalid_tags")
+
+    def test_no_item_before_its_tags_file(self):
+        untagged = self.record("u", curated=None)
+        for argv in ((untagged, "--dry-run"), (untagged,)):
+            r = self.run_(*argv)
+            self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["tags_file"]), (1, "untagged", str(self.work.tags / "u.json")), argv)
+        self.assertEqual((self.posts(), "saved" in run.read(untagged)), ([], False), "nothing created, nothing marked")
+        self.zot.add_item("HAVE0001", itemType="journalArticle", title="Old Title", DOI=DOI)
+        self.zot.add_item("LIKE0001", itemType="journalArticle", title="Paper near")
+        r = self.run_(self.record("doi", curated=None, item={"itemType": "journalArticle", "title": "x", "DOI": DOI}),
+                      self.record("near", curated=None))
+        self.assertEqual([(o["code"], o.get("reason")) for o in r.lines[:2]], [("skipped", "exists"), ("possible_duplicate", None)],
+                         "a paper the library holds is not tagged at import; a candidate is settled first")
+        self.tag("u", ["method/diffusion"])
+        self.assertEqual(self.run_(untagged).lines[0]["code"], "ok", "tagged: created")
+
     def test_the_library_has_it(self):
         self.zot.add_item("HAVE0001", itemType="journalArticle", title="Old Title", DOI=DOI)
         self.zot.add_item("LIKE0001", itemType="journalArticle", title="Paper near")
@@ -83,10 +119,8 @@ class CreateItem(unittest.TestCase):
                          [("skipped", "exists", "HAVE0001"), ("possible_duplicate", None, None)])
         self.assertEqual(r.lines[1]["near_matches"][0]["key"], "LIKE0001")
         self.assertEqual(self.posts(), [])
-        near = run.read(self.work.records / "near.json")
-        near["distinct_from"] = ["LIKE0001"]
-        near.save()
-        self.assertEqual(self.run_(near.path).lines[0]["code"], "ok", "another paper: created")
+        call(answer, r.lines[1]["handoff"], "distinct", "--key", "LIKE0001", "--by", "judge")
+        self.assertEqual(self.run_(self.work.records / "near.json").lines[0]["code"], "ok", "another paper: created")
 
     def test_a_cut_off_run_is_safe_to_rerun(self):
         pending = {"saved": {"pending": True, "at": "2026-10-20T00:00:00Z"}}

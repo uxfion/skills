@@ -33,6 +33,11 @@ A result file, results/<slug>.json, one JSON object:
                         nobody has labelled yet, titled Unknown-<Source>, a page Snapshot-<Source>), check: ok |
                         accepted | unconfirmed | cannot_judge, accepted_reason?, url, evidence}]: every file of the
                         paper, its versions side by side; the paper's file is the one whose label is the wanted version
+  set_aside             [{name, md5, why, code?}]: the paper's files in unverified/ that are not among `files` (by
+                        md5), by name there; why: refused (the check refused it, or its `file` handoff was answered
+                        refuse) | held (the check held it and nobody answered: its `file` handoff open, or closed by a
+                        confirmed file filed since) | withdrawn (an unconfirmed file moved back when a confirmed one
+                        was filed); code: the check's code, when there is one. Absent when there is none.
   outcome               {status, waiting_on?: [kinds of the paper's open handoffs: page, file, label], tried: [hosts
                         tried], last: {event, route, result, url} | null (the last try, handoff or answer)}; status:
                         got (a file of the paper is there, an unconfirmed one included; a supplement alone is not),
@@ -40,24 +45,25 @@ A result file, results/<slug>.json, one JSON object:
   enrichment            {incomplete: [sources]: identify's lookups (OpenAlex, Europe PMC) that did not answer,
                         openalex_keywords?: [str]: OpenAlex's model's keywords, a hint for tagging, never metadata}
   warnings              [str]: what identify noticed (an erratum-like title, a date filled in from another field)
-  settled_at            when files and outcome were last folded
+  settled_at            when files, set_aside and outcome were last folded
 A stub result (identify could not identify the paper: a page with no metadata) holds only slug, slug_given, cite?,
 wanted, request, warnings; its files are checked against nothing: cannot_judge.
 
-Writers: identify writes all but files and outcome; settle() writes those two and settled_at, from fetch.jsonl, every
-time from the whole log (so whoever folds last is right), and first opens a `label` handoff for each filed file
-without a label (ask_labels), whichever command filed it. fetch, wait, claim and answer fold the results they touched
-when they end; settle.py does it on its own, after the watcher filed something. The watcher and agents only append
-events, through scripts.
+Writers: identify writes all but files, set_aside and outcome; settle() writes those three and settled_at, from
+fetch.jsonl, every time from the whole log (so whoever folds last is right), and first opens a `label` handoff for
+each filed file without a label (ask_labels), whichever command filed it. fetch, wait, claim and answer fold the
+results they touched when they end; settle.py does it on its own, after the watcher filed something. The watcher and
+agents only append events, through scripts.
 
 Handoffs. Where a script reaches the edge of what it can be certain of, it writes a handoff: handoffs/<id>.json
-{id, kind, taker, slug, pass, route, url, file, md5, code, note, paper: {title, doi, wanted}, evidence: {files,
-...}, answers, at} and a `handoff` event. The evidence's long texts (a file's page excerpts, a page's words) and, for
+{id, kind, slug, pass, route, url, file, md5, code, note, paper: {title, doi, wanted}, evidence: {files, ...},
+answers, at} and a `handoff` event. The evidence's long texts (a file's page excerpts, a page's words) and, for
 a handoff about a PDF (file, label, left), pages 1-2 as images (pdftoppm) are files in handoffs/<id>/, listed in
-evidence.files; the short facts stay in the record. Kinds (HANDOFF_TAKERS):
+evidence.files; the short facts stay in the record. Who takes each kind is SKILL.md's (Handoffs), never the
+record's. Kinds (ANSWERS):
   page          a page fetch could not get a PDF from (a sign-in, a challenge, no PDF link; evidence.links: the
-                PDF-looking links left untried, their address carrying no mark of the paper): the paper's agent works
-                it, then hands back with `fetch --start <url> --session pf-<slug>`, or answers with a verdict
+                PDF-looking links left untried, their address carrying no mark of the paper): an agent works it, then
+                hands back with `fetch --start <url> --session pf-<slug>`, or answers with a verdict
   file          a file the check could not be certain of, held in unverified/: accept [--label] | refuse | unknown
   label         a filed file whose version is not settled yet: label (with --label, --why) | unknown
   left          a download in Downloads that matched no paper, or several: claim (with --slug) | not_ours
@@ -80,7 +86,7 @@ Events, each with `at`:
            files a download for it)
   try      {pass, slug, route, url?, version?, result, check?, by?}: one candidate tried for one paper (an answer's
            verdict on a page handoff is logged as its try)
-  handoff  {id, slug, kind, taker, md5?, route?, url?, path}; answer {id, slug, kind, answer, reason?, by}
+  handoff  {id, slug, kind, md5?, route?, url?, path}; answer {id, slug, kind, answer, reason?, by}
 """
 import hashlib
 import json
@@ -117,10 +123,10 @@ VERDICTS = {
     "gate_timeout": "a gate nobody passed in time: the paper waits on the route until the next pass",
 }
 HOLD = ("blocked", "gate_timeout")
-HANDOFF_TAKERS = {"page": "paper_agent", "file": "paper_agent", "label": "judge", "left": "judge",
-                  "browser_down": "agent"}
-ANSWERS = {"page": tuple(VERDICTS), "file": ("accept", "refuse", "unknown"), "label": ("label", "unknown"),
-           "left": ("claim", "not_ours"), "browser_down": ("resolved",)}
+# The kinds of handoff and the answers each takes, in the order the loop takes them up (SKILL.md, Get the file),
+# which is the order pf.py todo lists them in.
+ANSWERS = {"browser_down": ("resolved",), "page": tuple(VERDICTS), "file": ("accept", "refuse", "unknown"),
+           "label": ("label", "unknown"), "left": ("claim", "not_ours")}
 PAGE_IMAGES_DPI = 80
 
 
@@ -637,8 +643,8 @@ def handoff(work, kind, res=None, *, slug=None, pass_=None, route=None, url=None
             n += 1
     os.close(fd)
     files = evidence_files(work.handoffs / hid, file, evidence or {})
-    record = {"id": hid, "kind": kind, "taker": HANDOFF_TAKERS[kind], "slug": slug, "pass": pass_, "route": route,
-              "url": url, "file": str(file) if file else None, "md5": md5, "code": code, "note": note,
+    record = {"id": hid, "kind": kind, "slug": slug, "pass": pass_, "route": route, "url": url,
+              "file": str(file) if file else None, "md5": md5, "code": code, "note": note,
               "paper": {"title": res.subject.title, "doi": res.subject.doi, "wanted": res.wanted} if res else None,
               "evidence": {**{k: v for k, v in (evidence or {}).items() if k not in ("file", "words")},
                            "file": {k: v for k, v in ((evidence or {}).get("file") or {}).items() if k not in TEXTS} or None,
@@ -646,8 +652,8 @@ def handoff(work, kind, res=None, *, slug=None, pass_=None, route=None, url=None
               "answers": list(ANSWERS[kind]), "at": now_iso()}
     record = {k: v for k, v in record.items() if v is not None}
     atomic_write(work.handoffs / f"{hid}.json", json.dumps(record, ensure_ascii=False, indent=2) + "\n")
-    work.append({"event": "handoff", "id": hid, "slug": slug, "kind": kind, "taker": record["taker"], "md5": md5,
-                 "route": route, "url": url, "path": str(work.handoffs / f"{hid}.json")})
+    work.append({"event": "handoff", "id": hid, "slug": slug, "kind": kind, "md5": md5, "route": route, "url": url,
+                 "path": str(work.handoffs / f"{hid}.json")})
     return record
 
 
@@ -761,7 +767,7 @@ def answer(work, hid, word, *, reason=None, title=None, why=None, slug=None, ver
 # ---- the fold: fetch.jsonl -> each result's files and outcome -----------------------------------------------
 
 def folded(work, res, events):
-    """The result's files and outcome as the log tells them (nothing written)."""
+    """The result's files, outcome and set_aside as the log tells them (nothing written)."""
     mine = [e for e in events if e.get("slug") == res.slug]
     labelled = labels(work, res.slug, mine)
     files = []
@@ -791,7 +797,26 @@ def folded(work, res, events):
     return files, {"status": status, **({"waiting_on": waiting_on} if waiting_on else {}), "tried": tried,
                    "last": {"event": last["event"], "route": last.get("route"),
                             "result": last.get("result") or last.get("answer") or last.get("why") or last.get("kind"),
-                            "url": last.get("url")} if last else None}
+                            "url": last.get("url")} if last else None}, set_aside(work, mine, files)
+
+
+def set_aside(work, mine, files):
+    """The paper's files in unverified/ that are not among its files (by md5), each with why it is there, from the
+    paper's events (`mine`) -> [{name, md5, why, code?}] (the result format above)."""
+    refused = {e.get("id") for e in mine if e.get("event") == "answer" and e.get("kind") == "file"
+               and e.get("answer") == "refuse"}
+    codes, out = {}, {}  # md5 -> the check's code; file name in unverified/ -> its entry, as the last event says
+    for e in mine:
+        if e.get("event") == "claim" and e.get("result") in ("refused", "held") and e.get("file"):
+            codes[e.get("md5")] = e.get("code")
+            why = "refused" if e["result"] == "refused" or e.get("handoff") in refused else "held"
+            out[e["file"]] = {"name": e["file"], "md5": e.get("md5"), "why": why, "code": e.get("code")}
+        elif e.get("event") == "withdraw" and e.get("file"):
+            out[e["file"]] = {"name": e["file"], "md5": e.get("md5"), "why": "withdrawn",
+                              "code": codes.get(e.get("md5"))}
+    have = {f["md5"] for f in files}
+    return [{k: v for k, v in x.items() if v is not None} for x in out.values()
+            if x["md5"] not in have and (work.unverified / x["name"]).is_file()]
 
 
 def ask_labels(work, results, events=None):
@@ -822,9 +847,13 @@ def settle(work, results=None):
     ask_labels(work, results)
     events, out = work.events(), []
     for res in results:
-        files, outcome = folded(work, res, events)
-        changed = (files, outcome) != (res.get("files"), res.get("outcome"))
+        files, outcome, aside = folded(work, res, events)
+        changed = (files, outcome, aside) != (res.get("files"), res.get("outcome"), res.get("set_aside") or [])
         res.update(files=files, outcome=outcome, settled_at=now_iso())
+        if aside:
+            res["set_aside"] = aside
+        else:
+            res.pop("set_aside", None)
         res.save()
         out.append((res, changed))
     return out

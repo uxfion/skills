@@ -3,22 +3,24 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Answer a handoff: the one way a judge's or the user's conclusion reaches a record.
+"""Answer a handoff: the one way a judge's or the user's conclusion is recorded, in the handoff itself.
 
   p2z.py answer HANDOFF ANSWER [--key K ...] [--reason R] [--by WHO]
 
 HANDOFF is the handoff's file (<scratch>/paper-to-zotero/handoffs/<id>.json, as prepare, find_in_library and
 create_item print it). A same_paper handoff asks whether library items (its `candidates`, each with its evidence)
-are the paper its record describes (`paper`):
-  same --key K          K is this paper: the record's same_as (the import goes on with that item)
-  distinct [--key K]    other papers: added to the record's distinct_from; without --key, every candidate of the
-                        handoff still open
+are the paper its record describes (`paper`); candidates with `matched_by` carry the paper's DOI or arXiv id:
+  same --key K          K is this paper (of several items carrying its identifier: the one to use, the fuller): the
+                        import goes on with that item
+  distinct [--key K]    other papers; without --key, every candidate of the handoff still open
   pair --key K          K and this paper are a preprint and its published version, or the same paper in two items
                         of different kinds: the user's call
   unknown --key K       cannot tell from the evidence: the user's call
-pair and unknown leave the candidate open, kept in the handoff's `answered`; prepare then lists the record as
-waiting on the user, and the user's word is recorded the same way (same or distinct, --by user). Every answer goes
-into `answered` ({key, answer, reason, by, at}). Then run p2z.py prepare again.
+Every answer is appended to the handoff's `answered` ({key, answer, reason, by, at}), and nothing else is written:
+the record is the main agent's, and the scripts read the decision from the handoffs (p2zlib/run.py, decided()). On
+a candidate answered twice the later answer stands. pair and unknown leave the candidate open; prepare then lists
+the record as waiting on the user, and the user's word is recorded the same way (same or distinct, --by user). Then
+run p2z.py prepare again.
 
 stdout: one line {id, code: ok, answer, keys, record, open: [keys still open]}, or a refusal {id, code, hint}:
 bad_answer, no_such_handoff, not_open (nothing in it is open any more), no_such_key (not one of its candidates),
@@ -58,12 +60,6 @@ def answer(path, word, keys, reason, by):
     if word in ("pair", "unknown") and not keys:
         raise cli.Stop("no_key", id=hid, hint=f"{word} names the items it is about: --key K.")
     keys = keys or still
-    if word == "same":
-        rec["same_as"] = keys[0]
-        rec["distinct_from"] = [k for k in rec.keys_of("distinct_from") if k != keys[0]]
-    elif word == "distinct":
-        rec["distinct_from"] = list(dict.fromkeys(rec.keys_of("distinct_from") + keys))
-    rec.save()
     handoff["answered"] = list(handoff.get("answered") or []) + [
         {"key": k, "answer": word, "reason": reason, "by": by, "at": run.now_iso()} for k in keys]
     run.atomic_write(path, json.dumps(handoff, ensure_ascii=False, indent=2) + "\n")

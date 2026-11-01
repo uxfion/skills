@@ -63,6 +63,7 @@ The user's words behind [design-principles.md](design-principles.md), verbatim a
 - 2026-10-12, after five subagents each grew their own mechanisms: 「不要派子agent，你直接在主agent上修改」; 2026-10-20, onto a fixed design: 「如果有模块可以并行做的就派发subagent并行做，提高效率」
 - 2026-10-30, files an agent wrote into the repo root: 「为什么在项目根目录下会有 local API 这些东西啊？乱放啊？」
 - 2026-11-01, the brief written in two places by reader (the dispatch in the SKILL.md for the main agent, the brief file for the subagent) and the run's questions to the user in one message, from the handoff-standard design (spec `docs/specs/20261101-skills-handoff-standard-spec.md`); after I first called them two halves: 「我其实现在有一点不太理解，你说的一半一半，我看到很多一半了，这个又是一个什么东西？」, then, explained by the tagging example: 「可以」
+- 2026-11-01, after the live test import's judge labelled a PDF from the text layer alone, since "look at both page images" sat in its brief's inputs instead of its done-when (spec §13); asked whether what a taker must look at or check goes in the done-when, the inputs only saying what is there: 「A」
 
 ## About this document
 

@@ -6,9 +6,10 @@
 """Attach each record's files, the ones paper-fetch got, to its Zotero item: the record's `attach`.
 
 The item is the one this run created (saved.key), else the one the lookup confirmed (found.key) — never a near
-match, nor one of several items with the paper's identifier until same_as picks one. The files are the result's (the
-record's `fetched`) whose check is ok, accepted or unconfirmed: every version of the paper and any supplement, each
-under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which paper-fetch settled. An
+match, nor one of several items with the paper's identifier until a same_paper handoff's answer names one. The
+files are the result's (the record's `fetched`) whose check is ok, accepted or unconfirmed: every version of the
+paper and any supplement, each under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which
+paper-fetch settled. An
 unconfirmed file (its agent could not tell it is the paper's) is attached all the same and named on the line: the
 report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A stub's file (check
 cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead (recognize.py), whose
@@ -36,7 +37,7 @@ renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [na
   unsettled     the result has no outcome: settle it (paper-fetch's pf.py settle), then rerun
   file_changed  a file's md5 is not the one in the result: settle the result again, then rerun
   no_result     the record names no result file (`fetched`), or it cannot be read: draft_item.py writes it
-  no_item_key   the record has no item in Zotero yet (create_item; a possible duplicate is the agent's to settle)
+  no_item_key   the record has no item in Zotero yet (create_item; library candidates: their same_paper handoff)
   not_found | not_a_parent | unsupported_file | readback_mismatch | unexpected_response | write_denied |
   write_failed    see the hint
 Exit 0 = every record attached or skipped; 1 = not; 2 = cannot go on (Zotero not running, local API off, no key, the
@@ -129,7 +130,7 @@ def process(rec, ctx):
         key = key or run.item_key(rec)
         if key is None:
             raise cli.Stop("no_item_key", hint="The record has no item in Zotero yet: create_item.py (p2z.py save) makes "
-                                               "it; a possible duplicate is settled with same_as or distinct_from first.")
+                                               "it; library candidates are settled first, in their same_paper handoff.")
         done = zot.attach(key, file, title=title, url=url, dry_run=dry_run)
         existing = done["code"] == "skipped"
         if existing or not done.get("dry_run"):

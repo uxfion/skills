@@ -1,20 +1,18 @@
 """One import's records: where they are, what they hold, when a block of theirs is done.
 
 An import works in <scratch>/paper-to-zotero/: paper-fetch's directory fetch/ (its results, their files, its log),
-records/, one record per paper, records/<slug>.json under its result's slug, and handoffs/, what a script leaves to
-an agent. p2z reads a result as plain JSON
+records/, one record per paper, records/<slug>.json under its result's slug, handoffs/, what a script leaves to an
+agent, and tags/, the curated tags of each paper whose item the import creates. p2z reads a result as plain JSON
 and never writes it; paper-fetch never reads a record.
 
-A record is one JSON object. The agent's fields — scripts read them and never change them; draft_item writes their
-first values:
+A record is one JSON object, the main agent's. Its fields — scripts read them and never change them; draft_item
+writes their first values:
   fetched         the result file's absolute path (paper-fetch's <dir>/results/<slug>.json): the paper's ids, CSL,
                   versions, and the files got for it with their labels and checks
   item            the Zotero item to create (draft_item drafts it from the result; the agent revises it)
   warnings        [str]: what draft_item noticed (a type guessed, the DOI put in extra, fields dropped)
-  tags            [{tag, type}]               collection     KEY or [KEYS]          citationKey   str
-  distinct_from   [KEYS]: library items judged to be other papers (p2z.py answer distinct writes them)
-  same_as         KEY: the library item judged to be this paper (p2z.py answer same; or the agent's choice among
-                  found.duplicates)
+  tags            [{tag, type}]: draft_item's automatic tags (the curated ones are the tags file's, below)
+  collection      KEY or [KEYS]               citationKey    str
   keep_preprint   str: why the item stays the preprint although the result's versions.published has entries
   accepted        [str]: what the agent accepts as it is: a check's flag (check_flags: "mapped:publicationTitle")
                   or a warning's text; decisions no longer list them
@@ -25,10 +23,11 @@ Blocks, each written by one script and nothing else:
   found           zotero.Zotero.lookup (find_in_library; create_item's look before it posts): {from, code: found,
                   key, version, citationKey, title, date, collections, tags, attachments: [{key, title, version,
                   source, detail, standard, contentType, linkMode, filename, md5, url}], matched_by: doi | arxiv |
-                  same_as, duplicates?: [KEYS]} or
+                  same_paper (a same_paper handoff's answer)} or
                   {from, code: not_found, searched: [{q, qmode, hits}], more?}; a candidate is never here
   near_matches    written with found, under its `from`: the candidates (paper.candidates: {key, title, year,
-                  first_author, doi, arxiv, itemType, venue, similarity, matched_by?, attachments: [titles]})
+                  first_author, doi, arxiv, itemType, venue, similarity, matched_by?, attachments: [titles]}); several
+                  items carrying the paper's DOI or arXiv id are candidates too, each with its matched_by
   saved           create_item: {pending: true, at} right before the POST, then {key, version, citationKey, created_at};
                   or recognize.py, for a stub's PDF Zotero's recognizer made an item from: the same, with via: recognizer
   recognize       recognize.py: {md5, title, url, sessionID, at, code: sent | recognized | not_recognized, attachment?}:
@@ -40,11 +39,21 @@ them), and `incomplete: [sources]` when a source did not answer. Such a block is
 no `from`: an older run's, not trusted), incomplete, or stale; due() says which. `saved` and `attach` record writes
 to the library and are trusted as they are.
 
-Handoffs, handoffs/<slug>.<n>.json, written once by the script that stops (find_in_library, create_item), the shape
-paper-fetch's take: {id, kind: same_paper, taker: judge, slug, record, paper: the item's evidence, candidates: the
-near matches still open, more?, answers, answered: [{key, answer, reason, by, at}], at}. The record is the state:
-`p2z.py answer` writes same_as or distinct_from there, and keeps a pair or an unknown, which wait for the user, in the
-handoff's `answered`. A handoff is open while one of its candidates is still open in the record (unsettled()).
+Handoffs, handoffs/<slug>.<n>.json, written by the script that stops (find_in_library, create_item), the shape
+paper-fetch's take: {id, kind: same_paper, slug, record, paper: the item's evidence, candidates: the near matches
+still open, more?, answers, answered: [{key, answer, reason, by, at}], at}; `answered` is `p2z.py answer`'s alone,
+one entry appended per answer. Who takes a handoff is SKILL.md's to say. Which library item is this paper lives only
+in the handoffs' `answered` (decided()), never in the record: per candidate the latest answer stands (the user's
+word after a judge's pair), across all of the record's handoffs; `same` names the item, `distinct` drops a candidate,
+`pair` and `unknown` leave it open for the user. A handoff is open while one of its candidates is still open
+(unsettled()). A record an earlier version of this skill wrote may carry such decisions as fields of its own: they
+are read no more, the handoffs' `answered` holds every answer `p2z.py answer` recorded, and a choice made outside it
+is asked again through a handoff.
+
+A tags file, tags/<slug>.json, is the paper's curated tags, written only by whoever tags it (references/tagging.md):
+a JSON list in file_and_tag's tag-list form, "name" or {"tag": "name", "type": 0} (other keys are notes). create_item
+writes them with the record's `tags`, and creates nothing for a paper whose tags file is not there yet (untagged).
+A paper the library holds already gets none: its item is not tagged at import.
 """
 import hashlib
 import json
@@ -64,11 +73,13 @@ def now_iso():
 
 
 class Work:
-    """An import's directory: records/, and scratch/ for what a run keeps for itself (Zotero's schema)."""
+    """An import's directory: records/, handoffs/, tags/, and scratch/ for what a run keeps for itself (Zotero's
+    schema, the library's tags for the taggers, a judge's own notes)."""
 
     def __init__(self, root):
         self.root = Path(root).expanduser().absolute()
         self.records, self.scratch, self.handoffs = self.root / "records", self.root / "scratch", self.root / "handoffs"
+        self.tags = self.root / "tags"
         self.schema_file = self.scratch / "schema.json"  # Zotero's schema, read once a run
 
     @classmethod
@@ -125,7 +136,7 @@ class Record(dict):
         self.saved_text = json.dumps(self, sort_keys=True)
 
     def keys_of(self, field):
-        """An agent field holding item keys (distinct_from, collection), as a list whether given as one or several."""
+        """An agent field holding item keys (collection), as a list whether given as one or several."""
         value = self.get(field)
         return [value] if isinstance(value, str) and value else [v for v in value if isinstance(v, str)] if isinstance(value, list) else []
 
@@ -179,7 +190,8 @@ def inputs(rec, block):
     if block == "checks":
         return item
     if block == "found":
-        return [doi, aid, paper.norm_title(item.get("title")), rec.get("same_as") or None, sorted(rec.keys_of("distinct_from"))]
+        same, distinct = decided(rec)
+        return [doi, aid, paper.norm_title(item.get("title")), same, sorted(distinct)]
     raise KeyError(block)
 
 
@@ -215,8 +227,10 @@ HINT_NEAR = ("The library may hold this paper (near_matches): a judge reads the 
 
 
 def look_up(rec, zot):
-    """The record's found and near_matches from the library lookup (zotero.Zotero.lookup), written -> both."""
-    found, near = zot.lookup(rec.item, distinct_from=rec.keys_of("distinct_from"), same_as=rec.get("same_as"))
+    """The record's found and near_matches from the library lookup (zotero.Zotero.lookup), with what the handoffs
+    decided, written -> both."""
+    same, distinct = decided(rec)
+    found, near = zot.lookup(rec.item, distinct=distinct, same=same)
     stamp(rec, "found", found)
     rec["near_matches"] = near
     return found, near
@@ -229,15 +243,19 @@ def near_lines(near):
 def item_key(rec):
     """The library item this record is: the one this run created (saved.key; a pending creation has none), else the
     one the lookup confirmed (found.key, while found is done) — never a near match, which names another item, nor
-    the first of several items with the paper's identifier (found.duplicates: the agent's to choose, as same_as)."""
+    one of several items with the paper's identifier, which are candidates until a handoff's answer names one."""
     saved = rec.get("saved")
     if isinstance(saved, dict) and saved.get("key"):
         return saved["key"]
     found = rec.get("found")
-    if (isinstance(found, dict) and found.get("code") == "found" and found.get("key") and not found.get("duplicates")
-            and due(rec, "found") is None):
+    if isinstance(found, dict) and found.get("code") == "found" and found.get("key") and due(rec, "found") is None:
         return found["key"]
     return None
+
+
+def tags_file(rec):
+    """The paper's tags file, tags/<slug>.json: its curated tags, the tagger's to write."""
+    return rec.work.tags / f"{rec.slug}.json"
 
 
 def check_flags(checks):
@@ -257,13 +275,33 @@ def check_flags(checks):
 ANSWERS = {"same_paper": ("same", "distinct", "pair", "unknown")}
 
 
+def latest_answers(rec):
+    """{candidate key: the latest answer on it}, oldest first, across the record's handoffs: every `answered` entry
+    in the order given (`at`; on a tie, the handoffs' order, then the order appended), a later one standing."""
+    entries = [a for h in handoffs_of(rec) for a in h.get("answered") or [] if isinstance(a, dict) and a.get("key")]
+    latest = {}
+    for a in sorted(entries, key=lambda a: str(a.get("at") or "")):
+        latest.pop(a["key"], None)
+        latest[a["key"]] = a
+    return latest
+
+
+def decided(rec):
+    """What the handoffs' answers decided -> (the key of the item that is this paper or None, [keys of other
+    papers]), from the latest answer on each candidate."""
+    latest = latest_answers(rec)
+    same = [k for k, a in latest.items() if a.get("answer") == "same"]
+    return (same[-1] if same else None), sorted(k for k, a in latest.items() if a.get("answer") == "distinct")
+
+
 def unsettled(rec):
-    """The near matches the record leaves open -> [keys]: none once same_as names an item or found confirms one."""
+    """The near matches the record leaves open -> [keys]: none once a handoff's answer names the item or found
+    confirms one; a candidate answered distinct is closed, one answered pair or unknown stays open (the user's)."""
     found = rec.get("found") if isinstance(rec.get("found"), dict) else {}
-    if rec.get("same_as") or found.get("code") == "found":
+    same, distinct = decided(rec)
+    if same or found.get("code") == "found":
         return []
-    excluded = set(rec.keys_of("distinct_from"))
-    return [m["key"] for m in rec.get("near_matches") or [] if isinstance(m, dict) and m.get("key") not in excluded]
+    return [m["key"] for m in rec.get("near_matches") or [] if isinstance(m, dict) and m.get("key") not in distinct]
 
 
 def handoffs_of(rec):
@@ -305,7 +343,7 @@ def ask_same_paper(rec):
             n += 1
     os.close(fd)
     found = rec.get("found") if isinstance(rec.get("found"), dict) else {}
-    handoff = {"id": f"{rec.slug}.{n}", "kind": "same_paper", "taker": "judge", "slug": rec.slug, "record": str(rec.path),
+    handoff = {"id": f"{rec.slug}.{n}", "kind": "same_paper", "slug": rec.slug, "record": str(rec.path),
                "paper": paper.evidence(rec.item), "candidates": [m for m in rec["near_matches"] if m.get("key") in keys],
                **({"more": found["more"]} if found.get("more") else {}), "answers": list(ANSWERS["same_paper"]),
                "answered": [], "at": now_iso()}

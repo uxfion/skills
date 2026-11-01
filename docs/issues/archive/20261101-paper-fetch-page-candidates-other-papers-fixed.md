@@ -1,6 +1,6 @@
 # paper-fetch：页面上“像 PDF 的链接”挨个试，会经学校代理下载别的论文
 
-> **已修复（2026-11-01）**：实现在 `paper-fetch/scripts/fetch.py`（`own_marks`、`carries_mark`，提交 `8ef2075`），SKILL.md 和 paper agent 的 brief 写明从 `evidence.links` 里挑；真实页面核对通过，见文末。
+> **已修复（2026-11-01）**：实现在 `paper-fetch/scripts/fetch.py`（`own_marks`、`carries_mark`，提交 `94ac939`），SKILL.md 和 paper agent 的 brief 写明从 `evidence.links` 里挑；真实页面核对通过，见文末。
 
 - 来源 · 日期：一个旁观的 agent 提醒 · 2026-11-01，第二期验收实测（记录在 `archive/20261030-paper-fetch-script-agent-division-fixed.md` 的“第二期验收实测”）之后。
 - 背景：第二期 paper-to-zotero 的实测，导入 TransUNet（Medical Image Analysis 2024，DOI `10.1016/j.media.2024.103280`）。第 1 遍停在 ScienceDirect 文章页（经学校代理），写了 `page` 交接，paper agent 用 `fetch --start <文章页>` 把页面交回脚本。

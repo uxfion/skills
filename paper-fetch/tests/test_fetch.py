@@ -279,8 +279,10 @@ class Fetch(unittest.TestCase):
         x, y = self.result("x", links=None), self.result("y", OTHER, "10.1000/y.2", links=None)
         code, lines, err = self.fetch("--pass", "1", "--route", "publisher", x, y)
         [page] = self.handoffs("page")
-        self.assertEqual((code, page["slug"], page["code"], page["taker"], page["evidence"]["page"]["title"]),
-                         (1, "x", "no_pdf_link", "paper_agent", "Sign in"), "no title decides it is a gate: the agent looks")
+        self.assertEqual((code, page["slug"], page["code"], page["evidence"]["page"]["title"]),
+                         (1, "x", "no_pdf_link", "Sign in"), "no title decides it is a gate: the agent looks")
+        self.assertEqual([sorted(x) for x in lines if "handoff" in x], [["handoff", "kind", "path", "slug"]],
+                         "who takes a kind is SKILL.md's: the line names none")
         self.assertEqual(self.files(), ["y.pdf"], "the walk went on with the others")
         self.assertEqual(self.events("try"), [("y", "publisher", "ok")], "a handoff is no try")
         self.assertEqual(run.read(x)["outcome"]["waiting_on"], ["page"])

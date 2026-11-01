@@ -381,7 +381,8 @@ class Redraft(Base):
         self.ident(REFLEXION)
         path = self.path("shinn2023reflexion")
         res = run.read(path)
-        res.update(alt_titles=["An Earlier Title"], files=[{"name": "x.preprint.pdf"}], outcome={"status": "got"})
+        res.update(alt_titles=["An Earlier Title"], files=[{"name": "x.preprint.pdf"}], outcome={"status": "got"},
+                   set_aside=[{"name": "x.file.pdf", "md5": "0" * 32, "why": "refused"}])
         res.save()
         r = self.run_("--redraft", NEURIPS, path)
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
@@ -392,7 +393,8 @@ class Redraft(Base):
         self.assertEqual(res["versions"]["preprint"]["abstract"], "Reflexion.")
         self.assertEqual(res["versions"]["preprint"]["categories"], ["Artificial Intelligence (cs.AI)"],
                          "the preprint's arXiv categories stay for the item's tags")
-        self.assertEqual((res["files"], res["outcome"]), ([{"name": "x.preprint.pdf"}], {"status": "got"}), "files got stay")
+        self.assertEqual((res["files"], res["outcome"], [x["name"] for x in res["set_aside"]]),
+                         ([{"name": "x.preprint.pdf"}], {"status": "got"}, ["x.file.pdf"]), "files got, and set aside, stay")
         self.assertIn("the published record has no abstract; the preprint's is in versions.preprint", res["warnings"])
         self.assertTrue(any("sales page" in w for w in res["warnings"]))
         self.assertEqual(res["alt_titles"], ["An Earlier Title"], "the same title up to case: nothing added")

@@ -1,10 +1,30 @@
 # Tagging
 
+You choose papers' curated tags by the scheme below: in an import, for each paper whose item the import will create; in a tidy, for library items. The main agent tags a few papers itself by this file; many go to tagging subagents, whose dispatch names their papers, `<imp>` or `<scratch>`, in a tidy their number `<n>`, and paper-to-zotero's directory.
+
+**Inputs**, read only. An import: each paper's record, `<imp>/records/<slug>.json` (`<slug>` is the record's file name), whose `item` holds the title, abstract and venue and whose `tags` are the automatic ones `draft_item` added; its `fetched` names paper-fetch's result, where `csl.keyword` and `enrichment.openalex_keywords` are hints, and whose `files` name the PDFs beside it in `<imp>/fetch/results/`; the library's tags are `<imp>/scratch/library-tags.jsonl`. A tidy: `<scratch>/tidy/items.<n>.jsonl`, each item as the library holds it, its tags included; `read_library pdf --cite <citation key>` gives a PDF's path; the library's tags are `<scratch>/tidy/library-tags.jsonl`. A PDF, when the abstract is not enough, is read from the file (`pdftotext -f 1 -l 1 <pdf> -`, or the page as an image).
+
+**Product.**
+- An import: a tags file per paper, `<imp>/tags/<slug>.json` (make `<imp>/tags/` if it is absent), a JSON list of its curated tags only (`["method/Diffusion", "venue/CVPR"]`; an entry may be `{"tag": "…", "note": "…"}`), written once the paper's tags are chosen; `save` adds the record's automatic tags when it creates the item, and creates no item for a paper whose tags file is missing. A paper you find nothing certain to tag with gets `[]`.
+- A tidy: `<scratch>/tidy/tags.<n>.jsonl`, one `file_and_tag --batch` line per item to change, none for an item with nothing to change (*Tidying existing items*, below). A change is `add_tags` / `remove_tags`; `tags`, the item's complete set with its automatic tags kept as type 1, only where the whole set must be given. Removing an automatic tag that discriminates nothing is a `remove_tags` line, which the user sees in the dry run before anything is written.
+
+**Done when** every paper of yours has its product, each tag confirmed in the paper's text and spelled as the library spells it, or new: in an import, a tags file per paper that any JSON parser reads as a list in the form above (there is no validator); in a tidy, `uv run scripts/p2z.py file_and_tag --batch <scratch>/tidy/tags.<n>.jsonl --dry-run`, from paper-to-zotero's directory, exits 0 and plans the changes you meant.
+
+**Report** whether the done-when holds — in a tidy, a dry run that cannot reach Zotero is the first line — then only these, one line each: every tag new to the library, once, grouped by prefix, so the user can look them over in one go; in a tidy, the automatic tags you remove, in one line; a paper left with `[]`, and why; anything in the skill that misled you.
+
+**Rules.**
+- Do the work yourself; send no subagents. No git.
+- The files you write yourself go under `<imp>/tags/` in an import, `<scratch>/tidy/` in a tidy, only; what the skill's commands write is theirs.
+- If you cannot finish, say what you tried, what you settled and what is left.
+- Touch no website: everything is in the files and in the local Zotero the skill's commands read.
+
+## The scheme
+
 Tags answer one question: *how would the user look for this paper?* They are not a summary of everything the paper is. Tag what you are **certain** of; a tag without a source, or one you cannot verify, is left off.
 
 This scheme is a starting point, not a closed list. The dimensions, the examples and the library's existing tags are what has been useful so far; a new paper may need a tag, a venue abbreviation or even a dimension that is not here yet — add it, and say so in the report so the user can keep or correct it. What the user changes in conversation is the rule from then on.
 
-## Two kinds of tags on one item
+### Two kinds of tags on one item
 
 | Kind | Zotero type | Who writes it | What to do with it |
 | --- | --- | --- | --- |
@@ -13,7 +33,7 @@ This scheme is a starting point, not a closed list. The dimensions, the examples
 
 **Automatic tags are a switch, off by default**: the config's `automatic_tags` (`true` or `false`, references/install.md) is the user's standing choice, and a user who asks for them in one import gets them for that run (`draft_item --automatic-tags`, or `--no-automatic-tags` the other way). Off, the authors' keywords (`csl.keyword` in paper-fetch's result) and arXiv's categories are hints for the curated tags and nothing more. OpenAlex's keywords (`enrichment.openalex_keywords`) are its model's guesses from the title and abstract: a hint always, a tag never. The curated tags are the ones that must never be lost.
 
-## Curated tag forms
+### Curated tag forms
 
 | Dimension | Form | Examples |
 | --- | --- | --- |
@@ -37,14 +57,11 @@ Rules per dimension:
 - **Organ**: the part of the human (or animal) body the paper studies, a region that is not an organ included (`organ/Chest`, `organ/Abdomen`, `organ/Knee`). A paper on several parts gets each one; a paper not about a body part (most of computer vision), or one that works on any part alike, gets none — like `modality/`. No umbrella value (`multi-organ`): someone filtering by `organ/Liver` would not find a paper tagged only with it.
 - **Not a dimension:** reading state, project priority or review progress (`to-read`, `P1`, `checked`) — those live in collections or notes, so the tag list keeps answering only what a paper *is*.
 
-## Choosing tags for one paper
+### Choosing tags for one paper
 
-1. List the library's existing tags (`uv run scripts/p2z.py read_library tags`) — the spelling reference: one spelling per concept.
+1. The library's existing tags (`library-tags.jsonl`, from `uv run scripts/p2z.py read_library tags`) are the spelling reference: one spelling per concept.
 2. From the item's title, abstract, venue and, when needed, the PDF's first page, pick the tags above — the existing spelling where the concept already has a tag, a new tag where it does not. The keyword hints above point to concepts you then confirm in the text; a curated tag names what you confirmed.
-3. Write curated tags as manual tags (type 0); automatic tags come only from `draft_item`, when they are on.
-4. Report: the curated tags chosen and which of them are new to the library. After a batch, list every new tag once, grouped by prefix, so the user can look them over in one go.
-
-Done when every paper's record (in a tidy, the change list) holds its curated tags and the report names every tag new to the library.
+3. Curated tags are manual tags (type 0, what a plain name in a tags file is); automatic tags come only from `draft_item`, when they are on.
 
 ## Tidying existing items
 

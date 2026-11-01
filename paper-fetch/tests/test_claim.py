@@ -60,8 +60,7 @@ class Claim(unittest.TestCase):
         r = self.run_("--file", unsure, "--slug", "other", "--version", "accepted")
         self.assertEqual((r.code, r.lines[0]["result"], r.lines[0]["file"]), (1, "held", "other.file.pdf"))
         record = json.loads((self.work.handoffs / f"{r.lines[0]['handoff']}.json").read_text())
-        self.assertEqual((record["kind"], record["taker"], record["slug"], record["paper"]["title"]),
-                         ("file", "paper_agent", "other", OTHER))
+        self.assertEqual((record["kind"], record["slug"], record["paper"]["title"]), ("file", "other", OTHER))
         self.assertTrue(any(f.endswith("excerpt.txt") for f in record["evidence"]["files"]), "evidence to read, not to paste")
         self.assertEqual(self.read("other")["outcome"], {"status": "waiting", "waiting_on": ["file"], "tried": [],
                                                          "last": {"event": "handoff", "route": None, "result": "file", "url": None}})

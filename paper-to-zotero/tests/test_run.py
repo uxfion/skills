@@ -52,9 +52,19 @@ class Records(unittest.TestCase):
 
     def test_slug_is_the_file_name_and_lists_are_lists(self):
         work = work_dir()
-        rec = run.read(record(work, "x2020y", {"distinct_from": "ABCD1234", "collection": ["C1", "C2"]}))
-        self.assertEqual((rec.slug, rec.keys_of("distinct_from"), rec.keys_of("collection"), rec.keys_of("none")),
-                         ("x2020y", ["ABCD1234"], ["C1", "C2"], []))
+        rec = run.read(record(work, "x2020y", {"collection": "C1"}))
+        self.assertEqual((rec.slug, rec.keys_of("collection"), rec.keys_of("none")), ("x2020y", ["C1"], []))
+        rec = run.read(record(work, "x2020y", {"collection": ["C1", "C2"]}))
+        self.assertEqual(rec.keys_of("collection"), ["C1", "C2"])
+
+
+def handoff(work, slug, n, *answered):
+    """A same_paper handoff of the record `slug`, answered as given: (key, answer, at)."""
+    work.handoffs.mkdir(exist_ok=True)
+    path = work.handoffs / f"{slug}.{n}.json"
+    path.write_text(json.dumps({"id": f"{slug}.{n}", "kind": "same_paper", "slug": slug, "candidates": [],
+                                "answered": [{"key": k, "answer": a, "by": "judge", "at": at} for k, a, at in answered]}))
+    return path
 
 
 class DoneRule(unittest.TestCase):
@@ -81,10 +91,19 @@ class DoneRule(unittest.TestCase):
         rec["item"]["abstractNote"] = "An abstract."
         self.assertIsNone(run.due(rec, "found"), "nor does the abstract")
         self.assertEqual(run.due(rec, "checks"), "stale", "the preview is of the whole item")
-        rec["distinct_from"] = ["ABCD1234"]
-        self.assertEqual(run.due(rec, "found"), "stale", "a new distinct_from is a new lookup")
+
+    def test_a_handoffs_answers_are_a_new_lookup(self):
+        work = work_dir()
+        rec = run.read(record(work, "s", {"item": ITEM}))
         run.stamp(rec, "found", {"code": "not_found"})
-        rec["same_as"] = "ABCD1234"
+        handoff(work, "s", 1)
+        self.assertIsNone(run.due(rec, "found"), "a handoff nobody answered changes nothing")
+        handoff(work, "s", 1, ("ABCD1234", "pair", "2026-11-01T10:00:00Z"))
+        self.assertIsNone(run.due(rec, "found"), "a pair waits for the user")
+        handoff(work, "s", 1, ("ABCD1234", "pair", "2026-11-01T10:00:00Z"), ("EFGH5678", "distinct", "2026-11-01T10:00:00Z"))
+        self.assertEqual(run.due(rec, "found"), "stale", "a candidate answered distinct is a new lookup")
+        run.stamp(rec, "found", {"code": "not_found"})
+        handoff(work, "s", 2, ("ABCD1234", "same", "2026-11-01T11:00:00Z"))
         self.assertEqual(run.due(rec, "found"), "stale")
 
     def test_a_block_without_from_is_an_older_runs(self):
@@ -104,6 +123,20 @@ class DoneRule(unittest.TestCase):
         rec["saved"] = {"key": "MINE0001", "version": 3}
         self.assertEqual(run.item_key(rec), "MINE0001")
 
+
+class Decided(unittest.TestCase):
+    def test_the_latest_answer_on_a_candidate_stands_across_handoffs(self):
+        work = work_dir()
+        rec = run.read(record(work, "s", {"item": ITEM, "same_as": "OLDFIELD", "distinct_from": ["OLDFIELD"]}))
+        self.assertEqual(run.decided(rec), (None, []), "a record's own fields decide nothing")
+        handoff(work, "s", 2, ("AAAA0001", "same", "2026-11-01T12:00:00Z"))
+        handoff(work, "s", 1, ("AAAA0001", "pair", "2026-11-01T10:00:00Z"), ("BBBB0001", "unknown", "2026-11-01T10:00:00Z"),
+                ("BBBB0001", "distinct", "2026-11-01T10:00:00Z"))
+        self.assertEqual(run.decided(rec), ("AAAA0001", ["BBBB0001"]),
+                         "the user's same after the judge's pair; on a tie in time the later entry")
+        self.assertEqual({k: a["answer"] for k, a in run.latest_answers(rec).items()}, {"BBBB0001": "distinct", "AAAA0001": "same"})
+        handoff(work, "s", 3, ("AAAA0001", "distinct", "2026-11-01T13:00:00Z"))
+        self.assertEqual(run.decided(rec), (None, ["AAAA0001", "BBBB0001"]))
 
 class Results(unittest.TestCase):
     def test_a_record_reads_its_result(self):

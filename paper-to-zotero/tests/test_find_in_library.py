@@ -14,7 +14,7 @@ from fake_zotero import FakeZotero
 
 from p2zlib import run
 
-find = load("find_in_library")
+find, answer = load("find_in_library"), load("answer")
 A, ATT, C, E = "AAAAAAA1", "AAAAATT1", "CCCCCCC1", "EEEEEEE1"
 DOI = "10.1109/JBHI.2022.3142076"
 
@@ -60,9 +60,10 @@ class FindInLibrary(unittest.TestCase):
         self.assertNotIn("hint", r.lines[0])
         self.assertEqual([m["key"] for m in r.lines[1]["near_matches"]], [C, E])
         handoff = json.loads(open(r.lines[1]["handoff"], encoding="utf-8").read())
-        self.assertEqual((handoff["kind"], handoff["taker"], handoff["paper"]["title"], [c["key"] for c in handoff["candidates"]]),
-                         ("same_paper", "judge", "Deep Residual Learning for Image Recognition", [C, E]),
+        self.assertEqual((handoff["kind"], handoff["paper"]["title"], [c["key"] for c in handoff["candidates"]]),
+                         ("same_paper", "Deep Residual Learning for Image Recognition", [C, E]),
                          "the open candidates go to a judge, with the evidence in the file")
+        self.assertNotIn("taker", handoff, "who takes a handoff is SKILL.md's to say, in one place")
         self.assertEqual(r.lines[-1]["summary"], {"total": 4, "ok": 2, "skipped": 0, "failed": 2})
         a, b, c = (run.read(p) for p in paths[:3])
         self.assertEqual((a["found"]["code"], a["found"]["key"], a["near_matches"]), ("found", A, []))
@@ -72,21 +73,19 @@ class FindInLibrary(unittest.TestCase):
         self.assertEqual(run.item_key(a), A)
         self.assertIsNone(run.item_key(b))
 
-    def test_the_agents_decision_settles_a_near_match(self):
-        b = self.record("b", {"item": {"title": "Deep Residual Learning for Image Recognition"}})
-        self.run_(b)
-        rec = run.read(b)
-        rec["same_as"] = C
-        rec.save()
+    def test_only_the_handoffs_answers_settle_a_near_match(self):
+        b = self.record("b", {"item": {"title": "Deep Residual Learning for Image Recognition"},
+                              "same_as": C, "distinct_from": [E]})   # an earlier version's fields: read no more
+        handoff = self.run_(b).lines[0]["handoff"]
+        self.assertEqual([m["key"] for m in run.read(b)["near_matches"]], [C, E])
+        call(answer, handoff, "distinct", "--key", E, "--by", "judge")
         r = self.run_(b)
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["matched_by"], r.lines[0]["reason"]), (0, "found", "same_as", "stale"))
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["reason"], r.lines[0]["handoff"]), (1, "near_match", "stale", handoff))
+        self.assertEqual([m["key"] for m in r.lines[0]["near_matches"]], [C])
+        call(answer, handoff, "same", "--key", C, "--by", "user")
+        r = self.run_(b)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["matched_by"]), (0, "found", "same_paper"))
         self.assertEqual(run.item_key(run.read(b)), C)
-        rec = run.read(b)
-        rec.pop("same_as")
-        rec["distinct_from"] = [C, E]
-        rec.save()
-        r = self.run_(b)
-        self.assertEqual((r.code, r.lines[0]["code"]), (0, "not_found"))
 
     def test_a_rerun_skips_what_is_done_and_an_older_runs_found_is_redone(self):
         a = self.record("a", {"item": {"DOI": DOI, "title": "x"}})

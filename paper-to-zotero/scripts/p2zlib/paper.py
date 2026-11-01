@@ -159,8 +159,10 @@ def file_titles(attachments):
 
 def candidates(item, rows):
     """Library items that may be the paper an item describes -> (candidates, more). rows: [(key, data, matched_by)],
-    matched_by "arxiv" for a preprint/published pair, else None. Each candidate is {key, **evidence, similarity,
-    matched_by?}, pairs first, then by title similarity; CANDIDATES at most, `more` counts the rest."""
+    matched_by "doi" or "arxiv" for an item carrying the paper's identifier (one of several that do, or an arXiv id
+    beside a DOI of the paper's own: a preprint/published pair), else None. Each candidate is {key, **evidence,
+    similarity, matched_by?}, those with matched_by first, then by title similarity; CANDIDATES at most, `more`
+    counts the rest."""
     ranked = sorted(({"key": key, **evidence(d), "similarity": round(title_similarity(item.get("title"), d.get("title")), 2),
                       **({"matched_by": by} if by else {})} for key, d, by in rows),
                     key=lambda c: ("matched_by" not in c, -c["similarity"]))

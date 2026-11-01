@@ -5,21 +5,27 @@
 # ///
 """Create each record's Zotero item, filed and tagged in one POST: the record's `saved`.
 
-The item is the record's `item`; it goes into the record's `collection` (one key or several) with the record's
-`tags` (else the item's own) and its `citationKey`, which Zotero then keeps. Before anything is posted the library is
-looked up again (the lookup that writes `found` and `near_matches`, find_in_library's): a paper added since the
-last prepare is caught here. Right before the POST the record gets `saved: {pending: true, at}`; then
-`saved: {key, version, citationKey, created_at}`. A run cut off between the two leaves the pending mark: the next
-run's lookup finds the item that POST created and records it, or creates it when there is none, so a rerun is
-always safe. What comes back is compared with what was sent (collections, tags, citation key).
+The item is the record's `item`; it goes into the record's `collection` (one key or several) with its
+`citationKey`, which Zotero then keeps, and with its tags: the record's `tags` (else the item's own), draft_item's
+automatic ones, together with the curated tags of the paper's tags file, <scratch>/paper-to-zotero/tags/<slug>.json
+(a tag in both takes the file's type). Before anything is posted the library is looked up again (the lookup that
+writes `found` and `near_matches`, find_in_library's): a paper added since the last prepare is caught here. A paper
+whose tags file is not written yet gets no item (untagged), so no item goes in before its curated tags. Right before
+the POST the record gets `saved: {pending: true, at}`; then `saved: {key, version, citationKey, created_at}`. A run
+cut off between the two leaves the pending mark: the next run's lookup finds the item that POST created and records
+it, or creates it when there is none, so a rerun is always safe. What comes back is compared with what was sent
+(collections, tags, citation key).
 
 stdout: one line per record {slug, code, key?, version?, citationKey?, collection?, citation_key_hint?}, then
 {"summary"}.
-  ok                   created (with --dry-run: would be; nothing written)
+  ok                   created (with --dry-run: would be, with the `tags` it would carry; nothing written)
   skipped              reason saved (this run created it) | exists (the library has it: `found`, matched_by)
   possible_duplicate   the library may hold it (`near_matches`, the same_paper `handoff` a judge answers with
                        answer.py); nothing is created meanwhile
-  no_item | item_invalid | no_collection | collection_not_found | invalid_tags    the record's fault: nothing written
+  untagged             the paper's tags file (`tags_file`) is not written yet: tag it (references/tagging.md), then
+                       run this again; nothing created meanwhile
+  no_item | item_invalid | no_collection | collection_not_found | invalid_tags    the record's fault (invalid_tags:
+                       the record's tags or the tags file's): nothing written
   write_denied | write_failed      Zotero did not take it (nothing created; the pending mark is gone)
   readback_mismatch    created (`saved` written) but not filed, tagged or keyed as sent: fix it with file_and_tag.py
                        or update_item.py
@@ -30,6 +36,8 @@ key rejected, another Zotero than the key's); a file that is not a record stops 
 Example:
   uv run scripts/create_item.py <scratch>/paper-to-zotero/records/*.json
 """
+import json
+
 from p2zlib import cli, paper, run, zotero
 
 def setup(args, records):
@@ -58,14 +66,34 @@ def payload_of(rec, ctx):
         ctx["tree"] = ctx["zot"].collections()
     for key in collections:
         ctx["zot"].collection_scope(key, tree=ctx["tree"])
-    tags, problems, _ = paper.normalize_tags(rec["tags"] if "tags" in rec else item.get("tags") or [])
+    curated = curated_tags(rec)
+    own = rec["tags"] if "tags" in rec else item.get("tags") or []
+    tags, problems, _ = paper.normalize_tags(own + (curated or []) if isinstance(own, list) else own)
     if problems:
-        raise cli.Stop("invalid_tags", problems=problems, hint='Tags are a list of "name" or {"tag": "name", "type": 0|1}.')
+        raise cli.Stop("invalid_tags", problems=problems, hint='Tags are a list of "name" or {"tag": "name", "type": 0|1}: '
+                                                              "fix the record's tags or the paper's tags file.")
     obj = {**{k: v for k, v in item.items() if k not in ("tags", "collections")}, "collections": collections, "tags": tags}
     cite = str(rec.get("citationKey") or "").strip()
     if cite:
         obj["citationKey"] = cite
     return obj, collections
+
+
+def curated_tags(rec):
+    """The paper's tags file (run.tags_file) -> its tag list; None while it is not written; invalid_tags when it
+    is not a JSON list."""
+    path = run.tags_file(rec)
+    try:
+        tags = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        raise cli.Stop("invalid_tags", tags_file=str(path), detail=str(e),
+                       hint="The paper's tags file is not JSON: its tagger writes it again.") from None
+    if not isinstance(tags, list):
+        raise cli.Stop("invalid_tags", tags_file=str(path), hint='A tags file holds a JSON list of "name" or '
+                                                                  '{"tag": "name", "type": 0}.')
+    return tags
 
 
 def saved_line(saved, collections):
@@ -89,13 +117,16 @@ def process(rec, ctx):
             rec["saved"] = {"key": found["key"], "version": found["version"], "citationKey": found["citationKey"] or None,
                             "created_at": saved.get("at")}
             return {"code": "ok", "recovered": True, **saved_line(rec["saved"], collections)}
-        return cli.skipped("exists", key=found["key"], matched_by=found["matched_by"],
-                           **({"duplicates": found["duplicates"]} if found.get("duplicates") else {}))
+        return cli.skipped("exists", key=found["key"], matched_by=found["matched_by"])
     if run.unsettled(rec):
         return {"code": "possible_duplicate", "near_matches": run.near_lines(near), "handoff": run.ask_same_paper(rec),
                 "hint": run.HINT_NEAR}
+    if not run.tags_file(rec).exists():
+        return {"code": "untagged", "tags_file": str(run.tags_file(rec)),
+                "hint": "The paper has no tags file yet: its tagger writes it (references/tagging.md); then run this "
+                        "again. Nothing was created."}
     if args.dry_run:
-        return {"code": "ok", "title": obj["title"][:80], "collection": collections, "tags": len(obj["tags"])}
+        return {"code": "ok", "title": obj["title"][:80], "collection": collections, "tags": [t["tag"] for t in obj["tags"]]}
     rec["saved"] = {"pending": True, "at": run.now_iso()}
     rec.save()
     try:

@@ -298,20 +298,23 @@ class Zotero:
 
     # ---- is this paper in the library -----------------------------------------------------------------------
 
-    def lookup(self, item, *, distinct_from=(), same_as=None):
+    def lookup(self, item, *, distinct=(), same=None):
         """Is the paper an item describes in the library? -> (found, near_matches), a record's two blocks without
         their `from`. Only an identifier confirms: the DOI, else the arXiv id — unless the item has a DOI of its own
-        that the library lacks, which makes an arXiv hit its preprint: a candidate (matched_by arxiv). Everything a
-        quick search for the title finds (paper.title_queries) is a candidate too, ranked by paper.candidates with
-        its evidence and its attachments' titles, for a judge; `more` in found counts those left out. Items in
-        distinct_from are dropped at every step; same_as names the item outright."""
-        if same_as:
-            row = self.item(same_as)
+        that the library lacks, which makes an arXiv hit its preprint: a candidate (matched_by arxiv). An identifier
+        that several items carry confirms none of them: each is a candidate, with its matched_by, and which one is
+        this paper's is a judge's. Everything a quick search for the title finds (paper.title_queries) is a
+        candidate too, ranked by paper.candidates with its evidence and its attachments' titles, for a judge; `more`
+        in found counts those left out. Items in `distinct` (judged other papers) are dropped at every step; `same`
+        (the item judged this paper) names the item outright."""
+        if same:
+            row = self.item(same)
             if row is None:
-                raise Stop("not_found", hint="same_as names no item of the library; correct it or remove it.", same_as=same_as)
-            return {"code": "found", **self.describe(row), "matched_by": "same_as"}, []
+                raise Stop("not_found", hint="The item a same_paper handoff answered same names is not in the library "
+                                             "(trashed or merged since): answer the handoff again.", key=same)
+            return {"code": "found", **self.describe(row), "matched_by": "same_paper"}, []
         doi, aid = paper.identifiers(item)
-        excluded, searched = set(distinct_from or ()), []
+        excluded, searched = set(distinct or ()), []
         rows = lambda q, qmode=None: [r for r in self._search(q, qmode, searched) if r["key"] not in excluded]  # noqa: E731
         matches, pairs, matched_by = [], [], None
         if doi:
@@ -319,13 +322,15 @@ class Zotero:
         if not matches and aid:
             hits = [r for r in rows(aid, "fields") if paper.same_paper(item, data(r)) == "arxiv"]
             pairs, matches, matched_by = (hits, [], None) if doi else ([], hits, "arxiv")
-        if matches:
-            more = {"duplicates": [r["key"] for r in matches[1:]]} if len(matches) > 1 else {}
-            return {"code": "found", **self.describe(matches[0]), "matched_by": matched_by, **more}, []
-        hits = {r["key"]: (r, "arxiv") for r in pairs}
-        for q in paper.title_queries(item.get("title")):
-            for r in rows(q):
-                hits.setdefault(r["key"], (r, None))
+        if len(matches) == 1:
+            return {"code": "found", **self.describe(matches[0]), "matched_by": matched_by}, []
+        if matches:  # the identifier is on several items: the paper is there, which item is a judge's
+            hits = {r["key"]: (r, matched_by) for r in matches}
+        else:
+            hits = {r["key"]: (r, "arxiv") for r in pairs}
+            for q in paper.title_queries(item.get("title")):
+                for r in rows(q):
+                    hits.setdefault(r["key"], (r, None))
         near, more = paper.candidates(item, [(key, data(r), by) for key, (r, by) in hits.items()])
         for c in near:
             c["attachments"] = paper.file_titles(self.attachments(c["key"]))

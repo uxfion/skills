@@ -243,8 +243,8 @@ class Lookup(unittest.TestCase):
         z.add_item(self.GATT, itemType="attachment", parentItem=self.G, title="Published-Springer",
                    contentType="application/pdf", linkMode="imported_url")
 
-    def look(self, distinct_from=(), same_as=None, **item):
-        found, near = self.zot.lookup(item, distinct_from=distinct_from, same_as=same_as)
+    def look(self, distinct=(), same=None, **item):
+        found, near = self.zot.lookup(item, distinct=distinct, same=same)
         return found, [m["key"] for m in near], near
 
     def test_a_doi_confirms_and_describes_what_the_library_holds(self):
@@ -277,13 +277,21 @@ class Lookup(unittest.TestCase):
         self.assertEqual(near, [])
         self.assertEqual({s["qmode"] for s in found["searched"]}, {"titleCreatorYear"}, "full text is not searched")
 
+    def test_an_identifier_on_several_items_confirms_none(self):
+        self.fake.add_item("TWICE001", itemType="journalArticle", title="Progressive Residual Learning, again",
+                           DOI="10.1109/JBHI.2022.3142076")
+        found, near, full = self.look(DOI="10.1109/JBHI.2022.3142076", title="Deep Residual Learning for Image Recognition")
+        self.assertEqual((found["code"], sorted(near), {c["matched_by"] for c in full}),
+                         ("not_found", sorted([self.A, "TWICE001"]), {"doi"}),
+                         "which item is the paper's is a judge's; the title's hits do not join them")
+
     def test_candidates_beyond_ten_are_counted(self):
         for i in range(12):
             self.fake.add_item(f"MANY{i:04d}", itemType="journalArticle", title=f"Learned Image Compression Study {i}")
         found, near, _ = self.look(title="Learned Image Compression")
         self.assertEqual((len(near), found["more"]), (10, 2))
 
-    def test_distinct_from_drops_items_at_every_step(self):
+    def test_distinct_drops_items_at_every_step(self):
         self.assertEqual(self.look([self.A], DOI="10.1109/JBHI.2022.3142076", title="Deep Residual Learning for Image Recognition")[1][0],
                          self.C, "the DOI hit dropped: the title step")
         self.assertEqual(self.look([self.C], title="Deep Residual Learning for Image Recognition")[1], [self.E])
@@ -292,11 +300,11 @@ class Lookup(unittest.TestCase):
         found, near, _ = self.look([self.F], archiveID="arXiv:2401.00001", title="Something Else Entirely")
         self.assertEqual((found["code"], near[0]), ("not_found", self.D))
 
-    def test_same_as_settles_it(self):
-        found, near, _ = self.look(same_as=self.C, title="Deep Residual Learning for Image Recognition")
-        self.assertEqual((found["code"], found["key"], found["matched_by"], near), ("found", self.C, "same_as", []))
+    def test_same_settles_it(self):
+        found, near, _ = self.look(same=self.C, title="Deep Residual Learning for Image Recognition")
+        self.assertEqual((found["code"], found["key"], found["matched_by"], near), ("found", self.C, "same_paper", []))
         with self.assertRaises(cli.Stop) as caught:
-            self.look(same_as="NOPE0000", title="x")
+            self.look(same="NOPE0000", title="x")
         self.assertEqual(caught.exception.code, "not_found")
 
     def test_a_hit_on_a_child_counts_for_its_parent(self):

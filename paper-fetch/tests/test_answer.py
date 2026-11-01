@@ -54,8 +54,7 @@ class Answer(unittest.TestCase):
     def test_a_held_file_accepted_refused_or_unknown(self):
         handoff = self.held("paper", "scan.pdf", "A scanned first page")
         listed = self.todo()
-        self.assertEqual((listed.code, [(x["id"], x["kind"], x["taker"]) for x in listed.lines[:-1]]),
-                         (1, [("paper.1", "file", "paper_agent")]))
+        self.assertEqual((listed.code, [(x["id"], x["kind"]) for x in listed.lines[:-1]]), (1, [("paper.1", "file")]))
         r = self.answer(handoff, "accept", "--reason", "page 1 is the paper, a scan", "--label", "Published-IEEE",
                         "--why", "page 1: vol. 12 no. 3", "--by", "paper_agent")
         self.assertEqual((r.code, [e["event"] for e in r.lines]), (0, ["accept", "label", "answer"]), r)
@@ -78,6 +77,41 @@ class Answer(unittest.TestCase):
         call(claim, "--dir", self.work.root, "--file", good, "--slug", "other")
         self.assertEqual([(f["name"], f["check"]) for f in self.res("other")["files"]], [("other.pdf", "ok")])
         self.assertEqual([e["event"] for e in self.work.events() if e["event"] == "withdraw"], ["withdraw"])
+
+    def test_the_files_set_aside_are_in_the_result(self):
+        """Every file of a paper left in unverified/ is in its result's set_aside, with why: the result is all a
+        caller reads, so a library file refused while labelling files in hand still reaches it."""
+        self.assertNotIn("set_aside", self.res("other"), "absent when there is none")
+        # refused by the check: a file from outside the directory (a library's) is copied in, its original kept
+        outside = Path(tempfile.mkdtemp(prefix="pf-zotero-storage-")) / "Liu - 2022.pdf"
+        outside.write_text("<html>a login page</html>")
+        r = call(claim, "--dir", self.work.root, "--file", outside, "--slug", "other")
+        refused = r.lines[0]
+        self.assertEqual((refused["result"], outside.is_file()), ("refused", True), r)
+        # held: its file handoff open; then one answered refuse
+        held = self.held("other", "scan.pdf", "A scanned first page")
+        notice = self.held("other", "notice.pdf", "Erratum\nA notice")
+        self.answer(notice, "refuse", "--reason", "a correction notice")
+        # accepted: filed, so not set aside
+        self.answer(self.held("paper", "a.pdf", "A scanned first page"), "accept", "--reason", "page 1 is the paper")
+        # withdrawn: an unconfirmed file moved back when a confirmed one was filed
+        self.answer(self.held("paper", "b.pdf", "Lung Nodules, a poster"), "unknown", "--reason", "cannot tell")
+        call(claim, "--dir", self.work.root, "--file", fake_pdf(self.work.inbox / "good.pdf", [f"{TITLE}\nWei Liu"]),
+             "--slug", "paper")
+
+        def aside(slug):
+            return [(x["why"], x.get("code"), x["md5"], (self.work.unverified / x["name"]).is_file())
+                    for x in self.res(slug).get("set_aside") or []]
+
+        handoff = lambda path: json.loads(Path(path).read_text())  # noqa: E731
+        self.assertEqual(aside("other"), [("refused", refused["code"], refused["md5"], True),
+                                          ("held", handoff(held)["code"], handoff(held)["md5"], True),
+                                          ("refused", handoff(notice)["code"], handoff(notice)["md5"], True)])
+        [withdrawn] = [e for e in self.work.events("withdraw")]
+        self.assertEqual([x[0] for x in aside("paper")], ["withdrawn"], "the accepted file is among files, not here")
+        self.assertEqual((aside("paper")[0][2], self.res("paper")["set_aside"][0]["name"]),
+                         (withdrawn["md5"], withdrawn["file"]))
+        self.assertNotIn(aside("paper")[0][2], [f["md5"] for f in self.res("paper")["files"]])
 
     def test_labels_decide_whether_the_paper_goes_on(self):
         good = fake_pdf(self.work.inbox / "a.pdf", [f"{TITLE}\nWei Liu"])
@@ -109,6 +143,8 @@ class Answer(unittest.TestCase):
         r = call(answer, page["id"], "blocked", "--dir", self.work.root, "--reason", "a bot check on the publisher")
         self.assertEqual(([e["event"] for e in r.lines], r.lines[0]["result"]), (["try", "answer"], "blocked"))
         self.assertTrue(run.held_on_route(self.work, "paper", 1), "a block holds the paper on its route this pass")
+        self.assertEqual(self.todo("--slug", "paper").code, 0, "answered blocked, nothing of the paper's is open: its "
+                                                               "agent's done-when holds")
         self.assertEqual(self.res("paper")["outcome"]["last"]["result"], "blocked", "why it was not got stays")
         page = run.handoff(self.work, "page", self.res("other"), pass_=1, route="publisher", url="https://doi.org/10.1/y")
         self.assertEqual(self.answer(self.work.handoffs / f"{page['id']}.json", "no_pdf_here").lines[0]["code"], "bad_answer")
@@ -124,6 +160,29 @@ class Answer(unittest.TestCase):
                          "what is left: the label of the file the download became")
         self.assertEqual(call(answer, "nope.1", "resolved", "--dir", self.work.root).lines[0]["code"], "no_such_handoff")
         self.assertEqual(call(answer, "paper.1", "resolved").code, 2, "an id needs --dir")
+
+    def test_todo_lists_by_kind(self):
+        """todo lists the open handoffs by kind, in the order the loop takes them up, oldest first within a kind. Who
+        takes a kind is SKILL.md's: the record, the log and todo hold only the fields pflib/run.py documents."""
+        label = run.handoff(self.work, "label", self.res("paper"), md5="0" * 32)
+        page = run.handoff(self.work, "page", self.res("other"), pass_=1, route="publisher", url="https://doi.org/10.1/y",
+                           code="no_pdf_link")
+        left = run.handoff(self.work, "left", file=self.dl / "fulltext.pdf", md5="1" * 32, note="unmatched")
+        down = run.handoff(self.work, "browser_down", note="BROWSER_CONNECT: no extension")
+        again = run.handoff(self.work, "page", self.res("other"), pass_=1, route="start", url="https://pub.example/y")
+        listed = self.todo()
+        self.assertEqual([(x["kind"], x["id"]) for x in listed.lines[:-1]],
+                         [("browser_down", down["id"]), ("page", page["id"]), ("page", again["id"]),
+                          ("label", label["id"]), ("left", left["id"])])
+        self.assertEqual(listed.lines[-1]["summary"]["kinds"], {"label": 1, "page": 2, "left": 1, "browser_down": 1})
+        self.assertEqual([x["id"] for x in self.todo("--kind", "page").lines[:-1]], [page["id"], again["id"]])
+        documented = {"record": {"id", "kind", "slug", "pass", "route", "url", "file", "md5", "code", "note", "paper",
+                                 "evidence", "answers", "at"},
+                      "event": {"event", "id", "slug", "kind", "md5", "route", "url", "path", "at"},
+                      "todo": {"id", "slug", "kind", "route", "url", "path"}}
+        self.assertEqual({"record": set().union(*(json.loads(Path(e["path"]).read_text()) for e in self.work.events("handoff"))),
+                          "event": set().union(*self.work.events("handoff")),
+                          "todo": set().union(*listed.lines[:-1])}, documented)
 
     def test_smoke(self):
         for name, first in (("answer", "Answer a handoff"), ("todo", "List a directory's open handoffs")):

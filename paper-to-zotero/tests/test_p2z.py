@@ -141,6 +141,8 @@ class PrepareAndSave(unittest.TestCase):
         self.assertEqual((same["waiting_on"], [c["key"] for c in json.loads(Path(same["same_paper"]).read_text())["candidates"]]),
                          ("judge", ["LIKE0001"]), "the open candidate is a judge's, through its handoff")
         self.assertIn({"published_versions": 1}, by["pre"]["decide"], "the result lists a published version")
+        self.assertIn({"tags": str(work.tags / "new.json")}, by["new"]["decide"], "a paper to create needs its tags file")
+        self.assertNotIn("tags", json.dumps(by["lib"].get("decide", [])), "a paper the library holds is not tagged")
         code, again = p2z("prepare")
         self.assertTrue(all(v.startswith("skipped") for v in again[0]["steps"].values()), again[0])
         pre = work_run.read(records[2])
@@ -148,7 +150,16 @@ class PrepareAndSave(unittest.TestCase):
         pre.save()
         code, lines = p2z("save")
         by = {line["slug"]: line for line in lines[:-1]}
+        self.assertEqual((by["new"]["steps"]["create_item"], by["new"]["failed"]), ("untagged", ["create_item", "attach_file"]),
+                         "no item before its curated tags, and save says so")
+        work.tags.mkdir()
+        for slug in ("new", "pre"):
+            (work.tags / f"{slug}.json").write_text(json.dumps(["method/x", "venue/Example"]))
+        code, lines = p2z("save")
+        by = {line["slug"]: line for line in lines[:-1]}
         self.assertEqual(by["new"]["steps"], {"create_item": "ok", "attach_file": "ok"}, lines)
+        self.assertEqual(zot.data(work_run.read(records[0])["saved"]["key"])["tags"],
+                         [{"tag": "method/x", "type": 0}, {"tag": "venue/Example", "type": 0}])
         self.assertEqual(work_run.read(records[0])["attach"][0]["title"], "Published-Example")
         self.assertEqual(by["dup"]["steps"]["create_item"], "possible_duplicate")
         self.assertEqual(by["dup"]["failed"], ["create_item"])

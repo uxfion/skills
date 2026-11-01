@@ -31,22 +31,30 @@ Everything in Zotero: items with their PDFs, filed and tagged; the library tidie
 
 **Read back.** What a task wrote is read back from the library as it is now — an import's report, a tidy's second lint — never from memory.
 
-**The scratch directory.** Whatever a task writes outside Zotero lives in `<scratch>`: the session's scratchpad, else `${TMPDIR:-/tmp}`, never a project's folder. An import works in `<scratch>/paper-to-zotero/`; a package taken out unzips to `<scratch>/<cite>.<title>/`, its note file beside it. The task ends by deleting what it created there once Zotero holds it; a file that did not reach Zotero is the user's, handed over with its full path.
+**The scratch directory.** Whatever a task writes outside Zotero lives in `<scratch>`: the session's scratchpad, else `${TMPDIR:-/tmp}`, never a project's folder. An import works in `<scratch>/paper-to-zotero/` (`<imp>` below and in references/import.md); a package taken out unzips to `<scratch>/<cite>.<title>/`, its note file beside it. The task ends by deleting what it created there once Zotero holds it; a file that did not reach Zotero is the user's, handed over with its full path.
 
 ## Handoffs
 
-A script settles only what is certain — an identifier that matches, the same md5, Zotero's own reply — and stops at everything else with its evidence. The table indexes those stops; the step it points to holds the brief.
+A script settles only what is certain — an identifier that matches, the same md5, Zotero's own reply — and stops at everything else with its evidence. The table indexes those stops and the work beside them; the step it points to sends each, and the brief is what the taker reads.
 
-**Judges** are background subagents on a cheap model (Claude Code `model: "sonnet"`, Codex `luna`), about 20 cases each. A judge reads only the files its brief names and answers every case; what it cannot settle it answers `unknown`, and the step says who takes that. Its report is checked against the files before anything is built on it. At most 5 subagents run at once, judges and tagging subagents together.
+**Judges and tagging subagents** are background subagents on a cheap model (Claude Code `model: "sonnet"`, Codex `luna`), about 20 cases each, up to 10 at once, judges and tagging subagents together, since they touch no site. A judge reads only the files its brief names, and may run the recording command's `--dry-run`; what it cannot settle it answers `unknown`, and the step says who takes that. Each is sent with its brief and what the step fills in; a role that writes files gets `<n>`, a number of yours unique in the run, so no two write the same file:
 
-| stop | taker | brief | recorded by |
+```text
+You are a paper-to-zotero <role>. Your brief: <paper-to-zotero's directory>/references/<brief>. Run its commands from
+<paper-to-zotero's directory>. <imp> (or <scratch>) is <path>[; <n> is <n>]. Yours: <the cases the step names>.
+```
+
+What comes back is checked against the files before anything is built on it; a case still open goes into the next batch, or to you. Without subagents, do the work yourself by the same brief.
+
+| stop | taker | brief | what comes back, recorded by |
 |---|---|---|---|
-| `same_paper`: library items a title search found, in `<scratch>/paper-to-zotero/handoffs/` (from `prepare`, or `save`'s `possible_duplicate`) | judges | references/import.md, step 3 | `p2z.py answer <handoff> same\|distinct\|pair\|unknown --by judge` |
-| a `pair` or `unknown` (`waiting_on: user`) | the user, in the run's one message of questions | references/import.md, step 3 | `p2z.py answer … same\|distinct --by user` |
-| `duplicates`, `published_versions`, `checks`, `warnings`, `unanswered` (`prepare`'s `decide`) | you | references/import.md, step 3 | the record: `same_as`, a redraft or `keep_preprint`, the item or `accepted`; `prepare` again |
-| a stub's PDF (`attach_file` answers `unchecked`) | `p2z.py recognize`, then a judge on the recognized item's fields | references/no-doi-record.md | `update_item` and `file_and_tag`; nothing recognized: the item written by hand |
-| lint's findings in a tidy | judges | references/organize.md, *A tidy*, step 3 | their change list, written on the user's word by `update_item --batch` and `file_and_tag --batch` |
-| tags | you, or tagging subagents for many papers | references/tagging.md | the record's `tags`; in a tidy, the change list |
+| `same_paper` handoffs in `<imp>/handoffs/` (`prepare`'s `decide`, `waiting_on: judge`; `save`'s `possible_duplicate`) | same-paper judges | references/same-paper-judge.md, sent from references/import.md, step 3 | an answer per candidate, in the handoff: `p2z.py answer <handoff> same\|distinct\|pair\|unknown --key K --by judge` |
+| a `pair` or `unknown` (`waiting_on: user`) | the user, in the run's one message of questions | references/import.md, step 3 | `p2z.py answer <handoff> same\|distinct --key K --by user` |
+| `tags` (`prepare`'s `decide`; `save`'s `untagged`) | tagging subagents, or you for a few papers | references/tagging.md, sent from references/import.md, step 3 | a tags file per paper, `<imp>/tags/<slug>.json`, which `save` writes into the new item |
+| `published_versions`, `checks`, `warnings`, `unanswered` (`prepare`'s `decide`) | you | references/import.md, step 3 | the record: a redraft or `keep_preprint`, the item or `accepted`; `prepare` again |
+| a stub's PDF (`attach_file` answers `unchecked`) | `p2z.py recognize`, then recognizer judges | references/recognizer-judge.md, sent from references/no-doi-record.md | `verdicts.<n>.jsonl` and `changes.<n>.jsonl` in `<imp>/recognize/`; you write the changes with `update_item --batch`, then file and tag the item; nothing recognized: the item written by hand |
+| lint's findings in a tidy | tidy judges | references/tidy-judge.md, sent from references/organize.md, *A tidy*, step 3 | `verdicts.<n>.jsonl`, `changes.<n>.jsonl` and `tags.<n>.jsonl` in `<scratch>/tidy/`; the changes written on the user's word by `update_item --batch` and `file_and_tag --batch` |
+| tags in a tidy | tagging subagents | references/tagging.md, sent from references/organize.md, *Tidying tags and collections* | `<scratch>/tidy/tags.<n>.jsonl`, written on the user's word by `file_and_tag --batch` |
 | merges, the trash, renames of existing items | the user | the `--dry-run` list | the same command without `--dry-run` |
 
 ## Reading a library paper

@@ -9,9 +9,9 @@ uv run scripts/pf.py identify --search "<title>" --author <surname>   # Crossref
 
 - The metadata is in the result files; the lines only report what was done. A result holds `csl` (CSL-JSON in CSL's own vocabulary, `source` the catalogue it came from; where doi.org gave none, the abstract from Europe PMC, else OpenAlex, the PMID and PMCID, and the authors' keywords from Europe PMC), `ids`, `cite` (the key as given), `wanted`, `record_of`, `versions`, `alt_titles`, `warnings` (an erratum-like title, a date taken from another field, a sales-page DOI, where an abstract came from). `enrichment.openalex_keywords`: OpenAlex's model's keywords, a tagging hint. `scripts/pflib/run.py` documents every field.
 - A `title:` line is `needs_pinning`: a title is pinned by hand (SKILL.md, *Identify a paper*), and `--search` is one way.
-- `--search` lists Crossref's top five in its own order, with authors, the title's similarity and `first_author_differs`: which one is the paper is a judge's call or yours — confirm the title and first author before identifying its DOI.
+- `--search` lists Crossref's top five in its own order, with authors, the title's similarity and `first_author_differs`: which one is the paper is yours, or for several titles judges' (SKILL.md, *Identify a paper*) — confirm the title and first author before identifying its DOI.
 - `versions.incomplete` and `enrichment.incomplete` name sources that did not answer; identifying the same id again asks them again, and what they gave before stays meanwhile (the files already got stay too).
-- `page_unreachable`: the page refuses plain HTTP. A browser agent saves its HTML into `<dir>/scratch/`; `identify --redraft <page url> <result> --html <file>` reads it through the same parser.
+- `page_unreachable`: the page refuses plain HTTP. A browser agent saves its HTML as `<dir>/scratch/pages/<slug>.html`; `identify --redraft <page url> <result> --html <file>` reads it through the same parser.
 - `slug_taken`: the key's slug names another paper's result in that directory — give another key, or another directory.
 
-No `ready`, no watcher and no browser are needed (but for an unreachable page): everything here is metadata over plain HTTP, paced per host through the machine's pace file (`~/.cache/paper-fetch/pace.json`).
+No `ready`, no watcher and no browser are needed (but for an unreachable page, or a title only a browser finds): everything here is metadata over plain HTTP, paced per host through the machine's pace file (`~/.cache/paper-fetch/pace.json`).

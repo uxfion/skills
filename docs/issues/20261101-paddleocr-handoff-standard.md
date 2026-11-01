@@ -1,7 +1,7 @@
 # paddleocr：按交接标准改它的几处交接
 
-- 来源 · 日期：2026-11-01，交接标准的审查（issue `20261101-skills-handoff-standard.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）。用户把那次的范围定为只改 paper-fetch 和 paper-to-zotero（「A」），其余 skill 记下来以后改：「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。
-- 条目编号指那张 issue 参考资料文件夹里的 `audit.md`（PO-1 到 PO-9）。paddleocr 的 settle brief 是审查里最好的样板（PO-4）：brief 本身是一个文件，按路径交给 subagent，subagent 是那个文件夹唯一的写入者，用 `doc.py commit` 记下，每一节有完成条件，回报分五部分。交接标准的"brief 按读者拆成两半"就是照它来的。
+- 来源 · 日期：2026-11-01，交接标准的审查（issue `archive/20261101-skills-handoff-standard-fixed.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）。用户把那次的范围定为只改 paper-fetch 和 paper-to-zotero（「A」），其余 skill 记下来以后改：「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。
+- 条目编号（PO-1 到 PO-9）指文末附的审查条目原文。paddleocr 的 settle brief 是审查里最好的样板（PO-4）：brief 本身是一个文件，按路径交给 subagent，subagent 是那个文件夹唯一的写入者，用 `doc.py commit` 记下，每一节有完成条件，回报分五部分。交接标准的"brief 按读者拆成两半"就是照它来的。
 - 状态：open。等交接标准在 paper-fetch、paper-to-zotero 落地、spec 定稿后再改；由维护 paddleocr 的会话来做。
 
 ## 要改的
@@ -17,3 +17,24 @@
    - 每份 brief 都带那一小段规矩；
    - Claude Code 和 Codex 的模型都写上；
    - 角色写明是主 agent、subagent 还是用户。
+
+## 附：审查条目原文
+
+2026-11-01 交接标准审查（只读）时记下的条目，原样搬自那张 issue 的参考资料 `audit.md`（关闭时删除）。行号指当时的文件；评判的依据是当时的 `docs/design-principles.md`。图例：
+
+- **Dir**: S→A script to agent · A→S agent to script · M→Sub main agent to subagent · Sub→M subagent to main · A→U agent to user · U→A / U→S user to agent / to script.
+- **Stated** column, what the text says about: **T** taker (model, how many) · **G** goal · **I** inputs (paths, evidence, read-first) · **R** requirements and limits · **P** product (answers allowed, files, format, location) and how it is recorded · **↻** what resumes · **D** done-when · **U** what happens when the taker cannot settle it · **B** what it reports back. `—` = not stated.
+- **Gaps**: what is missing, unclear, scattered, or contradicted (between files or by the code), each with the lines it rests on.
+- File references without a skill prefix are relative to that skill's directory.
+
+| ID | Where · Dir · trigger | Stated | Gaps (cited) |
+|---|---|---|---|
+| PO-1 | SKILL.md:10, :22–24, :38–43; parse.py --help · S→A, A→U · parse summary / errors / native fallback | P errors → install.md; `skipped`/`rendered`/`edits_carried`/`archived`; native reason → tell the user in a batch, and that vllm-serve would be 10–20× faster. D SKILL.md:38. | Good. |
+| PO-2 | SKILL.md:26–30; parse.py:203–242 · S→A, A→U · VL server holds the call | P judge as vllm-serve's SKILL says; `serve.py down paddleocr-vl` when stuck; `port_busy` → `--vl-server` if it is PaddleOCR-VL, else tell the user. | Verified: serve.py's stderr passes through (parse.py:206 pipes only stdout) and errors print as `[paddleocr] vllm-serve <code>: <detail>` (parse.py:234–238). Consistent. |
+| PO-3 | references/install.md:12, :38 · A→U · install, poppler | P multi-GB install: wait for the go-ahead; poppler: the user installs or approves. | See VS-5 contradiction. |
+| PO-4 | SKILL.md:45–62; references/settle.md:1–117 · M→Sub · a parse with open findings | T one subagent per document, a smaller model that can view images (CC `sonnet`), ≤5 unless the user sets another limit, sole writer of its folder (SKILL.md:49, :56). G settle every finding, read weak spots (settle.md:3). I absolute path of settle.md, folder, source, papers.md for a paper (SKILL.md:51–54). R record left to `doc.py`; marker lines untouched (settle.md:35); trust text layer for characters, image for layout. P edits + `doc.py commit`, verdicts `ok`/`unresolved`, `doc.py figure` (settle.md:31–39). D per section (settle.md:65, :89, :107). U `unresolved`; "open" in the report. B five parts, one line per item (settle.md:111–117). | **Model brief** (a reference file that is the brief, passed by path). Small gaps: Codex model unnamed (paper-fetch and vllm-serve name `luna`); settle.md:5 says the prompt "may also name figures to settle", which SKILL.md:51–54's list of what to give omits; no "one level deep" / no-git line. |
+| PO-5 | settle.md:31–39; doc.py --help · Sub→S · recording | P `doc.py commit`, refusals on stderr ("put back what it names"). | Good. |
+| PO-6 | SKILL.md:62 · Sub→M · report back | D main's own: report back and `doc.py show` prints `no open findings`. | **Missing**: what the main does when `show` still lists open findings after the report (send back to the same subagent? settle itself?). |
+| PO-7 | SKILL.md:59; p2z import.md:109; paper-read SKILL.md:36, :43–45 · deferred A→A · a batch parsed for later use | P "settled when a task first reads it". | **Scattered**: paper-read's Look it up settles (via paddleocr steps 2–3), but paper-read's Read a paper (the most thorough first read) does not; p2z SKILL.md:63 asks for `structured put` after "a settled finding", which Read a paper never mentions. |
+| PO-8 | references/papers.md:36 · Sub→M→U · a caption style the conventions miss | P say so in the report with an example caption; pattern into `scripts/conventions.py`, then `doc.py render`. | Who changes `conventions.py` (a skill code change, the user's decision per the repo's rules) is not said; "say so in your report" reaches the main, which has no step to carry it to the user. Minor. |
+| PO-9 | SKILL.md:82–87 · A→caller/U · report | P paths, `min_coverage`, settle report, what came from figure images. | Good. |

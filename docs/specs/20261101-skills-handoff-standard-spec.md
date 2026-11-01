@@ -1,6 +1,6 @@
 # 交接标准：脚本、agent、用户之间每一处交接怎么写（设计）
 
-> **第二版，设计已定，终审已做（§12），待用户说开始再实施**（2026-11-01）。§10 的七个问题用户都已定；实施中发现要改的，直接改本文。第一版过了三份审阅（忠于来源、对代码的说法、新 agent 能不能照着写），这一版按审阅改过，§11 记了改了什么。来源：issue [20261101-skills-handoff-standard.md](../issues/20261101-skills-handoff-standard.md)，调研在它的参考资料文件夹（`mattpocock-findings.md`、`audit.md`；下文的 PF-7、PZ-13 等编号指 `audit.md` 的条目）。依据：`docs/design-principles.md` §1、§3、§4（2026-11-01 新加的“只约束必须守住的，怎么做交给 agent”）、§5、§6，writing-for-agents skill，以及用户 2026-11-01 的方向：「现在模型能力都是比较强的，所以我们尽量要做到少约束。也不是说不约束，必要的应该约束，但在细节方面应该让 Agent 去把控」。
+> **第二版，已实施并验收（2026-11-01；实施中的修正和真实验证记在 §13），冻结**：现行做法看两个 skill 本身。§10 的七个问题用户都已定；实施中发现要改的，直接改本文。第一版过了三份审阅（忠于来源、对代码的说法、新 agent 能不能照着写），这一版按审阅改过，§11 记了改了什么。来源：issue [20261101-skills-handoff-standard.md](../issues/archive/20261101-skills-handoff-standard-fixed.md)，调研在它的参考资料文件夹（`mattpocock-findings.md`、`audit.md`，关闭时已删；下文的 PF-7、PZ-13 等编号指 `audit.md` 的条目，§6、§7 记了每条的现状和改法，PR-、VS-、PO- 条目原文搬进了 paper-notes、vllm-serve、paddleocr 三张 issue）。依据：`docs/design-principles.md` §1、§3、§4（2026-11-01 新加的“只约束必须守住的，怎么做交给 agent”）、§5、§6，writing-for-agents skill，以及用户 2026-11-01 的方向：「现在模型能力都是比较强的，所以我们尽量要做到少约束。也不是说不约束，必要的应该约束，但在细节方面应该让 Agent 去把控」。
 
 ## 0. 一句话
 
@@ -145,7 +145,7 @@ gate or a password, alerts at once. Design decisions follow §5.
 | 矛盾 | 处理 |
 |---|---|
 | reader 用 opus，原则说用会话本身的模型 | 留到 paper-read 设计 |
-| `taker` 在记录里按种类写死，SKILL.md 按情况换接手的角色 | 去掉记录里的 `taker` 字段，谁接只在 SKILL.md 的表里写一处；paper agent 的 brief 写明它也答自己那篇论文的标签交接。`todo` 改为按种类列出（要改 `run.py`、`todo.py`） |
+| `taker` 在记录里按种类写死，SKILL.md 按情况换接手的角色 | 去掉记录里的 `taker` 字段，谁接只在 SKILL.md 的表里写一处；paper agent 的 brief 写明它也答自己那篇论文的标签交接。`todo` 改为按种类列出（要改 `run.py`、`todo.py`）。p2z 的 `same_paper` 交接文件同理去掉 `taker`（§13） |
 | organize.md 写 `--slug <citation key>`，paper-fetch 的 slug 是文件名安全的形式 | 改成"结果的 slug（引用键的文件名安全形式）" |
 | judge 必看两页图，图要装了 `pdftoppm` 才有 | brief 写"记录里列了图就看图" |
 | vllm-serve 和 paddleocr 对 uv 安装要不要等用户说法相反 | 不在本次范围（另一个会话），记下 |
@@ -161,7 +161,7 @@ gate or a password, alerts at once. Design decisions follow §5.
 
 - **改：** paper-fetch、paper-to-zotero。设计原则的改动已经写进（§5.5）。
 - **paper-read：** 它的设计还没定，交接放进它的设计里一起定，直接按本标准写。
-- **vllm-serve、paddleocr：** 审查发现的问题记在 `audit.md`，它们是另一个会话的范围，在那边按同一标准改（用户 2026-11-01 选 A）。
+- **vllm-serve、paddleocr：** 审查发现的问题记在它们各自的 issue（文末附审查条目原文），它们是另一个会话的范围，在那边按同一标准改（用户 2026-11-01 选 A）。
 - **不做：** 不加统一的交接库或模板代码（每个 skill 各自安装，原则 §3 不许共用库）；不给没有数据要传的交接建记录；不规定 brief 的小标题和篇幅。
 
 ## 9. 完成条件
@@ -213,3 +213,23 @@ gate or a password, alerts at once. Design decisions follow §5.
 - 交接表的英文列名定下来，免得两个 skill 各译各的。
 - 状态、背离、§5.4、§5.5、§8 里"待定""草稿"的说法改为已定、已写进原则。
 - 原则 §1 "状态存在文件里"的后半句收窄为"中断后重跑的运行能找到已做的判断"，和问题 6 不再冲突（用户选 A）。
+
+## 13. 实施中的修正（2026-11-01 起）
+
+- p2z 的 `same_paper` 交接文件也去掉 `taker`：理由和 paper-fetch 一样，谁接只在 SKILL.md 的表里写一处；而且 `pair`、`unknown` 之后接手的是用户，写死的 `judge` 本来就不对。
+- 打标签的一个漏洞：batch.md 第 3 步在第一轮之后就 `save`，标签文件只在 `create_item` 时并进条目；标签文件还没写好就建了条目，条目就没有精选标签，之后写的标签文件也进不去。要求：没有一篇论文会在没人察觉的情况下不带标签就建条目（怎么做由实现定，写进文档）。
+- 每份 brief 文件的“规矩”统一用这几行原文（上网的角色在后面接该 skill 的上网规矩；只看本地文件的角色加一句不碰网站）：
+  ```
+  - Do the work yourself; send no subagents. No git.
+  - The files you write yourself go under `<folder>` only; what the skill's commands write is theirs.
+  - If you cannot finish, say what you tried, what you settled and what is left.
+  ```
+- 新 agent 试读（§9）查出的共同问题，两个 skill 都照改：
+  - 回报先用一行说完成条件是否成立，再只报例外；只报例外时，"没有例外"和"根本没跑"在主 agent 看来一样；
+  - 派发说明写明"在哪个目录跑命令"（skill 的目录，写出来），不写"那个目录"：brief 文件在 `references/` 里，"那个目录"会被读成 `references/`；
+  - 派发说明给出 slug 等 brief 里要用到的名字；批次号 `<n>` 只给要写文件的任务；
+  - 要写的文件夹写明，不存在就由写它的一方建。
+- PF-12c/PF-20 的"被拒的库内文件由脚本报出"：p2z 的实现起初直接读 paper-fetch 的 `unverified/`，破坏了 paper-fetch "调用方只读 `results/`" 的约定。改为 paper-fetch 在每篇的结果里记下没放进 `files` 的文件（`set_aside: [{name, md5, why: refused|held|withdrawn, code?}]`，由折叠写入），`titles_from_labels` 只读结果。接口仍是一个，调用方不碰 paper-fetch 的内部文件夹。
+- 同一 DOI 的多个条目走查重交接时，judge 的 brief 写明这些候选都是这篇论文：其中一个答 `same`（较全的），都不答 `distinct`，否则 `save` 会再建一份。
+- 真实小规模导入（§9，2026-11-01，`tmp` 分类）：Llama 2（arXiv:2307.09288，只有预印本）新建条目；Conformal Prediction Sets…（arXiv:2401.13744，改到 PMLR 正式版页面）库里已有（KPMPR4TJ，没有 DOI 和 arXiv id）。四个真实的 sonnet subagent 照 SKILL.md 的派发说明接手：查重 judge 答 `same`，答复只在交接文件里、记录没有 `same_as`，重跑 `prepare` 报 `found`（`matched_by: same_paper`），导入在那里停下、库里条目没动；打标签的 subagent 写了标签文件，之前 `save` 报 `untagged`、什么都没建，之后条目带着 6 个手动标签进了 `tmp`；paper-fetch 的 judge 给 arXiv 文件定了 `Preprint-arXiv-v2`。测试条目事后移进回收站。
+- 真实导入查出一处：paper-fetch 的 judge 回报说只读了页面图的文字层、没看图。原来 SKILL.md 写的"图要看"在拆 brief、试读修改时被挪进了"输入"，成了可看可不看。改为写进完成条件（judge.md *Handoff records*；paper agent 的 `file` 那条同样写明先看图再答）。

@@ -52,7 +52,7 @@ command scans Downloads itself). Requests to one host keep their gap (web.GAPS; 
 15 s), in the machine's pace file.
 
 stdout: the try and skip lines as they happen, one short line per page, file or browser_down handoff ({handoff, slug,
-kind, taker, path}), then {"summary": {results, satisfied, handoffs: {kind: n}, routes}}: every open handoff of these
+kind, path}), then {"summary": {results, satisfied, handoffs: {kind: n}, routes}}: every open handoff of these
 results, label handoffs included (pf.py todo lists them; --start prints no summary). When it ends it folds the
 results it was given (and any other its scan of Downloads filed a file for) into their files and outcome, as
 settle.py does. Exit 0 = the pass went through with nothing open; 1 = handoffs are open for the agent (or the browser
@@ -168,8 +168,7 @@ class Pass:
                 pass
 
     def announce(self, hid, slug, kind):
-        cli.emit({"handoff": hid, "slug": slug, "kind": kind, "taker": run.HANDOFF_TAKERS[kind],
-                  "path": str(self.work.handoffs / f"{hid}.json")})
+        cli.emit({"handoff": hid, "slug": slug, "kind": kind, "path": str(self.work.handoffs / f"{hid}.json")})
 
     # ---- one candidate ----------------------------------------------------------------------------------------
 

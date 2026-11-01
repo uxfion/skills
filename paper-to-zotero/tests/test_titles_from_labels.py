@@ -85,6 +85,25 @@ class TitlesFromLabels(unittest.TestCase):
         self.assertEqual((r.lines[1]["code"], r.lines[1]["reason"], r.lines[-1]["summary"]["lines"]), ("skipped", "titled", 0))
         self.assertEqual(batch.read_text(encoding="utf-8"), "")
 
+    def test_a_file_paper_fetch_gave_no_label_is_listed(self):
+        wrong, own = "0123456789abcdef0123456789abcdef", "fedcba9876543210fedcba9876543210"
+        for slug, aside in (("liu2022jbhi", [{"name": "liu2022jbhi.file.pdf", "md5": wrong, "why": "refused", "code": "title_mismatch"}]),
+                            ("shinn2023reflexion", [{"name": "shinn2023reflexion.file.pdf", "md5": own, "why": "withdrawn"}])):
+            path = self.fetch / "results" / f"{slug}.json"
+            path.write_text(json.dumps({**json.loads(path.read_text(encoding="utf-8")), "set_aside": aside}), encoding="utf-8")
+        self.zot.add_item("WRONGPDF", parentItem=LIU, itemType="attachment", linkMode="imported_url",
+                          contentType="application/pdf", title="Full Text PDF", md5=wrong)
+        batch = self.tmp / "titles.jsonl"
+        r = call(titles_from_labels, self.fetch, "-o", batch, "--base-url", self.zot.base_url)
+        self.assertEqual(r.code, 1, "a file without a label is for the user to look at")
+        aside_lines = [{k: v for k, v in ln.items() if k != "hint"} for ln in r.lines if ln.get("code") == "not_filed"]
+        self.assertEqual(aside_lines, [
+            {"slug": "liu2022jbhi", "file": "liu2022jbhi.file.pdf", "code": "not_filed", "md5": wrong, "why": "refused",
+             "check_code": "title_mismatch", "key": "WRONGPDF", "citationKey": "liu2022jbhi"},
+            {"slug": "shinn2023reflexion", "file": "shinn2023reflexion.file.pdf", "code": "not_filed", "md5": own,
+             "why": "withdrawn"}])
+        self.assertEqual((r.lines[-1]["summary"]["failed"], r.lines[-1]["summary"]["lines"]), (2, 1), "the batch is as before")
+
     def test_a_bad_result_or_none(self):
         (self.fetch / "results" / "broken.json").write_text("{", encoding="utf-8")
         r = call(titles_from_labels, self.fetch, "-o", self.tmp / "t.jsonl", "--base-url", self.zot.base_url)

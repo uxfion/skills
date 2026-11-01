@@ -19,9 +19,10 @@ Each line: {slug, code: decide | failed | ok, decide?: [what is still open], fai
 it is not done], steps: {script: its code}}. `decide` comes from the record and its result, each entry naming who
 settles it:
   same_paper      the open handoff's path and waiting_on: judge (it answers with answer.py) | user (a judge answered
-                  pair or unknown; the agent records the user's word with answer.py --by user)
-  duplicates      several library items carry the paper's identifier: the agent writes same_as (or merges them first,
-                  on the user's word)
+                  pair or unknown; the agent records the user's word with answer.py --by user). Several library items
+                  carrying the paper's identifier come this way too, as candidates with matched_by
+  tags            the paper's tags file (tags/<slug>.json) is not written yet, and its item is still to be created:
+                  whoever tags it writes it (references/tagging.md); save creates nothing for the paper until then
   published_versions  a preprint item whose result lists published versions: identify --redraft and draft_item
                   --redraft, or keep_preprint with the reason
   checks, warnings    check_item's flags (mapped:publicationTitle, missing_minimum:date, ...) and draft_item's
@@ -77,10 +78,10 @@ def decisions(rec):
     accepted, out, still = set(rec.get("accepted") or []), [], set(run.unsettled(rec))
     if still:
         h = run.open_handoff(rec)
-        waiting = {a.get("key") for a in (h or {}).get("answered") or [] if a.get("answer") in ("pair", "unknown")}
+        waiting = {k for k, a in run.latest_answers(rec).items() if a.get("answer") in ("pair", "unknown")}
         out.append({"same_paper": h["path"] if h else None, "waiting_on": "user" if h and still <= waiting else "judge"})
-    if block("found").get("duplicates") and not rec.get("same_as"):
-        out.append({"duplicates": [block("found").get("key"), *block("found")["duplicates"]]})
+    if rec.item and run.item_key(rec) is None and not run.tags_file(rec).exists():
+        out.append({"tags": str(run.tags_file(rec))})
     if res.get("record_of") == "preprint" and versions.get("published") and not rec.get("keep_preprint"):
         out.append({"published_versions": len(versions["published"])})
     flags = [f for f in run.check_flags(block("checks")) if f not in accepted]
