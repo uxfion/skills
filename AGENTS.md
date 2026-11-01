@@ -2,6 +2,7 @@
 
 Personal agent skills plus the source files for global agent instructions. See README.md for the layout.
 
+- Skills divide the work between scripts and agents. A script is scaffolding for the repetitive steps it can be certain of; whatever differs from case to case, is uncertain or is new goes to a subagent, which looks, explores and acts on its own. A script stops at the edge of its certainty and hands its evidence over, never growing matchers to decide the uncertain branch, and its SKILL.md names who takes over at each such point. Read `docs/design-principles.md` before designing, changing, running or testing a skill, writing text for agents, or putting a design decision to the user.
 - In a `SKILL.md`, use paths relative to the skill directory — never agent-specific ones (e.g. `.claude/skills/`).
 - A script that a skill's docs run opens with `#!/usr/bin/env -S uv run --script`, then its PEP 723 block, `dependencies = []` when there are none: the block is what keeps uv out of the caller's project, so `--no-project` adds nothing. It is executable in git, and since this checkout has `core.fileMode` off, `git update-index --chmod=+x` sets the bit. The docs still call `uv run scripts/<name>.py`, which runs without the bit.
 - When adding or removing a skill, update the list in README.md.
