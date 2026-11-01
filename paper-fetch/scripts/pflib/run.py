@@ -55,7 +55,8 @@ Handoffs. Where a script reaches the edge of what it can be certain of, it write
 ...}, answers, at} and a `handoff` event. The evidence's long texts (a file's page excerpts, a page's words) and, for
 a handoff about a PDF (file, label, left), pages 1-2 as images (pdftoppm) are files in handoffs/<id>/, listed in
 evidence.files; the short facts stay in the record. Kinds (HANDOFF_TAKERS):
-  page          a page fetch could not get a PDF from (a sign-in, a challenge, no PDF link): the paper's agent works
+  page          a page fetch could not get a PDF from (a sign-in, a challenge, no PDF link; evidence.links: the
+                PDF-looking links left untried, their address carrying no mark of the paper): the paper's agent works
                 it, then hands back with `fetch --start <url> --session pf-<slug>`, or answers with a verdict
   file          a file the check could not be certain of, held in unverified/: accept [--label] | refuse | unknown
   label         a filed file whose version is not settled yet: label (with --label, --why) | unknown

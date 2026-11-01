@@ -57,6 +57,7 @@ def fail(code, message):
 cmd = args[1]
 if cmd == "open":
     url = args[2]
+    state.setdefault("asked", []).append(url)
     dl = scen.get("downloads", {}).get(url)
     if dl:  # Chrome downloads it; the tab keeps its document
         open(os.path.join(dl["dir"], dl["name"]), "wb").write(base64.b64decode(dl["bytes"]))
@@ -90,6 +91,7 @@ if "pf:find" in js:
          "meta": page.get("meta", {}), "candidates": [u if isinstance(u, dict) else {"url": u, "why": "stub"} for u in page.get("pdf", [])]})
 if "pf:fetch" in js:
     url = json.loads(re.search(r"fetch\((\"[^\"]*\")", js).group(1))
+    state.setdefault("asked", []).append(url)
     ans = scen.get("fetch", {}).get(url)
     if ans:
         state["b64"] = ans
@@ -313,6 +315,40 @@ class Fetch(unittest.TestCase):
         self.assertEqual(run.read(rec)["outcome"]["status"], "waiting", "a handoff is folded too")
         state = json.loads((self.tmp / "state.json").read_text())
         self.assertEqual(state["current"], "https://pub.example/x/pdfft", "the tab stays where the link led, for the agent")
+
+    def test_a_pdf_link_without_the_papers_mark_is_left_to_its_agent(self):
+        # ScienceDirect: a recommended article's "View PDF" comes first; only the link carrying the page's own PII is
+        # asked. y's only link carries no mark of y, so it is y's agent's even though it would have been y's file.
+        page = "https://pub.example/science/article/pii/S1361841524002056"
+        stranger = {"url": "https://pub.example/science/article/pii/S1319157823000411/pdfft", "why": "link",
+                    "text": "View PDF", "near": "Recommended articles IB-TransUNet View PDF"}
+        own = {"url": f"{page}/pdfft?pid=1-s2.0-S1361841524002056-main.pdf", "why": "link", "text": "View PDF"}
+        self.scene({"pages": {"https://doi.org/10.1000/x.1": {"href": page, "pdf": [stranger, own]},
+                              "https://doi.org/10.1000/y.2": {"href": "https://pub.example/y", "pdf": [stranger]}},
+                    "fetch": {own["url"]: b64(pdf(f"{TITLE}\nWei Liu")), stranger["url"]: b64(pdf(f"{OTHER}\nWei Liu"))}})
+        x, y = self.result("x", links=None), self.result("y", OTHER, "10.1000/y.2", links=None)
+        code, lines, err = self.fetch("--pass", "1", "--route", "publisher", x, y)
+        self.assertEqual(self.files(), ["x.pdf"], err + json.dumps(lines))
+        asked = json.loads((self.tmp / "state.json").read_text()).get("asked", [])
+        self.assertNotIn(stranger["url"], asked, "a link without the paper's mark is never requested")
+        [handed] = self.handoffs("page")
+        self.assertEqual((code, handed["slug"], handed["code"], handed["evidence"]["links"]), (1, "y", "no_pdf_link", [stranger]))
+        self.assertIn("1 PDF links left untried", handed["note"])
+
+    def test_the_papers_marks(self):
+        fetch = load("fetch")
+        res = run.read(self.result("m", "Mask R-CNN", "10.1109/TPAMI.2018.2844175", ids={"arxiv": "1703.06870"}))
+        marks = fetch.own_marks(res, "https://ieeexplore-ieee-org.proxy.example.edu/document/8372616/",
+                                "https://www.mdpi.com/2072-4292/13/5/1000")
+        self.assertEqual(marks, {"10.1109/tpami.2018.2844175", "1703.06870", "8372616"},
+                         "a short last segment (MDPI's article number) is no mark, nor a journal's ISSN before it")
+        carries = {u: fetch.carries_mark(u, marks) for u in (
+            "https://ieeexplore-ieee-org.proxy.example.edu/stamp/stamp.jsp?tp=&arnumber=8372616",
+            "https://ieeexplore-ieee-org.proxy.example.edu/stamp/stamp.jsp?tp=&arnumber=83726160",
+            "https://arxiv.org/pdf/1703.06870v3",
+            "https://pub.example/doi/pdf/10.1109%2FTPAMI.2018.2844175",
+            "https://www.mdpi.com/2072-4292/14/2/1000/pdf")}
+        self.assertEqual(list(carries.values()), [True, False, True, True, False], carries)
 
     def test_the_page_ladder(self):
         c, f, g = "Cardiac Segmentation With Diffusion Models", "Lung Nodule Detection in Low Dose CT", "Retinal Vessel Segmentation Using Transformers"

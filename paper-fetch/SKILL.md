@@ -85,7 +85,7 @@ A handoff record (`<dir>/handoffs/<id>.json`, id `<slug>.<n>`, or `<kind>.<n>` w
 
 | kind | written when | taker | answers |
 |---|---|---|---|
-| `page` | `fetch` got no PDF from a page — a sign-in, a challenge, no PDF link, its files refused, no record in the discovery search (`code`: `no_pdf_link`, `refused`, `no_record`, `error`); the bulk run's tab stays on that page | the paper's agent | none once it got past the page: `fetch --start <url> --session pf-<slug>` hands the page back, and the file that comes closes the handoff. Else a verdict: `no_access`, `no_pdf`, `not_public`, `proxy_unconfigured`, `skipped_by_user` — the paper goes on to its next route; `blocked`, `gate_timeout` — it waits on this route until the next pass |
+| `page` | `fetch` got no PDF from a page — a sign-in, a challenge, no PDF link, its files refused, no record in the discovery search (`code`: `no_pdf_link`, `refused`, `no_record`, `error`); the PDF-looking links it left untried, their address carrying no mark of the paper, are in `evidence.links`; the bulk run's tab stays on that page | the paper's agent | none once it got past the page: `fetch --start <url> --session pf-<slug>` hands the page back, and the file that comes closes the handoff. Else a verdict: `no_access`, `no_pdf`, `not_public`, `proxy_unconfigured`, `skipped_by_user` — the paper goes on to its next route; `blocked`, `gate_timeout` — it waits on this route until the next pass |
 | `file` | the check could not be sure a file is the paper (a short title, no text layer, the title only past page 1, an erratum-like first page); the file is held in `unverified/` | the paper's agent; a judge when labelling files you already have | `accept` (filed; `--label <Title> --why "…"` with it, since the same look settles the version; `--version` when the file's name does not say its kind) · `refuse` (not the paper: it goes on) · `unknown` (filed unconfirmed: the paper goes on, and a confirmed file replaces it) |
 | `label` | a filed file has no label (the fold asks, whichever command filed it) | a judge, in batches; the paper's agent for a file it fetched itself | `label --label <Title> --why "<what shows it>"` (references/attachment-titles.md) · `unknown` (`Unknown-<Source>`) |
 | `left` | the watcher found a download that matched no waiting paper, or several | a judge | `claim --slug <slug>` (it is that paper's) · `not_ours` |
@@ -110,8 +110,10 @@ found. Read each record and the evidence files it lists, then:
 - page: open its url in your session and work the page toward the paper's PDF. Read it with state, find, get or eval
   (a screenshot only to confirm what those say); click with --role/--name, or a ref from the state just read. Go where
   the page leads: a cookie banner, the site's institutional sign-in and the institution's entry in its login dialog,
-  the record's full-text link, the PDF button. A link that opens a tab outside your session: open its address in
-  yours. At an address that gives the PDF, or a page that offers it, hand it back:
+  the record's full-text link, the PDF button. The record's evidence.links are the page's PDF-looking links fetch
+  left untried, since their address carries no mark of this paper: the paper's own may be among them, beside other
+  papers' (recommended articles), which are never requested. A link that opens a tab outside your session: open its
+  address in yours. At an address that gives the PDF, or a page that offers it, hand it back:
   `pf.py fetch --pass <N> --session pf-<slug> --start <url> [--version accepted|preprint] <result>` fetches, checks
   and files it. A file Chrome downloaded at your click that does not show in the result's files after a minute:
   `pf.py claim --dir <dir> --file <its path in Downloads> --slug <slug>`. Nothing to get: answer the verdict.
@@ -149,7 +151,7 @@ uv run scripts/pf.py fulltext_links <dir>/results/*.json      # where copies may
 uv run scripts/pf.py fetch --pass N <dir>/results/*.json
 ```
 
-One command walks the whole pass: each route over every paper still without a file, then the next. On a page it takes whatever PDF the page offers — the declared PDF, an embedded viewer, a "PDF" link and the reading page behind it, the next one when a file is refused — and every file goes through the check, so a wrong guess costs nothing. A file's name carries the version it was wanted as (`<slug>.accepted.pdf`, `<slug>.preprint.pdf`; a second file of one kind `<slug>.2.pdf`); what it actually is goes into its label. A paper is satisfied by a file labelled the wanted version, or by one not labelled yet; once its label says less (an accepted manuscript, a preprint, `Unknown`), the next run of the pass takes the paper on down the chain, and every version stays in `files`, side by side.
+One command walks the whole pass: each route over every paper still without a file, then the next. On a page it takes the PDF the page offers as this paper's — the declared PDF, an embedded viewer, a "PDF" link whose address carries the paper's DOI, arXiv id, PMCID or the article page's own identifier, and the reading page behind it, the next one when a file is refused — and every file goes through the check. A PDF-looking link without such a mark may be another paper's (a recommended article), and every request is the user's, through their institution: fetch never requests it and leaves it to the paper agent with the page. A file's name carries the version it was wanted as (`<slug>.accepted.pdf`, `<slug>.preprint.pdf`; a second file of one kind `<slug>.2.pdf`); what it actually is goes into its label. A paper is satisfied by a file labelled the wanted version, or by one not labelled yet; once its label says less (an accepted manuscript, a preprint, `Unknown`), the next run of the pass takes the paper on down the chain, and every version stays in `files`, side by side.
 
 **A pass is a loop between the script and the agents:**
 1. `fetch --pass N <dir>/results/*.json`. Exit 0: nothing open, the pass is done. Exit 1: handoffs are open — its summary counts them by kind.

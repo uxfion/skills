@@ -19,9 +19,12 @@ whose version is not labelled yet; once labelled another version, or Unknown, th
 the pass is run again. A candidate that needs no browser (needs_browser false or unknown) is first asked over plain
 HTTP; what is not a PDF goes to the browser (the opencli session: --session, else run.json's; a background window,
 --window foreground for the last pass). On a page the browser takes the PDF the page itself offers
-(pflib/browser.py: the declared PDF, an embedded document or viewer, a link saying PDF; three at most, the next one
-tried when a file is refused): requested inside the page with its cookies (through the institution's proxy: the same
-path on the proxied host), else opened as a click would — a download, a pdf.js viewer, or an HTML page that is looked
+(pflib/browser.py: the declared PDF, an embedded document or viewer, and a link saying PDF only when its address
+carries a mark of the paper: its DOI, arXiv id or PMCID, or the article page's own identifier, own_marks; three at
+most, the next one tried when a file is refused). Any other PDF-looking link may be another paper's (a recommended
+article's) and is never requested: it goes to the paper's agent in the `page` handoff (evidence.links). A link is
+requested inside the page with its cookies (through the institution's proxy: the same path on the proxied host), else
+opened as a click would — a download, a pdf.js viewer, or an HTML page that is looked
 through once more (IEEE's stamp.jsp). The discovery route takes the search's links whose text is the title (0.9
 alike, arXiv records last) and works each page. Each candidate's version goes along to the check and the file's
 name: the version it was wanted as. An arXiv link is fetched as its latest version (https://arxiv.org/pdf/<id>v<N>:
@@ -61,6 +64,7 @@ Examples:
   uv run scripts/fetch.py --pass 3 --route snapshot <dir>/results/<slug>.json
 """
 import os
+import re
 import time
 import urllib.parse
 from pathlib import Path
@@ -70,6 +74,7 @@ from pflib.browser import Browser, BrowserDown
 
 ROUTES = ("open", "publisher", "discovery", "accepted", "preprint")
 PAGE_CANDIDATES = 3   # tried on one page at most
+MARK_MIN = 6          # a page address's last segment is the paper's mark from this length, with a digit in it
 WORDS_BEFORE, WORDS_AFTER = 600, 900  # a page's words kept around the paper's title
 PAGE_TEXT_CHARS = 4000                # of a page handed to an agent
 CLICK_WAIT = float(os.environ.get("PAPER_FETCH_CLICK_WAIT", "20"))        # an opened page: to show a viewer or its PDF link
@@ -81,9 +86,9 @@ MAX_BYTES = 200 * 1024 * 1024
 class Stopped(Exception):
     """A page fetch could not get a PDF from: why, the page's url and title, what was tried."""
 
-    def __init__(self, why, url, title=None, note=None):
+    def __init__(self, why, url, title=None, note=None, links=None):
         super().__init__(why)
-        self.why, self.url, self.title, self.note = why, url, title, note
+        self.why, self.url, self.title, self.note, self.links = why, url, title, note, links or []
 
 
 class Pass:
@@ -220,7 +225,11 @@ class Pass:
                 if result != "wrong_file":
                     return result, {**extra, "note": "the page's pdf.js viewer"}
         tried, page = 0, info.get("href") or ""
-        for cand in (info.get("candidates") or [])[:PAGE_CANDIDATES]:
+        offered = info.get("candidates") or []
+        marks = own_marks(res, page, (outer or {}).get("href"))
+        mine = [c for c in offered if c.get("why") != "link" or carries_mark(c.get("url"), marks)][:PAGE_CANDIDATES]
+        left = [c for c in offered if c not in mine]  # for the paper's agent, untried
+        for cand in mine:
             if self.has_file(res):
                 return "ok", {"note": "filed from Downloads"}
             if tried and page and (b.find().get("href") or "") != page:
@@ -233,10 +242,13 @@ class Pass:
             return "ok", {"note": "filed from Downloads"}
         after = b.find() or info
         inner, self.inner = self.inner, None
+        unmarked = sum(c.get("why") == "link" and not carries_mark(c.get("url"), marks) for c in offered)
         raise Stopped("refused" if tried else "no_pdf_link", after.get("href") or info.get("href"), after.get("title"),
                       "; ".join(x for x in (note, f"{tried} PDF links tried" if tried else None,
+                                            f"{unmarked} PDF links left untried: their address carries no mark of "
+                                            "this paper" if unmarked else None,
                                             f"a reading page: {inner.why} at {inner.url}" if inner else None) if x)
-                      or None)
+                      or None, links=left + (inner.links if inner else []))
 
     def click(self, res, cand, page, version, depth, shown=None):
         """One PDF link of a page: requested inside the page, else opened as a click would -> (result, extra), or None
@@ -395,7 +407,7 @@ class Pass:
         text = (self.browser.text().get("text") or "")[:PAGE_TEXT_CHARS]
         record = run.handoff(self.work, "page", res, pass_=self.args.pass_, route=self.route, url=url,
                              code=s.why, note=s.note, evidence={"page": {"href": s.url, "title": s.title},
-                                                                "words": text or None})
+                                                                "links": s.links or None, "words": text or None})
         self.announce(record["id"], res.slug, "page")
         return record["id"]
 
@@ -470,6 +482,28 @@ def landing(res):
 def discovery_url(template, title):
     """The discovery system's search for a title: the config's search URL with the title, URL-encoded, at {title}."""
     return template.replace("{title}", urllib.parse.quote_plus(title))
+
+
+def own_marks(res, *hrefs):
+    """What marks a link as the paper's own: its DOI, arXiv id and PMCID, and the last path segment of each page that
+    offered the link (ScienceDirect's PII, IEEE's document number, PMC's PMCID) when that segment is an identifier:
+    MARK_MIN characters or more with a digit, a page extension dropped. Lower-cased. A site whose own link carries
+    none of these marks is its paper agent's: no site's URL pattern is ever added here (docs/design-principles.md §1)."""
+    sub, ids = res.subject, res.ids
+    marks = {v.strip().lower() for v in (sub.doi, sub.arxiv, ids.get("doi"), ids.get("arxiv"), ids.get("pmcid"))
+             if isinstance(v, str) and v.strip()}
+    for href in hrefs:
+        last = next((s for s in reversed(urllib.parse.urlsplit(href or "").path.split("/")) if s), "")
+        last = re.sub(r"\.(html?|pdf|php|aspx?|jsp)$", "", urllib.parse.unquote(last), flags=re.I).lower()
+        if len(last) >= MARK_MIN and re.search(r"\d", last):
+            marks.add(last)
+    return marks
+
+
+def carries_mark(url, marks):
+    """Whether a link's address carries one of the marks as a whole token (an arXiv id with a version too)."""
+    text = urllib.parse.unquote(url or "").lower()
+    return any(re.search(rf"(?<![a-z0-9]){re.escape(m)}(?:v\d+)?(?![a-z0-9])", text) for m in marks)
 
 
 def request_url(link, page_href, proxy):

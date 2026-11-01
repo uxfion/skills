@@ -1,6 +1,6 @@
 # paper-fetch：脚本和 agent 的分工——脚本判断不了、过不去的地方，没有交给 subagent
 
-> 已解决（2026-11-01）：按 spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` 重新分工。paper-fetch（第一期）和 paper-to-zotero（第二期）都已实现并实测通过，见下面“第一期验收实测”“第二期验收实测”两节。paper-read 这期没做：用户说它的设计还没想全，为它补的脚本细节挪到了 [20261028-paper-to-zotero-paper-notes.md](../20261028-paper-to-zotero-paper-notes.md) 的“paper-read 还没实现的脚本细节”一节，在那里接着定。实测中发现的另一处问题另记为 [20261101-paper-fetch-page-candidates-other-papers.md](../20261101-paper-fetch-page-candidates-other-papers.md)。
+> 已解决（2026-11-01）：按 spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` 重新分工。paper-fetch（第一期）和 paper-to-zotero（第二期）都已实现并实测通过，见下面“第一期验收实测”“第二期验收实测”两节。paper-read 这期没做：用户说它的设计还没想全，为它补的脚本细节挪到了 [20261028-paper-to-zotero-paper-notes.md](../20261028-paper-to-zotero-paper-notes.md) 的“paper-read 还没实现的脚本细节”一节，在那里接着定。实测中发现的另一处问题另记为 [20261101-paper-fetch-page-candidates-other-papers-fixed.md](20261101-paper-fetch-page-candidates-other-papers-fixed.md)。
 
 2026-10-30 记录。场景：拆分后实测 paper-fetch 经学校登录的那条路（spec `20261030-paper-to-zotero-split-spec.md` §11）。
 
@@ -93,7 +93,7 @@
   - `prepare` 把库内候选算成失败；
   - stub 记录的 `no_item` 提示指向 draft_item（该指向 recognize）；
   - ScienceDirect 页面上别的论文的 “View PDF” 写进 publishers.md，作为带日期的提示。
-- **看到的、另记 issue 的**：页面上像 PDF 的链接脚本挨个试，会经学校代理下载别的论文（TransUNet 那次），见 `20261101-paper-fetch-page-candidates-other-papers.md`。
+- **看到的、另记 issue 的**：页面上像 PDF 的链接脚本挨个试，会经学校代理下载别的论文（TransUNet 那次），见 `archive/20261101-paper-fetch-page-candidates-other-papers-fixed.md`。
 - **没测到的**：
   - 结构化包（第二期没改，测试条目随后进回收站，没占 GPU 解析）；
   - 识别器超时（`recognizing`）；
