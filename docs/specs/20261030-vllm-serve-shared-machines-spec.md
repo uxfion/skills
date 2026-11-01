@@ -1,3 +1,5 @@
+> 部分被 [20261031-vllm-serve-principles-rework-spec.md](20261031-vllm-serve-principles-rework-spec.md) 取代：启动等待、下载时机、`up` 判断端口上是谁的做法、`idle_minutes = 0`，以及 3.5 末尾的三处（带密钥、试绑端口、“第一条错误行”）。
+
 # vllm-serve：共享服务器与远程部署（2026-10-30）
 
 > 来源：[20261029-vllm-serve-remote-multi-gpu.md](../issues/20261029-vllm-serve-remote-multi-gpu.md)（另一个项目在两台共享服务器上部署 Qwen3.8-27B 时记下的 17 条）。用户：「之后就可以参考这个vllm skills快速部署了，而不用再另外适配了」「具体差异化的东西可以放项目的文档里，但通用的东西，就放到skills中」。优化时的要求：「别人提的要求不一定非要去实现的，你要有自己的判断」「尽量不要修修补补，要从根源上解决问题，从顶层设计」「你现在是一个 Agent，你有自主性的，调用这个skill的agent都是有自主性的……脚本不能做的事情，就交给agent去自己做」，无人值守。
