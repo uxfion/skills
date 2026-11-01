@@ -7,7 +7,7 @@ description: Parses a PDF or page images (papers and other documents, scans, scr
 
 From a PDF or page images to text an agent can read whole and trust: `<stem>.md`, the document page by page in reading order, and `<stem>.json`, its record. The record keeps what the models gave, as given, and every change made since, each with who made it and why: the processing's, then the agent's and the user's. The Markdown is generated from the record. The model reads pixels, so scans, screenshots and tables embedded as images come out as text too; figures stay images.
 
-Script paths are relative to this file's directory. `scripts/parse.py` runs the models; `scripts/doc.py` does everything after: `render`, `show`, `commit`, `figure`. Their `--help` is the reference for flags, the folder layout and the finding codes. `parse.py` needs the `paddleocr` uv tool on an NVIDIA GPU; `paddleocr_missing`, a `vl_server_*` error, a crash at start-up, a hang, or no `pdftotext` / `pdftoppm` → [references/install.md](references/install.md).
+Script paths are relative to this file's directory. `scripts/parse.py` runs the models; `scripts/doc.py` does everything after: `render`, `show`, `commit`, `figure`. Their `--help` is the reference for flags, the folder layout and the finding codes. `parse.py` needs the `paddleocr` uv tool on an NVIDIA GPU; `paddleocr_missing`, a `vl_server_*` error, a crash at start-up, a hang of the native backend, or no `pdftotext` / `pdftoppm` → [references/install.md](references/install.md).
 
 A paper (a journal or conference article, a preprint, a thesis chapter) → also [references/papers.md](references/papers.md): how papers number figures, tables and equations, and what goes wrong in them.
 
@@ -21,7 +21,13 @@ uv run scripts/parse.py <document.pdf> [more inputs ...] -o <outdir>
 
 Each input is one document: a PDF, an image, or a directory of page images in filename order. Give all the documents in one call: the models load once per call. The first run downloads about 2 GB of models into `~/.paddlex/official_models/`.
 
-Speed depends on the backend, named in each summary's `backend`. Whenever the vllm-serve skill can provide the VL model's vLLM server (that skill and its vLLM installed, room on the GPU), the call uses it, however few the pages: 30–60 s to start the server when it is not running, then 0.5–1 s a page. The server is shared and stops by itself ten minutes after its last use, so leave it be. Otherwise the call goes native at 10–15 s a page, and stderr says why; for a batch, pass that reason on to the user, and when vllm-serve or vLLM is missing, add that it would parse ten to twenty times faster ([references/install.md](references/install.md)).
+Speed depends on the backend, named in each summary's `backend`. Whenever the vllm-serve skill can provide the VL model's vLLM server (that skill and its vLLM installed, room on the GPU), the call uses it, however few the pages: starting the server when it is not running takes one to two minutes (more on its first start after a vLLM install, and for the model's first download), then 0.5–1 s a page. The server is shared and stops by itself ten minutes after its last use, so leave it be. Otherwise the call goes native at 10–15 s a page, and stderr says why; for a batch, pass that reason on to the user, and when vllm-serve or vLLM is missing, add that it would parse ten to twenty times faster ([references/install.md](references/install.md)).
+
+When the VL server holds the call up:
+
+- Quiet for minutes after `[paddleocr] asking vllm-serve …`: the server is starting, and the `[vllm-serve]` line below it names its log. Judge it as vllm-serve's SKILL.md says for an `up` that has not returned ("When `up` says more"), with its `serve.py` (`VLLM_SERVE`, else `../vllm-serve/scripts/serve.py`). Judged stuck: `serve.py down paddleocr-vl`, and under `--backend auto`, the default, the call goes native. Then find the cause as that skill says for `server_failed`, before the next parse starts the server again.
+- `[vllm-serve] the last start … failed` on stderr: a start failed earlier; find its cause the same way.
+- `port_busy` in the reason on stderr: something else holds port 8118, a profile named there or a server started by hand, often PaddleOCR-VL's own. If `curl --noproxy '*' http://127.0.0.1:8118/v1/models` lists PaddleOCR-VL-1.6, pass `--vl-server http://127.0.0.1:8118/v1`; otherwise tell the user.
 
 Run anything beyond a few pages in the background and wait for it to exit; each document's summary line reaches stdout when that document is done.
 

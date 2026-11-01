@@ -29,14 +29,14 @@ So one RTX PRO 6000 or H20 (96 GB) holds a copy and ~12–20 long sessions, one 
 Multi-turn sessions (agents) live on the prefix cache: each turn resends the whole conversation, and only its new part is computed while the earlier turns sit in the cache. When the KV cache fills, those cached prefixes go first, every turn recomputes its whole context, and throughput collapses while the server looks busy. Two RTX PRO 6000 at 0.60 each (924k tokens): 16 sessions ran at 200–210 tok/s with the cache half full; 32 sessions filled it to 95–100% and generation swung between 9 and 300 tok/s, ~110 on average, with only 3 preemptions.
 
 - Keep the KV cache below ~70% at peak: sessions ≈ 0.7 × cache tokens ÷ the tokens one session holds, counting once what sessions share (a common system prompt). Here 25–35k per session.
-- `--max-num-seqs` caps the requests running at once; the caller limits the sessions it keeps in flight.
+- `--max-num-seqs` caps the requests running at once on each data-parallel rank (two ranks at 16 run 32); the caller limits the sessions it keeps in flight.
 - Watch `status`'s `load`: `kv_cache_usage`, `waiting`, `preemptions`, `prefix_cache_hit_rate`, `generation_tokens_per_s`.
 - A hybrid model (Mamba or gated-delta-net layers) holds one Mamba cache block per running request, and vLLM refuses to start when `--max-num-seqs` exceeds the blocks it has (its default is 1024 on GPUs of 70 GiB or more, else 256). It enlarges the attention block to the Mamba state's size (784 tokens here), so blocks ≈ cache tokens ÷ that size: 680 on one RTX PRO 6000 at 0.92.
 
 ## Parallel layout
 
 - When one GPU holds a copy, use data parallel (`--data-parallel-size`): one copy per GPU behind one URL, requests balanced by load, nothing exchanged between GPUs. Tensor parallel only when a copy does not fit; its size must divide the attention, KV and linear-attention heads (`config.json`; here 2, 4 or 8, never 3).
-- Two H200 in data parallel served 12 sessions at ~600 tok/s in total, ~50 per session. Two RTX PRO 6000 in tensor parallel, each shared with another user's training, gave 200–330 in total.
+- Two H200 in data parallel served 12 sessions at ~600 tok/s in total, ~50 per session. Two RTX PRO 6000 in tensor parallel, each shared with another user's training, gave 200–330 in total. Two idle RTX PRO 6000, 512-token answers to short prompts (2026-10-31): one GPU gave 370 tok/s for 16 requests at once, both in data parallel 720 for 32.
 
 ## Speculative decoding
 

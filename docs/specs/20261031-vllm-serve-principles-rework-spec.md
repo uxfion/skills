@@ -1,6 +1,6 @@
 # vllm-serve：按 design principles 返工（2026-10-31）
 
-> 来源：[20261029-vllm-serve-remote-multi-gpu.md](../issues/20261029-vllm-serve-remote-multi-gpu.md) 的“按 design-principles 自查”一节。用户：「在你问我问题之前，你先全局地看一下那个 design principle……因为我觉得你之前是没有按照我这个思路来的」。依据 [docs/design-principles.md](../design-principles.md)（`56bd02a`，加上本次补进 §3 的一句）。
+> 来源：[20261029-vllm-serve-remote-multi-gpu-fixed.md](../issues/archive/20261029-vllm-serve-remote-multi-gpu-fixed.md) 的“按 design-principles 自查”一节。用户：「在你问我问题之前，你先全局地看一下那个 design principle……因为我觉得你之前是没有按照我这个思路来的」。依据 [docs/design-principles.md](../design-principles.md)（`56bd02a`，加上本次补进 §3 的一句）。
 > 取代 [20261030-vllm-serve-shared-machines-spec.md](20261030-vllm-serve-shared-machines-spec.md) 的以下几处，其余照旧：3.3（启动等待）；3.4 的下载时机（下载挪进守护进程）；3.5 的 `idle_minutes = 0` 一条，以及末尾“评审后补上的几处根因”中的三处（`--api-key` 时带密钥、启动前试绑端口、“第一条错误行”）；`up` 判断端口上是谁的做法（3.1、3.2）。
 
 ## 1. 为什么返工
@@ -27,6 +27,9 @@
 - **spec 定稿，实现前先压缩上下文。** 用户：「适用范围可以补一下，在实现前要compact」。
 - **就绪和归属：方案 A**，就绪看 `/health`，归属看自己的记录。用户：「A」。
 - **一个部署由谁带到底：不另设机制**，被叫到的那个 agent 照 skill 自己做。用户：「我一般用这些 skills 都是主动用的嘛，而且都是交给 Agent 去操作的。比方说，我在 PaddleOCR 里面需要用 VLLM server，它就自己去调用啊。在其他项目中……我也会在其他的 Agent 里面说明，根据我们的 skills，去部署远程服务器上的一个 VLLM」。
+- **vLLM 加载那段设 30 分钟上限，下载不计（实现中定，改了上面“不计时”的一部分）。** 起因是一个旁路 agent 的提醒：启动不计时、空闲计时又从第一次应答才开始，卡住的启动没人看着就会一直占着卡，共享服务器上就是同事的卡。我先提了“没人等就停”（等着的 `up` 拿一把锁，每 30 秒打一行进度来探测 ssh 断线），用户：「但问题是，你现在的这个方案是不是把问题考虑复杂了？还是说用以前等一定的时间比较合适？」改提“只给占卡的 vLLM 加载设一个宽裕的上限”，用户：「按30分钟来吧」。它和删掉的 10 分钟计时不同：不看日志动没动、不替 agent 判断卡没卡，只按实测最慢的阶段留足余量。
+- **出了问题，让后来的 agent 知道去查：方案 A（实现中定）。** 用户：「另外是不是可以提示一下，在日志里，如果出现问题的话，可以让 Agent 去查。跟我讨论一下」。三条一起做：日志最后一行写明怎么结束的，失败时附上 install.md 的完整路径；新启动前把旧日志留作 `<profile>.prev.log`；上一次失败时，下一次 `up` 先打印一行告知，`status` 也报出上一次怎么结束的。用户：「A」。
+- **服务器上的共享目录就是家目录（主机 B 实测时定）。** 我先把 uv 缓存放回登录自己的默认位置，用户：「我是指都在.tmp/ 下共享，因为之前你不是放在.tmp/hc_vllm下的吗，这样就是有这个项目能用，如果有其他的像.tmp/diffusion也要用，那不就又要下一遍 包括但不限于uv hf等等」；定为方案 A：「A. 因为我用共享的服务器都是放在某个路径的.tmp下的，我希望对我这台机器上的所有的项目都共享。可以移动。另外hc_llm实际上就是之前部署的vllm-serve的另一个版本……」，以及「你现在新的vllm-serve重新部署上去后，就需要把旧的那个版本删掉了」。于是 `env.sh` 放在共享目录下，只把 `HOME` 指到它、把它的 `.local/bin` 加进 `PATH`：所有工具的文件和缓存都落在那里，那台机器上的所有项目共用；vllm-serve 自己只占一个放 serve.py 副本的子目录。
 - **实现前后各过一遍**，查低级错误和原则、设计上的问题。用户：「你最后再全部过一遍，看有没有问题，特别是一些低级错误，或者是原则上设计上的问题」。
 
 ## 3. 设计
@@ -35,7 +38,7 @@
 
 `up` 起一个守护进程。下载权重（需要时）和启动 vLLM 都由这个守护进程做，输出全部写进 `<profile>.log`。
 
-状态文件记着这次启动所处的阶段，有三个值：`downloading`、`starting`、`running`。
+状态文件记着这次启动所处的阶段：`downloading`、`starting`、`running`、`stopping`。守护进程退出前，把状态文件换成它怎么结束的记录（见第 2 节）。
 
 **守护进程活着，等于它拿着 `<profile>.run` 这把锁。**
 
@@ -53,7 +56,7 @@
 - 下载看不到进度：现在下载的进度也在日志里，`status` 能看出它正在下载。
 - 下载停不下来：现在 `down` 能停掉任何阶段，正在下载的也一样。
 - `download_failed` 不再单列：下载失败就是这次启动失败，日志里有 hf 自己的报错。
-- 原来把下载放在 `up` 里、排在启动之前，是为了“不占启动期限”。现在没有期限了，这个理由也就没了。
+- 原来把下载放在 `up` 里、排在启动之前，是为了“不占启动期限”。现在下载不计入任何期限（vLLM 加载的 30 分钟上限只从 vLLM 启动算起），这个理由也就没了。
 
 ### 3.2 `up`：短暂拿锁做决定，在锁外等
 
@@ -77,7 +80,7 @@
   - 拿到锁时，如果运行锁已经放开，或者状态显示正在停止，就回到“决定要不要起服务”那一步。
   - 守护进程决定空闲自停时，也在这把锁里决定，所以不会把正在停的服务交出去。
 
-在锁外，`up` 一直等，直到状态里记下的地址上 `/health` 返回 200，或者守护进程退出（运行锁被放开），不计时。
+在锁外，`up` 一直等，直到状态里记下的地址上 `/health` 返回 200，或者守护进程退出（运行锁被放开）。`up` 自己不计时；vLLM 加载 30 分钟还没应答，守护进程会停掉它（第 2 节），等着的 `up` 看到的就是守护进程退出。
 
 - **守护进程退出时**，报 `server_failed`：写明它是在哪个阶段退出的，附日志路径和最后 20 行。
 - **启动时的那行提示里写出日志路径**：`[vllm-serve] starting <profile> …; log: <路径>`。
@@ -96,13 +99,13 @@
 
 **`down`**
 
-- 有活着的守护进程，就给它发 SIGTERM，不需要拿锁。守护进程先停 vLLM（或下载），再退出。正在等的 `up` 看到它退出，就报 `server_failed`。
-- `down` 等运行锁被放开，最多等 90 s。
+- 有活着的守护进程，就在决定锁里给它发 SIGTERM、把状态标成 `stopping`（只拿一瞬间，见第 7 节），然后在锁外等它退出。守护进程先停 vLLM（或下载），再退出。正在等的 `up` 看到它退出，就报 `server_failed`。
+- `down` 等它发了信号的那个守护进程退出，最多等 90 s。
 - 停不了别的登录的进程时，报 `not_permitted`。
 
 **`status`**
 
-- 显示：阶段、启动者、卡、负载、日志路径。
+- 显示：阶段、启动者、卡、负载、日志路径；已停的 profile 还显示上一次启动怎么结束的、算不算失败。
 - 地址取自状态文件。
 
 ### 3.4 其余机制的去留
@@ -128,6 +131,8 @@
 | 调大 `VLLM_ENGINE_READY_TIMEOUT_S` | 留 | 遇到过（第 2 条） |
 | `VLLM_USE_FLASHINFER_SAMPLER=0` | 先实测再定 | 去掉它是“引擎自带、一个开关”的大众优化；但“收益小”从没量过（第 5 节第 3 步） |
 | 10 分钟计时 | 删 | 替 agent 判断“卡死”（§1）；慢启动、静默很久的阶段都确实遇到过 |
+| vLLM 加载 30 分钟上限，下载不计 | 新增（实现中定，见第 2 节） | 本该考虑：没人看着时，卡住的启动会一直占着共享的卡；实测最慢的阶段是 27B 首次启动现编 kernel 约 6 分钟、从快满的盘读权重 7–8 分钟 |
+| 日志末行写怎么结束的、保留上一份日志、下一次 `up` 和 `status` 报出上次失败 | 新增（实现中定，见第 2 节） | 本该考虑：没人看着时失败了，后来的 agent 要能知道，证据也要留着 |
 | “第一条错误行” | 删 | 用正则替 agent 挑原因，是个匹配器（§1）；“原因在日志末尾之上”的问题，靠 agent 读日志来解决 |
 | 在 `/v1/models` 里核对模型名 | 删 | 归属由运行锁和状态文件判断 |
 | `--api-key` 时带上密钥 | 删 | 改用 `/health` 后自然不需要 |
@@ -141,7 +146,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 
 | 停下的地方 | 谁接手 | 看什么、做什么 | 接着运行 |
 | --- | --- | --- | --- |
-| `server_failed` | 调用方 agent | 在下一次 `up` 之前读日志：重新启动会覆盖它。日志长就派一个后台 sonnet subagent，brief 给它日志路径和 install.md 的排障一节，让它带回原因那几行和对应的条目。然后按 install.md 改：改 profile、换卡、装缺的东西、等卡空出来，或者 `down` 掉我们自己空闲的服务 | `up` |
+| `server_failed` | 调用方 agent | 读日志（下一次启动会把它留作 `<profile>.prev.log`）。日志长就派一个后台便宜模型的 subagent（Claude Code 用 `sonnet`，Codex 用 `luna`），brief 给它日志路径和 install.md 的排障一节，让它带回原因那几行和对应的条目。然后按 install.md 改：改 profile、换卡、装缺的东西、等卡空出来，或者 `down` 掉我们自己空闲的服务 | `up` |
 | 后台的 `up` 迟迟不返回 | 调用方 | `status` 看阶段，日志看还有没有进展：下载在不在动、在哪一步；再对照 install.md 的 “Timings” 和其中关于静默阶段的提示，以及 `nvidia-smi` 的显存是不是还在涨 | 判断卡住了就 `down`，正在等的 `up` 会返回 `server_failed` |
 | `port_busy` | 调用方查清事实，只有要停别人在用的服务，或者端口上是用户自己手动起的服务时，才问用户 | `detail` 点出的 profile 用 `status` 看是否空闲；别的程序用 `ss -ltnp`、`ps -o user= -p <pid>` 查 | 自己的两个 profile 撞了端口，就给部署 profile 一个自己的端口，然后 `up` |
 | `not_permitted` | 那个登录，或者用户 | `detail` 写明属于谁 | 由那个登录 `down`，或者等它空闲自停；root 所有的文件由用户 `chown`，之后 `up` |
@@ -150,6 +155,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 | `differs`（随成功一起返回） | 调用方 | 运行中的模型、端口、参数和卡 | 照用即可；要让改动生效，等 `status` 显示空闲后 `down`，再 `up` |
 | `foreign_cuda`（随成功一起返回） | 调用方，再报给用户 | install.md 里讲 `foreign_cuda` 的那一条 | 修好后 `down`，再 `up`；返回里不再有 `foreign_cuda` 才算好 |
 | `status` 里某个 profile 一行报错 | 调用方 | 同 `unknown_profile` | `status` |
+| 上一次启动失败了，可能没人看到（`up` 打印 “the last start … failed”，或 `status` 的 `last` 里 `failed` 为 true） | 调用方 | 读那份日志，同 `server_failed` | 新启动已经开始：原因还在就先 `down`，改好再 `up` |
 | 在共享机器上选卡 | 调用方 | shared-machines.md | 要保留就写进部署 profile 的 env，只用一次就放在调用方的环境里，然后 `up` |
 
 ### 3.6 其他文档
@@ -190,7 +196,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 - `paddleocr/SKILL.md`
 - `docs/specs/20261030-vllm-serve-shared-machines-spec.md`：顶上加一行，写明被取代的部分
 - issue：记下进展，原话里的目录换成占位符
-- `docs/design-principles.md`：本次补的那一句单独提交，它不属于 vllm-serve 返工的范围
+- `docs/design-principles.md`：§1、§3 各补一句，§4 开头写明所有文档都遵守 writing-for-agents；都单独提交，它们不属于 vllm-serve 返工的范围
 
 ## 5. 验证
 
@@ -247,7 +253,7 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 **换一种方式采纳。**
 
 - 守护进程活着的判断：评审建议用 `/proc/<pid>/cmdline` 或进程的启动时间；这里改用运行锁，由内核负责放锁，最确定。
-- 重试会覆盖日志：评审建议日志改成追加写，或保留上一份；这里只在交接里写“下一次 `up` 之前先读日志”，不加新机制。
+- 重试会覆盖日志：评审建议日志改成追加写，或保留上一份；这里原定只在交接里写“下一次 `up` 之前先读日志”。实现中用户定了方案 A，保留上一份日志（第 2 节）。
 - 下载卡住没有出路：评审建议给下载单独设一条路；这里把下载挪进守护进程，让它和启动成为同一件事。
 - FlashInfer 采样器：评审建议直接去掉这条默认设置；这里先实测再定。
 
@@ -258,4 +264,28 @@ SKILL.md 不再复述 `--help` 里的字段和错误码含义，只写碰到时�
 
 ## 7. 实现记录
 
-（实现后补）
+2026-10-31。
+
+**实现时定下、和上文不同的几处**
+
+- `down` 也拿决定锁，但只在锁里读状态、发 SIGTERM、标上 `stopping`（几毫秒），等守护进程退出在锁外。3.3 原写“不需要拿锁”；不拿的话，新守护进程刚拿到运行锁、还没写状态的那一瞬间，`down` 会读到上一个守护进程留下的 pid。启动守护进程的 `up` 要等新状态写好才放锁，所以经过这把锁的 `down` 读不到旧 pid。`down` 只等它发了信号的那个守护进程退出：期间另一个 `up` 起了新的，不算没停。
+- 任何一条退出的路（`down`、vLLM 自己退出、空闲自停），守护进程都先在决定锁里标上 `stopping`，再停子进程：停的过程中不会有 `up` 拿到它。`up` 碰到 `stopping` 就等它走完再起新的；`server_failed` 里写的仍是被停之前的阶段。
+- 停子进程时等整个进程组退干净（先 SIGTERM，30 s 后 SIGKILL），之后才放开运行锁：下一次启动不会撞上还没释放的显存或端口。
+- 判断“活着”：只读打开 `<profile>.run`，试拿共享锁（`LOCK_SH|LOCK_NB`），拿不到就是活着。守护进程拿排他锁时重试 2 秒，避开别人探测的那一瞬间；2 秒还拿不到，说明另一个守护进程在跑，就退出。
+- 对运行中的服务，`down` 和 `status` 只看状态文件，不读 profile：profile 改坏了也停得掉、看得到。`down --all` 和 `status` 覆盖 profile 名加上正在跑的名字，`down --all` 碰到一个报错接着停后面的；`down` 一个既不在跑、也没有 profile 的名字，报 `unknown_profile`。
+- `status` 用 `phase` 取代 `running`：`stopped`、`downloading`、`starting`、`running`、`stopping`。
+- 下载用的 `hf` 和判断是否已缓存，都用调用方环境加上 profile 的 env，和 vLLM 一致：profile 里写了镜像或别的缓存目录，下载和离线启动都跟着走。
+- 状态文件先写临时文件再改名；profile 不是合法 TOML 时报 `unknown_profile`，不再让 `status` 整个崩掉。
+- 一个根目录只归一个登录：别的登录在那里得到 `not_permitted`，写明属主；换人用 `chown` 交接（shared-machines.md 原写“共用根目录的登录共用状态”，文件是 644，本来就不成立）。
+- shared-machines.md 第 4 步：skill 只装在本机，服务器上的是 serve.py 的一份副本，经 ssh 调用；更新副本前，先等 `status` 显示空闲，用旧副本 `down --all`，因为新版认不出旧版起的服务。起因是一个旁路 agent 的提醒，用户补充：「一般我不会在训练公共服务器上去安装 skills，我都是通过本机的 Agent（比如 Claude Code 或其他 harness）去调用我自己本机上安装的 skills，然后让它通过 SSH 去操作」。
+
+**验证**
+
+- 测试：25 个，全部通过，约 85 s；加载上限和“上一次怎么结束”都有测试，包括下载时间不计入上限、过时的状态文件算作“死前没留记录”。
+- 本机实测（vLLM 0.31，RTX 5090 D）：`up paddleocr-vl` 130 s 起来（其中 CUDA graph 捕获 76 s，比 Timings 原写的 25–50 s 长，已补进 install.md）；paddleocr 解析一页有标题、正文和表格的 PDF，backend `vllm-server`，`checks: ok`，内容逐字对；`status` 显示 `running` 和负载；`down` 2 s。后台 `up`、启动中途 `down`：`down` 32 s 返回（vLLM 在捕获 CUDA graph 时不理 SIGTERM，30 s 后被 SIGKILL），等着的 `up` 返回 `server_failed`，日志最后一行是 `[vllm-serve] SIGTERM (serve.py down, or the system): stopping`，没有残留进程，显存回到启动前。旧代码的 `down --all` 没跑：动手前查过，本机没有在跑的服务。加上“怎么结束”的记录以后，在本机真实服务上又跑了一遍 `up`、`down`、`status`：日志末行是 `[vllm-serve] ended: stopped by SIGTERM (serve.py down, or the system)`，`status` 的 `last` 里 `failed` 为 false，旧日志留成了 `paddleocr-vl.prev.log`。
+- FlashInfer 采样器（第 5 节第 3 步）：新根目录装 0.32.0 加 `vllm download-kernels`（安装 1.5 min，kernel 11 min，其中 jit-cache 要现下），`paddleocr-vl`，每轮 512 个请求、128 并发、每个固定生成 512 token，带 temperature 0.8、top_p 0.9、top_k 50。打开采样器能用（日志 “Using FlashInfer for top-p & top-k sampling.”），预热后 5 轮 45–54k token/s，中位数 51k；关闭 5 轮 53.6–54.9k，中位数 54k。没有收益，保留 `VLLM_USE_FLASHINFER_SAMPLER=0`，量到的数写进 install.md 当理由；本机 0.31 不用动。
+- 最后一遍：我自己通读；两份只读评审（技术正确性 11 条加文档、测试几处；原则和设计 9 条）；一个没看过对话的 agent 照 SKILL.md 稿子走“远程部署”和“paddleocr 等服务卡住”两个场景（10 条）。采纳的已改：`down` 不标 `stopping`（两份评审都提了）、profile 写坏会让 `status` 崩、停子进程不等进程组、判断缓存不看 profile 的 env、被杀的 `up` 之后误报失败、`down --all` 遇错就停、锁里复查空闲的超时缩到 2 s、第二个 SIGTERM、符号链接竞争、`server_failed` 和 `port_busy` 的交接写法（远程日志经 ssh、子 agent 的模型名、可直接复用对方的服务）、“判断卡住”的标准、显存不够时别停别人在用的部署、已有根目录直接用、Verify 的 `up` 等选好卡再做、paddleocr 卡住后要查原因。没采纳：多个登录共用一个根目录（改成写明一个根目录归一个登录）、超长部署的选卡提醒、把要问用户的决定攒到一起问（和“一次只问一个”冲突）。
+- 实现中又定了两条，见第 2 节：vLLM 加载 30 分钟上限；出了问题让后来的 agent 知道去查。代码、测试、install.md 和 shared-machines.md 已改。
+- 主机 B 实测（2026-10-31，2× RTX PRO 6000，驱动 595.99，两卡都空着）：照新的 shared-machines.md 从头部署到 `<dir-B>`（第 2 节最后一条定的布局）。另一个项目早先的部署 `hc_llm` 里的 52 GB 权重和 vLLM 编译缓存挪进共享位置，`hf cache verify` 32 个文件全部对上；uv 缓存里已有包，vLLM 0.32.0 cu130 装好用 1 s，`vllm download-kernels` 30 s（本机全新下载要 11 min）；Verify 通过（`+cu130`，sm_120）。部署 profile 继承 `qwen38-27b`，钉住验过的 commit，`--host 0.0.0.0`。单卡：`up` 4 min 13 s，没有 `foreign_cuda`；本机经局域网拿到模型列表、问答正确，思考内容被拆开；16 路并发、每个 512 token，`status` 的负载显示 running 16、KV cache 9%、约 370 token/s；`down` 2 s，`last` 记为 SIGTERM、不算失败。两卡数据并行（`-- --data-parallel-size 2`）：`up` 2 min 53 s；vLLM 起了两个 API 进程，32 路并发时连读三次 `/metrics`，`vllm:num_requests_running` 每次都有 `engine="0"` 和 `engine="1"` 两行，加起来是 32，`status` 也是两边的和（约 750 token/s）。10-30 spec 第 6 节第 3 条担心的“只有一个 API 进程的计数、空闲判断误停忙着的服务”不成立，不用固定 `--api-server-count`。测完 `down`，部署 profile 留在单卡 0 号；按用户的话删掉了 `hc_llm` 和今天按旧布局装了一半的目录。
+- 主机 A 实测（2026-10-31，8× H200，驱动 575.57 即 CUDA 12.9，系统装着 CUDA 13.1，八张卡都被别人的任务占着）：同样部署到 `<dir-A>`。`hc_llm` 的权重、编译缓存和 uv 管理的 Python 挪进共享位置；权重 32 个文件的 sha256 和主机 B 那份逐个相同。照 install.md 的 cu129 命令从 GitHub 链接装好 vLLM（13 min 40 s），`vllm download-kernels` 20 min，包都进了共享缓存；Verify 是 `+cu129`、CUDA 12.9、H200（sm90）。环境里的 `nvidia/cuda_nvcc` 只有 `ptxas`、没有 `nvcc`，`own_cuda()` 返回 None，和 install.md 的说法一致。部署 profile 继承 `qwen38-27b`、钉住同一个 commit、`--host 0.0.0.0`，不钉卡：卡是别人在用的，每次起服务时用 `CUDA_VISIBLE_DEVICES` 选空的。27B 放不下，用户：「不用测，你直接把相关的东西部署好就行」，后来又说「你确实可以跑一个小模型测一下」：在 5 号卡（三次看利用率都是 0%，剩约 12.6 GB）上起 `paddleocr-vl`，这一次 `-- --gpu-memory-utilization 0.06`，从下载到应答 5 min 12 s，`up` 的返回里没有 `foreign_cuda`，`status` 的卡号是 5，`nvidia-smi` 上也是 5 号卡多了约 8.7 GB；请求正常应答，`down` 后显存回到原样。最后删掉 `hc_llm`；另一个项目 `usdiff` 没动。我中途误判过一次“这台机器不能上网”：只试了一次就下了结论，用户指出后再试是通的。
+- SKILL.md（第 5 节第 5 步）：前两条（等待那段、附带字段）逐条给用户看过，用户同意；之后用户：「我自己看不过来，你按照Writing for agent skill 里面的原则自己决定吧，然后后面统一都要调用 writing for agent skill 优化一遍」。其余由我按 writing-for-agents 定，再用这个 skill 把这次改过的给 agent 读的文本过了一遍（两份 SKILL.md、install.md、shared-machines.md、serve.py 的 `--help`），advisor 审过，提交为 `535632e`。用户又说明：「writing-for-agents skill实际上在对于任何面向agents的所有内容的时候都优化。一开始设计也是按照他的思路来，然后开发完成后再统一调用一遍全量优化」「不仅仅针对SKILL.md 和它的 references」。于是对 vllm-serve 所有给 agent 读的内容补了一遍全量：tuning.md 和两个 profile 的注释读过，不用改；serve.py 打给 agent 的报错和提示里，`port_busy` 去掉一句和 SKILL.md 冲突的建议，`vllm_missing`、`foreign_cuda` 指向 install.md 改用完整路径。
