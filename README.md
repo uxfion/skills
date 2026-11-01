@@ -27,7 +27,7 @@ Claude Code 的 auto memory 由自身 harness 管理；AGENTS.md 的记忆规则
 - [paper-read](paper-read/SKILL.md) — 把 Zotero 库里的论文读成论文笔记：派一个读论文的子代理，按问题树一问一问地从 PDF 和结构化包里作答，读完检查再经 paper-to-zotero 存进 Zotero；也管笔记的"用在哪里"、主题笔记和更正。读法还在设计中，这一版是框架。依赖：paper-to-zotero；缺结构化包时用 paddleocr。
 - [paper-to-zotero](paper-to-zotero/SKILL.md) — Zotero 里的一切：按题目 / DOI / arXiv 号 / 清单 / bib 导入论文（由 paper-fetch 认论文、取全文），归类、打标签；按 citation key 整理、修字段，笔记取出成 Markdown 再存回，导出 bib，取论文的结构化包和 PDF。依赖：导入和整理里按版本改附件名、查 DOI 要 paper-fetch；缺结构化包时用 paddleocr；存取笔记、导出 bib、改字段不依赖别的 skill。
 - [uv-python](uv-python/SKILL.md) — 使用 uv 执行 Python、管理依赖和环境。
-- [vllm-serve](vllm-serve/SKILL.md) — 本机统一的 vLLM 后端：一份 vLLM 安装，每个模型一个 profile、一个服务，按需启动、多方共用、空闲自动退出；需先装 `vllm` uv tool（[安装](vllm-serve/references/install.md)）。
+- [vllm-serve](vllm-serve/SKILL.md) — 一台 GPU 机器上统一的 vLLM 后端（本机，或 ssh 过去、多人共用的服务器）：一份 vLLM 安装，每个模型一个 profile、一个服务，按需启动、多方共用、空闲自动退出；附共享服务器的部署原则和调优参考；需先装 `vllm` uv tool（[安装](vllm-serve/references/install.md)）。
 
 用 [skills CLI](https://www.skills.sh/docs) 安装，`npx` 可换成 `bunx`：
 
