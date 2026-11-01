@@ -49,7 +49,7 @@ class Structured(unittest.TestCase):
         return call(module, *(url + list(argv) if subcommands else list(argv) + url), config=self.config)
 
     def take(self, name, *argv):
-        return self.run_(structured, "take", "--cite", CITE, "--to", self.tmp / name, *argv)
+        return self.run_(structured, "take", "--cite", CITE, "-o", self.tmp / name, *argv)
 
     def parse(self, folder, body=PUB_PDF):
         """What paddleocr's parse leaves: <stem>/<stem>.md, .json (source.sha256), imgs/, and its lock file."""
@@ -112,7 +112,7 @@ class Structured(unittest.TestCase):
         self.assertEqual(self.run_(structured, "names").lines[0]["reason"], "all_named")
         self.zot.data(ITEM)["citationKey"] = CITE
 
-        r = self.run_(structured, "take", "--missing", "--to", self.tmp / "d")
+        r = self.run_(structured, "take", "--missing", "-o", self.tmp / "d")
         self.assertEqual([(x["title"], x["package"]) for x in r.lines[:-1]], [("Preprint-arXiv-v1", None)])
         pre = self.tmp / "d" / f"{CITE}.Preprint-arXiv-v1"
         self.parse(pre, body=PUB_PDF)

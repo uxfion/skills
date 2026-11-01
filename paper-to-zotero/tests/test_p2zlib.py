@@ -10,7 +10,7 @@ from unittest import mock
 from helpers import call, closed_port, config_file
 from fake_zotero import API_KEY, LIB, SERVER_ID, FakeZotero
 
-from p2zlib import cli, config, paper, web, zotero
+from p2zlib import cli, config, paper, zotero
 
 
 class Client(unittest.TestCase):
@@ -348,30 +348,6 @@ class Rules(unittest.TestCase):
         self.assertGreater(paper.title_similarity("基于深度学习的超声图像分割", "基于深度学习的超声图像分割方法"), 0.9)
         self.assertEqual(paper.title_similarity("", "x"), 0.0)
 
-    def test_file_kinds(self):
-        self.assertEqual([paper.kind_of_file(n) for n in ("a.pdf", "a.accepted.pdf", "a.preprint.pdf", "a.supplement.pdf",
-                                                          "a.html", "a.txt")],
-                         ["published", "accepted", "preprint", "supplement", "snapshot", None])
-
-    def test_attachment_titles_round_trip(self):
-        for version, source, detail, title in (("Preprint", "arXiv", ["v7"], "Preprint-arXiv-v7"),
-                                               ("accepted", "Europe PMC", [], "Accepted-Europe_PMC"),
-                                               ("Published", "T-CAIREM", ["abstract booklet p66"],
-                                                "Published-T_CAIREM-abstract_booklet_p66"),
-                                               ("Preprint", "OpenReview", ["ICLR 2027 submission"],
-                                                "Preprint-OpenReview-ICLR_2027_submission"),
-                                               ("Unknown", None, ["v2"], "Unknown")):  # detail only after a source
-            self.assertEqual(paper.label_title(version, source, detail), title)
-            parsed = paper.parse_title(title)
-            self.assertEqual(paper.label_title(parsed["version"], parsed["source"], parsed["detail"]), title)
-        self.assertEqual(paper.parse_title("Published-Elsevier-in_press"),
-                         {"version": "published", "source": "Elsevier", "detail": ["in_press"]})
-        for other in ("PDF", "Full Text PDF", "Preprint (arXiv)", "Accepted manuscript", "published-IEEE", "Published-",
-                      "Published--IEEE", "Snapshot (Nature)"):
-            self.assertIsNone(paper.parse_title(other), other)
-        with self.assertRaises(ValueError):
-            paper.label_title("Proof", "IEEE")
-
     def test_attachment_label_reads_only_the_scheme(self):
         pdf, html = "application/pdf", "text/html"
         cases = (({"title": "Accepted-CVF", "contentType": pdf}, ("accepted", "CVF", True)),
@@ -385,23 +361,6 @@ class Rules(unittest.TestCase):
         for data, want in cases:
             got = paper.attachment_label(data)
             self.assertEqual((got["version"], got["source"], got["standard"]), want, data)
-
-    def test_proposals_go_by_the_route_and_the_site(self):
-        cases = (("publisher", "https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=1", None, "Published-IEEE"),
-                 ("open", "https://arxiv.org/pdf/2303.11366v4", None, "Preprint-arXiv-v4"),
-                 ("publisher", "https://arxiv.org/pdf/2303.11366v4", None, "Preprint-arXiv-v4"),  # a preprint item's DOI
-                 ("open", "https://www.biorxiv.org/content/10.1101/1v2.full.pdf", None, "Preprint-bioRxiv"),
-                 ("open", "https://openaccess.thecvf.com/content/x.pdf", None, "Unknown-CVF"),  # not by the link's label
-                 ("accepted", "https://pmc.ncbi.nlm.nih.gov/articles/PMC1/pdf/a.pdf", None, "Accepted-PMC"),
-                 ("preprint", "https://arxiv.org/pdf/hep-th/9901001v1", None, "Preprint-arXiv-v1"),
-                 ("discovery", "https://www.sciencedirect.com/science/article/pii/S1/pdfft", None, "Unknown-Elsevier"),
-                 ("start", "https://repository.example.edu/a.pdf", "accepted", "Accepted"),
-                 ("snapshot", "https://www.nature.com/articles/x", None, "Snapshot-Nature"),
-                 ("snapshot", "https://www.biorxiv.org/content/10.1101/1v2", None, "Snapshot-bioRxiv"),
-                 (None, None, None, "Unknown"))
-        for route, url, given, title in cases:
-            self.assertEqual(paper.proposal(route, url, given)["title"], title, (route, url))
-        self.assertEqual(paper.proposal("open", "https://arxiv.org/pdf/2303.11366v12")["detail"], ["v12"])
 
     def test_order_and_replacement(self):
         def att(key, title, added, ctype="application/pdf"):
@@ -439,36 +398,6 @@ class Rules(unittest.TestCase):
                                                     {"author"})), 2)
 
 
-class Web(unittest.TestCase):
-    def test_proxy_hosts_round_trip(self):
-        proxy = "proxy.example.edu"
-        for host in ("ieeexplore.ieee.org", "www.sciencedirect-x.com"):
-            self.assertEqual(web.original_host(web.proxied_host(host, proxy), proxy), host)
-        self.assertEqual(web.unproxy("https://ieeexplore-ieee-org.proxy.example.edu/document/1?x=1", proxy),
-                         "https://ieeexplore.ieee.org/document/1?x=1")
-        self.assertEqual(web.unproxy("https://www.nature.com/a", proxy), "https://www.nature.com/a")
-        self.assertTrue(web.is_proxy_host("ieeexplore-ieee-org.proxy.example.edu", proxy))
-        self.assertTrue(web.is_proxy_host("www-x-com.ezproxy.other.edu", proxy))
-        self.assertFalse(web.is_proxy_host("www.nature.com", proxy))
-
-    def test_the_configured_proxy_is_read_from_the_config(self):
-        cfg = config_file(institution={"proxy": ".Proxy.Example.EDU "})
-        with mock.patch.dict("os.environ", {"PAPER_TO_ZOTERO_CONFIG": str(cfg)}):
-            self.assertEqual(config.institution()["proxy"], "proxy.example.edu")
-            self.assertTrue(web.is_proxy_host("a-b-org.proxy.example.edu"))
-
-    def test_a_429_stops_the_host(self):
-        pacer = web.Pacer()
-        pacer.stop("api.crossref.org", 30.0)
-        with self.assertRaises(web.Blocked) as caught:
-            pacer.wait("api.crossref.org")
-        self.assertEqual(caught.exception.retry_after, 30.0)
-
-    def test_retry_after(self):
-        self.assertEqual(web.retry_after({"Retry-After": "12"}), 12.0)
-        self.assertIsNone(web.retry_after({}))
-
-
 class Config(unittest.TestCase):
     def test_strict_and_lenient(self):
         bad = config_file()
@@ -478,7 +407,6 @@ class Config(unittest.TestCase):
                 config.read()
             self.assertEqual(caught.exception.code, "config_unreadable")
             self.assertEqual(config.read(strict=False), {})
-            self.assertEqual(config.institution(), {"proxy": None, "discovery": None})
 
 
 if __name__ == "__main__":

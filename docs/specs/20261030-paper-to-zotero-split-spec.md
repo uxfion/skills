@@ -146,7 +146,8 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 - **勘误提醒**：在规范之前算好，因为要用到 `article-number`。
 - **LNCS 这类论文集**写成 `paper-conference`：`container-title` 写卷名，`collection-title` 写丛书名，丛书信息用 Crossref 查到的。
 - **找到了就写进 CSL**：摘要写进 `abstract`，作者关键词写进 `keyword`，PMID 写进 `PMID`。
-- **`source`** 写给出元数据的机构，比如 Crossref 或 DataCite。它本来就是 CSL 的变量，p2z 用它填 `libraryCatalog`。
+- **`source`** 直接写成 Zotero `libraryCatalog` 的样子：`DOI.org (Crossref)`、`DOI.org (Datacite)`，网页来的写网页的主机名。schema 的对照表里 `source` 本来就对 `libraryCatalog`，所以 p2z 不用为它写代码。（实现时改的：原稿是只写机构名，由 p2z 拼成 `DOI.org (<source>)`。）
+- **只留 CSL 的变量**：CSL 1.0.2 的文本、日期、姓名变量，加上按名字带着的 `categories`。Crossref 记录里的参考文献列表、入库日期、得分、链接、对象形式的许可证都不要，结果文件小了几十倍。老的 `build_item` 本来也只按对照表取 CSL 的键，所以不影响条目。
 - **CSL 里没有的**，按名字原样带着，比如 arXiv 的分类 `categories`。
 - **网页上的 `citation_*` 元数据**也转成 CSL。现在是直接拼进 Zotero 条目的，这一段要新写。
 
@@ -154,7 +155,7 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 - **`identify`**：写 `files` 和 `outcome` 以外的所有字段。用 `--redraft` 重认时保留 `files`，因为那是已经拿到的文件，标签说明了各自是哪个版本。认不出来时，比如没有 DOI 的论文，也写一份只有 `request` 和 `warnings`、没有 `csl` 的占位结果文件，code 照报。这样后面还能把文件交给它核对（§4.2）。占位结果文件可以被同一个 slug 的新请求覆盖，不报 `slug_taken`，因为换个编号或网址再认一次是正常的。收到题目（`needs_pinning`）时什么都不写。
 - **汇总**：读 `fetch.jsonl`，把这篇的事件汇总成 `files` 和 `outcome`，原地写回，记下 `settled_at`。`fetch`、`claim`、`wait` 每次结束时都对自己碰过的那几篇做一次；`settle` 单独做这一件事，用在后台监视器后来收到文件之后。汇总每次都从整个 `fetch.jsonl` 重算，所以谁最后写都一样，不会丢更新。
 
-后台的 Downloads 监视器只往 `fetch.jsonl` 追加事件、把文件放进 `results/`，从不写结果文件。agent 定标签也是一个事件，用 `claim --label <标题> --why <理由> <slug>`。没定标签的文件，由汇总给出 `Unknown-<Source>`。
+后台的 Downloads 监视器只往 `fetch.jsonl` 追加事件、把文件放进 `results/`，从不写结果文件。agent 定标签也是一个事件，用 `claim --dir <dir> --label <标题> --why <理由> --slug <slug>`。没定标签的文件，由汇总给出 `Unknown-<Source>`。
 
 **`claim` 只吃掉自己的文件**：`claim --file` 现在会把交给它的文件移走或删掉。拆分后，只有 paper-fetch 自己目录里的文件和本轮 Downloads 里的新文件才这样处理；别处的文件一律先复制，原件不动。否则把 Zotero 存储目录里的 PDF 交给它定标签时，原件会被删掉（`run.place` 在复制后 `unlink` 原文件）。
 
@@ -172,7 +173,7 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 - **`item`**：用 CSL 按 schema 对照表加上规则生成，agent 可以改。版本在建记录之前就选定了，平常只生成一次。建了记录以后才改主意换版本时，先 `identify --redraft`，再 `draft_item --redraft` 重新生成。`item` 变了，`prepare` 的块就会过期，重新查库、重新预览。
 - **`citationKey`**：结果文件的 `slug_given` 为真时取 slug，否则留空，交给 Zotero 和 Better BibTeX 生成。
 - **agent 的字段**照旧：`tags`、`collection`、`distinct_from`、`same_as`、`keep_preprint`、`blocker`。
-- **块**照旧：`checks`、`found`、`near_matches`、`saved`、`attach`。
+- **块**照旧：`checks`、`found`、`near_matches`、`saved`、`attach`。（实现时改的：`attach` 改成列表，结果文件里每挂一个文件记一项，带上 `kind`。一篇论文可以同时有正文和补充材料两个文件，原来的单个对象装不下。）
 - **`warnings`**：只留建条目时的提醒，比如类型没对上、作者存成了 contributor、DOI 放进了 extra、有字段被丢掉。元数据本身的提醒，比如疑似勘误，留在结果文件里。
 
 **移出记录、归 paper-fetch 的**：
@@ -183,7 +184,7 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 - `links`；
 - 记录旁边的文件。
 
-**条目已经有 PDF 的，就不交给 paper-fetch 取全文。**Downloads 监视器只对照这样的结果：`fetch.jsonl` 里有它的 `try` 事件，还没有通过核对或被接收的文件。它不再读 Zotero 的 `found`。
+**条目已经有 PDF 的，就不交给 paper-fetch 取全文。**Downloads 监视器只对照这样的结果：`fetch` 被要过它的文件（`fetch.jsonl` 里有它的 `pass`、`try` 或 `stop` 事件），而它还没有文件。它不再读 Zotero 的 `found`。（实现时改的：原稿只认 `try`，但 `fetch` 在一条路试完才记 `try`，试第一条路时下载的文件、第一条路就停在验证页的论文都对不上；现在 `fetch` 每一遍开始时给要取的论文各记一个 `pass` 事件。）
 
 ### 3.5 笔记文件
 
@@ -208,7 +209,7 @@ p2z 只读 `results/` 下的结果文件和文件。其余都是 paper-fetch 自
 | `wait.py` | 整个搬过来 | 等验证页 |
 | `check_pdf.py` | 整个搬过来 | 看一份文件的核对结果 |
 | `settle.py` | 新写 | 把事件汇总进结果文件；`fetch`、`claim`、`wait` 结束时也做同样的汇总 |
-| `ready.py` | 拆 | 检查 OpenCLI、Downloads、poppler、浏览器会话、监视器，建 `<dir>` |
+| `ready.py` | 拆 | 检查 OpenCLI、Downloads、poppler，建 `<dir>`（`--dir`，各个文件夹、`.started`、`run.json`）。浏览器会话和监视器照旧不在这里查 |
 
 `pflib/` 里有三部分：
 - **整个搬过来的**：`browser`、`verify`、`web`；
@@ -221,7 +222,8 @@ identify.py [编号或网址…] [--slug S] [-o DIR]            # 也可以从 s
 identify.py --redraft <编号或网址> RESULT                 # 原地换成选定的版本
 identify.py --search "<题目>" [--author 姓]               # 只列出候选，不写文件
 ```
-- **输入**：DOI、arXiv 号或网址。只有题目时，agent 先按 SKILL.md 的"认一篇论文"，用 OpenCLI 的适配器找到编号。`--search` 是其中一条路：用 Crossref 按题目查，原来在 `lint_items --crossref` 里。
+- **输入**：DOI、arXiv 号或网址。网址不是 doi.org、arxiv.org 的，就当论文页读它的 `citation_*`；读不到就写占位结果。只有题目时，agent 先按 SKILL.md 的"认一篇论文"，用 OpenCLI 的适配器找到编号。`--search` 是其中一条路：用 Crossref 按题目查，原来在 `lint_items --crossref` 里。
+- **预印本的版本**在 `identify` 里一并查好（原来是 `prepare` 单独一步）。有来源没应答时记在 `versions.incomplete`，同一个编号再跑一次 `identify` 会重新问，其余照旧跳过。
 - **输出**：stdout 每篇一行 `{slug, code, path, …}`，最后一行是 `{"summary"}`。code 有：
   - `ok`；
   - `skipped`：同一个 slug 已经有结果文件，而且 `request` 一样；
@@ -292,9 +294,9 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
 - 类型没有 DOI 字段时，把 DOI 写进 `extra`。
 - `libraryCatalog` 照现在写成 `DOI.org (<source>)`。
 - 日期格式、作者转换、arXiv 分类转标签。
-- 选了正式版时，从 `versions.preprint` 里补三样：DOI 记录没有摘要时，用预印本的摘要；网页元数据缺作者时，用预印本的作者；`extra` 里加一行 `arXiv: <编号>`。这些现在在 `doi_to_item --redraft` 里。
+- 选了正式版时，从 `versions.preprint` 里补四样：DOI 记录没有摘要时，用预印本的摘要；网页元数据缺作者时，用预印本的作者；`extra` 里加一行 `arXiv: <编号>`；arXiv 分类照旧转成自动标签（`csl.categories`，没有就用 `versions.preprint.categories`，老流程里预印本时打的标签重认后也留着）。这些现在在 `doi_to_item --redraft` 里。
 
-实现时要用真库的 `read_library schema` 核对一下：规范 CSL 时用到的键，Zotero 的对照表里都有对应吗？包括 `collection-title` 对 `series`，以及 `event-title`、`publisher-place`、`container-title-short`。缺了哪个就要在代码里补上，否则 §11 要求的"字段和拆分前一致"会出现说不清原因的差别。
+实现时要用真库的 `read_library schema` 核对一下：规范 CSL 时用到的键，Zotero 的对照表里都有对应吗？2026-10-30 核对过（schema 版本 44）：`event-title` 对 `meetingName`/`conferenceName`，`publisher-place` 对 `place`，`collection-title` 对 `seriesTitle`/`series`，`source` 对 `libraryCatalog`，都在；`container-title-short` 不在，表里对 `journalAbbreviation` 用的是 Zotero 自己的名字。老代码也从没写过期刊缩写，所以拆分前后一致；以后补期刊缩写（§13）时，在 `draft_item` 里把它对到 `journalAbbreviation`。另外 DataCite 的 `version` 在表里对 `versionNumber`，老代码有意不写它，`draft_item` 照旧跳过。
 
 **从拆分的脚本里拿过来的部分**：
 - **`find_in_library --file <PDF>…`**：按 md5 查遗留文件在不在库里，原来在 `claim --sweep` 里。
@@ -302,8 +304,8 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
   - 按题目找 DOI，交给 paper-fetch 的 `identify --search`；
   - 不再自己读 PDF 摘录，要判断文件时按 §4.1 交给 paper-fetch；
   - 代理网址只按通用的代理写法来认。学校的代理域名是 paper-fetch 的配置，p2z 不读。审阅时核对过，本机配置的代理也符合通用写法。
-- **`ready`**：Zotero、写入 key、授权、分类树；建 `<scratch>/paper-to-zotero/`。
-- **`report`**：库里的部分，加上结果文件里的 `files[].check` 和 `outcome`。
+- **`ready`**：Zotero、写入 key、授权、分类树；建 `<scratch>/paper-to-zotero/`。（实现时改的：给了 `--dir` 才建目录，整理文库用不着；配置里还留着搬走的两项时，`config.moved` 列出来。）
+- **`report`**：库里的部分，加上结果文件里的 `files[].check` 和 `outcome`。（实现时改的："残留"和"停下与门禁"两节去掉，前者是 paper-fetch 清理时的事，后者已在 `outcome.stop` 里，由"无法获取"一节列出。）
 - **`p2z.py`**：
   - `prepare` 是 `find_in_library` 加 `check_item`；
   - `save` 照旧是 `create_item` 加 `attach_file`；
@@ -316,6 +318,7 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
 - 标题用 `files[].label.title`，再按命名规则检查一遍；
 - 附件的网址照现在用条目的 `url`，没有就用 DOI 链接；
 - 不再自己核对 PDF，也不再去代理前缀。
+- （实现时加的，advisor 审出来的两处：条目在库里本来就有正文 PDF、结果文件从没交给 paper-fetch 取过的，报 `skipped library_has_pdf`，不报 `unsettled`；结果里只有 paper-fetch 判断不了的文件（`cannot_judge`，比如没有元数据的论文）时，报 `unchecked` 并给出接收的步骤，不当成"还没文件"。）
 
 **没有 DOI 的论文**：paper-fetch 取到文件，标成 `cannot_judge`。p2z 照现在经 connector 的 `saveStandaloneAttachment` 存，让 Zotero 的识别器建条目。已定 18 说"只走本地 API"，那是针对桥接插件说的；这是现有的一处例外，保留。
 
@@ -340,7 +343,7 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
 - 存取笔记；
 - 存取结构化包。
 
-保留"Identity"、"Authorization"、"Save and attach"、"Read back and report"，以及"Clear residue"和"Limits"里属于它的那一半。
+保留"Identity"、"Authorization"、"Save and attach"、"Read back and report"，以及"Clear residue"和"Limits"里属于它的那一半。（实现时改的：导入的全部步骤，包括建条目挂附件、读回汇报、清理残留，都放进 `import.md`，SKILL.md 只留各项操作都用得上的：操作目录、Identity、Authorization、Read back（写过的都从库里读回）、临时目录、读库里的论文、Limits。这几步只属于导入，留在 SKILL.md 会把一条流程切成两处，读导入的 agent 要来回翻。）
 
 **测试**：
 - 留下的 14 个，加上从拆分的那些测试里取属于它的部分；
@@ -361,6 +364,7 @@ p2z 读结果文件里的 `files[].label`，用它改附件标题。
   5. 达到标准后，用 `note.py put` 存进 Zotero。
 - **"树上还有没答完的节点就不存"，这条检查归 paper-read**，在交给 p2z 之前做，p2z 不认识问题树。论文笔记那张 issue 的已定 29 原来写的是"p2z 就不存"，已经跟着改了。
 - **从 p2z 搬来的**：SKILL.md "Reading a library paper"里讲怎么读结构化包的部分。`structured take/put` 的命令说明留在 p2z。
+- （2026-10-30 搭好，实现时加的两样：一是操作目录多了"从论文里查一件事"：先读论文笔记，不够再取结构化包，学到的论文本身的东西写回笔记，这是论文笔记那张 issue"agent 怎么用"的第 1、2 条，也是最常用的一项；二是 `scripts/check_note.py`，按标题末尾的状态判断树上还有没有没答完的节点、一句话写了没有，"没答完就不存"这条检查交给脚本，不靠 agent 目测。参考文件 `reading.md` 写读论文 subagent 的说明，`notes.md` 写"用在哪里"、主题笔记、更正，都照已定的写，没定的标"待定"。）
 
 ## 5. 笔记：格式和转换
 
@@ -420,7 +424,7 @@ citation-items: %5B%7B%22uris%22…
 | 显示公式 | `$$…$$` | `<pre class="math">$$…$$</pre>` | |
 | 加粗、斜体、行内代码 | `**`、`*`、`` ` `` | `<strong>`、`<em>`、`<code>` | |
 | 链接，包括 `zotero://` | `[文字](地址)` | `<a href>`，编辑器保存时会加上 `rel` | 除 `rel` 外不带别的属性 |
-| 行内公式 | `$…$` | `<span class="math">$…$</span>` | 除 `class` 外不带属性 |
+| 行内公式 | `$…$` | `<span class="math">$…$</span>` | 除 `class` 外不带属性；不在标题里 |
 | 硬换行 | 行尾 `\` | `<br>` | 不在段落、标题、单元格的开头或结尾 |
 
 **表外的**：
@@ -442,60 +446,50 @@ citation-items: %5B%7B%22uris%22…
 - `to_note(md) -> (html, meta)`；
 - `set_meta(md, meta) -> md`：只改 front matter，供 `note.py put -i` 写回 key 和 version。
 
-**写入**（`to_note`）用 markdown-it-py，开 `html=True`，加上表格、`dollarmath`、`mdit-py-cjk-friendly`。要做四处修正：
-1. 公式渲染成编辑器用的 `span.math` 和 `pre.math`。
+**写入**（`to_note`）用 markdown-it-py，开 `html=True`，加上表格、`dollarmath`、`mdit-py-cjk-friendly`。做了五处修正：
+1. 公式渲染成编辑器用的 `span.math` 和 `pre.math`；段落中间的 `$$…$$` 也当行内公式。
 2. 代码块渲染成 `<pre>`，不套 `<code>`，结尾不多出换行。
 3. 链接地址原样写，不转码，也不拒绝 `file:`。否则中文地址、带空格的地址、本地文件链接都会被改掉。
-4. 修掉 `dollarmath` 的一个 bug：mdit-py-plugins 0.6.1 在列表或引用里写多行 `$$` 时，会把容器的前缀混进公式。怎么修，实现时比较两种办法：自己写一小段块级公式规则，或者给插件打补丁并报给上游。
+4. `dollarmath` 的 bug（mdit-py-plugins 0.6.1 在列表或引用里写多行 `$$` 时，把容器的前缀混进公式）：比较后选了自己写块级公式规则，替换插件的那条，读行的方式和代码块一样。公式是两个 `$$` 之间的全部内容，换行原样保留。没给插件打补丁；报给上游算对外发布，要等用户发话。
+5. 公式只认该是公式的：`dollarmath` 开 `allow_space=False`，`$` 要紧贴公式，"$5 and $10" 这样的金额不算公式，数字可以紧挨着（3$\times$3）。标题里的 `$…$` 留作文字：编辑器的标题不收公式（note-editor 的 `nodes.js`），收进去会被它从公式处劈成标题加一段（真编辑器核对时看到的）。读回时标题里的 `$` 不加反斜杠。
 
-写入前先把 front matter 剥下来：`schema` 和 `citation-items` 用来重建最外层 div，其余的键作为 `meta` 返回。
+写入前先把 front matter 剥下来：`schema` 和 `citation-items` 用来重建最外层 div，其余的键作为 `meta` 返回。两个都没有就不套 div，这样没有外层 div 的笔记读出再写回也不变；编辑器下次保存时自己会套上。
 
-**读回**（`to_md`）分六步：
+**编辑器模型**（已定 21，纯 Python）是"同一条笔记"的定义，自检、`note.py put` 判断"没改"、测试都用它，只有一份：
+- 块：标签、属性（不分先后；链接的 `rel` 不算），以及子块或段落内容。`<li>`、引用、单元格里散着的行内内容算一段；它们和整篇笔记是空的时候，算有一个空段落（编辑器会补一个）。
+- 段落内容是一串**文字段**，每段带着它的标记集合。这就是编辑器（ProseMirror）的存法：标记是集合，不是嵌套，所以 `<strong><em>` 和 `<em><strong>` 相同，被加粗切开的链接也相同。相邻同标记的文字段合并。
+- 空白照编辑器载入时的方式合并：连续空白算一个空格，段首、`<br>` 后和段尾的空格去掉，不换行空格单独算。
+- 几条编辑器的事实：`<b>`、`<i>` 就是 `<strong>`、`<em>`；代码标记排斥其他标记；硬换行上的标记看不见，不算；`<pre>` 里的空白原样算，编辑器保存时把两个空格写成的 ` &nbsp;` 算两个空格，开头那个换行（浏览器会丢）不算。
+- 公式、图片、引文、批注高亮这些行内节点，带着自己的属性和内容。
+
+**读回**（`to_md`）：
 1. 剥下最外层 div，它的属性进 front matter。
-2. 用标准库 `html.parser` 解析。
-3. 整理编辑器的写法：
-   - `<li>` 里多余的换行；
-   - `<li>` 里只包着一段的 `<p>`；
-   - 链接上的 `rel`；
-   - `<input type="checkbox">` 转成 `[ ] `。这种写法按推断，只出现在 Better Notes 导入、编辑器还没重存过的笔记里。
-4. 逐个顶层块查表，写成 Markdown。
-5. 每块做自检，对不上就整块原样留成 HTML。
-6. 块之间空一行，拼起来。
+2. 用标准库 `html.parser` 解析，Better Notes 导入的 `<input type="checkbox">` 换成 `[ ] `、`[x] `，再建成上面的模型。
+3. **从模型写 Markdown**，不从原 HTML 写。编辑器载入后一样的两份 HTML 模型相同，写出的 Markdown 也相同，所以"稳定"是由构造保证的。
+4. 每块自检：写出的 Markdown 用 `to_note` 渲染回去，模型必须和原块一样。段落和标题先试 `*` 表示斜体，再试 `_`，再试把标记写成 HTML 标签，都不行才留成 HTML。单元格里的段落放进一个单列表格里检。列表、引用、表格、代码块在顶层整块再检一次，不行就整块留成 HTML。所以退回 HTML 的范围尽量小：一处加粗写不成，只这一段用标签。
+5. 顶层块之间空一行；列表项和引用里，段落后面能直接跟的块（标题、代码块、公式、引用、分隔线、能打断段落的列表）不空行。
 
-**自检**（已定 21，纯 Python）。每个顶层块写成 Markdown 以后，必须同时满足两条：
-- **稳定**：写回再读，得到同样的 Markdown。
-- **结构不变**：写回的 HTML，和原块整理过后的样子，规范化后相等。
-
-规范化以后是一棵树，每个节点记三样：标签、属性、文字。规则如下：
-- 属性不分先后，去掉链接的 `rel`；
-- 只包着一段的 `li > p` 拆掉；
-- 标签之间的空白不算；
-- 文字里的空白照编辑器的方式合并：连续空格算一个，不换行空格单独算，`<pre>` 里的空白原样算；
-- `<br>` 算一个节点。
-
-只比文字不够，下面两种情况文字都一样：
+只比文字不够，下面两种情况文字都一样，模型都抓得住：
 - 带加粗的 `<pre>` 写成围栏代码，加粗没了；
 - 表头列的 `<th>` 变成 `<td>`。
 
-比结构就都抓得住，丢掉的属性也能发现。另外，一个非空的块读成了空 Markdown，也算对不上。
-
-**说清楚它是什么**：这套规范化是一个很小的编辑器模型，只有上面几条规则。它和讨论时没选的方案 B 属于同一类：B 是第一次选型时 237 行的仿编辑器程序，没选它，是因为它只是近似，编辑器一改它就得跟着改。这里换成几条规则，是被上面两个漏洞逼出来的：只比文字抓不住它们。保证 1 有多可靠，就看这几条规则有多准。规则出错时有两种后果：
+**说清楚它是什么**：这个模型是一个很小的编辑器模型，只有上面几条。它和讨论时没选的方案 B 属于同一类：B 是第一次选型时 237 行的仿编辑器程序，没选它，是因为它只是近似，编辑器一改它就得跟着改。这里只留几条规则，是被上面两个漏洞逼出来的：只比文字抓不住它们。保证 1 有多可靠，就看这几条规则有多准。规则出错时有两种后果：
 - 规则太松，会把真丢了的东西放过去；
 - 规则太严，只会让某块多退回一次 HTML，内容不丢。
 
-所以拿不准时宁可严。编辑器改了，要改的也只是这几条。
+所以拿不准时宁可严。比如 `<strike>`、`<del>` 和 `<s>` 是否同一个标记没有核实，就分开算；Better Notes 列表上的 `class` 编辑器大概会丢，也照样算，那块就留成 HTML。编辑器改了，要改的也只是这几条。
 
 **写 Markdown 时就照做的通用规则**，不靠自检兜底：
 - 不满足 §5.2 条件的元素，一律留成 HTML。
 - 两个相邻的同类列表，后一个换分隔符：`-` 换成 `*`，`.` 换成 `)`。不然拼回去会并成一个。
-- 加粗、斜体两端有空格，或者分隔符在那个位置不成立时，这一处改用 `<strong>`、`<em>` 标签。
-- 连续空格和不换行空格：正文里写成 `&nbsp;`；行内代码和代码块里写成不换行空格字符本身，因为实体在代码里不会被解码。
+- 标记在硬换行处断开时，在换行前收住，下一行再开。
+- 连续空格和不换行空格：正文里写成 `&nbsp;`；行内代码里写成不换行空格字符本身，因为实体在代码里不会被解码；代码块里写成普通空格。
 - 起始号不是 1 的有序子列表，前面空一行，不然它会并进上一段。
 
 **退回成 HTML 的块也要写对**：
-- 类型 6 的 HTML 块（`<p …>`、`<ul>`、`<blockquote>`、`<table>` 等）遇到空行就结束，所以退回的 HTML 里不能有空行：标签之间只有空白的行合并掉，`<pre>` 文字里的空行写成 `&#10;`。
-- `<pre>` 是类型 1，遇到 `</pre>` 才结束，不受这条影响。
-- 退回的块也按上面的"结构不变"再验一次。验不过就报错（写到 stderr，退出码 1），这种情况不应该发生。
+- 类型 6 的 HTML 块（`<p …>`、`<ul>`、`<blockquote>`、`<table>` 等）遇到空行就结束，所以退回的 HTML 里不能有空行：文字里含换行的空白合并成一个换行，`<pre>` 文字里会造成空行的换行写成 `&#10;`。
+- 退回的 HTML 照原来的写，属性照原来的顺序。
+- 顶层退回的块也按模型再验一次。验不过就报错（写到 stderr，退出码 1），这种情况不应该发生。
 
 **转义**照 CommonMark 规范，只在会被读错的位置加反斜杠：
 - **行首**，包括列表项、引用、表格单元格的开头：
@@ -516,7 +510,7 @@ citation-items: %5B%7B%22uris%22…
   - 图片的 `![`；
   - 可能被当成标签或自动链接的 `<`；
   - 可能组成实体的 `&`；
-  - 可能开始公式的 `$`；
+  - 可能开始公式的 `$`（标题里不读公式，不转义）；
   - ASCII 标点前的 `\`，以及行尾的 `\`（它会变成硬换行）。
 - **表格和链接里**：
   - 表格单元格里的 `|`；
@@ -579,7 +573,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
   - 目标文件已经存在、而且它的 front matter 里是同一个 `key` 时，直接覆盖。`put` 报 `version_conflict` 以后，重新 take 到同一个目录，本来就是正常的做法。key 不同的同名文件，算用法错误。
 - **`put`**：
   - 从路径或 stdin 读，用 `to_note` 转换。
-  - 有 `key` 就更新，带上 `version`。Zotero 里的版本和它不一样时，报 `version_conflict`，不写。
+  - 有 `key` 就更新，带上 `version`。Zotero 里的版本和它不一样时，报 `version_conflict`，不写。front matter 里写了的 `parent`、`collections`、`related` 也一并同步，`related` 两边都改。Zotero 里已经是同一条笔记（按 §5.3 的模型）就报 `unchanged`，不写，版本不动。
   - 没有 `key` 就新建：有 `parent` 就建子笔记；否则按 `collections` 建独立笔记，并按 `related` 和论文互设"相关"。
   - 写完读回核对。
   - `-i` 用 `set_meta` 把新的 key 和 version 写回文件的 front matter，下次还能接着 put。
@@ -587,21 +581,23 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
   - stdout 按 §6 每条一行，字段有 file、code、key、version、action（created、updated、unchanged），最后一行是 summary。code 沿用现在 `note.py` 的那些，比如 `version_conflict`、`write_denied`、`readback_mismatch`、`cite_not_found`、`cite_ambiguous`。
 - **`list`**：
   - 每条笔记输出一行 JSONL，字段有 key、parent 的引用键、标题、version、修改日期、collections。
-  - `--q` 搜正文。论文笔记那张 issue 记过一次实测，用 `qmode=fields` 搜到过笔记正文。实现时再核对一下：这个参数在 Zotero 10 上是否真的搜正文，`everything` 行不行。
+  - `--q` 搜正文，用 `qmode=everything`。2026-10-30 在 Zotero 10 上核对过：`everything` 和 `fields` 都搜得到笔记正文，默认的 `titleCreatorYear` 连笔记标题都搜不到。
 
 动词沿用 `structured` 的 take/put。`organize.md` 里用到 `note --marker` 的地方，都改成 take/put。
 
 ### 5.6 测试和验证
 
-- **样例拷进仓库**，放在 `paper-to-zotero/tests/fixtures/note_md/`。来源都在拆分 issue 的参考资料文件夹里：
-  - 调过的 44 个：`pandoc-retest/corpus/edges.editor.html`。其中 3 个不是编辑器真正保存的样子，先改对："nbsp / double space"、"code block"、"embedded image"。
-  - 这次的 64 个，以及 Better Notes 的测试样例：在 `blind/` 里。期望结果里的最外层 div，改成 front matter 的写法。
-  - 测试笔记那一对：`pandoc-retest/corpus/rt-sent.html`、`rt-after-edit.html`。
-- **`tests/test_note_md.py`**：纯 Python。检查 §5.3 的保证 2、3 和自检的"结构不变"，再和期望的 Markdown 对比。
-- **哪些不算盲测**：这 64 个已经看过了，改作开发和回归用的样例。改完以后，另派一个 agent，不看代码，按编辑器 schema 写一批新样例，只跑一次，这一批才算检验。之后它也并进回归样例。
+- **样例拷进仓库**，放在 `paper-to-zotero/tests/fixtures/note_md/`，每组一个 `.html` 和一个 `.md`，各个样例用 `<!-- 名字 -->` 隔开，共 100 个：
+  - `blind`：盲测的 64 个，来自 `blind/`；
+  - `edges`：调过的 28 个，来自 `pandoc-retest/corpus/edges.editor.html`。其中 3 个不是编辑器真正保存的样子，已经改对："nbsp / double space"、"code block"、"embedded image"；
+  - `better-notes`：Better Notes v3.3.3 的测试笔记；
+  - `notes`：7 条整篇的论文笔记（编辑器存过的、Better Notes 导入的、纯 HTML、没存过的、用户改过的，以及测试笔记那一对 `rt-sent.html`、`rt-after-edit.html`）。里面提到用户研究项目的地方换成了中性的字样。
+- **期望的 Markdown** 按类别核对后接受，不是拿输出直接覆盖：和盲测时写的期望比，差别只有这几类，都接受了：分隔线写 `***`；转义偏保守（`\*\*\*`、每个反引号都转义、文字段末尾的 `\`）；交叠的加粗斜体改用 `_` 表示斜体；标记在硬换行前收住；中文地址、`file:` 地址、带空格的地址直接写成 Markdown 链接；行内代码里的不换行空格写成字符本身；列表项里能紧跟段落的块不空行；单行的公式写在一行。
+- **`tests/test_note_md.py`**：纯 Python。每个样例都要：读成期望的 Markdown；写回以后按模型和原样相同（保证 1）；再读一次得到同样的 Markdown（保证 2）。另外检查哪些块退回了 HTML（14 个样例里有，都是 Markdown 说不了的：带属性的块、合并或着色的单元格、没有表头行的表格、带加粗的代码块、Better Notes 的任务列表）、front matter、写入的修正和命令行。`tests/test_note.py` 用假 Zotero 测 take、put、list。
+- **哪些不算盲测**：这些样例都看过了，是开发和回归用的。以后另派一个 agent，不看代码，按编辑器 schema 写一批新样例，只跑一次，那一批才算检验，之后也并进回归样例。
 - **保证 1 怎么验**：
-  - 开发时，可以用参考文件夹 `passthrough/blind/judge/` 里那个裁判量一下。它是拿编辑器 schema 代码在 Node 里做的，只是量具，不进 skill，也不进仓库，关 issue 时随文件夹一起删掉。
-  - 定稿前用真编辑器核对一次（issue 的待验证 2）：把样例写进一条测试笔记，用户在 Zotero 里打开，改一个字再改回来，然后读回比对。
+  - 开发时原想用参考文件夹 `passthrough/blind/judge/` 里那个 Node 裁判量一下，但它的 `node_modules` 已经没有了，重装是装非 Python 的东西，要用户同意，所以这次没用。
+  - 用真编辑器核对（issue 的待验证 2、第 73 条）：2026-10-30 做完。79 个样例拼成一条笔记，用户在 Zotero 里改过以后取回比对：差别都是用户的改动或编辑器自己的规范化（样式重写、链接加 `rel`、标记的先后、合并着色单元格的背景色拷到文字上），没有转换器丢的；存回来的那版读出写回不变。它暴露了一条编辑器规则：标题不收公式，写入因此加了修正 5。送进去和存回来的两版在参考文件夹的 `realeditor/`。
 
 ## 6. 命令行约定（三个 skill 通用）
 
@@ -634,6 +630,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 ## 8. skill 之间的调用和共用代码（已定 7、8）
 
 - **按操作检查兄弟 skill 在不在**：在自己目录旁边找，比如 `../paper-fetch/SKILL.md`。只在要用它的操作开始时查：导入要查 paper-fetch，缺结构化包时要查 paddleocr，整理文库不用查。找不到就停下，说出要加载的 skill 的名字。
+  （2026-10-30 实现时改的：三个 SKILL.md 开头各放一张兄弟 skill 表，列出哪项操作要哪个 skill、缺了怎么办，作为唯一的说明，别处只指过去。原稿说"整理文库不用查"不对：整理里按版本改附件名、按题目查 DOI 都要 paper-fetch，表里写明这两项要它、其余整理照常。README 里每个 skill 也注明依赖。）
 - **交接只靠文件**：拿不到就停下，不猜。
 - **调用处写明对方的名字**。
 - **小的共用代码各带一份，不做共享库**：文件头写明从哪里拷来、哪个提交。先例是 mattpocock 的 `pr`，它的 CREDITS.md 写着 "a hard dependency would break standalone installs"。
@@ -651,6 +648,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 | `tests/helpers.py`、`tests/run_all.py`、调度脚本 | | |
 
 - **防止两份 `titles.py` 越走越远**：p2z 加一个测试。旁边装了 paper-fetch 时，比较两份 `titles.py` 是否一样，不一样就失败；没装就跳过。
+- （2026-10-30 实现时加的）**结果文件格式的契约测试**：paper-fetch 的 `test_contract.py` 用它自己的脚本（在假网站上 identify、redraft、claim、accept、label、settle）生成三份典型结果，存成 `tests/fixtures/results/`，格式一变就失败（`PF_REGEN_FIXTURES=1` 重新生成）；p2z 的 `test_contract.py` 在旁边装了 paper-fetch 时读这些样例，跑 `draft_item`、`attach_file`、`report` 和"要 agent 定什么"的判断。实测过：结果里的字段一改名，两边的测试都会失败。写样例时还发现 paper-fetch 把补充材料当成第二个文件挪进 stray/，已改成正文只放一份、补充材料另占一个位置。
 - **断开 import**：
   - `run.py` 在模块开头就 import 了 `verify` 和 `web`，拆的时候要断开；
   - `web.py` 和 `zotero.py` 都在用的时候才 import `run.atomic_write`，改成各自 import 自己那份。
@@ -672,7 +670,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 
 **先复制、后删除**：paper-fetch 先从 p2z 拷出它要的代码，等 p2z 改完，再从 p2z 里删掉。中间 p2z 一直能用。每一步测试全过就提交一次。
 
-0. **开工前存基线**：用现在的流程对 §11 的三篇跑一遍，到 `--dry-run` 为止，把认出的元数据、要建的条目、下到的文件的标签存进临时目录，作为拆分前后对比的基线。改任何代码之前做，免得基线已经受了改动的影响。
+0. **开工前存基线**：用现在的流程对 §11 的三篇跑一遍，到 `--dry-run` 为止，把认出的元数据、要建的条目、下到的文件的标签存下来，作为拆分前后对比的基线。改任何代码之前做，免得基线已经受了改动的影响。（2026-10-30 已做：存在拆分 issue 参考资料文件夹的 `baseline/` 里，不放临时目录，因为实现要跨好几次会话。`baseline/README.md` 写了三篇的输入、当时的选择、结果和 md5；标签那部分可以离线重放：拆分后用 `claim --file` 核对这几份 PDF，结果要和当时的 claim 事件一致。）
 1. **笔记**（在 p2z 内部做，和拆分无关，可以先做）：
    - 写 `p2zlib/note_md.py`、`scripts/note_md.py` 和新的 `note.py`；
    - `p2z.py` 和 `run_all.py` 改用 `uv run --script`；
@@ -694,8 +692,10 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
    - 删掉已经搬走的代码和测试；先跟用户说，再删掉配置里搬走的两项；
    - 写 `references/import.md`，改其他参考文件，重写 SKILL.md；
    - 测试全部通过。
-4. **改说法**：搬过去的和留下来的代码、文档里，"work directory"都改成"scratch directory"，并写明路径。现在 SKILL.md 和 17 个脚本里有这个说法。
-5. **paper-read**：按 §4.3 搭框架。
+
+   （2026-10-30 已做，`a5440e0` 到第 3、4 步的文档提交。核对过：`draft_item` 对三篇基线论文生成的条目和基线逐字段一致，SENet 的预印本和 CVPR 正式版两种都对上；在假 Zotero 上用基线的三份 PDF 跑 `attach_file`，附件标题和 md5 和基线一致。配置里搬走的两项按用户的话，等用户用过新版再提醒删。）
+4. **改说法**：搬过去的和留下来的代码、文档里，"work directory"都改成"scratch directory"，并写明路径。现在 SKILL.md 和 17 个脚本里有这个说法。（2026-10-30 随第 3 步一起做完：p2z 剩下的脚本、两边的文档里都改成 `<scratch>/paper-to-zotero` 或 paper-fetch 的 `<dir>`。）
+5. **paper-read**：按 §4.3 搭框架。（2026-10-30 已做，见 §4.3 的补记。）
 6. **收尾**：
    - 更新 README 的 skill 列表（根目录 AGENTS.md 的规定）；
    - 更新记忆 `paper-access-environment`、`paper-to-zotero-skill-status`；
@@ -711,12 +711,19 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
   - 一条带引用键的 .bib 条目。
 
   条目字段、附件标题、标签，要和 §10 第 0 步存下的基线一致。
+
+  （2026-10-30 做完 dry-run 这一半：从三篇的结果文件起，`claim --file` 基线的三份 PDF、照基线定标签，`draft_item`、`prepare`、`create_item --dry-run` 对真库只读地跑，条目、查库和预览结果、要建的内容都和基线一致；附件标题和 md5 在假 Zotero 上核对过，也一致。真写进 `tmp` 再移进回收站那一半会把 PDF 传进用户的 Zotero 存储，留到收尾时先问用户。2026-10-30 用户选了现在做：同样从三篇的结果文件和基线 PDF 起，`save` 真建了三个条目、传了三个附件，从库里读回，条目字段、标签、分类、附件标题和 md5 都和基线一致；SENet 和 Mask R-CNN 的引用键由 Better BibTeX 生成，NumPy 用 .bib 带来的 `numpy2020`；`report` 把 SENet 的接收稿列进"替代版本"、Mask R-CNN 的文件列进"接收的文件"。核对完三个条目连同附件移进了回收站。）
+
+  （2026-10-30 再做一次真上网的导入，按 `import.md` 全程走：AlphaFold（Nature，开放获取）、UNet++（IEEE TMI，IEEE 上开放获取）。两边 `ready`、监视器、`identify`、`draft_item`、`prepare`（库里都没有）、`fulltext_links`、`fetch --pass 1`（两篇都在开放获取那一步拿到，核对 `ok`）、按 `to_label` 的证据定标签、`settle`、`save`、`report`，读回的条目字段、附件标题和 md5 都对，Downloads 里没留东西。结构化包这一步跳过：它要用 GPU，当时另一个会话在动 vllm-serve，条目又马上要删。核对完两个条目移进回收站。没测到的：要学校登录的出版商那条路，两篇都是开放获取。）
 - **整理**：在现有分类上只读地跑 `lint_items`、`read_library`、`export_bib`，结果要和拆分前一致。只有两处例外：`lint_items` 不再给 Crossref 候选，也不再给 PDF 摘录，这两样改由 paper-fetch 做。
+  （2026-10-30 做完：在"医疗图像"分类（`9EYXTC2I`，连子分类）上，拆分前的 `4bbfdd7` 和现在的代码各跑一遍。`export_bib` 的 1490 行 bib、`read_library items` 和 `tags` 的输出逐字相同；`lint_items` 报的 19 个条目和各类问题的计数相同，去掉 PDF 摘录以后每条问题都相同。）
 - **笔记的实测**：读一篇用户指定的论文，用 `note.py put` 存成笔记，在 Zotero 里看过以后再 take 回来，要和存进去的一致。同时核对论文笔记那张 issue 列的几项：
   - 独立笔记的 `related`，在论文条目那一侧看得到；
   - `zotero://open-pdf/…?page=N` 链接没被改写；
   - 结构化包里带着页码。
 - **审阅**：实现完，用 code-review 对照本 spec 审一遍，再提交。
+
+（2026-10-30 code-review 做完，两路：按编码规范、按本 spec。逻辑上的四处已改（`0f489f7`）：接收一个已经在结果旁边的文件时，不再把它当第二个文件挪进 stray/；`identify` 不再把已经重认成正式版的结果改回预印本；结果名是推出来的、后来又给了引用键的，在还没开始取全文时改名，开始了就在输出里报 `slug_not_applied`；给库里的文件定标签时一个文件一个目录，因为一个结果只装这篇论文的一个文件。另外 paper-fetch 只留一个 `host_of`，p2z 的副本同步；文档去掉重复的段落、补上完成标准、`settle` 统一写成 `pf.py settle`，拷来的代码注明出处和提交。有意不改的：`first_str` 各脚本一份，按 §8 不做共享库；p2z 读结果文件的字段散在几个脚本里，结果文件的格式由 paper-fetch 的 `pflib/run.py` 一处定义，p2z 只读不写，暂不另包一层。一处实现时定的：agent 另找到的摘要、关键词、PMID 写进 p2z 记录里的条目，不写进结果文件，因为结果文件只由 `identify` 和汇总写。）
 
 ## 12. 要接受的代价，以及不做的事
 

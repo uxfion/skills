@@ -570,16 +570,15 @@ class Zotero:
 
     # ---- attaching a file -----------------------------------------------------------------------------------
 
-    def attach(self, parent_key, path, *, title=None, url, filename=None, verify=None, dry_run=False):
+    def attach(self, parent_key, path, *, title=None, url, filename=None, dry_run=False):
         """Attach one file, a PDF, an HTML page saved as .html or a structured package (.zip), to one regular item,
         whatever made the item.
 
         A child already holding this file (same md5) settles it: skipped, already_attached, nothing uploaded, its
         title left as it is. An empty stored-file child with the same filename (left by an interrupted run) is
-        reused, and takes this title. verify(parent data) runs only when the file is not attached yet; a Stop from it
-        refuses. The title is the caller's (paper.label_title), else the version word the bytes alone give: Unknown
-        for a PDF, Snapshot for HTML. The filename is given, else Zotero's default "<firstCreator> - <year> -
-        <title>.<ext>". `url` is stored as given (None: a stored file without a source). Then the attachment item, the
+        reused, and takes this title. The title is the caller's (paper.label_title), else the version word the bytes
+        alone give: Unknown for a PDF, Snapshot for HTML. The filename is given, else Zotero's default
+        "<firstCreator> - <year> - <title>.<ext>". `url` is stored as given (None: a stored file without a source). Then the attachment item, the
         three-step upload and the md5 read back. Children in the trash count for nothing.
         -> {code ok, attachment (its key), md5, filename, title, reused, file_existed}
          | {code skipped, reason already_attached, attachment, md5, filename, title}: the attachment already there
@@ -620,8 +619,6 @@ class Zotero:
             if (reuse is None and cd.get("linkMode") in ("imported_url", "imported_file") and not cd.get("md5")
                     and cd.get("filename") == filename):
                 reuse = child
-        if verify is not None:
-            verify(pdata)
         if dry_run:
             return {"code": "ok", "dry_run": True, "attachment": reuse["key"] if reuse else None, "md5": md5, "filename": filename,
                     "title": title, "reused": reuse is not None, "contentType": content_type, "url": url,

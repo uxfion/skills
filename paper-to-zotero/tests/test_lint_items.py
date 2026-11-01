@@ -2,22 +2,14 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/lint_items.py against the fake Zotero, and the fake web's Crossref for --crossref."""
-import os
-import tempfile
+"""Tests for scripts/lint_items.py against the fake Zotero."""
 import unittest
-from pathlib import Path
-from unittest import mock
 
-from helpers import call, closed_port, config_file, fake_pdf, load, poppler_stubs, smoke
-from fake_web import FakeWeb
+from helpers import call, closed_port, config_file, load, smoke
 from fake_zotero import FakeZotero, LIB
-
-from p2zlib import web
 
 lint = load("lint_items")
 A, B, D, J, K = "AAAAAAAA", "BBBBBBBB", "DDDDDDDD", "JJJJJJJJ", "KKKKKKKK"
-ZH = "基于深度学习的超声图像分割方法"
 
 
 def add(z, key, meta=None, **data):
@@ -39,12 +31,10 @@ class LintItems(unittest.TestCase):
     def setUpClass(cls):
         cls.zot = FakeZotero()
         cls.config = config_file()
-        cls.web = FakeWeb()
 
     @classmethod
     def tearDownClass(cls):
         cls.zot.close()
-        cls.web.close()
 
     def setUp(self):
         z = self.zot
@@ -79,17 +69,12 @@ class LintItems(unittest.TestCase):
         z.add_collection("COLL0001", "Medical")
         z.add_collection("COLL0002", "Sub", "COLL0001")
         z.add_collection("COLL0009", "Old", deleted=True)
-        self.web.reset()
-        self.enterContext(mock.patch.object(web, "PACER", web.Pacer()))      # a 429 in one test stays there
-        self.enterContext(mock.patch.dict(web.GAPS, {"api.crossref.org": 0}))
 
-    def run_(self, *argv, base_url=None, config=None, env=None):
-        return call(lint, *argv, "--base-url", base_url or self.zot.base_url, config=config or self.config, env=env)
+    def run_(self, *argv, base_url=None):
+        return call(lint, *argv, "--base-url", base_url or self.zot.base_url, config=self.config)
 
     def test_attachment_titles(self):
         z, T = self.zot, "TTTTTTT2"
-        tmp = Path(tempfile.mkdtemp(prefix="p2z-lint-"))
-        self.enterContext(mock.patch.dict(os.environ, {"PATH": f"{poppler_stubs(tmp / 'bin')}:{os.environ['PATH']}"}))
         add(z, T, itemType="journalArticle", title="A paper with many files", DOI="10.1000/t", abstractNote="x",
             date="2021", url="https://pub.example/t")
         att = lambda key, title, ctype="application/pdf", **kw: z.add_item(  # noqa: E731
@@ -97,28 +82,24 @@ class LintItems(unittest.TestCase):
         att("FINAL001", "Published-IEEE", md5="f1", dateAdded="2024-05-01")
         att("ARXIV001", "Preprint-arXiv-v1", md5="a1", dateAdded="2024-01-01")
         att("ARXIV003", "Preprint-arXiv-v3", md5="a3", dateAdded="2023-01-01")
-        att("OLDPDF01", "Full Text PDF", md5="o1", url="https://ieeexplore-ieee-org.proxy.example.edu/stamp/x")
-        z.files["OLDPDF01"] = fake_pdf(tmp / "old.pdf", ["IEEE TRANSACTIONS ON X\nA paper with many files\nWei Liu",
-                                                         "Radiology 2022; 000:1-8"])
+        att("OLDPDF01", "Full Text PDF", md5="o1", url="https://ieeexplore-ieee-org.ezproxy.example.edu/stamp/x")
         att("SNAP0001", "Snapshot", "text/html", url="https://www.sciencedirect.com/science/article/pii/S1")
         att("SNAP0002", "Snapshot-Elsevier", "text/html", dateAdded="2024-01-01")
         att("SNAP0003", "Snapshot-Elsevier", "text/html", dateAdded="2024-02-01")
         att("LINK0001", "PubMed entry", "text/html", linkMode="linked_url")
         att("UNKN0001", "Unknown", md5="u1", url="https://ieeexplore.ieee.org/document/1")  # left without a source on purpose
-        r = self.run_("--key", T, config=config_file(institution={"proxy": "proxy.example.edu"}))
+        r = self.run_("--key", T)
         got = [p for p in reported(r)[T]["problems"] if p["code"] in ("nonstandard_title", "label_clash", "superseded")]
         self.assertEqual(got, [
             {"code": "nonstandard_title", "why": "outside_scheme", "attachment": "OLDPDF01", "title": "Full Text PDF",
              "contentType": "application/pdf", "url": "https://ieeexplore.ieee.org/stamp/x", "host": "ieeexplore.ieee.org",
-             "url_site": "IEEE", "filename": None, "md5": "o1", "doi": "10.1000/t",
-             "excerpt": "IEEE TRANSACTIONS ON X\nA paper with many files\nWei Liu", "excerpt_page_2": "Radiology 2022; 000:1-8"},
+             "url_site": "IEEE", "filename": None, "md5": "o1", "doi": "10.1000/t"},
             {"code": "nonstandard_title", "why": "no_source", "attachment": "SNAP0001", "title": "Snapshot",
              "contentType": "text/html", "url": "https://www.sciencedirect.com/science/article/pii/S1",
-             "host": "www.sciencedirect.com", "url_site": "Elsevier", "filename": None, "md5": None, "doi": "10.1000/t",
-             "excerpt": None, "excerpt_page_2": None},
+             "host": "www.sciencedirect.com", "url_site": "Elsevier", "filename": None, "md5": None, "doi": "10.1000/t"},
             {"code": "label_clash", "title": "Snapshot-Elsevier", "attachments": ["SNAP0002", "SNAP0003"]},
             {"code": "superseded", "attachment": "ARXIV001", "title": "Preprint-arXiv-v1", "by": "ARXIV003",
-             "by_title": "Preprint-arXiv-v3"}], "evidence and no proposed name; a link is no file")
+             "by_title": "Preprint-arXiv-v3"}], "evidence and no proposed name, the proxy taken off; a link is no file")
 
     def test_the_whole_library(self):
         r = self.run_()
@@ -146,7 +127,6 @@ class LintItems(unittest.TestCase):
                          ("aaaaaaaa", "journalArticle", "Paper about segmentation networks"))
         self.assertEqual((summary["items"], summary["with_problems"]), (10, len(found)))
         self.assertEqual(summary["by_code"]["duplicate_of"], 4)
-        self.assertNotIn("crossref", summary)
 
     def test_scope_chooses_what_is_reported_not_what_is_compared(self):
         found = problems(self.run_("--collection", "COLL0001"))
@@ -195,17 +175,17 @@ class LintItems(unittest.TestCase):
         self.assertNotIn("url_not_record", found["UUUUUUUU"])
         self.assertIn("missing_doi", found["XXXXXXXX"], "an arXiv DOI is not the article's DOI")
 
-    def test_proxy_hosts_come_from_the_config_and_ezproxy_style(self):
-        add(self.zot, "PROXY001", itemType="journalArticle", title="Read through the institution's proxy",
-            DOI="10.1109/TMI.2024.1", abstractNote="x", url="https://ieeexplore-ieee-org.proxy.example.edu/document/1")
-        add(self.zot, "PROXY002", itemType="journalArticle", title="Read through another library's proxy",
-            DOI="10.1016/j.x.2024.2", abstractNote="x",
-            url="https://www-sciencedirect-com.ezproxy.lib.example.org/science/article/pii/S1")
-        found = problems(self.run_("--key", "PROXY001,PROXY002", config=config_file(institution={"proxy": "proxy.example.edu"})))
+    def test_proxies_known_by_their_form(self):
+        add(self.zot, "PROXY001", itemType="journalArticle", title="Read through a library's EZproxy",
+            DOI="10.1109/TMI.2024.1", abstractNote="x", url="https://ieeexplore-ieee-org.ezproxy.example.edu/document/1")
+        add(self.zot, "PROXY002", itemType="journalArticle", title="Read through OCLC's hosted proxy",
+            DOI="10.1016/j.x.2024.2", abstractNote="x", url="https://www-sciencedirect-com.lib.idm.oclc.org/science/article/pii/S1")
+        add(self.zot, "PLAIN001", itemType="journalArticle", title="On the publisher's own site",
+            DOI="10.1016/j.x.2024.3", abstractNote="x", url="https://www.proxy-science.example.com/article/3")
+        found = problems(self.run_("--key", "PROXY001,PROXY002,PLAIN001"))
         self.assertEqual(found["PROXY001"]["url_not_record"]["patch"], {"url": "https://doi.org/10.1109/TMI.2024.1"})
         self.assertEqual(found["PROXY002"]["url_not_record"]["patch"], {"url": "https://doi.org/10.1016/j.x.2024.2"})
-        found = problems(self.run_("--key", "PROXY001,PROXY002"))
-        self.assertEqual(set(found), {"PROXY002"}, "without the configured proxy only the EZproxy-style host is known")
+        self.assertNotIn("PLAIN001", found)
 
     def test_citation_keys_across_the_library(self):
         z = self.zot
@@ -228,44 +208,6 @@ class LintItems(unittest.TestCase):
         self.assertEqual(r.lines[-1]["summary"]["by_code"]["citation_key"], 3)
         r = self.run_("--cite", "dupkey")
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["keys"]), (1, "cite_ambiguous", ["DUPCITE1", "DUPCITE2"]))
-
-    def add_crossref_papers(self):
-        add(self.zot, "ZHPAPER1", itemType="conferencePaper", title=ZH, abstractNote="x", url="https://conf.example/zh",
-            creators=[{"creatorType": "author", "lastName": "王", "firstName": "伟"}])
-        add(self.zot, "OTHERAU1", itemType="journalArticle", title="A paper Crossref knows by another author",
-            abstractNote="x", url="https://pub.example/o", creators=[{"creatorType": "author", "lastName": "Smith"}])
-        self.web.route("/crossref/works", {"message": {"items": [
-            {"DOI": "10.1000/zh", "title": [ZH], "container-title": ["超声医学杂志"], "issued": {"date-parts": [[2022, 3]]},
-             "author": [{"family": "王", "given": "伟"}]},
-            {"DOI": "10.1000/other", "title": ["A paper Crossref knows by another author"], "author": [{"family": "Jones"}]}]}})
-
-    def asked(self):
-        return [(r.path, r.query) for r in self.web.requested("GET", "/crossref/works")]
-
-    def test_crossref_candidate(self):
-        self.add_crossref_papers()
-        self.run_("--key", "ZHPAPER1")
-        self.assertEqual(self.asked(), [], "only --crossref asks")
-        r = self.run_("--crossref", "--key", "ZHPAPER1,OTHERAU1", env=self.web.env())
-        found = problems(r)
-        self.assertEqual(found["ZHPAPER1"]["missing_doi"]["candidate"],
-                         {"doi": "10.1000/zh", "title": ZH, "venue": "超声医学杂志", "year": 2022})
-        self.assertNotIn("candidate", found["OTHERAU1"]["missing_doi"], "the title matches, the first author does not")
-        self.assertEqual(self.asked()[0], ("/crossref/works", {"query.bibliographic": f"{ZH} 王", "rows": "3",
-                                                            "select": "DOI,title,container-title,issued,author"}))
-        self.assertEqual(len(self.asked()), 2)
-        self.assertEqual(set(web.PACER.last), {"api.crossref.org"}, "paced under Crossref's host, not the test server's")
-        self.assertNotIn("crossref", r.lines[-1]["summary"])
-
-    def test_crossref_429_stops_the_asking(self):
-        self.add_crossref_papers()
-        self.web.rate_limit("/crossref/works")
-        r = self.run_("--crossref", "--key", "ZHPAPER1,OTHERAU1", env=self.web.env())
-        self.assertEqual(r.code, 1, r)
-        self.assertEqual(len(self.asked()), 1)
-        self.assertEqual(r.lines[-1]["summary"]["crossref"], "stopped after a 429")
-        found = problems(r)
-        self.assertTrue(all("candidate" not in found[k]["missing_doi"] for k in ("ZHPAPER1", "OTHERAU1")))
 
     def test_the_whole_library_is_read_page_by_page(self):
         for i in range(130):

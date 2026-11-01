@@ -63,23 +63,24 @@ class DoneRule(unittest.TestCase):
 
     def test_absent_fresh_stale_incomplete(self):
         rec = self.rec()
-        self.assertEqual(run.due(rec, "links"), "absent")
-        run.stamp(rec, "links", {"items": []})
-        self.assertIsNone(run.due(rec, "links"))
+        self.assertEqual(run.due(rec, "found"), "absent")
+        run.stamp(rec, "found", {"code": "not_found"})
+        self.assertIsNone(run.due(rec, "found"))
         rec["item"]["DOI"] = "10.1109/CVPR.2016.91"
-        self.assertEqual(run.due(rec, "links"), "stale")
-        run.stamp(rec, "links", {"items": []}, incomplete=["openalex"])
-        self.assertEqual((run.due(rec, "links"), rec["links"]["incomplete"]), ("incomplete", ["openalex"]))
+        self.assertEqual(run.due(rec, "found"), "stale")
+        run.stamp(rec, "found", {"code": "not_found"}, incomplete=["search"])
+        self.assertEqual((run.due(rec, "found"), rec["found"]["incomplete"]), ("incomplete", ["search"]))
 
     def test_inputs_are_what_the_block_depends_on(self):
         rec = self.rec()
         run.stamp(rec, "found", {"code": "not_found"})
-        run.stamp(rec, "links", {"items": []})
+        run.stamp(rec, "checks", {"code": "ok"})
         rec["tags"] = [{"tag": "x", "type": 0}]
+        self.assertIsNone(run.due(rec, "found"), "tags do not change a lookup")
+        self.assertIsNone(run.due(rec, "checks"))
         rec["item"]["abstractNote"] = "An abstract."
-        self.assertIsNone(run.due(rec, "found"), "tags and the abstract do not change a lookup")
-        self.assertIsNone(run.due(rec, "links"))
-        self.assertEqual(run.due(rec, "checks"), "absent")
+        self.assertIsNone(run.due(rec, "found"), "nor does the abstract")
+        self.assertEqual(run.due(rec, "checks"), "stale", "the preview is of the whole item")
         rec["distinct_from"] = ["ABCD1234"]
         self.assertEqual(run.due(rec, "found"), "stale", "a new distinct_from is a new lookup")
         run.stamp(rec, "found", {"code": "not_found"})
@@ -87,8 +88,8 @@ class DoneRule(unittest.TestCase):
         self.assertEqual(run.due(rec, "found"), "stale")
 
     def test_a_block_without_from_is_an_older_runs(self):
-        rec = self.rec(found={"code": "near_match", "key": "OTHER001"}, saved={"key": "MINE0001"}, links=[])
-        self.assertEqual(run.old_format(rec), ["found", "links"])
+        rec = self.rec(found={"code": "near_match", "key": "OTHER001"}, saved={"key": "MINE0001"}, checks={"code": "ok"})
+        self.assertEqual(run.old_format(rec), ["checks", "found"])
         self.assertEqual(run.due(rec, "found"), "absent")
 
     def test_item_key(self):
@@ -104,22 +105,19 @@ class DoneRule(unittest.TestCase):
         self.assertEqual(run.item_key(rec), "MINE0001")
 
 
-class WorkDirectory(unittest.TestCase):
-    def test_log_settings_and_files(self):
+class Results(unittest.TestCase):
+    def test_a_record_reads_its_result(self):
         work = work_dir()
-        work.append({"event": "claim", "slug": "a", "result": "claimed", "none": None})
-        work.append({"event": "try", "slug": "a"})
-        with open(work.log, "a", encoding="utf-8") as fh:
-            fh.write("not json\n")
-        self.assertEqual([e["event"] for e in work.events()], ["claim", "try"])
-        self.assertNotIn("none", work.events("claim")[0])
-        work.set(downloads="/d", session="p2z")
-        work.set(watcher_pid=12, session=None)
-        self.assertEqual(work.settings(), {"downloads": "/d", "watcher_pid": 12})
-        self.assertIsNone(work.file_of("a"))
-        (work.records / "a.preprint.pdf").write_bytes(b"%PDF-1.4")
-        self.assertEqual(work.file_of("a").name, "a.preprint.pdf")
-        self.assertEqual(run.Work.of(work.records / "a.json").root, work.root)
+        res = work.root / "fetch" / "results" / "a.json"
+        res.parent.mkdir(parents=True)
+        res.write_text(json.dumps({"slug": "a", "files": []}))
+        rec = run.read(record(work, "a", {"fetched": str(res)}))
+        self.assertEqual(run.result_of(rec), ({"slug": "a", "files": []}, res))
+        self.assertEqual(run.Work.of(rec.path).root, work.root)
+        for data in ({}, {"fetched": str(res.with_name("gone.json"))}):
+            with self.assertRaises(cli.Stop) as caught:
+                run.result_of(run.read(record(work, "b", data)))
+            self.assertEqual(caught.exception.code, "no_result")
 
 
 class _Records:

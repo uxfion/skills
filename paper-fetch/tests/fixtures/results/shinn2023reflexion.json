@@ -1,0 +1,128 @@
+{
+  "slug": "shinn2023reflexion",
+  "slug_given": false,
+  "request": {
+    "given": "2303.11366",
+    "redraft": "10.52202/075280-0377"
+  },
+  "record_of": "published",
+  "ids": {
+    "doi": "10.52202/075280-0377",
+    "arxiv": null,
+    "pmid": null,
+    "pmcid": null
+  },
+  "csl": {
+    "type": "paper-conference",
+    "source": "DOI.org (Crossref)",
+    "title": "Reflexion: language agents with verbal reinforcement learning",
+    "author": [
+      {
+        "family": "Shinn",
+        "given": "Noah"
+      },
+      {
+        "family": "Cassano",
+        "given": "Federico"
+      }
+    ],
+    "issued": {
+      "date-parts": [
+        [
+          2023
+        ]
+      ]
+    },
+    "container-title": "Advances in Neural Information Processing Systems 36",
+    "page": "8634-8652",
+    "DOI": "10.52202/075280-0377",
+    "URL": "https://doi.org/10.52202/075280-0377",
+    "abstract": "Reflexion."
+  },
+  "alt_titles": [],
+  "versions": {
+    "preprint": {
+      "ids": {
+        "arxiv": "2303.11366",
+        "doi": "10.48550/arXiv.2303.11366"
+      },
+      "latest": "v4",
+      "comment": "v4 contains a few additional experiments",
+      "title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
+      "abstract": "Reflexion.",
+      "author": [
+        {
+          "family": "Shinn",
+          "given": "Noah"
+        },
+        {
+          "family": "Cassano",
+          "given": "Federico"
+        }
+      ],
+      "categories": [
+        "Artificial Intelligence (cs.AI)"
+      ]
+    },
+    "published": [
+      {
+        "ids": {
+          "doi": "10.52202/075280-0377"
+        },
+        "venue": "Advances in Neural Information Processing Systems 36",
+        "year": 2023,
+        "title": "Reflexion: language agents with verbal reinforcement learning",
+        "title_differs": false,
+        "type": "paper-conference",
+        "sources": [
+          "crossref"
+        ]
+      }
+    ],
+    "incomplete": []
+  },
+  "warnings": [
+    "date is year-only",
+    "this DOI leads to the printed proceedings' sales page: the paper's page is on proceedings.neurips.cc"
+  ],
+  "files": [
+    {
+      "name": "shinn2023reflexion.preprint.pdf",
+      "md5": "5355ac1f3d70289b8265988d63d1d8b8",
+      "kind": "preprint",
+      "label": {
+        "title": "Accepted-arXiv-v4",
+        "version": "accepted",
+        "source": "arXiv",
+        "detail": [
+          "v4"
+        ],
+        "by": "agent",
+        "why": "v4's comment"
+      },
+      "check": "ok",
+      "url": null
+    },
+    {
+      "name": "shinn2023reflexion.supplement.pdf",
+      "md5": "a20b9103c2c26f5fa03eb71d5ba0e56c",
+      "kind": "supplement",
+      "label": {
+        "title": "Supplement-NeurIPS",
+        "version": "supplement",
+        "source": "NeurIPS",
+        "detail": [],
+        "by": "agent",
+        "why": "the venue's appendix"
+      },
+      "check": "accepted",
+      "accepted_reason": "the appendix",
+      "url": null
+    }
+  ],
+  "outcome": {
+    "status": "got",
+    "tried": [],
+    "stop": null
+  }
+}

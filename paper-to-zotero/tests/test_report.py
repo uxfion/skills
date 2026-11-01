@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/report.py: the rows read live from the fake Zotero, the sections from the records and fetch.jsonl."""
+"""Tests for scripts/report.py: the rows read live from the fake Zotero, the sections from the records and their results."""
 import json
 import tempfile
 import unittest
@@ -50,41 +50,38 @@ class Report(unittest.TestCase):
         z.add_item("ATTOLD01", itemType="attachment", parentItem="HAD00001", title="PDF", contentType="application/pdf", md5="m9")
         self.work = run.Work(Path(tempfile.mkdtemp(prefix="p2z-report-")))
         self.work.records.mkdir()
-        self.work.unverified.mkdir()
-        self.dl = self.work.root / "Downloads"
-        self.dl.mkdir()
+        self.results = self.work.root / "fetch" / "results"
+        self.results.mkdir(parents=True)
 
-    def record(self, slug, **rec):
+    def record(self, slug, files=(), outcome=None, **rec):
+        """A record and its result: files [(name, md5, kind, label title, check, accepted_reason?)]."""
+        res = self.results / f"{slug}.json"
+        res.write_text(json.dumps({"slug": slug, "outcome": outcome or {"status": "got", "tried": [], "stop": None}, "files": [
+            {"name": f[0], "md5": f[1], "kind": f[2], "label": {"title": f[3]}, "check": f[4],
+             **({"accepted_reason": f[5]} if len(f) > 5 else {})} for f in files]}))
         path = self.work.records / f"{slug}.json"
-        path.write_text(json.dumps({"item": {"title": slug.title()}, **rec}))
+        path.write_text(json.dumps({"fetched": str(res), "item": {"title": slug.title()}, **rec}))
         return path
 
     def run_(self, *argv, base_url=None):
         return call(report, *argv, *sorted(self.work.records.glob("*.json")), "--base-url", base_url or self.zot.base_url)
 
     def test_rows_and_sections(self):
-        self.record("liu", citationKey="liu2022", saved={"key": "ITEM0001", "version": 1, "citationKey": "liu2022paper", "created_at": "x"},
-                    attach={"attachment": "ATTPDF01", "md5": "m1", "title": "Published-IEEE"})
-        self.record("kim", saved={"key": "PRE00001"}, keep_preprint="the user wants the preprint",
-                    attach={"attachment": "ATTPRE01", "md5": "m2", "title": "Preprint-arXiv-v1"})
-        self.record("roe", saved={"key": "UNSURE01"}, attach={"attachment": "ATTUNK01", "md5": "m5", "title": "Unknown-Elsevier"})
-        doe = run.read(self.record("doe", label={"title": "Published-Springer", "by": "agent", "why": "x"},
-                                   attach={"attachment": "ATTOLD01", "md5": "m9", "title": "PDF", "existing": True}))
+        self.record("liu", [("liu.pdf", "m1", "published", "Published-IEEE", "ok")], citationKey="liu2022",
+                    saved={"key": "ITEM0001", "version": 1, "citationKey": "liu2022paper", "created_at": "x"},
+                    attach=[{"attachment": "ATTPDF01", "md5": "m1", "title": "Published-IEEE", "kind": "published"}])
+        self.record("kim", [("kim.preprint.pdf", "m2", "preprint", "Preprint-arXiv-v1", "accepted", "a scan")],
+                    saved={"key": "PRE00001"}, keep_preprint="the user wants the preprint",
+                    attach=[{"attachment": "ATTPRE01", "md5": "m2", "title": "Preprint-arXiv-v1", "kind": "preprint"}])
+        self.record("roe", [("roe.pdf", "m5", "published", "Unknown-Elsevier", "ok")], saved={"key": "UNSURE01"},
+                    attach=[{"attachment": "ATTUNK01", "md5": "m5", "title": "Unknown-Elsevier", "kind": "published"}])
+        doe = run.read(self.record("doe", [("doe.pdf", "m9", "published", "Published-Springer", "ok")],
+                                   attach=[{"attachment": "ATTOLD01", "md5": "m9", "title": "PDF", "kind": "published", "existing": True}]))
         run.stamp(doe, "found", {"code": "found", "key": "HAD00001"})  # the item was in the library: it had this file
         doe.save()
-        self.record("lost", blocker="the last pass with the user")
-        (self.work.records / "lost.html").write_text("<html></html>")
-        (self.work.unverified / "lost.file.pdf").write_bytes(b"%PDF")
-        left = self.dl / "invoice.pdf"
-        left.write_bytes(b"%PDF")
-        for e in ({"event": "try", "slug": "lost", "pass": 1, "route": "open", "url": "https://repo.example/x", "result": "wrong_file"},
-                  {"event": "stop", "slug": "lost", "pass": 1, "route": "publisher", "url": "https://doi.org/10.1/a",
-                   "page": "https://pub.example/a", "why": "no_pdf_link"},
-                  {"event": "try", "slug": "lost", "pass": 1, "route": "publisher", "url": "https://doi.org/10.1/a",
-                   "result": "no_access", "by": "agent"},
-                  {"event": "claim", "file": "invoice.pdf", "result": "left", "why": "unmatched", "source": str(left)},
-                  {"event": "accept", "slug": "kim", "file": "kim.preprint.pdf", "reason": "a scan", "md5": "m2"}):
-            self.work.append(e)
+        stop = {"route": "publisher", "why": "no_pdf_link", "url": "https://pub.example/a"}
+        self.record("lost", [("lost.html", "m7", "snapshot", "Snapshot-Example", "ok")], blocker="the last pass with the user",
+                    outcome={"status": "not_got", "tried": ["repo.example", "pub.example"], "stop": stop})
         r = self.run_("--json")
         self.assertEqual(r.code, 0, r)
         out = json.loads(r.out)
@@ -96,8 +93,8 @@ class Report(unittest.TestCase):
         self.assertEqual((rows["kim"]["file"], rows["roe"]["file"], rows["lost"]["key"], rows["lost"]["file"]), ("PDF", "PDF", None, None))
         self.assertEqual(out["summary"], {"total": 5, "in_library": 4, "with_pdf": 4, "with_snapshot": 0, "missing": 1, "blocked": 1})
         s = out["sections"]
-        self.assertEqual(s["not_obtained"], [{"slug": "lost", "snapshot": True, "passes": {"1": [
-            "open repo.example: wrong_file", "publisher doi.org: verdict no_access"]}}])
+        self.assertEqual(s["not_obtained"], [{"slug": "lost", "status": "not_got", "tried": ["repo.example", "pub.example"],
+                                              "stop": stop, "snapshot": True}])
         self.assertEqual([(a["slug"], a["title"]) for a in s["alternate_versions"]], [("kim", "Preprint-arXiv-v1")])
         self.assertEqual([(a["slug"], a["title"]) for a in s["unknown_versions"]], [("roe", "Unknown-Elsevier")])
         self.assertEqual(s["preprint_kept"], [{"slug": "kim", "reason": "the user wants the preprint"}])
@@ -107,10 +104,10 @@ class Report(unittest.TestCase):
                          "the arXiv preprint, another source, stays")
         self.assertEqual(s["renames"], [{"slug": "doe", "attachment": "ATTOLD01", "title": "PDF", "suggested": "Published-Springer"}])
         self.assertEqual(s["new_tags"], [{"tag": "method/BrandNew", "items": ["liu2022paper"]}])
-        self.assertEqual([x["file"] for x in s["leftovers"]], ["Downloads/invoice.pdf", "unverified/lost.file.pdf"])
-        self.assertEqual([(x["slug"], x["verdict"]) for x in s["stops"]], [("lost", "no_access")])
+        self.assertFalse({"leftovers", "stops"} & set(s), "what the fetching left behind is paper-fetch's")
         md = self.run_().out
-        for heading in ("| citationKey |", "liu2022paper (record: liu2022)", "### 无法获取", "### 待清理附件", "### 版本未定",
+        for heading in ("| citationKey |", "liu2022paper (record: liu2022)", "### 无法获取", "not_got | repo.example, pub.example | "
+                        "publisher no_pdf_link https://pub.example/a", "### 待清理附件", "### 版本未定",
                         "### 建议改名", "trash_item.py --dry-run --key ", "Published-IEEE; Accepted-IEEE-in_press"):
             self.assertIn(heading, md)
 

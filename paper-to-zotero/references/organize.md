@@ -4,9 +4,9 @@ The second entry: the user asks for tags or collections to be tidied, a field fi
 
 ## A tidy: check, list, confirm, write, read back
 
-A request to tidy a collection (整理) runs these five steps; a single fix the user names starts at step 2.
+A request to tidy a collection (整理) runs these five steps; a single fix the user names starts at step 2. The collection 主题笔记 holds paper-read's topic notes: a tidy leaves it and its notes as they are.
 
-1. **Check.** `uv run scripts/p2z.py lint_items --collection <key> [--recursive]` reads the whole library once and lists each item of the collection that has a problem — duplicates anywhere in the library, stray webpages, attachment titles outside the scheme or clashing, a file another from the same source replaces, bad fields, a url that is not the version of record, a citation key that is missing, shared or holds a TeX-special character, a model name no tag carries (`--help` lists the codes). `--crossref` adds a DOI candidate to each `missing_doi`, one request a second. Done when the summary line is in hand.
+1. **Check.** `uv run scripts/p2z.py lint_items --collection <key> [--recursive]` reads the whole library once and lists each item of the collection that has a problem — duplicates anywhere in the library, stray webpages, attachment titles outside the scheme or clashing, a file another from the same source replaces, bad fields, a url that is not the version of record, a citation key that is missing, shared or holds a TeX-special character, a model name no tag carries (`--help` lists the codes). It reads only the library: for a `missing_doi`, paper-fetch (SKILL.md, *Sibling skills*) looks the DOI up — `uv run ../paper-fetch/scripts/pf.py identify --search "<title>" --author <surname>`. Done when the summary line is in hand.
 2. **List.** Turn the findings into one change list for the user: per item what you propose and why — the merge of a duplicate pair (below), the field fixes, the tags to add (references/tagging.md), what goes to the trash. A `patch` in a finding is mechanical and can go in as it is; every other code is yours to judge first — a venue that issues no DOI (ICML, ICLR) is expected under `missing_doi`, and a `duplicate_of` by title alone may be two papers. Done when every finding is in the list as a change or as left alone, with the reason.
 3. **Confirm.** Show the list (the `--dry-run` outputs of the commands that will write it) and wait for the user's word on it; scope they grant holds for the rest of the task.
 4. **Write.** Each change with its command: fields `update_item` (a `patch` goes in a file: `--patch FILE`), tags and collections `file_and_tag`, duplicates `merge_items`, the trash `trash_item`.
@@ -27,7 +27,7 @@ uv run scripts/p2z.py read_library pdf --cite <citation key>     # where its PDF
 
 ## Structured packages
 
-Every PDF has its package (SKILL.md, *Reading a library paper*); `read_library pdf` shows it as `package`. To make the missing ones, or to bring them all up to date after the paddleocr skill changed: `structured take --missing --to <dir>` (or `--every`), with no item named for the whole library; parse the links with the paddleocr skill, `-o <dir>`, in background calls of about a hundred; then `structured put <dir>/*/`, which skips a folder the parse left unchanged. `trash_item`, `merge_items` and `update_item` carry a PDF's package along with it (trashed, moved, retitled, renamed after the citation key); after citation keys changed in Zotero itself, `structured names` renames the packages' files in place.
+Every PDF has its package (SKILL.md, *Reading a library paper*); `read_library pdf` shows it as `package`. To make the missing ones, or to bring them all up to date after the paddleocr skill changed: `structured take --missing -o <dir>` (or `--every`), with no item named for the whole library; parse the links with the paddleocr skill, `-o <dir>`, in background calls of about a hundred; then `structured put <dir>/*/`, which skips a folder the parse left unchanged. `trash_item`, `merge_items` and `update_item` carry a PDF's package along with it (trashed, moved, retitled, renamed after the citation key); after citation keys changed in Zotero itself, `structured names` renames the packages' files in place.
 
 ## Tidying tags and collections
 
@@ -45,19 +45,17 @@ An entry names its item by `key` or `cite`. Its `tags` is the item's *complete* 
 uv run scripts/p2z.py update_item --cite <key> --set itemType=conferencePaper --set "publicationTitle=…" --set date=2023 --dry-run
 ```
 
-A paper without a DOI gets the identifier SKILL.md step 2 asks for — often the DOI exists (a CVF copy of a CVPR paper, a Springer chapter), and Crossref finds it by title and first author. Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Zotero moves an Extra line it has a field for (`PMID: 38262200`) into that field when the field is empty: the result shows it under `normalized.extra.moved_to_fields`, which is a success — set such a field directly next time. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag`; the trash has its own section below.
+A paper without a DOI gets the identifier import.md step 3 asks for — often the DOI exists (a CVF copy of a CVPR paper, a Springer chapter), and paper-fetch's `pf.py identify --search` (above) finds it by title and first author. Base names such as `publicationTitle` are mapped to the type's own field; on a type change the plan lists the fields Zotero will move to Extra; the result shows any value Zotero normalized. Zotero moves an Extra line it has a field for (`PMID: 38262200`) into that field when the field is empty: the result shows it under `normalized.extra.moved_to_fields`, which is a success — set such a field directly next time. Show the dry-run, write on the user's word, name the source of every value you set against the DOI record (the PDF's author list, a corrected date). Tags and collections stay with `file_and_tag`; the trash has its own section below.
 
 ## Attachment titles
 
-Every PDF and snapshot is titled `<Version>-<Source>-<detail>` (references/attachment-titles.md: the scheme, the versions, the evidence). Files that came in another way — the Zotero Connector, Zotero's "Find Available PDF", an older run of this skill — carry titles outside it ("PDF", "Full Text PDF", "Preprint (arXiv)"), and those say nothing about the version. Renaming them:
+Every PDF and snapshot is titled `<Version>-<Source>-<detail>`, and which of a paper's files an item keeps follows from those titles (references/attachment-titles.md). Files that came in another way — the Zotero Connector, Zotero's "Find Available PDF", an older run of this skill — carry titles outside the scheme ("PDF", "Full Text PDF", "Preprint (arXiv)"), and those say nothing about the version. What a file is, paper-fetch settles (SKILL.md, *Sibling skills*); this skill lists the files and writes the titles back. Renaming them:
 
-1. **List.** `lint_items` over the scope: each `nonstandard_title` comes with its evidence (the attachment's url and its site, the item's DOI, the start of pages 1 and 2), `label_clash` names two files under one title, `superseded` a file another from the same source replaces.
-2. **Settle by script what is certain.** A script of yours names a file only when nothing is left to judge: a snapshot (`Snapshot-<the site of the page it saved>`), the same bytes as a file already settled, a file whose own words state both its version and its source in the text layer (the host's download stamp with its version banner or the issue's running head; publishers.md has the words seen). Before trusting such a rule, look at a few of the files it settles. A file with any doubt left — a version said but a source not, a mark that may be an image, nothing said at all — goes to step 3.
-3. **Hand the rest to subagents** on a cheap model (Claude Code: `model: "sonnet"`), in batches of about twenty, each with references/attachment-titles.md and the findings' paths (`read_library pdf`). For each file a subagent proposes a title with the mark that decides it, or says it cannot: a file arXiv compiled (its margin stamp) from its text and arXiv's comment, every other file from pages 1 and 2 looked at as images — make both images of every file the brief's done-condition, since a subagent left to choose reads the text layer alone. The comments you fetch first and hand over with the batch: one request to arXiv's API per hundred ids (`p2zlib.web.arxiv_entries`). Up to 10 subagents at once: they read only local files.
-4. **Check the site** for what step 3 could not name: a subagent per site checks the publisher's or the host's page, one site at a time, briefed with *Agents you send* (SKILL.md, Rules). A site speaks of what it serves today; it names a file only once it is shown to serve that same file (attachment-titles.md, *Evidence*).
-5. **Unknown** for what is still undecided, with the source when that is known.
-6. **Show the list** to the user: per attachment the item's citation key, the old title, the new one, the reason and who settled it (script or subagent); beside it the `label_clash` and `superseded` findings, each with the file you would trash.
-7. **Write** on the user's word: `update_item --key <attachment> --set title=<new>` (a `--dry-run` first), the trash per the next section. This touches only the local API, no website. Then run step 1 again on the same scope: done when every title the user approved is in place and the findings left are the ones the user chose to keep.
+1. **List.** `lint_items` over the scope: each `nonstandard_title` comes with its evidence (the attachment's url and its site, the item's DOI), `label_clash` names two files under one title, `superseded` a file another from the same source replaces.
+2. **Label by paper-fetch.** Its *Label files you already have*, one directory per file: `uv run ../paper-fetch/scripts/pf.py identify <the item's DOI or arXiv id> -o <scratch>/paper-fetch/label/<attachment key>`, then `pf.py claim --file` the attachment's stored file (`read_library pdf --cite …` gives its path; a file outside paper-fetch's directory is copied, never moved) and settle its label there — paper-fetch's rules for a file already in the library, its subagents for what is in doubt. A snapshot needs no file check: `Snapshot-<the site of the page it saved>`. Many files: paper-fetch's batch, by its rules.
+3. **Unknown** for what is still undecided, with the source when that is known.
+4. **Show the list** to the user: per attachment the item's citation key, the old title, the new one (the result's `files[].label.title`), the reason and who settled it; beside it the `label_clash` and `superseded` findings, each with the file you would trash.
+5. **Write** on the user's word: `update_item --key <attachment> --set title=<new>` (a `--dry-run` first), the trash per the next section. Then run step 1 again on the same scope: done when every title the user approved is in place and the findings left are the ones the user chose to keep. Delete paper-fetch's directory once the titles are written.
 
 ## The trash
 
@@ -79,12 +77,24 @@ It lists the fields the kept item will take from the other (empty ones only), th
 
 ## Notes
 
-`note --cite <key> --file note.md --marker <name>` attaches a child note (a small Markdown subset becomes Zotero's HTML) and, run again with the same marker, updates that note instead of adding another. Use it for evidence the user asked you to keep with the paper — page numbers, quoted passages, what you verified — and keep the user's own notes untouched. A note carries no tags: its marker identifies it, and a tag on a note would sit in the tag selector beside the papers' tags. What a note claims about a paper's content rests on the attachment you read, so name it.
+Outside Zotero a note is one Markdown file: a front matter that names the note and where it belongs, then the note, with whatever Markdown cannot say kept as HTML in place, so a file put back unedited leaves the note as it was. Work on notes in the scratch directory:
+
+```bash
+uv run scripts/p2z.py note take --cite <key> -o <scratch>/notes/      # a file per child note; --title T picks one, --note K a standalone one
+uv run scripts/p2z.py note put <scratch>/notes/*.note.md -i            # back into Zotero; -i writes the new version into the file
+```
+
+- Edit between take and put and leave `key` and `version` as take wrote them. `version_conflict`: the note changed in Zotero after the take (the user edited it) — take it again into the same directory and redo your change there.
+- A new note is a file without `key`: `parent: <citation key>` makes it a child note; `collections:` and `related:` (citation keys) a standalone one, related both ways.
+- Raw HTML blocks stand on their own lines with a blank line around them. Inline code stays out of links and bold: the editor drops the link or the bold when it saves. A heading holds no math in the editor, so a `$…$` there stays its TeX text.
+- `note list --q <words>` finds notes by their text.
+
+Use notes for what the user asked you to keep with a paper — page numbers, quoted passages, what you verified — and name the attachment the claims rest on. The user's own notes change only on their word. Notes carry no tags: a tag on a note would sit in the tag selector beside the papers' tags.
 
 ## Exporting BibTeX
 
 ```bash
-uv run scripts/p2z.py export_bib --collection <key> --out ref.bib      # or --cite k1,k2 …, or record paths
+uv run scripts/p2z.py export_bib --collection <key> -o ref.bib      # or --cite k1,k2 …, or record paths
 ```
 
 Keys are the items' `citationKey`s, so a manuscript that cites them compiles unchanged; the stderr summary names items without a key, with a shared key, or with a key holding a TeX-special character (and the key without it) — fix those with `update_item --set citationKey=…` on the user's word. The .bib is a derived file: regenerate it rather than editing it, and tell the user that Better BibTeX's auto-export can keep it current without an agent.

@@ -84,10 +84,9 @@ class Attach(unittest.TestCase):
                                  "filename": FILENAME, "title": "Unknown"}, "the title it has stays")
         self.assertEqual(len(self.fake.writes()), writes, "never uploaded twice")
 
-    def test_a_child_holding_the_same_md5_settles_it_without_verify(self):
+    def test_a_child_holding_the_same_md5_settles_it(self):
         self.child("OLDATT01", title="Full Text PDF", filename="old name.pdf", md5=MD5)
-        verify = mock.Mock(side_effect=AssertionError("verify must not run"))
-        res = self.zot.attach(PARENT, self.file(), url=URL, verify=verify)
+        res = self.zot.attach(PARENT, self.file(), url=URL)
         self.assertEqual(res, {"code": "skipped", "reason": "already_attached", "attachment": "OLDATT01", "md5": MD5,
                                "filename": "old name.pdf", "title": "Full Text PDF"})
         self.assertEqual(self.fake.writes(), [])
@@ -166,19 +165,6 @@ class Attach(unittest.TestCase):
         self.assertEqual((att["linkMode"], "url" in att, att["md5"]), ("imported_file", False, MD5))
 
     # ---- refusals and failures ----
-
-    def test_verify_sees_the_parent_and_can_refuse(self):
-        seen = []
-
-        def verify(data):
-            seen.append(data["title"])
-            raise cli.Stop("not_verified", hint="not this paper")
-
-        self.assertEqual(self.stop(self.zot.attach, PARENT, self.file(), url=URL, verify=verify).code, "not_verified")
-        self.assertEqual(seen, ["A Paper: With Colon"])
-        self.assertEqual(self.fake.writes(), [])
-        self.assertEqual(self.stop(self.zot.attach, PARENT, self.file(), url=URL, verify=verify, dry_run=True).code,
-                         "not_verified", "a dry run shows the refusal too")
 
     def test_dry_run_writes_nothing_and_needs_no_key(self):
         with mock.patch.dict("os.environ", {"PAPER_TO_ZOTERO_CONFIG": str(config_file(key=None))}):

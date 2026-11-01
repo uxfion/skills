@@ -1,0 +1,75 @@
+{
+  "slug": "liu2022jbhi",
+  "slug_given": true,
+  "request": {
+    "given": "10.1109/JBHI.2022.3142076"
+  },
+  "record_of": "published",
+  "ids": {
+    "doi": "10.1109/JBHI.2022.3142076",
+    "arxiv": null,
+    "pmid": null,
+    "pmcid": null
+  },
+  "csl": {
+    "type": "article-journal",
+    "source": "DOI.org (Crossref)",
+    "title": "Progressive Residual Learning With Memory Upgrade for Ultrasound Image Blind Super-Resolution",
+    "author": [
+      {
+        "family": "Liu",
+        "given": "Heng"
+      },
+      {
+        "family": "Liu",
+        "given": "Jianyong"
+      }
+    ],
+    "issued": {
+      "date-parts": [
+        [
+          2022,
+          9
+        ]
+      ]
+    },
+    "container-title": "IEEE Journal of Biomedical and Health Informatics",
+    "volume": "26",
+    "issue": "9",
+    "page": "4593-4604",
+    "DOI": "10.1109/JBHI.2022.3142076",
+    "URL": "http://dx.doi.org/10.1109/JBHI.2022.3142076",
+    "ISSN": [
+      "2168-2194"
+    ],
+    "abstract": "Ultrasound."
+  },
+  "alt_titles": [],
+  "versions": {
+    "published": [],
+    "incomplete": []
+  },
+  "warnings": [],
+  "files": [
+    {
+      "name": "liu2022jbhi.pdf",
+      "md5": "bb2157e6a8e843bba55f7ad472f794b4",
+      "kind": "published",
+      "label": {
+        "title": "Published-IEEE",
+        "version": "published",
+        "source": "IEEE",
+        "detail": [],
+        "by": "agent",
+        "why": "the volume and issue"
+      },
+      "check": "ok",
+      "url": null
+    }
+  ],
+  "outcome": {
+    "status": "got",
+    "tried": [],
+    "stop": null
+  }
+}
