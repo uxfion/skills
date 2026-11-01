@@ -22,7 +22,8 @@ What each kind takes (pflib/run.py, Handoffs):
   browser_down  resolved
 Every answer is logged ({event: answer, id, slug, kind, answer, reason, by}) with what it did (accept, label, try),
 printed, and the paper's result folded (settle.py). --reason says what the answer rests on.
-Exit 0 = recorded; 1 = refused (bad_answer, not_open, no_such_handoff, bad_label, no_label, no_slug).
+Exit 0 = recorded; 1 = refused (bad_answer, not_open, no_such_handoff, bad_label, no_label, no_slug, file_not_found,
+no_such_file).
 
 Examples:
   uv run scripts/answer.py <dir>/handoffs/he2020mask.1.json accept --reason "page 1: TPAMI 42(2), Mask R-CNN, He et al." --label Published-IEEE --why "page 1 header: vol. 42 no. 2"

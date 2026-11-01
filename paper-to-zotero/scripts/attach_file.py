@@ -11,9 +11,9 @@ record's `fetched`) whose check is ok, accepted or unconfirmed: every version of
 under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which paper-fetch settled. An
 unconfirmed file (its agent could not tell it is the paper's) is attached all the same and named on the line: the
 report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A stub's file (check
-cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead (recognize.py); once the
-record's item is made from it — by the recognizer, or by hand from its first page when the recognizer found
-nothing (the record's recognize block names it) — it is that item's file.
+cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead (recognize.py), whose
+block in the record names it by md5: the item made from it, by the recognizer or, when the recognizer found nothing,
+by hand from its first page, has it as its file.
 
 A result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is attached until
 it is — unless the library item has a PDF of the paper already, and the result was never fetched for another. Each

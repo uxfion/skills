@@ -15,9 +15,9 @@
   snapshot    the article page's HTML, filed as <slug>.html (only with --route: the last pass)
 
 A paper stops at the first file that settles it (run.satisfied): a file of the version the result wants, or a file
-whose version is not labelled yet; once labelled below the wanted version, the paper goes on down the chain when the
-pass is run again. A candidate that needs no browser (needs_browser false or unknown) is first asked over plain HTTP;
-what is not a PDF goes to the browser (the opencli session: --session, else run.json's; a background window,
+whose version is not labelled yet; once labelled another version, or Unknown, the paper goes on down the chain when
+the pass is run again. A candidate that needs no browser (needs_browser false or unknown) is first asked over plain
+HTTP; what is not a PDF goes to the browser (the opencli session: --session, else run.json's; a background window,
 --window foreground for the last pass). On a page the browser takes the PDF the page itself offers
 (pflib/browser.py: the declared PDF, an embedded document or viewer, a link saying PDF; three at most, the next one
 tried when a file is refused): requested inside the page with its cookies (through the institution's proxy: the same
@@ -36,8 +36,8 @@ paper with an open page or file handoff, and a paper an answer holds on its rout
 a run with --session or --start does not skip its paper. When the command ends, the fold gives each filed file
 without a label a `label` handoff (settle.py) holding the host's word recorded at download — the page's title,
 metadata and words around the paper's title, the link taken, arXiv's comment on the version — then the file's (page
-1). The browser itself failing (OpenCLI's BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs: pflib/run.py; pf.py todo lists
-them, pf.py answer answers them.
+1). The browser itself failing (OpenCLI's BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs:
+pflib/run.py; pf.py todo lists them, pf.py answer answers them.
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, held, wrong_file,
 error — or an agent's verdict on its page handoff. A page handoff is no try, so the paper's agent's rerun asks that
@@ -53,7 +53,7 @@ kind, taker, path}), then {"summary": {results, satisfied, handoffs: {kind: n}, 
 results, label handoffs included (pf.py todo lists them; --start prints no summary). When it ends it folds the
 results it was given (and any other its scan of Downloads filed a file for) into their files and outcome, as
 settle.py does. Exit 0 = the pass went through with nothing open; 1 = handoffs are open for the agent (or the browser
-failed); 2 = cannot run (no opencli, results of two directories, no pdftotext).
+failed, or a file named is not a result); 2 = cannot run (no opencli, results of two directories, no pdftotext).
 
 Examples:
   uv run scripts/fetch.py --pass 1 <dir>/results/*.json

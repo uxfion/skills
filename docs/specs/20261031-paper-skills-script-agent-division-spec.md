@@ -1,10 +1,12 @@
+> 实施完成（2026-11-01）：第一期 paper-fetch、第二期 paper-to-zotero 都已实测通过（issue `archive/20261030-paper-fetch-script-agent-division-fixed.md`）；paper-read 这期不做，设计在 issue `20261028-paper-to-zotero-paper-notes.md` 里接着定。此后本文冻结。
+>
 > 定稿 2026-10-31：用户的决策见 §9，三种视角的审查意见已并入（§11），advisor 已看过。实施中发现要改的，按 AGENTS.md 的规矩在实施完成前修正这份 spec。
 
 # paper-fetch / paper-to-zotero / paper-read：脚本和 agent 重新分工
 
 ## 0. 为什么、按什么
 
-拆分后实测经学校登录那条路时，暴露了两个问题（issue `20261030-paper-fetch-script-agent-division.md`）：
+拆分后实测经学校登录那条路时，暴露了两个问题（issue `archive/20261030-paper-fetch-script-agent-division-fixed.md`）：
 - 出版商的正版 PDF 因为题目太短“无法判断”，fetch 把它当成错文件，接着去试图书馆系统；
 - 在图书馆系统的登录页停下后，没有人派浏览器 agent 去点。
 
@@ -272,7 +274,8 @@
 3. **第二期，paper-to-zotero，然后 paper-read：**
    - 互不依赖的模块派 subagent 并行写，都写到同一套接口上，由我整合；文档、测试同上；
    - 实测：导入和保存一批论文；整理的 dry run（lint 只给证据，判断交给 judge）。
-   - **第二期 paper-to-zotero 部分完成（2026-11-01）：** 实测通过，记录在 issue 的“第二期验收实测”一节。paper-read 等和用户讨论设计（§12）。
+   - **第二期 paper-to-zotero 部分完成（2026-11-01）：** 实测通过，记录在 issue `archive/20261030-paper-fetch-script-agent-division-fixed.md` 的“第二期验收实测”一节。
+   - **paper-read 这期不做：** 用户说它的设计还没想全，等和用户讨论（§12 的“paper-read（没拍板）”一段）。
 
 实测建的条目最后都进回收站，scratch 清理干净，不提交任何个人信息。
 
@@ -285,13 +288,20 @@
    - 摘要、PMID、作者关键词改由脚本自动补（拆分 spec §11 原来定的是 agent 手查）；
    - lint 用来找模型名的正则删掉，改交 judge（restructure spec §9 原来定的是保留）；
    - 没有 DOI 的论文走 connector 那段，改由脚本做（restructure spec §9 原来定的是不写脚本）。
-5. **OpenAlex 关键词：** 2026-10-31 用户选方案 1：不进 Zotero，只在导入时给打标签的 agent 当参考（存在临时结果文件里，导入完随目录删掉）。调研发现它们是 OpenAlex 的模型只读题目、摘要生成的，不是作者给的；拿一篇真实论文对照，有用的词人工标签已经覆盖，数据集、模型名、期刊它都没有。作者关键词（Europe PMC 的 `keywordList`）：2026-10-31 用户选方案 2，也不进 Zotero，和 OpenAlex 关键词一样只给打标签的 agent 当参考（identify 写进结果的 `csl.keyword`）。起因是查实了 Zotero 对自动标签只能整批隐藏或整批删除，写进去就分不出来、也单删不掉。用户原话：「2 我们自己用agent打的标签不能丢，另外他那个自动标签也很换乱，我也不是很喜欢」。接着问 arXiv 分类（也是自动标签）要不要照旧写，用户先选 B（不写），我动手删代码时用户叫停，改成一个开关：配置里的 `automatic_tags`，默认关；开着，draft_item 把来源自己的关键词（arXiv 分类、作者关键词）写成自动标签；某次导入用户另说，就只在这次打开（`--automatic-tags`）。OpenAlex 关键词开着也不写。用户原话：「B」，「停，之前写了那么多，不就白费了，直接加个开关不就好了，我想要导入自动标签就导入，不想要就不要」，「这样不是会更优雅吗」。
+5. **关键词和自动标签：** 结论是默认不往 Zotero 写任何关键词；开关 `automatic_tags` 开着时，arXiv 分类和作者关键词写成自动标签；OpenAlex 关键词只当参考，永远不写。2026-10-31 分三步定下：
+   - **OpenAlex 关键词：** 用户选方案 1：不进 Zotero，只在导入时给打标签的 agent 当参考（存在临时结果文件里，导入完随目录删掉）。调研发现它们是 OpenAlex 的模型只读题目、摘要生成的，不是作者给的；拿一篇真实论文对照，有用的词人工标签已经覆盖，数据集、模型名、期刊它都没有。
+   - **作者关键词**（Europe PMC 的 `keywordList`，identify 写进结果的 `csl.keyword`）：用户选方案 2：也不进 Zotero，和 OpenAlex 关键词一样只给打标签的 agent 当参考。起因是查实了 Zotero 对自动标签只能整批隐藏或整批删除，写进去就分不出来、也单删不掉。用户原话：「2 我们自己用agent打的标签不能丢，另外他那个自动标签也很换乱，我也不是很喜欢」。
+   - **自动标签做成开关：** 接着问 arXiv 分类（也是自动标签）要不要照旧写，用户先选 B（不写）；我动手删代码时用户叫停，改成一个开关。用户原话：「B」，「停，之前写了那么多，不就白费了，直接加个开关不就好了，我想要导入自动标签就导入，不想要就不要」，「这样不是会更优雅吗」。开关是这样的：
+     - 配置里的 `automatic_tags`，默认关；
+     - 开着，draft_item 把来源自己的关键词（arXiv 分类、作者关键词）写成自动标签，所以上一条“作者关键词不进 Zotero”只在开关关着时成立；
+     - 某次导入用户另说，就只管这一次（`--automatic-tags`）；
+     - OpenAlex 关键词开着也不写。
 6. **部位标签：** 2026-10-31 用户选方案 1：tagging.md 加 `organ/<Name>` 一类，只给研究对象是人体（或动物）某个部位的论文打，部位不是器官的（胸部、腹部、膝关节）也放这里，其他论文留空，和 `modality/` 一样。起因是用户发现脑 MRI 论文没有 Brain：库里 1244 个标签没有一个部位类，Agent 打标签只看题目、摘要、期刊和必要时的第一页，方案里没有这一类就不会打。一篇涉及几个部位或几种模态时（2026-10-31 用户选 A）：用到几个就各打一个，沿用每类最多 5 个，不设 multi-organ 之类的总括值（只打总括值的论文，点具体部位时会找不到）；不针对具体部位的论文不打部位标签。用户原话：「A 就这样吧，如果以后再遇到像多模态这种再考虑好了，不用现在考虑」。已有条目要不要补打，以后单独整理时再说。
 7. **验证页等多久、怎么知道过了：** 2026-10-31 用户定：不用用户去告诉主对话，后台自己看出来就接着走；等 10 分钟。paper agent 的 `wait` 每 10 秒看一次标签页和文件，不向网站发任何请求；超时时，登录页由 agent 重新打开一次看看（用户在别的窗口登录时，原标签页不会变），人机验证页从不重开；还没过才答 `gate_timeout`，下一遍自动重试。（实施时先做成了每分钟重开一次，用户指出这是对网站的请求循环：「这个问题很严重，为什么会一分钟重开一次，这肯定是不被允许的」，当即撤掉，改成上面这样。）主对话只负责推送提醒（subagent 没有推送工具，实测过：它只能给主对话发消息）。原来的 5 分钟，是主对话自己等时定的，现在由后台 agent 等，不占主对话。用户原话：「不用我主动去跟主对话讲吧？你后台有监控程序，只要过了，你就自己进入下一步吧。因为主对话本身是干其他事情或主要工作用的，多这么一步也会很慢。而且，我有时候给你点好了，也不会去给你发消息的」，「10分钟？」。
 
 ## 10. issue 去向
 
-- `20261030-paper-fetch-script-agent-division.md`：由这份 spec 解决。
+- `archive/20261030-paper-fetch-script-agent-division-fixed.md`：由这份 spec 解决。
 - `archive/20261030-paper-to-zotero-short-title-cannot-judge-fixed.md`：§3.1 解决（2026-10-31 已关）。
 - `archive/20261030-paper-to-zotero-proxy-login-not-a-gate-fixed.md`：§3.3 解决，它原来提的识别密码框这个方向不采纳（2026-10-31 已关）。
 - `archive/20261030-paper-to-zotero-cvf-link-missing-fixed.md`：CVF 写进 publishers.md，作为带日期的提示，由 agent 去找，不在 fulltext_links 里写某一家的代码（2026-10-31 已关）。
@@ -318,32 +328,32 @@
 
 **查库候选：一个排序函数，两种来源。**
 - 题目查询（`paper.title_queries`）：完整题目、副标题之前的部分（至少两个词）、去掉标点的题目。
-- 排序（`paper.candidates`）：按题目相似度排，最多 10 条（这个数是我定的），多出来的条数写在 `more` 里，不悄悄丢掉。每条带证据：key、题目、年份、第一作者、DOI、arXiv 号、条目类型、附件标题、相似度。
+- 排序（`paper.candidates`）：预印本和正式版的一对（`matched_by: arxiv`，见下条）排在最前，其余按题目相似度排；最多 10 条（这个数是我定的），多出来的条数写在 `more` 里，不悄悄丢掉。每条带证据：key、题目、年份、第一作者、DOI、arXiv 号、条目类型、期刊或会议名、附件标题、相似度。
 - 导入时，来源是 Zotero 快速搜索（题目、作者、年份模式）对这几种查询的结果。everything 模式（连全文一起搜）去掉：它搜到的多是在参考文献里引用了这个题目的论文，说的是“谁引用了它”，不是“它是谁”；题目改动的同一篇，由新增的宽松查询去找。按 arXiv 号对上、而这篇自己有 DOI 的条目（预印本和正式版的一对），照旧作为候选，标 `matched_by: arxiv`。
 - lint 时，来源是一次读进来的全库：一个条目的题目词都出现在另一条的题目、作者或年份里，就是候选。这是在内存里按词模拟快速搜索，因为全库检查不能一条一条去搜。
 - 删掉“一个题目包含另一个”的过滤。能确定是同一篇的仍只有 DOI 和 arXiv 号。
 
 **`same_paper` 交接。**
-- `prepare` 发现记录里有还没定的候选，而已有的交接没有覆盖它们，就写 `<imp>/handoffs/<slug>.<n>.json`。“没定”指：不在 `distinct_from` 里，没有 `same_as`，`found` 也不是 `found`。
-- 记录的形状和 paper-fetch 的一样，judge 的 brief 两边通用：`id`、`kind: same_paper`、`taker: judge`、`slug`、`record`、`paper`（这篇的证据）、`candidates`（各条的证据）、`answers`、`at`。
-- 不另建事件日志，记录本身就是状态：
+- `prepare` 发现记录里有还没定的候选，而已有的交接没有覆盖它们，就写 `<scratch>/paper-to-zotero/handoffs/<slug>.<n>.json`（`save` 建条目前再查一次库时也会写）。“没定”指：不在 `distinct_from` 里，没有 `same_as`，`found` 也不是 `found`。
+- 交接文件的形状和 paper-fetch 的一样，judge 的 brief 两边通用：`id`、`kind: same_paper`、`taker: judge`、`slug`、`record`、`paper`（这篇的证据）、`candidates`（各条的证据）、`more`（有多出来的才有）、`answers`、`answered`、`at`。
+- 不另建事件日志，记录本身就是状态。每个答复都记进交接文件的 `answered`，另外：
   - `p2z.py answer <交接> same --key K`：写 `same_as`；
   - `distinct [--key K …]`：加进 `distinct_from`，不写 key 就是这个交接里还没定的全部；
-  - `pair --key K`、`unknown --key K`：记在交接文件的 `answered` 里。这篇在 `decide` 里列成等用户，报告也列出来。用户定了，主 agent 用 `answer … same|distinct --by user` 记下。
-- 写了 `same_as`，或者每个候选都进了 `distinct_from`，交接就关了。`prepare` 的行在 `decide` 里写 `{"same_paper": <交接文件路径>}`，judge 的 brief 就从这里来。`found` 的指纹本来就包含 `same_as` 和 `distinct_from`，所以重跑 `prepare` 会自动重查。
+  - `pair --key K`、`unknown --key K`：不改记录，这个候选仍算没定，等用户。报告列出来；用户定了，主 agent 用 `answer … same|distinct --by user` 记下。
+- 写了 `same_as`，或者每个候选都进了 `distinct_from`，交接就关了。没关时，`prepare` 的行在 `decide` 里写 `{"same_paper": <交接文件路径>, "waiting_on": "judge" | "user"}`，judge 的 brief 就从这里来；只剩 `pair`、`unknown` 答过的候选时是 `user`。`found` 的指纹本来就包含 `same_as` 和 `distinct_from`，所以重跑 `prepare` 会自动重查。
 
 **`decide` 新增的两项。**
 - `{"duplicates": [keys]}`：库里有两条带这个 DOI 的条目。主 agent 写 `same_as` 选一条，或者按 organize.md 先合并（要用户同意）。
 - `accepted`（agent 字段）：字符串列表。
   - 字段检查的条目写成 `<列表>:<字段>`：`mapped:publicationTitle`、`to_extra:foo`、`missing_minimum:date`；
   - draft_item 的警告照原文写。
-  - `decisions()` 只列没被接受的：`{"checks": [...]}`、`{"warnings": [...]}`。`accepted` 不进 `checks` 的指纹。
+  - p2z.py 的 `decisions()` 只列没被接受的：`{"checks": [...]}`、`{"warnings": [...]}`。`accepted` 不进 `checks` 的指纹。
 
 **draft_item。**
 - 摘要、PMID、PMCID 本来就经 Zotero 的 CSL 对照表进条目（schema 44：`abstract`→`abstractNote`，`PMID`→`PMID`，只有 journalArticle 有 PMID 和 PMCID 字段）。原来写的“PMID 写进 Extra”是旧 schema 的假设。
-- 改成：标识符（DOI、PMID、PMCID）在条目类型里没有字段时，写进 Extra，写成 `PMID: <n>` 这样。现在只有 DOI 这么做。
-- 自动标签是一个开关（§9 第 5 条）：配置 `automatic_tags`，默认关；开着，draft_item 把 arXiv 分类和作者关键词（identify 写进 `csl.keyword`）写成自动标签，`--automatic-tags` / `--no-automatic-tags` 只管这一次。关着，它们和 OpenAlex 关键词一样只给打标签的 agent 当参考。
-- OpenAlex 关键词：identify 把它们写进结果的 `openalex_keywords`（`openalex_works` 的 select 加上 `keywords`），不进 CSL，也不进 Zotero，只给打标签的 agent 当参考。
+- 改成：标识符（DOI、PMID、PMCID）在条目类型里没有字段时，写进 Extra，写成 `PMID: <n>` 这样。原来只有 DOI 这么做。
+- 自动标签按 §9 第 5 条做成开关：draft_item 不给参数时看配置 `automatic_tags`，`--automatic-tags` / `--no-automatic-tags` 只管这一次。
+- OpenAlex 关键词：identify 把它们写进结果的 `enrichment.openalex_keywords`（`openalex_works` 的 select 加上 `keywords`），不进 CSL；开关开着也不写进 Zotero。
 
 **`renamed_from`。**
 - paper-fetch 的 `reslug` 在新结果里记 `renamed_from: [旧 slug]`。结果的格式变了，paper-fetch 的契约 fixture 重新生成，p2z 的契约测试重跑。
@@ -356,7 +366,7 @@
 - `name_not_tagged` 和 `NAME_PATTERNS` 一起删掉。整理标签时，把摘要和标签交给 judge。
 - `label_clash` 带上 `same_file`（按 md5 比）。
 - `duplicate_of`（按题目）改用上面的候选，带证据。
-- 整理时的判断不写交接文件：lint 的输出本身就是证据。每个 judge 拿约 20 个条目的 lint 行，交回一份改动清单，格式是 `file_and_tag --batch` 或 `update_item --batch` 的；主 agent 合成一份清单给用户。judge 判成“不是同一篇”的一对，下一次整理还会列出来。一次整理里，这类结论在改动清单里写明为什么不动（organize.md 第 5 步本来就要求）。
+- 整理时的判断不写交接文件：lint 的输出本身就是证据。每个 judge 拿约 20 个条目的 lint 行，交回一份改动清单，格式是 `file_and_tag --batch` 或 `update_item --batch` 的；主 agent 合成一份清单给用户。judge 判成“不是同一篇”的一对，下一次整理还会列出来。一次整理里，这类结论在改动清单里写明为什么不动（organize.md *A tidy* 第 6 步本来就要求）。
 
 **批量写入：先列清单，再由 `update_item --batch` 统一写。**
 - `update_item --batch FILE`：每行 `{key | cite, set: {字段: 值}}`（其余键是给人看的说明，忽略），逐条检查、写入、读回。改 PDF 附件的标题时，它本来就会把结构化包一起改名，所以所有写入都走它。
@@ -366,26 +376,18 @@
 
 **`recognize.py`（没有 DOI 的论文走 connector）。**
 - 输入是记录，它的结果是一个 stub，文件的核对结果是 `cannot_judge`。
-- 用 connector 的 saveStandaloneAttachment 发出 PDF，附件标题用文件的标签。按 md5 找到这次建的附件，每 5 秒看一次它有没有父条目，最多 60 秒。只看自己这个附件，不用 `items?since=`（那会把用户同时加的东西也算进来）；查的是本机的 Zotero，不是网站。
-- 出现父条目：写进记录的 `saved`（带 `via: recognizer`），识别器改了附件标题的，改回标签；打印认出来的字段，交给 judge 对照 PDF 第 1 页看对不对。
-- 没出现：把这次建的独立附件移进回收站，报 `not_recognized`，由 agent 照 `check_item` 的骨架手写条目。
+- 用 connector 的 saveStandaloneAttachment 发出 PDF，附件标题用文件的标签。按 md5 找到这次建的附件，再像浏览器里的 Zotero Connector 那样，用 getRecognizedItem 等识别器做完，最多 60 秒（`--wait`），然后看这个附件有没有父条目。只看自己这个附件，不用 `items?since=`（那会把用户同时加的东西也算进来）；查的是本机的 Zotero，不是网站。（实施时改的：原定每 5 秒看一次有没有父条目。）
+- 有父条目：写进记录的 `saved`（带 `via: recognizer`），识别器改了附件标题的，改回标签；打印认出来的字段，交给 judge 对照 PDF 第 1 页看对不对。
+- 识别完了、没有父条目：把这次建的独立附件移进回收站，报 `not_recognized`，由 agent 照 `check_item` 的骨架手写条目。
+- 60 秒还没识别完：报 `recognizing`，什么都不删；重跑接着等同一个附件，不重发。
 - 之后照常 `save`：附件 md5 相同，不会重复挂。分类、标签、改字段用 `file_and_tag`、`update_item`。
 
 **笔记。**
 - `note put` 收到空内容，报 `empty_note`。
 - 新建的笔记（文件里没有 `key`），如果父条目下已经有同标题的子笔记，就报 `same_title`，带上已有笔记的 key，什么都不写。处理办法是取出那条笔记，把内容并进去。
 
-**paper-read（没拍板）。** 用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。§5 和下面几条只是讨论用的初稿，这期先不实现；p2z 和 paper-fetch 做完后，和用户一起把 paper-read 的设计定下来。
-- `prepare_note.py --cite K -o <scratch>/<cite>.<title>.note.md`：
-  - 用 p2z 的 `note take --title 论文笔记` 取笔记：一条，就改名为 `-o`；没有，就用骨架新建，front matter 写 `parent`；两条，就停下报 `two_notes`，带上两个 key，由主 agent 合并、存回，再重跑。
-  - 旁边总是存一份副本 `<file>.taken`，新建的就存骨架。
-- “PDF 是不是这篇”（改了 §5 第 2 条）：原定“p2z 核对过就算确定”做不到，因为 Zotero 里的附件标题分不出哪份是 `unconfirmed`。改成：reader 的 brief 带上条目的题目、作者、年份、期刊和 DOI，reader 读全文前先对照第 1 页确认，对不上就停下报告。SKILL.md 去掉主 agent 手查的那一步。题目一致不算确定。
-- `check_note --taken FILE`（默认用旁边的 `<note>.taken`）：
-  - 查 Q1–Q6 是否都在，缺的列进 `missing_trunk`；
-  - 查 front matter 和 `## 用在哪里` 是否和副本一致，改过的列进 `changed`；
-  - 任何一项不满足就是 `open`。
-- `structured put` 写进 *Look it up* 和 *Read a paper* 的完成条件。
+**paper-read（没拍板）。** 用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。所以 §5 只是讨论用的初稿，这期不实现。实施前为它补的几条脚本细节（准备笔记文件、“PDF 是不是这篇”、`check_note` 补查、`structured put` 进完成条件）也是初稿，挪到了论文笔记 issue `20261028-paper-to-zotero-paper-notes.md` 的“paper-read 还没实现的脚本细节”一节。p2z 和 paper-fetch 做完后，在那张 issue 里和用户一起把 paper-read 的设计定下来。
 
 **交接表。** p2z 的 SKILL.md 列出每个停下点：`same_paper`（judge，`p2z.py answer` 记下）；`duplicates`、字段检查和警告（主 agent，写 `same_as` 或 `accepted`，或者改条目）；一对、不知道（用户，主 agent 用 `answer --by user` 记下）；connector 认出的条目（judge，主 agent 用 `update_item`、`file_and_tag` 改，或者移进回收站）；整理时 lint 的判断（judge，每批约 20 个，交回改动清单）；打标签（subagent 最多 5 个，写进记录的 `tags`）。
 
-**不做的。** 调研里不在 §4、§5 的小项（没编号的子问题标题、没人用的 `first_surname`）这期不动。
+**不做的。** 调研里不在 §4、§5 的小项（没编号的子问题标题、当时没人用的 p2z `first_surname`）这期不动。（`first_surname` 后来查库候选的证据用上了。）

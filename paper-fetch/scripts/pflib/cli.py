@@ -3,7 +3,8 @@
 stdout carries JSON only, one compact object per line: one per thing handled ({key or slug, code, ...}), then
 {"summary": {...}} when a script handles several. `hint` appears only when the code is neither ok nor skipped (nor
 one of the script's answers); a skip is always `code: skipped` with a `reason` word. Exit 0 = everything done or
-skipped, 1 = something is the agent's to act on, 2 = cannot check (Zotero not running, no key, ...).
+skipped, 1 = something is the agent's to act on, 2 = cannot go on (no pdftotext, an unreadable config, no opencli,
+...).
 
 A script whose lines answer a question names those codes as its `answers`: they count as ok, so the answer is in
 the code and not in the exit status.

@@ -1,5 +1,7 @@
 # paper-fetch：脚本和 agent 的分工——脚本判断不了、过不去的地方，没有交给 subagent
 
+> 已解决（2026-11-01）：按 spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` 重新分工。paper-fetch（第一期）和 paper-to-zotero（第二期）都已实现并实测通过，见下面“第一期验收实测”“第二期验收实测”两节。paper-read 这期没做：用户说它的设计还没想全，为它补的脚本细节挪到了 [20261028-paper-to-zotero-paper-notes.md](../20261028-paper-to-zotero-paper-notes.md) 的“paper-read 还没实现的脚本细节”一节，在那里接着定。实测中发现的另一处问题另记为 [20261101-paper-fetch-page-candidates-other-papers.md](../20261101-paper-fetch-page-candidates-other-papers.md)。
+
 2026-10-30 记录。场景：拆分后实测 paper-fetch 经学校登录的那条路（spec `20261030-paper-to-zotero-split-spec.md` §11）。
 
 **跑了什么。** `pf.py fetch --pass 1`，测的是 `he2020mask`（Mask R-CNN，TPAMI，DOI `10.1109/TPAMI.2018.2844175`），没有开放获取链接。
@@ -27,7 +29,7 @@
 
 **方向（用户定的）。** 脚本只做重复、确定的事；差异化、不确定、没见过的，一律交给 subagent（浏览器操作和小判断用 sonnet）。脚本在把握的边界停下，带着证据交出去，不再加匹配规则。三个 skill 都按这个原则从顶层重新划分工，并且全面查一遍迁移有没有丢东西。
 
-相关：`archive/20261030-paper-to-zotero-short-title-cannot-judge-fixed.md`（它提的“加 DOI 规则”方向已被这里取代），`archive/20261030-paper-to-zotero-proxy-login-not-a-gate-fixed.md`。
+相关：`20261030-paper-to-zotero-short-title-cannot-judge-fixed.md`（它提的“加 DOI 规则”方向已被这里取代），`20261030-paper-to-zotero-proxy-login-not-a-gate-fixed.md`。
 
 ## 设计（2026-10-31）
 
@@ -54,9 +56,9 @@
 
 ## 第二期定的（2026-10-31）
 
-- **作者关键词**：用户选方案 2，不写进 Zotero，只给打标签的 agent 当参考。查实的事实：Zotero 对自动标签只有“整批隐藏”和“删除本库所有自动标签”，写进去以后分不出来源，也不能单独删掉；库里现有 453 个自动标签，26 个是 arXiv 分类，其余是 IEEE 索引词和以前的关键词混在一起，37 对只差大小写。用户原话：「2 我们自己用agent打的标签不能丢，另外他那个自动标签也很换乱，我也不是很喜欢」。
-- **自动标签做成开关**：问 arXiv 分类时用户先选 B（不写），我删代码时用户叫停：「停，之前写了那么多，不就白费了，直接加个开关不就好了，我想要导入自动标签就导入，不想要就不要」，「这样不是会更优雅吗」。定为配置 `automatic_tags`，默认关，管 arXiv 分类和作者关键词；某次导入另说就只开这一次。
-- **paper-read**：用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。这期先不实现。
+- **作者关键词**：用户选方案 2，不写进 Zotero，只给打标签的 agent 当参考（后来做成开关，这是开关关着时的样子，见下条）。查实的事实：Zotero 对自动标签只有“整批隐藏”和“删除本库所有自动标签”，写进去以后分不出来源，也不能单独删掉；库里现有 453 个自动标签，26 个是 arXiv 分类，其余是 IEEE 索引词和以前的关键词混在一起，37 对只差大小写。用户原话：「2 我们自己用agent打的标签不能丢，另外他那个自动标签也很换乱，我也不是很喜欢」。
+- **自动标签做成开关**：问 arXiv 分类时用户先选 B（不写），我删代码时用户叫停：「停，之前写了那么多，不就白费了，直接加个开关不就好了，我想要导入自动标签就导入，不想要就不要」，「这样不是会更优雅吗」。定为配置 `automatic_tags`，默认关，管 arXiv 分类和作者关键词；某次导入另说就只开这一次。细节见 spec §9 第 5 条。
+- **paper-read**：用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。这期先不实现；待讨论的脚本细节记在论文笔记 issue `20261028-paper-to-zotero-paper-notes.md` 的“paper-read 还没实现的脚本细节”一节。
 
 ## 第一期验收实测（2026-10-31）
 
@@ -73,11 +75,28 @@
 
 按 import.md、batch.md、organize.md 当主 agent 跑，judge 和 paper agent 照 SKILL.md 的模板派（sonnet，后台）。用户点头后跑（「A」）。
 
-- **SAM（Segment Anything）**：identify 认出预印本，arXiv 第一次没答，再查一次补上；正式版候选 ICCV 2023 交给 judge，判定同一篇（只凭题目和年份：候选不带作者，见下）→ `--redraft`，两边作者人数一致。`prepare` 在库里找到题目候选 MedSAM（《Segment anything in medical images》）→ `same_paper` 交接，两边证据齐全、附件标题不含结构化包 → judge 答 `distinct` → 重跑 `prepare` 没有候选。第 1 遍出版商路线经学校代理拿到 IEEE PDF，judge 看第 1、2 页定为 `Published-IEEE`。
-- **TransUNet（MedIA 2024）**：摘要、PMID、作者关键词由 identify 从 Europe PMC 补上；自动标签开关关着，条目里没有自动标签，PMID 进了 `PMID` 字段。第 1 遍停在 ScienceDirect 文章页 → `page` 交接 → paper agent。页面上第一个 “View PDF” 是推荐文章（另一篇）的，核对拒了；在那个链接上碰到 “Are you a robot?” 验证，推送提醒用户，用户勾过；paper agent 换成这篇自己的链接取到 → `Published-Elsevier`。
-- **Deep Snake（只给 CVF 的 PDF 链接）**：identify 记成 stub（`no_citation_meta`）→ draft_item 写出只有 `fetched` 的记录 → 用 `fetch --start` 取到 PDF（`cannot_judge`）→ judge 从第 1 页图片里的水印定为 `Accepted-CVF` → `save` 报 `unchecked` → `p2z.py recognize`：Zotero 识别出 CVPR 2020 的条目，落在用户窗口当时选中的分类 “Agent”；识别器把附件标题改成 “PDF”，脚本改回标签 → judge 对照第 1 页核对字段 → `update_item` 把 url 改成 doi.org、`file_and_tag` 挪到 `tmp` 并加标签 → `save` 认出 PDF 已挂，没有重复上传。
+- **SAM（Segment Anything）**：
+  - 认论文：identify 认出预印本，arXiv 第一次没答，再查一次补上；正式版候选 ICCV 2023 交给 judge，判定同一篇（只凭题目和年份：候选不带作者，见下）→ `--redraft`，两边作者人数一致。
+  - 查库：`prepare` 在库里找到题目候选 MedSAM（《Segment anything in medical images》）→ `same_paper` 交接，两边证据齐全，附件标题里没有混进结构化包 → judge 答 `distinct` → 重跑 `prepare` 没有候选。
+  - 取全文：第 1 遍出版商路线经学校代理拿到 IEEE PDF，judge 看第 1、2 页定为 `Published-IEEE`。
+- **TransUNet（MedIA 2024）**：
+  - 补字段：摘要、PMID、作者关键词由 identify 从 Europe PMC 补上；自动标签开关关着，条目里没有自动标签；PMID 进了 `PMID` 字段。
+  - 取全文：第 1 遍停在 ScienceDirect 文章页 → `page` 交接 → paper agent 把页面交回脚本。页面上第一个 “View PDF” 是推荐文章（另一篇）的，脚本取来，核对拒了；取它时碰到 “Are you a robot?” 验证，推送提醒用户，用户勾过；paper agent 换成这篇自己的链接取到 → `Published-Elsevier`。这次多取的一篇另记了 issue（见下）。
+- **Deep Snake（只给 CVF 的 PDF 链接）**：
+  - 取全文：identify 记成 stub（`no_citation_meta`）→ draft_item 写出只有 `fetched` 的记录 → 用 `fetch --start` 取到 PDF（`cannot_judge`）→ judge 从第 1 页图片里的水印定为 `Accepted-CVF`。
+  - 建条目：`save` 报 `unchecked` → `p2z.py recognize`：Zotero 识别出 CVPR 2020 的条目，落在用户窗口当时选中的分类 “Agent”；识别器把附件标题改成 “PDF”，脚本改回标签 → judge 对照第 1 页核对字段 → `update_item` 把 url 改成 doi.org，`file_and_tag` 挪到 `tmp` 并加标签 → `save` 认出 PDF 已挂，没有重复上传。
 - **整理 dry run**：“Agent/M6 主动搜证与定位”（28 条，12 条有问题）→ lint → 8 条缺 DOI 各查一次 Crossref → 一个 judge 判 12 条，全部“不动”（ICLR、ICML、早年 NeurIPS 不发 DOI；NeurIPS 2024/2025 的 url 是会议页面，按规则保留；AI Hospital 的两个题目候选是别的论文）。改动清单为空，没有写库。
 - **收尾**：三个测试条目进了回收站（这次建的）；临时目录删了；Downloads 没留文件；四个浏览器会话都 “tab lease released”。
-- **实测中发现、已修的**（`1ad285c`）：预印本的正式版候选不带作者，judge 没法核第一作者；stub 的请求本身是 PDF 链接，`fulltext_links` 没把它列成候选；`prepare` 把库内候选算成失败；stub 记录的 `no_item` 提示指向 draft_item。ScienceDirect 的 “View PDF” 写进 publishers.md，作为带日期的提示。
-- **没测到的**：结构化包（第二期没改，测试条目随后进回收站，没占 GPU 解析）；识别器超时（`recognizing`）；`pair`、`unknown` 交给用户的那条路；批量写入（`update_item --batch`、`titles_from_labels`、`fields_from_results`）在真实库上的写入——dry run 的清单为空，没走到。
+- **实测中发现、已修的**（`1ad285c`）：
+  - 预印本的正式版候选不带作者，judge 没法核第一作者；
+  - stub 的请求本身是 PDF 链接，`fulltext_links` 没把它列成候选；
+  - `prepare` 把库内候选算成失败；
+  - stub 记录的 `no_item` 提示指向 draft_item（该指向 recognize）；
+  - ScienceDirect 页面上别的论文的 “View PDF” 写进 publishers.md，作为带日期的提示。
+- **看到的、另记 issue 的**：页面上像 PDF 的链接脚本挨个试，会经学校代理下载别的论文（TransUNet 那次），见 `20261101-paper-fetch-page-candidates-other-papers.md`。
+- **没测到的**：
+  - 结构化包（第二期没改，测试条目随后进回收站，没占 GPU 解析）；
+  - 识别器超时（`recognizing`）；
+  - `pair`、`unknown` 交给用户的那条路；
+  - 批量写入（`update_item --batch`、`titles_from_labels`、`fields_from_results`）在真实库上的写入：dry run 的清单为空，没走到。
 - **留给用户的设计问题**：整理时有一类发现每次都会被 judge 判“不动”（不发 DOI 的会议缺 DOI、NeurIPS 的会议页面 url），下次整理还会再列、再判一遍。不打补丁（按网站跳过就是补丁），等用户定怎么处理。

@@ -39,6 +39,6 @@ One file holds every setting and secret: `~/.config/paper-fetch/config.json` (`$
 
 - `openalex_key` — the user's OpenAlex API key (openalex.org, free): `fulltext_links.py` sends it with each lookup, which makes single-DOI lookups free of the daily budget. Without it the lookups run unkeyed.
 - `institution.proxy` — the domain of the institution's EZproxy-style proxy, so that pages behind it are recognised (`fetch.py`) and links under it are marked as needing the browser.
-- `institution.discovery` — the library's discovery search page (a Primo search URL with its `vid`): `fetch`'s discovery route searches titles there. `ready` asks for it (`ask_user`) when it is missing.
+- `institution.discovery` — the library's discovery search page as a search URL with `{title}` where the title goes (a Primo search URL with its `vid`): `fetch`'s discovery route searches titles there. `ready` asks for it when it is missing (`config.ask_user`) and reports it without `{title}` (`config.discovery_template`).
 
 Write the file with `chmod 600`; `ready.py` warns when others can read it.

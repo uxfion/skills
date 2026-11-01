@@ -103,20 +103,22 @@ B_TRANSLATE = str.maketrans({"ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi"
 HINTS = {
     "title_not_found": "compare `excerpt` and `title_words` with the title; the file's `file` handoff is the paper's "
                        "agent's to answer (pf.py answer HANDOFF accept | refuse | unknown)",
-    "no_text_layer": "no extractable text (scanned, or encrypted beyond pdftotext); read the first page with the pdf "
-                     "skill or by eye",
+    "no_text_layer": "no extractable text (scanned, or encrypted beyond pdftotext): read pages 1 and 2 as images (the "
+                     "handoff's evidence files, or the pdf skill)",
     "not_a_pdf": "not a PDF (an HTML page saved as .pdf?); fetch the file again",
-    "cannot_judge": "title too short for the rule; judge from `excerpt`",
+    "cannot_judge": "no title of 10 characters or more to look for (a short title, or a stub result); judge from "
+                    "`excerpt`",
     "file_not_found": "check the path",
-    "erratum_suspected": "page 1 opens with a correction / erratum / retraction notice (`erratum_marker`): the file "
-                         "is the notice, not the paper; get the article itself, and check the result's DOI is not "
-                         "the notice's",
-    "supplement_suspected": "page 1 opens as supplementary material (`supplement_marker`): get the main article, or "
-                            "name the file <slug>.supplement.pdf if the supplement is what is wanted",
-    "doi_mismatch": "page 1 prints another DOI (`dois_on_page_1`): another paper or another version; check the "
-                    "result's DOI, and name an accepted manuscript or preprint as such (<slug>.accepted.pdf, "
-                    "<slug>.preprint.pdf)",
-    "not_the_article": "a page without text, not the article; do not attach it",
+    "erratum_suspected": "page 1 opens with a correction / erratum / retraction notice (`erratum_marker`): answer "
+                         "refuse for a file that is the notice, since the article itself is wanted; check the "
+                         "result's DOI is not the notice's",
+    "supplement_suspected": "page 1 opens as supplementary material (`supplement_marker`): answer refuse for a "
+                            "supplement when the main article is wanted, accept --version supplement when the "
+                            "supplement is",
+    "doi_mismatch": "page 1 prints another DOI (`dois_on_page_1`): another paper, or another version of this one; "
+                    "check the result's DOI, and claim an accepted manuscript or preprint as such (claim --file F "
+                    "--slug S --version accepted | preprint)",
+    "not_the_article": "a page without text: not the article",
     "no_pdftotext": "pdftotext / pdfinfo (poppler-utils, a system package) are required; tell the user and install "
                     "it only with their OK (references/install.md)",
 }

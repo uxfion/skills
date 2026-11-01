@@ -18,8 +18,8 @@ it until the stop ends, and Blocked carries the Retry-After and the end.
 pace.json: {"last": {host: epoch seconds of the last request, or of the slot reserved for the next},
 "stopped": {host: {"at", "until", "retry_after"}}}; a stop past its end is dropped on the next write.
 
-Remote services go through the environment's proxy settings, unlike Zotero's local API; endpoint() gives a
-service's base URL, which a test may point elsewhere.
+Requests go through the environment's proxy settings (urllib's default); endpoint() gives a service's base URL,
+which a test may point elsewhere.
 
 Paper pages. page_meta() reads a landing page's citation_* tags (Highwire Press, which Google Scholar asks
 publishers for), with Dublin Core (dc.*), PRISM and Open Graph (og:*) standing in where one is missing, and

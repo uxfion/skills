@@ -7,14 +7,14 @@
 
 One call answers: are pdftotext and pdfinfo (poppler-utils) on PATH, and pdftoppm (pages of a handed-over file as
 images; without it the handoff carries text only); what the config file holds (presence only, never a value: a
-discovery search URL without {title} is reported, discovery_template); where the browser puts downloads; is opencli there and its Chrome extension connected (opencli's own
-`doctor`: its version, the issues it names). It makes <dir> with results/, links/, handoffs/, inbox/, unverified/,
-scratch/ and the .started marker (an existing marker is left alone: a resumed run), writes <dir>/run.json
-(downloads, session: what the later scripts read), and lists what already lies in <dir>, deleting nothing: a PDF that
-never reached anyone belongs to the user.
+missing discovery search URL is config.ask_user, one without {title} config.discovery_template); where the browser
+puts downloads; is opencli there and its Chrome extension connected (opencli's own `doctor`: its version, the issues
+it names). It makes <dir> with results/, links/, handoffs/, inbox/, unverified/, scratch/ and the .started marker
+(an existing marker is left alone: a resumed run), writes <dir>/run.json (downloads, session: what the later scripts
+read), and lists what already lies in <dir>, deleting nothing: a PDF that never reached anyone belongs to the user.
 
-<dir>: --dir, <scratch>/paper-fetch where <scratch> is the session's scratchpad, else ${TMPDIR:-/tmp} (the
-default). An import passes its own, <scratch>/paper-to-zotero/fetch.
+<dir>: --dir, given as <scratch>/paper-fetch with <scratch> the session's scratchpad; without --dir,
+${TMPDIR:-/tmp}/paper-fetch. An import passes its own, <scratch>/paper-to-zotero/fetch.
 Config: $PAPER_FETCH_CONFIG or ~/.config/paper-fetch/config.json, mode 600, every field optional:
 {"openalex_key", "institution": {"proxy", "discovery"}}.
 Downloads: --downloads > $PAPER_FETCH_DOWNLOADS > under WSL the Windows Downloads folder (powershell.exe, then

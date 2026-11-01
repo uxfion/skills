@@ -41,7 +41,7 @@ A script settles only what is certain — an identifier that matches, the same m
 
 | stop | taker | brief | recorded by |
 |---|---|---|---|
-| `same_paper`: library items a title search found, in `<imp>/handoffs/` (from `prepare`, or `save`'s `possible_duplicate`) | judges | references/import.md, step 3 | `p2z.py answer <handoff> same\|distinct\|pair\|unknown --by judge` |
+| `same_paper`: library items a title search found, in `<scratch>/paper-to-zotero/handoffs/` (from `prepare`, or `save`'s `possible_duplicate`) | judges | references/import.md, step 3 | `p2z.py answer <handoff> same\|distinct\|pair\|unknown --by judge` |
 | a `pair` or `unknown` (`waiting_on: user`) | the user, in the run's one message of questions | references/import.md, step 3 | `p2z.py answer … same\|distinct --by user` |
 | `duplicates`, `published_versions`, `checks`, `warnings`, `unanswered` (`prepare`'s `decide`) | you | references/import.md, step 3 | the record: `same_as`, a redraft or `keep_preprint`, the item or `accepted`; `prepare` again |
 | a stub's PDF (`attach_file` answers `unchecked`) | `p2z.py recognize`, then a judge on the recognized item's fields | references/no-doi-record.md | `update_item` and `file_and_tag`; nothing recognized: the item written by hand |

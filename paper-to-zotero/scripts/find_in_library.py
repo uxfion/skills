@@ -54,7 +54,7 @@ def summary(rec, found):
     handoff, still = run.ask_same_paper(rec), set(run.unsettled(rec))
     if handoff:
         return {"code": "near_match", "near_matches": run.near_lines(m for m in rec["near_matches"] if m["key"] in still),
-                "handoff": handoff}  # a judge's (p2z.py decisions), not a failure
+                "handoff": handoff}  # no hint: the handoff is a judge's, and p2z.py's decisions name it
     return {"code": "not_found"}
 
 

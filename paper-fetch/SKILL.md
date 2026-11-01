@@ -1,6 +1,6 @@
 ---
 name: paper-fetch
-description: Finds out which paper is meant and gets its full text — DOI or arXiv id, normalized CSL metadata, preprint and published versions, then a PDF checked against the paper and labelled with its version, by open copies, the publisher through the institution's login, the library's discovery system or the user's browser. Use when a paper has to be pinned down from a title, list or link, its metadata or versions looked up, or its PDF fetched (找论文 PDF、下载全文、查 DOI 和正式版), or files someone has labelled by version; paper-to-zotero calls it when importing.
+description: Finds out which paper is meant and gets its full text — DOI or arXiv id, normalized CSL metadata, preprint and published versions, then a PDF checked against the paper and labelled with its version, by open copies, the publisher through the institution's login, the library's discovery system or the user's browser. Use when a paper has to be pinned down from a title, list or link, its metadata or versions looked up, or its PDF fetched (找论文 PDF、下载全文、查 DOI 和正式版), or PDFs already in hand labelled by version; paper-to-zotero calls it when importing.
 ---
 
 # Paper fetch
@@ -45,7 +45,13 @@ Treat the user's words as a draft: typos, partial titles and loose keywords are 
 uv run scripts/pf.py identify <DOI | arXiv id | paper page> [--slug <citation key>] [--wanted accepted|preprint] -o <dir>
 ```
 
-`identify` writes the result: the paper's CSL metadata (from doi.org, or the page's `citation_*` tags, with the abstract, PMID, PMCID and the authors' keywords that OpenAlex and Europe PMC have where the record lacks them), its ids, the version the caller wants (`wanted`, default published) and, for a preprint, its versions — `versions.published`, the published versions the authors declared to arXiv or Crossref's title search found. The published version comes first unless the user asked for the preprint: confirm a candidate against arXiv's comment ("Accepted at ICLR 2024", in `versions.preprint.comment`) and its title; none, but the comment or the paper names a venue → papers.cool's venue search or the venue's own listing finds the paper's page. Confirmed → `identify --redraft <DOI | page url> <result>`. When a caller decides the version (paper-to-zotero does), its rule wins and you redraft on its word. `versions.incomplete` and `enrichment.incomplete` name sources that did not answer: identify the same id again later. A page that refuses plain HTTP (`page_unreachable`): a browser agent saves its HTML into `<dir>/scratch/`, then `identify --redraft <page url> <result> --html <file>`. A stub (`no_csl_record`, `no_citation_meta`, an unreachable page not redrafted): the paper has no metadata to check a file against; its files are filed as `cannot_judge`. OpenAlex's keywords (`enrichment.openalex_keywords`) are its model's guesses from the title and abstract: a hint for whoever tags the paper, never the authors' keywords.
+`identify` writes the result: the paper's CSL metadata (from doi.org, or the page's `citation_*` tags; what the record lacks filled in from Europe PMC and OpenAlex: the abstract, PMID and PMCID, and the authors' keywords from Europe PMC), its ids, the version the caller wants (`wanted`, default published) and, for a preprint, its versions. OpenAlex's keywords go apart, to `enrichment.openalex_keywords`: its model's guesses from the title and abstract, a hint for whoever tags the paper. Identify writes no handoff records; where it stops short, its line says so, and these take over:
+
+- `needs_pinning` (a title, not an id): you pin it as above, confirming a `--search` candidate's title and first author yourself or through a judge given its lines; a title only a browser search finds goes to a browser agent.
+- A preprint's `versions.published` (the published versions the authors declared to arXiv, or Crossref's title search found): the published version comes first unless the user asked for the preprint. A judge given the result's path confirms a candidate against its title, the first author and arXiv's comment ("Accepted at ICLR 2024", in `versions.preprint.comment`); none, but the comment or the paper names a venue → papers.cool's venue search or the venue's own listing finds the paper's page. Confirmed → you run `identify --redraft <DOI | page url> <result>`. When a caller decides the version (paper-to-zotero does), its rule wins and you redraft on its word.
+- `page_unreachable` (the page refuses plain HTTP), or a warning that needs the article page (an erratum-like title): a browser agent opens the page and saves its HTML into `<dir>/scratch/` for `identify --redraft <page url> <result> --html <file>`, or says what the page shows.
+- A stub (`no_csl_record`, `no_citation_meta`, an unreachable page not redrafted): the paper has no metadata to check a file against; its files are filed as `cannot_judge`.
+- `versions.incomplete`, `enrichment.incomplete`: sources that did not answer; identify the same id again later.
 
 Done when every paper is pinned by a DOI, an arXiv id or its page, every distinguishing word of the request matches it, no other result fits equally well, and its result is written (the version settled where the caller asked for one).
 
@@ -56,7 +62,7 @@ uv run scripts/pf.py ready --dir <dir>
 uv run scripts/pf.py claim --dir <dir> --watch                    # in the background, the whole run
 ```
 
-`ready` checks poppler and OpenCLI, prepares `<dir>` (`results/`, `links/`, `handoffs/`, `inbox/`, `unverified/`, `scratch/`, the `.started` marker, `run.json` with the Downloads folder and the browser session) and prints `downloads_dir`. Act on what it reports: `config.ask_user` (the library's discovery search page: ask for it in your first message), `discovery_template` (the config's `institution.discovery` must be a search URL with `{title}` where the title goes: write it so, telling the user first); `no_pdftotext`, OpenCLI issues: references/install.md, the user's to install on their word, an old daemon → `opencli daemon restart`; `resumed: true` — an earlier run left `<dir>`: carry on from its results and `pf.py todo --dir <dir>`; `leftovers` are reported, never deleted: a PDF that never reached the user belongs to them.
+`ready` checks poppler and OpenCLI, prepares `<dir>` (`results/`, `links/`, `handoffs/`, `inbox/`, `unverified/`, `scratch/`, the `.started` marker, `run.json` with the Downloads folder and the browser session) and prints `downloads_dir`. Act on what it reports: `config.ask_user` (the library's discovery search page: ask for it in your first message), `config.discovery_template` (the config's `institution.discovery` must be a search URL with `{title}` where the title goes: write it so, telling the user first); `no_pdftotext`, OpenCLI issues: references/install.md, the user's to install on their word, an old daemon → `opencli daemon restart`; `resumed: true` — an earlier run left `<dir>`: carry on from its results and `pf.py todo --dir <dir>`; `leftovers` are reported, never deleted: a PDF that never reached the user belongs to them.
 
 The **watcher** files every new PDF in Downloads that passes the check for exactly one paper `fetch` was asked for and that is not yet satisfied — the agents' downloads and the user's alike. Start it as a background process that lives as long as the run; where none can be kept, `fetch` and `wait` scan Downloads themselves. Where the harness can stream a command's lines to you as events (Claude Code: the Monitor tool), also follow the log, re-armed whenever it expires:
 
@@ -66,7 +72,7 @@ tail -n 0 -F <dir>/fetch.jsonl | grep --line-buffered -E '"result": "(claimed|le
 
 `claimed`: that paper has its file — tell its paper agent, if it has one. `left`: a new file matched none of the waiting papers, or several; it stays in Downloads with a `left` handoff for a judge. While no paper waits, a new file is not looked at: it is the user's own. An event never interrupts a running command, so whatever waits looks for the file itself. The watcher only appends events: `pf.py settle` folds them into the results (`fetch`, `claim`, `answer` and `wait` fold what they touched when they end).
 
-Done when `ready` reports `ok` and the watcher runs.
+Done when `ready` reports `ok`, everything it printed under `config.ask_user`, `config.discovery_template` and `opencli` (its `issues`, or `path: null` for no OpenCLI) is handled or put to the user, and the watcher runs.
 
 ## Handoffs
 
@@ -85,12 +91,7 @@ A handoff record (`<dir>/handoffs/<id>.json`, id `<slug>.<n>`, or `<kind>.<n>` w
 | `left` | the watcher found a download that matched no waiting paper, or several | a judge | `claim --slug <slug>` (it is that paper's) · `not_ours` |
 | `browser_down` | OpenCLI could not reach Chrome (`BROWSER_CONNECT`) | you | `resolved`, after `opencli doctor` (and `opencli daemon restart` when it says so), else the user opening Chrome |
 
-Identify writes no records; its lines are taken like this:
-- `needs_pinning`: you (*Identify a paper*); a title only a browser search finds goes to a browser agent.
-- A preprint's `versions.published`, a `--search` list: a judge confirms one against the title, the first author and arXiv's comment, and you redraft on its word.
-- `page_unreachable`, or a warning that needs the article page (an erratum-like title): a browser agent opens the page — it saves the HTML for `--redraft --html`, or says what the page shows.
-
-A browser agent is briefed like a paper agent, with its one task instead of handoffs.
+Identify writes no records: who takes its stops is listed in *Identify a paper*. A browser agent is briefed like a paper agent, with its one task instead of handoffs.
 
 ### The paper agent
 
@@ -127,7 +128,11 @@ what you did, the answers you gave, the label of the file filed.
 
 ### The judge
 
-A background subagent on the paper agent's model that reads only local files, so it needs none of the web lines: about twenty handoffs each, at most five at once. Its brief: the records' paths; read references/attachment-titles.md first; look at pages 1 and 2 of every file as images beside their text — every record about a PDF lists them in `evidence.files` — and make both images of every file the done-condition, since a judge left to choose reads the text layer alone; a `left` record: compare the file's page 1 with the results it was checked against (`evidence.against`); answer each with `pf.py answer … --by judge`, writing only under `<dir>/scratch/judge/`, no git; report one line per handoff.
+A background subagent on the paper agent's model (Claude Code: `model: "sonnet"`; Codex: `luna`) that reads only local files, so its brief carries none of the web lines: about twenty handoffs each, at most five at once. Its brief:
+- the records' paths; references/attachment-titles.md to read first; the scripts as in the paper agent's brief (`cd <paper-fetch's directory>`, then `uv run scripts/pf.py <command>`);
+- every record about a PDF lists pages 1 and 2 as images in `evidence.files`: done means both images of every file looked at beside their text, since a judge left to choose reads the text layer alone;
+- a `left` record: compare the file's page 1 with the results it was checked against (`evidence.against`);
+- answer each with `pf.py answer … --by judge`; write only under `<dir>/scratch/judge/`, no git; report one line per handoff.
 
 ## Get the file: the chain
 
@@ -168,7 +173,7 @@ Done when every result has a file that passed the check (or that an agent accept
 
 A library's PDFs to rename by version, or files the user dragged in: the check and the label are the same as for a fetched file, but the file's own word comes first (references/attachment-titles.md, *A file already in the library*).
 
-1. `identify` every paper by its DOI or arXiv id, in one call into one directory (`printf '<id>\t<key>\n' … | uv run scripts/pf.py identify -o <scratch>/paper-fetch/label`): arXiv's comments come in one request per hundred ids, and every request keeps the machine's pace.
+1. `identify` every paper by its DOI or arXiv id, in one call into one directory, `<dir>` below (`printf '<id>\t<key>\n' … | uv run scripts/pf.py identify -o <scratch>/paper-fetch/label`): arXiv's comments come in one request per hundred ids, and every request keeps the machine's pace.
 2. `pf.py claim --dir <dir> --file <path> --slug <slug>` for each file: a file outside `<dir>` is copied, never moved, so a PDF in Zotero's storage stays where it is; two files of one paper sit side by side, numbered. Each filed file gets a `label` handoff, a file the check cannot be sure of a `file` handoff.
 3. Judges answer both kinds (*The judge*), about twenty files each; a `file` handoff with `accept --label …` or `refuse`, so one look settles both questions.
 
@@ -193,8 +198,8 @@ Done when Downloads holds no file of this run, every session's close has answere
 Fall back instead of stopping: a blocked request, a verification page or an empty result is a reason to take the next rung.
 
 1. Direct access — metadata APIs (doi.org, Crossref, OpenAlex, arXiv), web fetch.
-2. OpenCLI adapters, discovered at run time. An API-type adapter (`browser: false`) is still a direct request and fails the same way when blocked; when it does, `opencli web read --url …` reads the page inside the user's Chrome with their cookies, and `opencli browser` lets you work the page yourself.
-3. A browser-type adapter (`browser: true`) that fails was already in the real browser, so it was most likely blocked: open the same page in a session and look — a verification or login page is a gate; a normal page means the adapter broke, so read it yourself. Keep the adapter's raw output in `<dir>/scratch/` for the skill notes.
+2. OpenCLI adapters, discovered at run time. An API-type adapter (`Browser: no` in its command's `--help`) is still a direct request and fails the same way when blocked; when it does, `opencli web read --url …` reads the page inside the user's Chrome with their cookies, and `opencli browser` lets you work the page yourself.
+3. A browser-type adapter (`Browser: yes`) that fails was already in the real browser, so it was most likely blocked: open the same page in a session and look — a verification or login page is a gate; a normal page means the adapter broke, so read it yourself. Keep the adapter's raw output in `<dir>/scratch/` for the skill notes.
 
 Retry a transient error once; a 403 or a verification page goes straight to the next rung. Publisher hosts and Google Scholar start at rung 2; Google Scholar at most once a minute. A host that answers 429 is left alone until its Retry-After, else an hour (the scripts keep that in the machine's pace file, `~/.cache/paper-fetch/pace.json` or `$PAPER_FETCH_PACE`). Files a tool writes on the way, and one-off code, go into `<dir>/scratch/` and leave with it.
 

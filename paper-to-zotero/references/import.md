@@ -61,7 +61,7 @@ uv run scripts/p2z.py prepare <imp>/records/*.json
 
 **Checks and warnings** (`checks`, `warnings`): what Zotero will do with a field (`mapped:publicationTitle`: stored as `proceedingsTitle`; `missing_minimum:date`) and what drafting noticed. Revise the item, or accept the effect: copy the flag or the warning, as `prepare` printed it, into the record's `accepted`.
 
-**`unanswered`**: sources that did not answer; run `prepare` again later (for versions, `pf.py identify` the paper again).
+**`unanswered`**: sources that did not answer; run `prepare` again later (for versions, `pf.py identify` the paper again). A source that stays silent is accepted by adding `unanswered:<source>` to the record's `accepted`.
 
 **Revise `item`.** A value without a source stays out.
 - Item type: a `bookSection` from a proceedings volume is usually a `conferencePaper` (paper-fetch already makes LNCS-style chapters conference papers when Crossref names the series). The result's `warnings` naming a possible erratum or correction notice: make sure the DOI is the paper's own.

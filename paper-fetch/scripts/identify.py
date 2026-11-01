@@ -64,7 +64,8 @@ top 5 in its order, unfiltered: which one is the paper is the judge's or the age
 Lines on stdout, one per ID, then {"summary"}: {id, slug?, code, path?, record_of?, title?, incomplete?, warnings?}.
   ok                written; renamed_from: a key given for a paper whose result had a derived slug, now its name
   skipped           reason exists: a result for this paper is there (redraft: same_doi, it has that DOI already);
-                    slug_not_applied: the key's slug, when fetching had begun under the old one (the key is in cite)
+                    slug_not_applied: the key's slug, when fetching had begun under the old one (the key is in cite);
+                    reason duplicate: the same paper earlier in this run's input
   slug_taken        the key's slug names another paper's result: nothing written
   needs_pinning     a title, not an identifier (a `title:` line): find the paper's DOI or arXiv id first
   no_identifier     neither a DOI, an arXiv id nor a page url
@@ -76,6 +77,7 @@ Lines on stdout, one per ID, then {"summary"}: {id, slug?, code, path?, record_o
   doi_org_error     doi.org or the DOI's agency failed (5xx): run again later
   not_published     (--redraft) a 10.48550 DOI is the preprint itself
   doi_org_unreachable, source_blocked (429: nothing is asked of the host before `until`): exit 2, the rest not_run
+  crossref_unreachable (--search): Crossref did not answer, exit 2
 Exit 0 = every line ok or skipped; 1 = not; 2 = cannot go on. Requests keep a gap per host, shared through the
 machine's pace file (pflib/web.py); env DOI_BASE_URL, CROSSREF_BASE_URL, ARXIV_API_URL, OPENALEX_BASE_URL,
 EUROPEPMC_BASE_URL point the services elsewhere (tests).
@@ -461,9 +463,10 @@ def from_page(s, url, warnings, body=None):
                                 "browser, then identify.py --redraft <url> <result> --html <file>.") from None
     m = web.page_meta(body, final, headers)
     if not web.first_meta(m["meta"], "citation_title", "dc.title"):
-        raise cli.Stop("no_citation_meta", url=final, hint="The page has no citation_title tag (an OpenReview page behind "
-                                                           "a challenge: save its HTML from the browser, then --redraft "
-                                                           "<url> <result> --html <file>; a site without the tags).")
+        raise cli.Stop("no_citation_meta", url=final, hint="The page has no citation_title tag. A page behind a challenge "
+                                                           "(OpenReview): save its HTML from the browser, then --redraft "
+                                                           "<url> <result> --html <file>; a site without the tags leaves "
+                                                           "the result a stub.")
     if not m["venue_kind"]:
         warnings.append("the page names no venue (citation_conference_title / citation_journal_title): made a "
                         "paper-conference, check the type and the venue")

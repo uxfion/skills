@@ -1,12 +1,12 @@
 # Several papers
 
-Read before *Ready* when the request covers two or more papers — a list, a .bib, a search result, "these three". One paper is a batch of one; nothing here contradicts SKILL.md, it only says how the operations run over many results at once.
+Read before *Ready* when the request covers two or more papers — a list, a .bib, a search result, "these three". One paper is a batch of one: this file says how SKILL.md's operations run over many results at once.
 
 ## The results are the state
 
-Every paper is one file, `<dir>/results/<slug>.json`, and every script takes result paths (glob them). What a result holds says how far its paper got: `csl` identified, `versions` listed, `files` and `outcome` folded from `fetch.jsonl`. The files sit beside it, named by the version each was wanted as (`<slug>.pdf`, `.accepted.pdf`, `.preprint.pdf`, `.html`; a second file of one kind `<slug>.2.pdf`); every attempt is a line in `<dir>/fetch.jsonl`; what waits for an agent is a record in `<dir>/handoffs/`. Only `identify` and the fold write a result; the watcher and the agents append events through `pf.py` commands, so nothing collides.
+Every paper is one file, `<dir>/results/<slug>.json`, and every script takes result paths (glob them). What a result holds says how far its paper got: `csl` identified, `versions` listed, `files` and `outcome` folded from `fetch.jsonl`. The files sit beside it, named by the version each was wanted as (`<slug>.pdf`, `.accepted.pdf`, `.preprint.pdf`, `.supplement.pdf`, `.html`; a second file of one kind `<slug>.2.pdf`); every attempt is a line in `<dir>/fetch.jsonl`; what waits for an agent is a record in `<dir>/handoffs/`. Only `identify` and the fold write a result; the watcher and the agents append events through `pf.py` commands, so nothing collides.
 
-Every script skips what is done and says so (`skipped`), so the same command line is also the recovery: after an interruption, a crash or a "继续", run it again, and `pf.py todo --dir <dir>` shows what still waits for an agent. The scripts print one line per result — read those, not the files.
+Every script skips what is done and says so (`skipped`), so the same command line is also the recovery: after an interruption, a crash or a "继续", run it again, and `pf.py todo --dir <dir>` shows what still waits for an agent. The scripts print one line per result: follow the run's progress in those lines, and open a result file only for what a line does not carry.
 
 ## The run
 
@@ -31,7 +31,7 @@ A `needs_pinning` line is a title: pin it (SKILL.md, *Identify a paper*) and ide
 
 ## What runs in parallel
 
-The scripts that call outside services in bulk (`identify`, `fulltext_links`, `fetch`'s walk) run in the main conversation, one at a time: each paces its requests through the machine's pace file and stops a service that answers 429. Beside them work up to five paper agents, each with its own paper and its own browser session (`pf-<slug>`), by hand on the web, and up to five judges, which read only local files, about twenty handoffs each. Agents do not coordinate: each stops at its own block and reports it, and its paper waits on that route. Google Scholar only by hand, at most once a minute. A subagent that has to reach the user does so with `SendMessage` to `"main"`, the only conversation on the user's screen, which pushes the alert: a subagent has no push notification of its own.
+The scripts that call outside services in bulk (`identify`, `fulltext_links`, `fetch`'s walk) run in the main conversation, one at a time: each paces its requests through the machine's pace file and stops a service that answers 429. Beside them work up to five paper agents, each with its own paper and its own browser session (`pf-<slug>`), by hand on the web, and up to five judges, which read only local files, about twenty handoffs each. Agents do not coordinate: each stops at its own block and reports it, and its paper waits on that route. A subagent that has to reach the user does so with `SendMessage` to `"main"`, the only conversation on the user's screen, which pushes the alert: a subagent has no push notification of its own.
 
 ## The user in the loop
 

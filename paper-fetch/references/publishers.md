@@ -14,7 +14,7 @@ The flow needs Chrome set to **download** PDFs: `chrome://settings/content/pdfDo
 
 Page content only, the current document's frames included; a PDF or viewer inside a frame from another domain is reached with `opencli browser frames --session <name>`, then `eval --frame <target>` (OpenCLI 2.x; no such site met yet, 2026-10-20). Browser chrome is out of reach: extension toolbar buttons (so the Zotero Connector plugin cannot be driven), extension shortcuts such as `Ctrl+Shift+S`, the PDF viewer's save button, native dialogs.
 
-Downloads: the watcher (SKILL.md, *Ready*) files whatever lands in Downloads, so a click needs no `wait download`. Opening a link that downloads leaves the tab on its old page, in the same document (2026-10). PMC's PDF link took 45–60 s from `open` to the file (2026-10-20). `opencli browser wait download <pattern> --timeout <ms> --session <name>` (OpenCLI 2.x) answers only once a matching download has completed or failed, and also counts one completed within the last `--timeout` before the call; it cannot tell a download not yet started from none coming (OpenCLI source, 2026-10-20).
+Downloads: the watcher (SKILL.md, *Ready*) files a download that passes the check for a waiting paper, so a click needs no `wait download`. Opening a link that downloads leaves the tab on its old page, in the same document (2026-10). PMC's PDF link took 45–60 s from `open` to the file (2026-10-20). `opencli browser wait download <pattern> --timeout <ms> --session <name>` (OpenCLI 2.x) answers only once a matching download has completed or failed, and also counts one completed within the last `--timeout` before the call; it cannot tell a download not yet started from none coming (OpenCLI source, 2026-10-20).
 
 ## Getting the bytes (verified 2026-10)
 
@@ -28,7 +28,7 @@ On a proxied page (next section) `citation_pdf_url` still names the publisher's 
 
 ## The Zotero Connector's proxy redirect (verified 2026-10)
 
-The user's Zotero Connector sends publisher hosts it has associated with the institution's proxy (EZproxy) through that proxy; the page shows "Zotero automatically associated <host> with a previously defined proxy". Two articles of one publisher may go different ways — one redirected, one not — and the association, once made, sticks: on 2026-10-31 an IEEE link opened from the discovery system went straight to `ieeexplore-ieee-org.<proxy-domain>`. A host the proxy does not cover then lands on the proxy's **"Host Needed"** page or a **404 on the proxy host**: the institution has no access through this route. That is not a gate and not worth retrying: answer `proxy_unconfigured` (the paper goes on to its next route: the discovery system, an open copy), tell the user once, and leave that proxied host alone for the rest of the run. An open-access journal reached this way (JAMA Netw Open via jamanetwork.com) was blocked although it needs no proxy at all: open-access articles go to their un-proxied address or PMC first.
+The user's Zotero Connector sends publisher hosts it has associated with the institution's proxy (EZproxy) through that proxy; the page shows "Zotero automatically associated <host> with a previously defined proxy". Two articles of one publisher may go different ways — one redirected, one not — and the association, once made, sticks: on 2026-10-31 an IEEE link opened from the discovery system went straight to `ieeexplore-ieee-org.<proxy-domain>`. A host the proxy does not cover then lands on the proxy's **"Host Needed"** page or a **404 on the proxy host**: the institution has no access through this route, so answer `proxy_unconfigured` (*Pages nobody can pass*). An open-access journal reached this way (JAMA Netw Open via jamanetwork.com) was blocked although it needs no proxy at all: open-access articles go to their un-proxied address or PMC first.
 
 ## Gates that do not look like login pages
 
@@ -37,7 +37,7 @@ All of these are solved by the user in seconds — alert them and wait at the ga
 - Chrome not running, or the OpenCLI bridge extension not connected (every `opencli browser` call fails to attach).
 - A purchase / "Get access" page with no login prompt: the subscription is not recognised. Click the site's institutional sign-in entry ("Institutional Sign In", "Access through your institution") first; the login page that follows is the gate.
 - A CAPTCHA or "verify you are human" page, on the publisher or on a search engine — sometimes only on the PDF link, after the article page loaded fine (PMC).
-- A Cloudflare check ("请稍候…" / "Just a moment…"). In the automation tab it usually passes by itself within 10–15 s (NEJM AI, Lancet, JAMA, OUP; 2026-10); one morning it looped on "verification successful, waiting for response" on several publishers and passed in the afternoon. Alert the user and wait at least 30 s; if it loops, ask the user to click the box. Only a check that still loops goes on the list for the user to fetch by hand.
+- A Cloudflare check ("请稍候…" / "Just a moment…"). In the automation tab it usually passes by itself within 10–15 s (NEJM AI, Lancet, JAMA, OUP; 2026-10); one morning it looped on "verification successful, waiting for response" on several publishers and passed in the afternoon. It is a gate all the same: alert first, then wait (references/gate.md); a check that keeps looping needs the user's click.
 - A cookie wall ("Cookies must be enabled"): the user allows cookies and reloads.
 - The Save As dialog above.
 
@@ -51,7 +51,7 @@ Not gates: waiting does not help and the user cannot fix them by logging in. The
 | Cloudflare "Sorry, you have been blocked / You are unable to access <host>", no checkbox | the site has blocked the whole browser, the user's own visits included (medRxiv, 2026-10, after a few automated requests) | that host, this run: stop every request to it | `blocked`: the paper waits on this route until the next pass |
 | institution logo **and** "<institution> does not subscribe to this content" | no subscription to this journal (ScienceDirect shows this; see below) | this paper | `no_access` |
 | a purchase page after the institutional sign-in was clicked and passed | no access to this paper | this paper | `no_access` |
-| OpenReview `/pdf?id=…` and `api2.openreview.net/notes?id=…` answering 403 for a conference not held yet | not public yet (NeurIPS 2026 in 2026-10; ICLR, ICML, COLM of the same year worked) | this paper | `not_public`: take the arXiv version; the report says to attach the PDF after the conference |
+| OpenReview `/pdf?id=…` and `api2.openreview.net/notes?id=…` answering 403 for a conference not held yet | not public yet (NeurIPS 2026 in 2026-10; ICLR, ICML, COLM of the same year worked) | this paper | `not_public`: the paper goes on to its arXiv version; the report says to attach the PDF after the conference |
 
 ## Open copies and metadata services (2026-10)
 

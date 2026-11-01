@@ -1,16 +1,15 @@
 # paper-to-zotero 拆成三个 skill：paper-fetch、paper-to-zotero、paper-read（设计）
 
+> 实施完成（2026-11-01，issue 结案），此后本文冻结。脚本和 agent 后来又重新分工，见 `20261031-paper-skills-script-agent-division-spec.md`。
+>
 > **草稿第二版**（2026-10-30）。第一版过了三份审阅：是否忠于决定、技术对不对、新 agent 能不能照着做。这一版按审阅改过，advisor 审过一轮，给用户看过以后又自审了一轮（§14 记了改了什么）。实现过程中如有修正，直接改本文。
 > 来源：
-> - [20261029-paper-to-zotero-split.md](../issues/20261029-paper-to-zotero-split.md)：拆分、交接、笔记的格式和转换，已定 1 到 23；
+> - [archive/20261029-paper-to-zotero-split-fixed.md](../issues/archive/20261029-paper-to-zotero-split-fixed.md)：拆分、交接、笔记的格式和转换，已定 1 到 23；
 > - [20261028-paper-to-zotero-paper-notes.md](../issues/20261028-paper-to-zotero-paper-notes.md)：论文笔记的读法和格式，拆分后归 paper-read。
 >
-> 依据放在两张 issue 旁边的参考资料文件夹里，git 不跟踪。关 issue 时文件夹会删掉，要点已经写进本文，实现时不必回去翻。拆分这张的文件夹里有：
-> - `inventory.md`：commit `ae09458` 时各部分代码的去向；
-> - `reselect-blind.md`、`blind-eval/triage.md`、`blind/notes.md`：读回器的盲测、失败分类、编辑器 schema 的事实；
-> - `markdown-tools.md`、`pandoc-retest.md`、`passthrough-tools.md`：Markdown 工具的选型；
-> - `metadata-and-pdf-comparison.md`：元数据和找 PDF，我们的做法和 Zotero 自带的比较；
-> - `zotero-external-interfaces.md`、`better-notes-external.md`：Zotero 和 Better Notes 从外面能怎么用。
+> 依据放在两张 issue 旁边的参考资料文件夹里，git 不跟踪。拆分这张的文件夹 2026-11-01 结案时删了：要点已经写进本文，下文提到的报告文件名只是当时的出处。还要用的两样挪到了别处：
+> - Node 裁判：论文笔记 issue 参考资料文件夹的 `node-judge/`；
+> - 元数据改进的做法：issue `20261101-paper-fetch-metadata-from-zotero.md`。
 >
 > 论文笔记那张的文件夹里有 `zotero-notes-storage.md`、`better-notes.md`、`note-roundtrip-test.md`。
 >
@@ -596,8 +595,8 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 - **`tests/test_note_md.py`**：纯 Python。每个样例都要：读成期望的 Markdown；写回以后按模型和原样相同（保证 1）；再读一次得到同样的 Markdown（保证 2）。另外检查哪些块退回了 HTML（14 个样例里有，都是 Markdown 说不了的：带属性的块、合并或着色的单元格、没有表头行的表格、带加粗的代码块、Better Notes 的任务列表）、front matter、写入的修正和命令行。`tests/test_note.py` 用假 Zotero 测 take、put、list。
 - **哪些不算盲测**：这些样例都看过了，是开发和回归用的。以后另派一个 agent，不看代码，按编辑器 schema 写一批新样例，只跑一次，那一批才算检验，之后也并进回归样例。
 - **保证 1 怎么验**：
-  - 开发时原想用参考文件夹 `passthrough/blind/judge/` 里那个 Node 裁判量一下，但它的 `node_modules` 已经没有了，重装是装非 Python 的东西，要用户同意，所以这次没用。
-  - 用真编辑器核对（issue 的待验证 2、第 73 条）：2026-10-30 做完。79 个样例拼成一条笔记，用户在 Zotero 里改过以后取回比对：差别都是用户的改动或编辑器自己的规范化（样式重写、链接加 `rel`、标记的先后、合并着色单元格的背景色拷到文字上），没有转换器丢的；存回来的那版读出写回不变。它暴露了一条编辑器规则：标题不收公式，写入因此加了修正 5。送进去和存回来的两版在参考文件夹的 `realeditor/`。
+  - 开发时原想用参考文件夹里那个 Node 裁判量一下（结案后在论文笔记 issue 参考资料文件夹的 `node-judge/`），但它的 `node_modules` 已经没有了，重装是装非 Python 的东西，要用户同意，所以这次没用。
+  - 用真编辑器核对（issue 的待验证 2、第 73 条）：2026-10-30 做完。79 个样例拼成一条笔记，用户在 Zotero 里改过以后取回比对：差别都是用户的改动或编辑器自己的规范化（样式重写、链接加 `rel`、标记的先后、合并着色单元格的背景色拷到文字上），没有转换器丢的；存回来的那版读出写回不变。它暴露了一条编辑器规则：标题不收公式，写入因此加了修正 5。送进去和存回来的两版 HTML 结案时挪到了论文笔记 issue 参考资料文件夹的 `node-judge/`，留作核对 Node 裁判的样例。
 
 ## 6. 命令行约定（三个 skill 通用）
 
@@ -657,12 +656,12 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 
 | 部件 | 结论 | 依据 |
 |---|---|---|
-| 元数据 | 留我们的。摘要、PubMed 号、正式发表版、写库前预览，都比 Zotero 的 translator 好。Zotero 做得更好的几处见 §13，以后搬进 paper-fetch | `metadata-and-pdf-comparison.md` |
+| 元数据 | 留我们的。摘要、PubMed 号、正式发表版、写库前预览，都比 Zotero 的 translator 好。Zotero 做得更好的几处见 §13，以后搬进 paper-fetch | issue 第 34 条 |
 | 找 PDF | 留我们的链。Zotero 的"查找可用 PDF"只找开放获取的版本，不核对文件，16 次里版本标错 14 次 | 同上 |
 | CSL 转条目 | 用 Zotero schema 里的对照表，复用 Zotero 的数据，不写死对照表 | 已定 12 |
 | 建条目 | 走本地 API，不走 connector 导入，因为 connector 会动用户的窗口，也没有预览。没有 DOI 的论文是例外，见 §4.2 | 已定 12 |
 | 桥接插件 | 不装 | 已定 18 |
-| 笔记转换 | 自己写，用 markdown-it-py。13 个读回器在同一套盲测样例上重比过，子集读回器加兜底最好 | `reselect-blind.md` |
+| 笔记转换 | 自己写，用 markdown-it-py。13 个读回器在同一套盲测样例上重比过，子集读回器加兜底最好 | issue 第 55 条 |
 | Better Notes | 借它的识别规则和测试样例，不搬代码，因为它的转换写在 TS 的语法树上 | 已定 20 |
 | 结构化 | paddleocr，不改 | |
 
@@ -743,7 +742,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 
 ## 13. 留到以后的事
 
-- **元数据的改进**（见 `metadata-and-pdf-comparison.md`）：把 Zotero 做得更好的几处搬进 paper-fetch，包括 arXiv 的完整日期、期刊缩写、会议地点、论文集 ISBN、LNCS 卷号、作者关键词；另外把 Zotero 处理 ScienceDirect、PMC、MDPI 的办法写进 `publishers.md`。拆完以后单独做，不和拆分混在一起，免得没法对比拆分前后的结果。
+- **元数据的改进**（做法见 issue `20261101-paper-fetch-metadata-from-zotero.md`）：把 Zotero 做得更好的几处搬进 paper-fetch，包括 arXiv 的完整日期、期刊缩写、会议地点、论文集 ISBN、LNCS 卷号、作者关键词；另外把 Zotero 处理 ScienceDirect、PMC、MDPI 的办法写进 `publishers.md`。拆完以后单独做，不和拆分混在一起，免得没法对比拆分前后的结果。
 - **论文笔记那张 issue 还没定的**：
   - 防止发散：哪些子问题可以加到树上，树最多几层；
   - 读论文的 subagent 能不能再派 subagent；

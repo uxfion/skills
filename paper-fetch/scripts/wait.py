@@ -16,7 +16,8 @@ leaves the tab as it was, so a timeout is not yet a verdict: what the paper's ag
 pf-<slug>), else run.json's. When it ends it folds the result (and any other its scan of Downloads filed a file for)
 into their files and outcome, as settle.py does.
 
-stdout: one line {slug, code, url?, title?}. Exit 0 = arrived or passed; 1 = timeout.
+stdout: one line {slug, code, file? (arrived), url?, title? (passed), waited?, hint? (timeout)}. Exit 0 = arrived or
+passed; 1 = timeout.
 
 Example:
   uv run scripts/wait.py <dir>/results/<slug>.json --until "Access provided by"

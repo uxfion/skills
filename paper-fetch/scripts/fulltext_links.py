@@ -33,8 +33,8 @@ shown which way it goes.
 The links are found again only when they are not done: absent, stale (found for another DOI, arXiv id or URL of
 the result: those links are dropped), or incomplete (a source did not answer: a network error, a 5xx, a 429); each
 line says why (`reason`). A source that did not answer is named in `incomplete`, and its links from the last time
-are kept. A host that answers 429 is not asked again for the rest of the run (source_blocked), across runs of this
-script; requests to a host keep their gap.
+are kept. A host that answers 429 is asked by no script on this machine until its Retry-After, else for an hour
+(source_blocked; the machine's pace file, pflib/web.py); requests to a host keep their gap.
 
 stdout: one line per result {slug, code, reason?, links, sources: {source: its code}, first?}, then {"summary"}.
   ok              links written (`first`: the first link's version, needs_browser and host)

@@ -5,9 +5,9 @@
 # ///
 """Fold fetch.jsonl into each result's `files` and `outcome`: what a caller reads to know what was got.
 
-fetch, claim and wait fold the results they touched when they end; run this after the background watcher filed a
-file (a `claimed` event in fetch.jsonl), or to see the state of every result. Each fold starts from the whole log,
-so whoever folds last is right.
+fetch, claim, answer and wait fold the results they touched when they end; run this after the background watcher
+filed a file (a `claimed` event in fetch.jsonl), or to see the state of every result. Each fold starts from the
+whole log, so whoever folds last is right.
 
 Before folding, each filed file without a label (a snapshot needs none) gets a `label` handoff, unless one is open
 for it: whichever command filed the file, a judge is asked (pflib/run.py, Handoffs).
