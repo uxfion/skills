@@ -692,7 +692,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
    - 写 `references/import.md`，改其他参考文件，重写 SKILL.md；
    - 测试全部通过。
 
-   （2026-10-30 已做，`a5440e0` 到第 3、4 步的文档提交。核对过：`draft_item` 对三篇基线论文生成的条目和基线逐字段一致，SENet 的预印本和 CVPR 正式版两种都对上；在假 Zotero 上用基线的三份 PDF 跑 `attach_file`，附件标题和 md5 和基线一致。配置里搬走的两项按用户的话，等用户用过新版再提醒删。）
+   （2026-10-30 已做，合进提交 `95cea41`。核对过：`draft_item` 对三篇基线论文生成的条目和基线逐字段一致，SENet 的预印本和 CVPR 正式版两种都对上；在假 Zotero 上用基线的三份 PDF 跑 `attach_file`，附件标题和 md5 和基线一致。配置里搬走的两项按用户的话，等用户用过新版再提醒删。）
 4. **改说法**：搬过去的和留下来的代码、文档里，"work directory"都改成"scratch directory"，并写明路径。现在 SKILL.md 和 17 个脚本里有这个说法。（2026-10-30 随第 3 步一起做完：p2z 剩下的脚本、两边的文档里都改成 `<scratch>/paper-to-zotero` 或 paper-fetch 的 `<dir>`。）
 5. **paper-read**：按 §4.3 搭框架。（2026-10-30 已做，见 §4.3 的补记。）
 6. **收尾**：
@@ -715,14 +715,14 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 
   （2026-10-30 再做一次真上网的导入，按 `import.md` 全程走：AlphaFold（Nature，开放获取）、UNet++（IEEE TMI，IEEE 上开放获取）。两边 `ready`、监视器、`identify`、`draft_item`、`prepare`（库里都没有）、`fulltext_links`、`fetch --pass 1`（两篇都在开放获取那一步拿到，核对 `ok`）、按 `to_label` 的证据定标签、`settle`、`save`、`report`，读回的条目字段、附件标题和 md5 都对，Downloads 里没留东西。结构化包这一步跳过：它要用 GPU，当时另一个会话在动 vllm-serve，条目又马上要删。核对完两个条目移进回收站。没测到的：要学校登录的出版商那条路，两篇都是开放获取。）
 - **整理**：在现有分类上只读地跑 `lint_items`、`read_library`、`export_bib`，结果要和拆分前一致。只有两处例外：`lint_items` 不再给 Crossref 候选，也不再给 PDF 摘录，这两样改由 paper-fetch 做。
-  （2026-10-30 做完：在"医疗图像"分类（`9EYXTC2I`，连子分类）上，拆分前的 `4bbfdd7` 和现在的代码各跑一遍。`export_bib` 的 1490 行 bib、`read_library items` 和 `tags` 的输出逐字相同；`lint_items` 报的 19 个条目和各类问题的计数相同，去掉 PDF 摘录以后每条问题都相同。）
+  （2026-10-30 做完：在"医疗图像"分类（`9EYXTC2I`，连子分类）上，拆分前的 `44ceb67` 和现在的代码各跑一遍。`export_bib` 的 1490 行 bib、`read_library items` 和 `tags` 的输出逐字相同；`lint_items` 报的 19 个条目和各类问题的计数相同，去掉 PDF 摘录以后每条问题都相同。）
 - **笔记的实测**：读一篇用户指定的论文，用 `note.py put` 存成笔记，在 Zotero 里看过以后再 take 回来，要和存进去的一致。同时核对论文笔记那张 issue 列的几项：
   - 独立笔记的 `related`，在论文条目那一侧看得到；
   - `zotero://open-pdf/…?page=N` 链接没被改写；
   - 结构化包里带着页码。
 - **审阅**：实现完，用 code-review 对照本 spec 审一遍，再提交。
 
-（2026-10-30 code-review 做完，两路：按编码规范、按本 spec。逻辑上的四处已改（`0f489f7`）：接收一个已经在结果旁边的文件时，不再把它当第二个文件挪进 stray/；`identify` 不再把已经重认成正式版的结果改回预印本；结果名是推出来的、后来又给了引用键的，在还没开始取全文时改名，开始了就在输出里报 `slug_not_applied`；给库里的文件定标签时一个文件一个目录，因为一个结果只装这篇论文的一个文件。另外 paper-fetch 只留一个 `host_of`，p2z 的副本同步；文档去掉重复的段落、补上完成标准、`settle` 统一写成 `pf.py settle`，拷来的代码注明出处和提交。有意不改的：`first_str` 各脚本一份，按 §8 不做共享库；p2z 读结果文件的字段散在几个脚本里，结果文件的格式由 paper-fetch 的 `pflib/run.py` 一处定义，p2z 只读不写，暂不另包一层。一处实现时定的：agent 另找到的摘要、关键词、PMID 写进 p2z 记录里的条目，不写进结果文件，因为结果文件只由 `identify` 和汇总写。）
+（2026-10-30 code-review 做完，两路：按编码规范、按本 spec。逻辑上的四处已改（合进提交 `95cea41`）：接收一个已经在结果旁边的文件时，不再把它当第二个文件挪进 stray/；`identify` 不再把已经重认成正式版的结果改回预印本；结果名是推出来的、后来又给了引用键的，在还没开始取全文时改名，开始了就在输出里报 `slug_not_applied`；给库里的文件定标签时一个文件一个目录，因为一个结果只装这篇论文的一个文件。另外 paper-fetch 只留一个 `host_of`，p2z 的副本同步；文档去掉重复的段落、补上完成标准、`settle` 统一写成 `pf.py settle`，拷来的代码注明出处和提交。有意不改的：`first_str` 各脚本一份，按 §8 不做共享库；p2z 读结果文件的字段散在几个脚本里，结果文件的格式由 paper-fetch 的 `pflib/run.py` 一处定义，p2z 只读不写，暂不另包一层。一处实现时定的：agent 另找到的摘要、关键词、PMID 写进 p2z 记录里的条目，不写进结果文件，因为结果文件只由 `identify` 和汇总写。）
 
 ## 12. 要接受的代价，以及不做的事
 

@@ -4,7 +4,7 @@
 {"openalex_key", "institution": {"proxy", "discovery"}}. Every field is optional; a missing one turns its feature
 off. No value read here is ever printed.
 
-path, read, section and text are copied from paper-to-zotero/scripts/p2zlib/config.py (commit 90cecdf); each skill
+path, read, section and text are copied from paper-to-zotero/scripts/p2zlib/config.py (commit 95cea41); each skill
 reads its own file, so neither depends on the other being installed.
 """
 import json

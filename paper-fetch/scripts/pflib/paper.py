@@ -13,7 +13,7 @@ A file in paper-fetch's directory sits beside its result and is named by the ver
 What the file actually is goes into its label, an attachment title (titles.py).
 
 The identifier and title rules (ARXIV_ID, DOI_FORM, normalize_doi, normalize_arxiv, norm_title, title_similarity,
-file_format, host_of) are copied from paper-to-zotero/scripts/p2zlib/paper.py (commit 90cecdf).
+file_format, host_of) are copied from paper-to-zotero/scripts/p2zlib/paper.py (commit 95cea41).
 """
 import difflib
 import re

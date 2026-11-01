@@ -6,7 +6,7 @@ file, a closed port, and PDFs without poppler (stubs on PATH that print sidecar 
     r = call(settle, result_file(tmp, "doe2024paper"), config=cfg)   # r.code, r.out, r.err, r.lines
 
 Every run checks that no secret of a config_file (the OpenAlex key) appears in stdout or stderr. Copied from
-paper-to-zotero/tests/helpers.py (commit 90cecdf) without the fake Zotero.
+paper-to-zotero/tests/helpers.py (commit 95cea41) without the fake Zotero.
 """
 import contextlib
 import importlib.util

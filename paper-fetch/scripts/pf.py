@@ -7,7 +7,7 @@
 
 `pf.py --help` (or no arguments) lists every command with the first line of its docstring. A script runs through
 `uv run --script`, so its own PEP 723 dependencies load, and its exit code is passed through; an unknown command
-exits 2 with the list. Copied from paper-to-zotero/scripts/p2z.py (commit 90cecdf) without its compound commands.
+exits 2 with the list. Copied from paper-to-zotero/scripts/p2z.py (commit 95cea41) without its compound commands.
 """
 import ast
 import os

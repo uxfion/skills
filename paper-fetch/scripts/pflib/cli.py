@@ -9,7 +9,7 @@ skipped, 1 = something is the agent's to act on, 2 = cannot go on (no pdftotext,
 A script whose lines answer a question names those codes as its `answers`: they count as ok, so the answer is in
 the code and not in the exit status.
 
-Copied from paper-to-zotero/scripts/p2zlib/cli.py (commit 90cecdf) without the Zotero parts (--base-url, --key and
+Copied from paper-to-zotero/scripts/p2zlib/cli.py (commit 95cea41) without the Zotero parts (--base-url, --key and
 --cite targets, the loop over items); each skill keeps its own copy, so neither depends on the other being installed.
 """
 import argparse

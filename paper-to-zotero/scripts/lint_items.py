@@ -75,7 +75,7 @@ from p2zlib.zotero import LIB
 
 RESEARCH_TYPES = {"journalArticle", "conferencePaper", "preprint", "bookSection", "thesis", "report"}
 DOI_TYPES = {"journalArticle", "conferencePaper"}
-# Library proxies, by the form of their hosts (copied from paper-fetch's pflib/web.py, commit 6ea7d15; the
+# Library proxies, by the form of their hosts (copied from paper-fetch's pflib/web.py, commit 95cea41; the
 # institution's own proxy is paper-fetch's config, not read here): EZproxy's hostname mode (*.ezproxy.*), OCLC's hosted
 # EZproxy (*.idm.oclc.org), WebVPN gateways.
 OTHER_PROXIES = re.compile(r"\.idm\.oclc\.org$|(?:^|[.-])(?:ezproxy|webvpn)(?:[.-]|$)", re.I)

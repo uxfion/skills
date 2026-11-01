@@ -67,7 +67,7 @@
 - **Mask R-CNN 走完整一遍。** `fetch --pass 1` 在出版商路线停在学校代理（OCLC）的登录页 → `page` 交接 → paper agent 在自己的会话里打开，单点登录还有效，直接进到 IEEE → `fetch --start` 交回 stamp.jsp → 题目太短，核对拿不准 → `file` 交接 → 同一个 agent 看第 1 页，答 `accept --label Published-IEEE` → 页面交接自动关闭 → 重跑 `fetch` 退出 0。没去图书馆系统。
 - **只走图书馆系统。** `fetch --route discovery`：访客视图里就有这篇的 ProQuest 记录，记录页上脚本找不到 PDF → `page` 交接（`no_pdf_link`）→ paper agent 从记录页进到 IEEE（经代理）→ `fetch --start` → `file` 交接 → `accept`，Published-IEEE。这次没用到“点 Sign in”，那一步在上面那次实测里验证过。
 - **先有接受稿，再拿正式版（决策 A）。** UNet++（TMI）：先单跑 `--route accepted`，PMC 文章页的 PDF 链接被核对拒了 → `page` 交接 → paper agent 用 `fetch --start --version accepted` 交回同一页，这次拿到 NIH 作者稿（`nihms-1600374.pdf`），核对通过 → `label` 交接 → agent 答 Accepted-PMC → 这篇不算满足（想要正式版）→ 照常跑完整一遍，开放路线经代理拿到 IEEE 正式版 → `label` 交接交给 judge，答 Published-IEEE → 两份并排，`paper_file` 是正式版 → 重跑退出 0。
-- **看到的、已处理的：** `outcome.tried` 写的是代理的主机名，已改成网站本身的（`2eb4330`）；`claim --sweep` 没有剩余文件时什么也不打印，已改成最后输出一行摘要。
+- **看到的、已处理的：** `outcome.tried` 写的是代理的主机名，已改成网站本身的（合进提交 `c2c00a1`）；`claim --sweep` 没有剩余文件时什么也不打印，已改成最后输出一行摘要。
 - **看到的、另记 issue 的：** PMC 的 PDF 链接第一次被拒、一分钟后就拿到了，见 `20261031-paper-fetch-pmc-pdf-first-try-refused.md`。
 - **没测到的：** 图书馆系统的“点 Sign in”（这次访客视图就有记录；上一次实测验证过）；“开放链接碰巧是接受稿”这条路（这次用 `--route accepted` 先拿接受稿，测的是决策 A 的机制）；验证页（没碰到，所以推送转达和 10 分钟等待没在实测里跑到）。
 
@@ -87,7 +87,7 @@
   - 建条目：`save` 报 `unchecked` → `p2z.py recognize`：Zotero 识别出 CVPR 2020 的条目，落在用户窗口当时选中的分类 “Agent”；识别器把附件标题改成 “PDF”，脚本改回标签 → judge 对照第 1 页核对字段 → `update_item` 把 url 改成 doi.org，`file_and_tag` 挪到 `tmp` 并加标签 → `save` 认出 PDF 已挂，没有重复上传。
 - **整理 dry run**：“Agent/M6 主动搜证与定位”（28 条，12 条有问题）→ lint → 8 条缺 DOI 各查一次 Crossref → 一个 judge 判 12 条，全部“不动”（ICLR、ICML、早年 NeurIPS 不发 DOI；NeurIPS 2024/2025 的 url 是会议页面，按规则保留；AI Hospital 的两个题目候选是别的论文）。改动清单为空，没有写库。
 - **收尾**：三个测试条目进了回收站（这次建的）；临时目录删了；Downloads 没留文件；四个浏览器会话都 “tab lease released”。
-- **实测中发现、已修的**（`1ad285c`）：
+- **实测中发现、已修的**（合进提交 `c2c00a1`）：
   - 预印本的正式版候选不带作者，judge 没法核第一作者；
   - stub 的请求本身是 PDF 链接，`fulltext_links` 没把它列成候选；
   - `prepare` 把库内候选算成失败；

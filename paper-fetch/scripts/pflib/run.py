@@ -219,7 +219,7 @@ def glob_escape(text):
 
 def atomic_write(path, text):
     """Replace a file's content at once (a temp file beside it, then os.replace), keeping the mode it had, or the
-    mode an ordinary new file gets. Copied from paper-to-zotero/scripts/p2zlib/run.py (commit 90cecdf)."""
+    mode an ordinary new file gets. Copied from paper-to-zotero/scripts/p2zlib/run.py (commit 95cea41)."""
     path = Path(path)
     try:
         mode = path.stat().st_mode & 0o777
