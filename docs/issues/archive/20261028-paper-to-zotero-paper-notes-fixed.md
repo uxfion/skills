@@ -1,8 +1,11 @@
 # paper-to-zotero：从论文里得出的东西（结论、方向、用处）放在哪里、怎么复用
 
+> **已解决（2026-11-03）**：paper-read 按 spec [20261102-paper-read-notes-spec.md](../../specs/20261102-paper-read-notes-spec.md) 设计并实现，§12 是实施中的修正，§13 是验证结果；现在的做法以 `paper-read/` 里的 skill 为准。还没在实际中跑过的流程、关闭前审阅剩下的事，挪到了 [20261103-paper-read-flows-not-run.md](../20261103-paper-read-flows-not-run.md)。文中标着"没拍板"的提议，后来都由已定条目和 spec 定下了；"暂停的事"里"随用随取"那句已写进 paper-read 的 SKILL.md。参考资料文件夹已删，还在用的挪到了跟进 issue、`20261103-paper-read-note-images` 和 `20261102-paper-to-zotero-note-front-matter-fields` 的参考资料里。
+
+
 - 来源：用户 · 2026-10-28。结构化包做完之后，讨论 SKILL.md 里"随用随取"那句怎么写时提出。
-- 状态：open。2026-11-02 设计定稿，按 spec `docs/specs/20261102-paper-read-notes-spec.md` 实施中。原来是讨论阶段：用户自己也只有大致方向，要"逐步讨论琢磨出来，不是一下子就确定的"。除这张 issue 和它的参考资料文件夹之外一切只读：不改代码、不写 Zotero、不动各项目。讨论得到的事实、用户的补充和方向随时记进来；我的提议标"没拍板"。
-- 参考资料：`20261028-paper-to-zotero-paper-notes-reference/`（git 不跟踪），里面有：
+- 状态：已解决（2026-11-03），见顶上。原来的状态：open。2026-11-02 设计定稿，按 spec `docs/specs/20261102-paper-read-notes-spec.md` 实施中。原来是讨论阶段：用户自己也只有大致方向，要"逐步讨论琢磨出来，不是一下子就确定的"。除这张 issue 和它的参考资料文件夹之外一切只读：不改代码、不写 Zotero、不动各项目。讨论得到的事实、用户的补充和方向随时记进来；我的提议标"没拍板"。
+- 参考资料：`20261028-paper-to-zotero-paper-notes-reference/`（git 不跟踪；关闭时已删，还在用的去向见顶上），原来有：
   - `paths.md`：各项目的路径；
   - 四个项目各一份调研报告：`project-*.md`；
   - 库里现有笔记：`zotero-library-notes.md`；
@@ -19,7 +22,7 @@
 
 ## 背景
 
-结构化包已经完成（[20261020-paper-to-zotero-structured-package-fixed.md](archive/20261020-paper-to-zotero-structured-package-fixed.md)）：库里每份 PDF 旁边都有一个名为 `<引用键>.<标题>` 的 zip，任何项目的 agent 都用 `structured take` 取到临时目录里读。SKILL.md 现在写的是 "The package unzips to `<dir>/<cite>.<title>/`, a scratch folder, never a project's"。
+结构化包已经完成（[20261020-paper-to-zotero-structured-package-fixed.md](20261020-paper-to-zotero-structured-package-fixed.md)）：库里每份 PDF 旁边都有一个名为 `<引用键>.<标题>` 的 zip，任何项目的 agent 都用 `structured take` 取到临时目录里读。SKILL.md 现在写的是 "The package unzips to `<dir>/<cite>.<title>/`, a scratch folder, never a project's"。
 
 ## 讨论记录（用户原话逐字）
 
@@ -142,7 +145,7 @@
     - C：树只在读的时候用，写进 Zotero 时去掉。
     我推荐 A。
 36. 用户：「A。 先不要在问了。有个设计上的非常重要的问题」
-37. 用户提出：p2z 越长越臃肿，读论文的方式、查文献，都应该拆成独立的 skill，p2z 只管操作 Zotero。另开一张 issue：[archive/20261029-paper-to-zotero-split-fixed.md](archive/20261029-paper-to-zotero-split-fixed.md)，原话记在那里。这张 issue 的读法、问题树、笔记格式，到时归新的读论文 skill；p2z 只负责存笔记、取笔记。下面"分工"一节写的"p2z 负责论文笔记的格式、读写命令、读论文的流程"，要等那张 issue 定了再改。
+37. 用户提出：p2z 越长越臃肿，读论文的方式、查文献，都应该拆成独立的 skill，p2z 只管操作 Zotero。另开一张 issue：[archive/20261029-paper-to-zotero-split-fixed.md](20261029-paper-to-zotero-split-fixed.md)，原话记在那里。这张 issue 的读法、问题树、笔记格式，到时归新的读论文 skill；p2z 只负责存笔记、取笔记。下面"分工"一节写的"p2z 负责论文笔记的格式、读写命令、读论文的流程"，要等那张 issue 定了再改。
 38. （2026-10-29，拆分讨论之后）我把"所有中间文件都放在临时目录"补进拆分那张 issue 时，把第 286 行的"subagent 的工作 Markdown"改成了"笔记草稿，放在临时目录里"。用户：「等一下，你注意区分一下原来论文笔记那张issue里面的 subagent 的工作 markdown。你把上下文背景给我给全了再改，我记得好像当时是不是这个意思啊」。我把第 34、35、36 条的原话摆出来，并指出：在第 34 条之前，我在对话里一直管它叫"草稿"，没叫过 Markdown；对话里唯一说到 Markdown 的是第 8 条之 3「在相关的 Markdown reference 或者 skill 里面」，那是 skill 的说明文件。所以"那个 Markdown"可能有两种意思：说明文件，或者 subagent 写出的文件。
 39. 用户：「我说的是草稿，但我当时指的是 Markdown 文件，就subagent读论文后给出的那个文件，相当于存到 Zotero 里面去的，我不知道这个结构树应该归到草稿里面，还是说放在一个交付的 Markdown 里面？还是说放在一个交付的笔记markdown里面？」我给了两个选项：
     - A：只有一个笔记文件，边读边写，读完原样交出；
@@ -362,7 +365,7 @@
     我推荐 A。用户（逐字）：「主题笔记按A 因为现在所需要的上下文还不够，现在定格式感觉为时太早了。后面等差不多完善了，再做这个事情就好了.而且不同主体之间差别还是很大的，也可能是不同方向的针对性也不同。这应该是根据当时的任务或者普遍的文献综述去定的，不要过早地去约束」。定为已定 43。
     - 中间用户另问模型简称标签要不要加前缀，另记一张 issue：`archive/20261102-paper-to-zotero-common-name-prefix-fixed.md`。
 69. 用户：「B 让一个fork subagent去改好了，然后main agent这边你就回到我们的spec上」，随后：「无人值守」。
-    - 我写了 spec 预览稿：[`docs/specs/20261102-paper-read-notes-spec.md`](../specs/20261102-paper-read-notes-spec.md)。
+    - 我写了 spec 预览稿：[`docs/specs/20261102-paper-read-notes-spec.md`](../../specs/20261102-paper-read-notes-spec.md)。
     - 派了三个审阅 agent 并行看，各看一个角度：忠于已定、技术上对不对、新 agent 用不用得了。结果写在参考资料 `spec-review-*.md`，之后交 advisor，再用 writing-for-agents 过一遍。
     - 用户不在时不越过要用户点头的关口：spec 等用户确认才实施，标签迁移等用户确认才写库。
 70. 三份审阅共 72 条意见（要紧 5、应该改 41、小问题 26），按它们重写成 spec 第二版，advisor 又审了一遍。处理结果（照改、改了形式、没照改及理由）记在参考资料 `spec-review-triage.md`。
@@ -449,6 +452,28 @@
     - 实现在主对话里做：
       - 规则层面的文档先写成草稿给 advisor 审，再用 writing-for-agents 过一遍；
       - 真读 T-CACE 后，存进 Zotero 之前先问用户。
+82. 用户（实现中途）：「另外，关于读哪个版本的论文，我记得我们这个项目里好像提到过，有一个优先版本，也就是有个排序的」，又补：「版本排序规则（正式发表 > 已录用 > 预印本 > 未知，同级按vN和加入时间）我记得是有这个的」。
+    - 我答：有，在 paper-to-zotero 的 `p2zlib/paper.py` `ordered()`；同一级里正式出版排在 in press 前面，vN 大的在前，加入晚的在前。新建笔记不带 `--title`，取的就是排第一的那份；已有笔记照"读的版本"取同一份，页码才对得上。
+    - 我提议：库里有更好的版本时，`prepare_note` 多报一项 `better_pdf`（没拍板）。
+83. 用户：「理论上，精读论文应该用的是最好的那个版本，就是按照我们之前设计的优先级来嘛」。
+    - 我提出两个方案：A 精读时换到最好的版本、查一处不换；B 每次改笔记都先换。推荐 A。
+84. 用户：「但问题是，如果后面有了一个更好的版本，之前的笔记应该怎么处理呢？我没太看懂你那一段话，你跟我讲一下」。
+    - 我用 T-CACE 举例讲：笔记留着，一篇始终一条；要动的是"读的版本"、页码、原句；搬到新版时逐条核对、改页码，数字变了按更正规矩改；问题编号不动。A、B 只差在什么时候搬。
+85. 用户：「不是我的问题。另一方面，如果新版本的 PDF 有新内容加进去呢？或者修正了什么东西？」
+    - 我提议：换版本就是以旧笔记为起点、在新版本上精读一遍。新加的长进问题树；改了的按更正规矩改；删掉的不删笔记里的话，注明新版删去了、原见哪里。两份 PDF 都有结构化包，逐段对比两份包列出差别，每处差别都处理了是完成条件。`prepare_note` 提示有更好的版本，用 `--title` 取新版时顺带取出旧版的包。查一处不换版本。
+86. 用户：「可以。那你上面一个问题，我要回答吗？」
+    - 我答：不用，第 85 条已经包含了 A；`better_pdf` 也一并定了。等 T-CACE 实测读完再改 reading.md，免得碰到正在跑的 subagent 读的说明。
+87. 用户：「可以的」。同意把 T-CACE、VDSR 的笔记和整理好的 T-CACE 包存进 Zotero；T-CACE 的旧笔记"精读要点 2026-09-23"先留着，等 ceus 把其中"现在可用 / 未来可用"两节项目结论收进它的索引，再移进回收站。
+    - T-CACE 实测（spec §10）：读论文的 subagent 用了 31.9 分钟、29.5 万 token、94 次工具调用；19 问，31 条引文都在 PDF 文字层里；包整理完，没有未整理的地方。旧笔记讲论文的几点，它都从原文重新找到了。我对着页面图像抽查了 Table III。
+    - 存的时候两条笔记都报 `readback_mismatch`，内容其实都存进去了。原因是 p2z `to_note` 输出的 HTML 结尾多一个换行，Zotero 去掉了（spec §12 第 12 条，已修）。同时发现标题里的 TeX 往返后变成 HTML 的 `<h3>`（第 11 条，已修）。改好后重存 T-CACE，往返一致。
+    - VDSR 查一处：一问，编号 `### Q3.1`（第 9 条）。
+    - subagent 写不了 `report.md`（第 10 条）；它碰到的 `doc.py` 问题记成 issue `20261102-paddleocr-commit-merges-heading-and-paragraph.md`。
+88. 用户：「有一个paper read的新issue，你看一眼」：`20261102-paper-read-aka-wording.md`，p2z 那边放宽了 `aka/` 规则，spec 里的转述过时了。
+    - 按 issue 给的方向改了 spec 和 skill（spec §12 第 13 条），给 T-CACE 补了 `aka/T-CACE`；issue 已关，移进 archive。
+89. 用户：「快速复用这个先不用管吧……」「读起来快不快倒无所谓……」「你先把没有做的东西分离出去……」「你在关这张issue之前，把所有涉及的代码的变动、文档的修改都用design principle过一遍，包括要用writing for agent skills优化一遍」。
+    - 没跑过的流程分离到 `20261103-paper-read-flows-not-run.md`。
+    - 派了一个独立 subagent 按设计原则审这次的改动，结果在参考资料 `principles-review-20261103.md`：1 条必须修（check_quotes 遇到小于号会吞掉正文，我已亲手验证），9 条应该修，13 条小问题。
+    - 用户：「先不用弄吧，先维持现状。我是不想做太多决策，累了已经」。所以都没改，这张 issue 也先不关。还挂着的：审阅结果怎么处理、参考资料里的 `node-judge` 留不留、关 issue 和提交。
 ## 已定（用户拍板的）
 
 1. **分开存**（第 8 条之 1、5）：
@@ -490,12 +515,12 @@
 24. **问法按 grilling 的思路**（第 34 条，选项 A）：主干问题固定，回答里会长出子问题；能现在查的就查，要等别的回答的就往后挂；每答完一问重算一次；原文没写就写明，不推测。
 25. **每一问都能用全文**（第 34 条之 1）：不按问题切分论文。答任何一问，都可以读论文的任何部分，包括 PDF、图表、附录。
 26. **维护一棵问题树，存在笔记文件里**（第 34 条之 2；第 39 条澄清：用户说的"那个 Markdown"，就是 subagent 读完交出、存进 Zotero 的那个文件）：每个问题都会衍生出后续问题。subagent 按这棵树走，读论文、追问题就不会走偏，也不会不知道发散到哪里去。
-28. **问题树就是笔记文件的标题结构**（2026-10-29 改定，见 [archive/20261029-paper-to-zotero-split-fixed.md](archive/20261029-paper-to-zotero-split-fixed.md) 第 26 到 28 条、已定 15）：
+28. **问题树就是笔记文件的标题结构**（2026-10-29 改定，见 [archive/20261029-paper-to-zotero-split-fixed.md](20261029-paper-to-zotero-split-fixed.md) 第 26 到 28 条、已定 15）：
     - 主干问题用 `##`，子问题用 `###`，再往下用 `####`；状态写在标题末尾，回答直接写在标题下面，不另写一份列表。
     - 改定的原因：Better Notes 的大纲只认标题，并能把标题树显示成树状、思维导图或气泡图；树只记一处，状态也只改一处。
     - 原来第 36 条选项 A 定的是"列表放最前面当目录"。
 29. **只有一个笔记文件，边读边写，读完原样交出**（第 39 条，选项 A）：
-    - 路径是 agent 临时目录里、结构化包旁边的 `<scratchpad>/<引用键>.<标题>.note.md`，不放进项目（见 [archive/20261029-paper-to-zotero-split-fixed.md](archive/20261029-paper-to-zotero-split-fixed.md) 已定 11）。
+    - 路径是 agent 临时目录里、结构化包旁边的 `<scratchpad>/<引用键>.<标题>.note.md`，不放进项目（见 [archive/20261029-paper-to-zotero-split-fixed.md](20261029-paper-to-zotero-split-fixed.md) 已定 11）。
     - 读的过程中，树上的状态随读随改，回答一问一问往下写。读完的标准是树上不再有"待答""进行中""等 Qn"，剩下的只有"已答""论文没有说明""要看别处"。这时文件原样交给 p2z，存进 Zotero 就是笔记。
     - 树上还有没完成的节点就不存。2026-10-30 按拆分 spec §4.3 改：这条检查归 paper-read，在交给 p2z 之前做，p2z 不认识问题树。原来写的是"p2z 就不存"。
     - "还没解决的问题"不另列清单，就是树上标"要看别处"的节点。
@@ -602,6 +627,12 @@
 48. **引文核对脚本只查原句在不在论文里**（第 75 条，2026-11-02）：位置（章节、图表、页码）写不写、写得对不对，脚本都不管，由读论文的 subagent 自我复核、项目用到时核对。取代 spec 第二版 §6.3 的页码核对和 `wrong_page`。
 49. **读的是哪份 PDF，元数据区和笔记正文各记一份**（第 77 条，2026-11-02）：正文那份防元数据区出问题。元数据区里自己加的字段现在存不进 Zotero，另记 issue `20261102-paper-to-zotero-note-front-matter-fields.md` 让 p2z 修。
 50. **Q5、Q6 的固定几项用加粗的词开头**（第 79 条，用户选 A，2026-11-02）：如"**数据和划分**：……"。`check_note --full` 查这几个词在不在，Better Notes 大纲里只显示真正的问题。
+51. **精读用最好的版本；换版本就是在新版本上精读一遍**（第 82–86 条，2026-11-02）：
+    - 版本优先级按 paper-to-zotero 的排序：正式发表 > 已录用 > 预印本 > 未知；同一级里 vN 大的、加入晚的在前。新建笔记取排第一的那份。
+    - 已有笔记照它"读的版本"取同一份；库里有更好的版本时，`prepare_note` 提示一句。
+    - 换版本在精读时做，以旧笔记为起点：新加的内容长进问题树；改了的按更正规矩改；删掉的注明新版删去了、原见哪里，不删笔记里的话。
+    - 逐段对比两份包列出差别，每处差别都处理了，才算完成。
+    - 查一处不换版本。
 ## 调研结果（2026-10-28）
 
 - **同一篇论文的事实在一个项目里被抄好几遍**：方法、数字、页码在 5 处以上重复手抄，各处慢慢对不上。比如 hc_deduction 的 Delphi-2M，diffusion 的 PG-ControlNet，ceus 的 Chen 2025。
@@ -794,7 +825,7 @@
   - **交回什么**：笔记文件（已定 29）。原文里查不到、要看代码或补充材料的问题，就是树上标"要看别处"的节点，不另列清单。这对应 wizard 的"做了什么、跳过了什么"。
   - **子问题放在笔记哪里**：挂在它所属的那一问下面，不管是读论文的 agent 自己长出来的，还是项目带来的。比如"推理时要不要真值 mask"挂在第 3 问下面。这样第三版里单独的"追问"一节就不要了。
 - **问题树**（已定 26、28；状态词是第 35 条的提议）：
-  - **放在哪**：问题树就是笔记文件的标题结构（已定 28）。笔记文件放在 agent 的临时目录里，挨着取出的结构化包（`<scratchpad>/<引用键>.<标题>.note.md`），不放进项目（见 [archive/20261029-paper-to-zotero-split-fixed.md](archive/20261029-paper-to-zotero-split-fixed.md) 已定 11）。存进 Zotero 以后，Better Notes 的大纲把这些标题显示成树。
+  - **放在哪**：问题树就是笔记文件的标题结构（已定 28）。笔记文件放在 agent 的临时目录里，挨着取出的结构化包（`<scratchpad>/<引用键>.<标题>.note.md`），不放进项目（见 [archive/20261029-paper-to-zotero-split-fixed.md](20261029-paper-to-zotero-split-fixed.md) 已定 11）。存进 Zotero 以后，Better Notes 的大纲把这些标题显示成树。
   - **每个节点**是一个标题：编号、问题、状态，回答写在标题下面。主干问题用 `##`，子问题用 `###`，再下一层用 `####`。
   - **一句话概括**写在第一行标题 `# 论文笔记` 下面的第一段，不设标题。它最后才写，写之前那一段写"[待答]"。
   - **状态**用中文词，不用符号：待答、进行中、已答、论文没有说明、等 Qn、要看别处（比如代码、补充材料）。
@@ -885,7 +916,7 @@
 
 ### 分工
 
-2026-10-30 按拆分那张 issue 改过（[archive/20261029-paper-to-zotero-split-fixed.md](archive/20261029-paper-to-zotero-split-fixed.md) 已定 1、4、23）：
+2026-10-30 按拆分那张 issue 改过（[archive/20261029-paper-to-zotero-split-fixed.md](20261029-paper-to-zotero-split-fixed.md) 已定 1、4、23）：
 - **paper-read**（新 skill）：负责论文笔记的格式、读论文的流程（问题树、派出读论文的 subagent）、改笔记的规则、"用在哪里"和主题笔记。不规定项目内部怎么存。
 - **p2z**：只负责把笔记存进 Zotero、再取出来：`note.py take/put` 和转换脚本 `note_md.py`（Markdown 和笔记 HTML 互转）。取 PDF 和结构化包也走 p2z。
 - **paddleocr**：不改。

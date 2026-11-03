@@ -1,0 +1,57 @@
+# paper-read：实现了、还没在实际中跑过的流程
+
+- 来源：用户 · 2026-11-03，准备关论文笔记那张 issue 时：
+  - 「快速复用这个先不用管吧，我觉得后面在实际的项目中用起来了，如果有什么问题的话，我会让项目中的 Agent 开张issue到这边来的」
+  - 「但是读起来快不快倒无所谓，因为毕竟主要是给 Agent 看的，我自己只是大致扫一下」
+  - 「你其他哪些流程如果还没跑过，要不要你先挪出来，然后把这张issue给关掉？」
+  - 「你先把没有做的东西分离出去，因为我怕到时候这张关了以后，有一些必要的信息给丢失了」
+- 状态：open。从论文笔记那张 issue（[archive/20261028-paper-to-zotero-paper-notes-fixed.md](archive/20261028-paper-to-zotero-paper-notes-fixed.md)）分离出来。设计见 spec [20261102-paper-read-notes-spec.md](../specs/20261102-paper-read-notes-spec.md)，现在的做法以 `paper-read/` 里的 skill 为准。
+- 参考资料（`20261103-paper-read-flows-not-run-reference/`，git 不跟踪）：
+  - 关闭前的设计原则审阅 `principles-review-20261103.md`；
+  - 引文比对的盲测记录 `check-quotes-heldout.md`；
+  - 4 个项目的现状调研 `project-*.md` 和项目路径 `paths.md`（第 4 条要用）。
+- 用法：项目里第一次用到下面哪一条，就顺手核对一遍：跑通的打勾，记下日期和现场；碰到问题按 AGENTS.md 另开 issue，这里写一句指过去。全部跑过就关。
+
+## 已经实际跑过的（2026-11-02 到 11-03）
+
+- 整篇精读 T-CACE：读论文的 subagent 用 31.9 分钟、29.5 万 token、94 次工具调用。笔记 19 问、31 条引文，包整理完，存进 Zotero。
+- 查一处 VDSR：新建只含一问的笔记（`--bare`），存进 Zotero。
+- 改一条已有笔记再存回：修 T-CACE 标题里的公式，走了一遍取出 → 改 → 检查 → 存。
+- `version_conflict` 之后重新取出再存（在一条测试笔记上）。
+- 项目索引的标题行由 `index_heading.py` 生成，给用户看过样例，没写进任何项目。
+- 读论文时修库里的问题：主 agent 给 T-CACE 补了 `aka/T-CACE`。
+
+## 还没跑过的
+
+1. **更正**（spec §3.5）：改笔记里一条事实，留更正标记；本项目依据它的决定当场重判；别的项目在汇报里告诉用户。
+2. **换版本**（issue 已定 51，spec §12 第 14 条）：
+   - 库里进了比笔记那份更好的 PDF 时，`prepare_note` 报 `better_pdf`；用 `--title` 取新版，`previous` 带出旧版的 PDF 和包；
+   - 读论文的 subagent 按 reading.md *Moving to another version* 逐段对比两份包，处理每一处差别，回报里列出。
+   - 要看的：两份包的 Markdown 结构差得大时，逐段对比会不会满是噪音；"新版删去了这段"的标记写得顺不顺；"读的版本"改对没有（元数据区的 `pdf:` 存不进 Zotero，见 p2z issue `20261102-paper-to-zotero-note-front-matter-fields.md`，所以只剩正文那一份）。
+3. **主题笔记**（spec §3.6）：一条都没建过。
+   - 要先在 Zotero 里建"主题笔记"分类。
+   - 原验证清单里有一项还没做：p2z `note put` 写 `related` 以后，论文条目那一侧的"相关"里能不能看到这条主题笔记。
+4. **项目论文索引在真项目里落地**（spec §3.4、§5；各项目的现状见参考资料 `project-*.md`）：
+   - 第一个索引可以是 ceus 的：它考虑过 T-CACE 能不能作 B-only 方案（spec §2 的例子）。
+   - T-CACE 的旧笔记"精读要点 2026-09-23"（key `4I8PKU67`）里"现在可用 / 未来可用"两节是某个项目（看起来是 ceus）的结论。这两节搬进那个项目的索引或文档以后，问用户能不能把旧笔记移进回收站。用户 2026-11-03 同意先留着。
+5. **几条分支**：
+   - `two_notes`（一篇论文有两条"论文笔记"）；
+   - `no_package`：用 paddleocr 解析、`structured put`、再跑 `prepare_note`；
+   - 没装 paddleocr，只读 PDF；
+   - 同时派几个读论文的 subagent（最多 5 个），要问用户的事攒成一条消息；
+   - 读论文的 subagent 没过检查，退回同一个 subagent（Claude Code `SendMessage`），或者接不上时另派一个；
+   - 读论文的 subagent 在回报里报出库里的问题，由主 agent 核实后去改。
+
+## 关闭前审阅剩下的（2026-11-03）
+
+用户：「重要的你可以审一下，但是那种不重要的，我觉得没必要逐一细节去过」。重要的 9 条改了（spec §12 第 15 项），下面这些留着：
+
+- **13 条小问题**，见参考资料 `principles-review-20261103.md` 第 11–23 条。
+- **要用户定的一条**（审阅第 9 条）："读的版本"现在只记 PDF 的标题，标题会被整理改掉。如果同时记下附件 key，改名以后 `prepare_note` 能按 key 找回同一份 PDF。这要改已定 49。
+- **引文比对的规范形式修过 bug 以后，在新论文上再盲测一次**：原来那两篇已经用过，修完以后的重跑只算回归检查。
+
+## 相关的 issue（各自开着，不在这里做）
+
+- p2z：`20261102-paper-to-zotero-note-front-matter-fields.md`（元数据区里自己加的字段存不进 Zotero）。
+- paddleocr：`20261102-paddleocr-download-stamp-false-findings.md`、`20261102-paddleocr-commit-merges-heading-and-paragraph.md`。
+- 笔记的呈现：`20261103-paper-read-note-images.md`（暂停）、`20261103-paper-read-note-expression.md`、`20261103-paper-read-note-two-depths.md`、`20261103-paper-read-source-links.md`。

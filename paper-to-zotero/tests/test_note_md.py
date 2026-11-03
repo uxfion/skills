@@ -101,7 +101,8 @@ class FrontMatter(unittest.TestCase):
 
     def test_no_wrapper_no_front_matter(self):
         self.assertEqual(N.to_md("<p>x</p>"), "x\n")
-        self.assertEqual(N.to_note("x\n"), ("<p>x</p>\n", {}))
+        # as Zotero stores it: a note put without the wrapper read back without its last newline (2026-11-02)
+        self.assertEqual(N.to_note("x\n"), ("<p>x</p>", {}))
         self.assertEqual(N.to_md('<div data-schema-version="9"><p></p></div>'), "---\nschema: 9\n---\n")
 
     def test_lists_and_set_meta(self):

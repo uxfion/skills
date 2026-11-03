@@ -1,6 +1,6 @@
 # paper-read：论文笔记和项目论文索引（设计）
 
-> **定稿（2026-11-02），实施中。** 依据是 issue [20261028-paper-to-zotero-paper-notes.md](../issues/20261028-paper-to-zotero-paper-notes.md) 的已定 1–50，括号里的"已定 n"指那里的条目。第一版经过三份审阅（忠于已定、技术、新 agent 能不能照着用，报告在 issue 参考资料 `spec-review-*.md`），本版按它们改过，又按用户 2026-11-02 定的已定 44–50 改过。本文取代 [20261031-paper-skills-script-agent-division-spec.md](20261031-paper-skills-script-agent-division-spec.md) §5 的 paper-read 初稿。§9 是审阅之后讨论里补定的几处；之后又按设计原则过了一遍，改了 8 处（issue 参考资料 `spec-principles-pass.md`），用户让我自己权衡后改（issue 第 81 条）。
+> **实施完成（2026-11-03），冻结。** 现在的做法以 `paper-read/` 里的 skill 为准；还没在实际中跑过的流程见 issue [20261103-paper-read-flows-not-run.md](../issues/20261103-paper-read-flows-not-run.md)。依据是 issue [archive/20261028-paper-to-zotero-paper-notes-fixed.md](../issues/archive/20261028-paper-to-zotero-paper-notes-fixed.md) 的已定 1–50，括号里的"已定 n"指那里的条目。第一版经过三份审阅（忠于已定、技术、新 agent 能不能照着用，报告随 issue 关闭已删，处理结果记在 issue 第 70 条），本版按它们改过，又按用户 2026-11-02 定的已定 44–50 改过。本文取代 [20261031-paper-skills-script-agent-division-spec.md](20261031-paper-skills-script-agent-division-spec.md) §5 的 paper-read 初稿。§9 是审阅之后讨论里补定的几处；之后又按设计原则过了一遍，改了 8 处（报告随 issue 关闭已删，8 处都在本文里），用户让我自己权衡后改（issue 第 81 条）。
 
 ## 1. 要解决什么
 
@@ -227,7 +227,7 @@ pdf: <PDF 标题>
 - **位置**：默认 `research/paper-index.md`；项目已有自己的论文索引的，就用它（已定 39）。
 - **标题行**：`引用键 · 论文名 · 简称（出处 年份）`，由 `index_heading.py` 从 Zotero 生成（§6.4），不手打。
   - 简称来自 `aka/` 标签，出处来自 `venue/` 标签（tagging.md）。
-  - 简称可有可无：论文自己提出了带名字的模型，或者业内用这个名字称呼它，才有 `aka/` 标签（tagging.md）。上面例子的 T-CACE 现在没打这个标签，标题行里就没有简称。
+  - 哪些论文有简称，按 tagging.md 的 *Common name* 定，这里不转述（规则 2026-11-02 放宽过，见 issue [archive/20261102-paper-read-aka-wording-fixed.md](../issues/archive/20261102-paper-read-aka-wording-fixed.md)）。
 - **每个决定一行**：`决定：依据的要点（论文笔记 Qn） · 推理所在的文档和小节 · 日期`。原因一句话说得完、没有另写推理的，省掉"文档和小节"这一项（已定 40）。
   - 用上的、评估过没采用的都记，原因写清（已定 12、13）；
   - 项目改了决定，就改这一行，经过留在项目的 git 历史里。
@@ -294,7 +294,7 @@ pdf: <PDF 标题>
 - 经 `p2z.py read_library items --cite` 读出条目，每篇打印一行 §5 的标题行。
 - **简称和出处**：`aka/` 和 `venue/` 标签可能有好几个，全部按标签名排序列出，不替用户挑。
 - **年份**：取 `date` 的前四位。
-- **没有 `aka/` 标签**：标题行里不写简称，照样打印。这是常态，不报、不补打（用户 2026-11-02：「不要强制加上去，你可以不加的」）。
+- **没有 `aka/` 标签**：标题行里不写简称，照样打印。本来就没有通称的论文不硬加（用户 2026-11-02：「不要强制加上去，你可以不加的」）；有业内通称却没打的是漏打，读论文时发现了就按授权补上，在汇报里列出（§12 第 13 条）。
 
 ## 7. 读论文的 subagent
 
@@ -397,3 +397,45 @@ pdf: <PDF 标题>
 - 主题笔记的格式（已定 43）。
 - 已有项目里按论文建的笔记，比如 hc_deduction 的 `research/review/notes/`：用到哪篇再处理。
 - 笔记里跳到 PDF 某页的 `zotero://open-pdf` 链接：出处先用纯文本。要不要做成能点的链接，等真笔记存进 Zotero、看过效果再定。
+
+## 12. 实施中的修正（2026-11-02 起）
+
+写脚本和测试时发现、按 advisor 审阅改的几处。都是让脚本少漏、少卡，没有改设计：
+
+1. **笔记文件名用包文件夹的名字**（§4、§6.1）：`structured take` 起文件夹名时，PDF 标题会先处理成合法的文件名，所以笔记文件取它给出的文件夹名加 `.note.md`，不自己拼 `<cite>.<PDF 标题>`。
+2. **`check_quotes` 多了一种结果 `unparsed`**（§6.3）：以 `> "` 或 `> “` 开头、却不合引文格式的行，算没过。这样一条引文不会因为写法不对而悄悄漏查。弯引号 `“…”` 也算引文。PDF 文字层取两份，`pdftotext` 默认模式一份、`-raw` 一份，在哪份里找到都算 `ok`。
+3. **`no_package` 时笔记照样准备好**（§6.1）：输出带上笔记文件和 `.taken` 的路径。解析完重跑 `prepare_note` 时接着用这份笔记；装不了 paddleocr 时，可以只对着 PDF 读。
+4. **`check_note` 默认多查一项：笔记里至少有一个问题**（§6.2）。查一处如果没有要写回的内容，就不会往 Zotero 存一条只有"读的版本"一行的空笔记。
+5. **`prepare_note` 失败时，原样带出 p2z 的输出**（§6.1）。笔记里"读的版本"写的 PDF，如果在库里已经找不到这个标题（比如被改了名），输出里有 `no_such_title` 和库里现有的 PDF 标题，由 agent 判断是哪一份。
+6. **库里现在没有标题为"论文笔记"的笔记**（2026-11-02 查了全部 157 条），所以不存在缺"读的版本"一行的旧论文笔记，`prepare_note` 不为这种情况另做处理。
+7. **`prepare_note` 加 `--title <PDF 标题>`**（§6.1）：指定取这篇的哪一份 PDF，不用笔记里写的那份，也不用排第一的那份。用在两处：一是"读的版本"那份 PDF 在库里改了名（第 5 条）；二是 §4 说的换一份 PDF 读，这件事原来没有办法让脚本取另一份。用了 `--title`，笔记里"读的版本"的两处由 agent 按 §4 一起改。
+8. **年份取日期里的四位年份，不取前四位**（§6.4，`prepare_note` 的 `paper` 一样）：Zotero 的日期字段按录入时的样子存，库里有 11 条是 "6/2016"、"Aug 2020" 这类写法。按前四位取，VDSR 的标题行成了"（CVPR 6/20）"。
+9. **查一处新建的笔记，那一问编成所属主干下的子问题**（§3.2、§4）：比如 `### Q3.1`，不写主干标题 `## Q3`。要是编成 `## Q3 <这一问>`，以后整篇精读要加主干 Q3 时，编号就冲突了，违反"编号写下不改"。实测 VDSR 查一处时发现的，已写进 note-format.md。
+10. **回报写在 subagent 的回复里，由主 agent 存成 `report.md`**（§3.3 第 4 步、§7.2）：实测时 Claude Code 不让 subagent 写回报文件。状态仍然存在文件里，只是换成主 agent 来写。
+11. **问题标题里不写 TeX**（§4、§6.2）：Zotero 的标题不显示公式。实测 T-CACE 时，标题里的 `$\hat{y}_i^{cls}$ … $f_\theta$` 存进 Zotero 再取回来，变成了 HTML 的 `<h3>`，`check_note` 就看不见这一问了。改法：符号用 Unicode 写（ŷᵢ、fθ），公式放进回答；`check_note` 报出标题里的 `$`（`math_in_heading`），并且把取回来的 `<h3>…</h3>` 也当标题读。
+12. **改了 paper-to-zotero 的一行代码**：`note put` 新建的笔记总是报 `readback_mismatch`。原因是 `note_md.to_note` 在没有编辑器外壳时，输出的 HTML 结尾多一个换行，Zotero 存的时候把它去掉了，读回逐字比较就对不上。改成不带结尾换行；p2z 有 3 个测试的期望值原来是照代码写的，按实测改了，p2z 测试全过。这是在别的 skill 里改的，没有另开 issue，随这次改动一起提交。
+13. **`aka/` 规则放宽以后**（issue [archive/20261102-paper-read-aka-wording-fixed.md](../issues/archive/20261102-paper-read-aka-wording-fixed.md)）：`prepare_note` 的 `paper` 多了 `aka`，派发时一起交给读论文的 subagent。subagent 发现这篇有业内通称却没打标签，在回报的"库里的问题"里报出，由主 agent 补；项目索引的标题行缺了该有的简称，同样先补标签再生成。实测时给 T-CACE 补了 `aka/T-CACE`。
+14. **换版本**（已定 51）：
+    - `prepare_note` 报 `better_pdf`：库里有比笔记读的那份更好的版本时，给出它的标题。
+    - 用 `--title` 换版本时，报 `previous`：笔记原来读的那一版的 PDF 和包，供对比。
+    - 那一版已经不在库里时，`previous` 的路径为空，说明只是同一份文件改了名，改"读的版本"就行，不用重读。
+    - reading.md 新加一节"换版本"；note-format.md 加了"新版删去了这段"的标记。
+15. **关 issue 前按设计原则审了一遍**（2026-11-03，独立的 subagent 审，报告在 issue `20261103-paper-read-flows-not-run.md` 的参考资料 `principles-review-20261103.md`）。用户：「重要的你可以审一下，但是那种不重要的，我觉得没必要逐一细节去过」。改了重要的 8 处：
+    - `check_quotes` 的 HTML 标签正则跨行、也作用于 PDF 文字和引文，正文里一个"p < 0.05"会吞掉后面直到下一个">"的文字。改成只去掉包里的标签，用不跨行的标签形状；包目录里没有 `.md` 时报 `unreadable`。
+    - `prepare_note` 的 `previous` 取不到旧版时带上 p2z 的 `code`，不再一律当成改名；reading.md 写明旧版缺包或缺 PDF 时怎么换版本。
+    - SKILL.md：整篇精读按回报改过笔记以后，存之前再检查一次；查一处时按 paddleocr 第 3 步读包；草稿目录要等问用户的事答完再删；兄弟 skill 表加上 poppler（README 同）。
+    - reading.md："PDF 是不是这篇"进了完成条件；回报不再叫 `report.md` 文件。
+    - 13 条小问题没改，留在审阅报告里。
+
+## 13. 验证结果（2026-11-02 到 11-03）
+
+- **测试**：`uv run paper-read/tests/run_all.py` 4 组全过；改了 p2z 的 `note_md`，`uv run paper-to-zotero/tests/run_all.py` 29 组全过。
+- **引文比对的盲测**：先写死规范形式，再在两篇别的出版商的论文上把包里每页的句子当引文去找：
+  - VDSR（Published-CVF）329 句找到 97.9%；
+  - Score SDE（Accepted-arXiv-v2）737 句找到 73.5%，找不到的 195 句里 188 句带行内公式；
+  - 把找到的句子里的小数挪一位小数点，共 76 处，没有一处被误当成找到。
+  - 第 12 条第 15 项修了标签 bug 以后，在这两篇上重跑，数字不变。它们已经用过，这只算回归检查；在新论文上再盲测一次，记在跟进 issue 里。
+  - 详细记录在跟进 issue 的参考资料 `check-quotes-heldout.md`。
+- **真读一篇**：T-CACE 整篇精读，用时 31.9 分钟、29.5 万 token、94 次工具调用；19 问，31 条引文都找到，包整理完；存进 Zotero，用户看过。
+- **查一处**：VDSR 一问，存进去的只有那一问。
+- **项目索引**：T-CACE 的标题行和一条决定给用户看过，没写进任何项目。

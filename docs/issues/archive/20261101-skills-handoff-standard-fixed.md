@@ -1,6 +1,6 @@
 # skills：脚本、agent、用户之间的交接写法不一，从 agent 出发的交接常缺输入文件和收回答复的命令
 
-> **已完成（2026-11-01）**：按 spec `docs/specs/20261101-skills-handoff-standard-spec.md` 在 paper-fetch、paper-to-zotero 落地（实施中的修正和真实验证见 spec §13），用户验收后关闭。vllm-serve、paddleocr 的部分在它们各自的 issue，paper-read 的部分在 `20261028-paper-to-zotero-paper-notes.md`，三张 issue 文末附了各自的审查条目原文。
+> **已完成（2026-11-01）**：按 spec `docs/specs/20261101-skills-handoff-standard-spec.md` 在 paper-fetch、paper-to-zotero 落地（实施中的修正和真实验证见 spec §13），用户验收后关闭。vllm-serve、paddleocr 的部分在它们各自的 issue，paper-read 的部分在 `20261028-paper-to-zotero-paper-notes-fixed.md`，三张 issue 文末附了各自的审查条目原文。
 
 - 来源 · 日期：用户 · 2026-11-01。修页面候选（`archive/20261101-paper-fetch-page-candidates-other-papers-fixed.md`）时，用户问各 skill 的交接文档有没有写好，由此展开。
 - 用户原话（按时间）：

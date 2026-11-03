@@ -1,4 +1,4 @@
-> 实施完成（2026-11-01）：第一期 paper-fetch、第二期 paper-to-zotero 都已实测通过（issue `archive/20261030-paper-fetch-script-agent-division-fixed.md`）；paper-read 这期不做，设计在 issue `20261028-paper-to-zotero-paper-notes.md` 里接着定。此后本文冻结。
+> 实施完成（2026-11-01）：第一期 paper-fetch、第二期 paper-to-zotero 都已实测通过（issue `archive/20261030-paper-fetch-script-agent-division-fixed.md`）；paper-read 这期不做，设计在 issue `archive/20261028-paper-to-zotero-paper-notes-fixed.md` 里接着定。此后本文冻结。
 >
 > 定稿 2026-10-31：用户的决策见 §9，三种视角的审查意见已并入（§11），advisor 已看过。实施中发现要改的，按 AGENTS.md 的规矩在实施完成前修正这份 spec。
 
@@ -386,7 +386,7 @@
 - `note put` 收到空内容，报 `empty_note`。
 - 新建的笔记（文件里没有 `key`），如果父条目下已经有同标题的子笔记，就报 `same_title`，带上已有笔记的 key，什么都不写。处理办法是取出那条笔记，把内容并进去。
 
-**paper-read（没拍板）。** 用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。所以 §5 只是讨论用的初稿，这期不实现。实施前为它补的几条脚本细节（准备笔记文件、“PDF 是不是这篇”、`check_note` 补查、`structured put` 进完成条件）也是初稿，挪到了论文笔记 issue `20261028-paper-to-zotero-paper-notes.md` 的“paper-read 还没实现的脚本细节”一节。p2z 和 paper-fetch 做完后，在那张 issue 里和用户一起把 paper-read 的设计定下来。
+**paper-read（没拍板）。** 用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。所以 §5 只是讨论用的初稿，这期不实现。实施前为它补的几条脚本细节（准备笔记文件、“PDF 是不是这篇”、`check_note` 补查、`structured put` 进完成条件）也是初稿，挪到了论文笔记 issue `archive/20261028-paper-to-zotero-paper-notes-fixed.md` 的“paper-read 还没实现的脚本细节”一节。p2z 和 paper-fetch 做完后，在那张 issue 里和用户一起把 paper-read 的设计定下来。
 
 **交接表。** p2z 的 SKILL.md 列出每个停下点：`same_paper`（judge，`p2z.py answer` 记下）；`duplicates`、字段检查和警告（主 agent，写 `same_as` 或 `accepted`，或者改条目）；一对、不知道（用户，主 agent 用 `answer --by user` 记下）；connector 认出的条目（judge，主 agent 用 `update_item`、`file_and_tag` 改，或者移进回收站）；整理时 lint 的判断（judge，每批约 20 个，交回改动清单）；打标签（subagent 最多 5 个，写进记录的 `tags`）。
 

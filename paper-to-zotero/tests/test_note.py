@@ -142,7 +142,7 @@ class Note(unittest.TestCase):
         self.assertEqual((r.code, r.lines[0]["action"]), (0, "created"), r)
         [obj] = self.posts()
         self.assertEqual(obj, {"itemType": "note", "parentItem": "ITEM0001",
-                               "note": '<h1>新笔记</h1>\n<p><strong>粗</strong> <span class="math">$x$</span></p>\n'})
+                               "note": '<h1>新笔记</h1>\n<p><strong>粗</strong> <span class="math">$x$</span></p>'})
         key = r.lines[0]["key"]
         self.assertTrue(path.read_text(encoding="utf-8").startswith(f"---\nkey: {key}\nversion: "))
 
@@ -168,7 +168,7 @@ class Note(unittest.TestCase):
 
     def test_put_dry_run_and_bad_input(self):
         r = self.run_("put", "--dry-run", stdin="---\nparent: one2020paper\n---\nx\n")
-        self.assertEqual((r.code, r.lines[0]["action"], r.lines[0]["note"]), (0, "created", "<p>x</p>\n"))
+        self.assertEqual((r.code, r.lines[0]["action"], r.lines[0]["note"]), (0, "created", "<p>x</p>"))
         self.assertEqual(self.zot.writes(), [])
         cases = {"---\nkey NOTE0001\n---\nx\n": "bad_front_matter", "---\nkey: NOTE0001\n---\nx\n": "no_version",
                  "---\nkey: ZZZZZZZZ\nversion: 1\n---\nx\n": "not_found", "---\nparent: nobody\n---\nx\n": "cite_not_found",

@@ -1,56 +1,84 @@
 # Reading a paper into its note
 
-What the reader — the subagent *Read a paper* sends — is told, and what its note looks like. Brief it with this file whole, the paths of the PDF, the package and the note file, and any questions a project brought (bare questions, no project background). It has only the paper, so what it writes is the paper's alone.
+This brief is for paper-read's **reader**: one subagent reading one paper of the Zotero library into its paper note. Read through, the note answers the eight questions and the questions that grew from them, from the paper itself. Every later task that needs this paper reads your note instead of the paper. It trusts what you wrote and checks only what it builds on.
 
-The method is a first version, still being designed (the paper-notes design, decisions 19–29, kept with the skills' sources). 待定 there: the question list itself, whether every paper gets a note when first read or the library in a batch, how answers are checked against the PDF, and how a note is regenerated without losing its added questions and *用在哪里*.
+## Inputs
 
-## The note
+Your prompt gives:
 
-One Markdown file, `<scratch>/<cite>.<title>.note.md`, written as the reading goes and handed back as it is: in Zotero it is the note. A new one starts as:
+- the note file, which you edit in place; the PDF; the package folder (the paddleocr skill's parse of that PDF), or none;
+- the paper's title, first author, year, venue and DOI, and the common names it is tagged with (`aka/`);
+- the scratch directory these sit in;
+- `<paper-read>`, this skill's directory, and the path of `note-format.md`, which says how a note is written: read it first;
+- the older notes on this paper, if any;
+- when the package has open findings: paddleocr's `settle.md` and `papers.md`, and how to run its `doc.py`;
+- when this read moves the note to a better version: the previous version's PDF and package;
+- a project's questions about the paper, if any.
 
-```markdown
----
-parent: <citation key>
----
-# 论文笔记
+Before anything else, check that the PDF is this paper: its first page against the title and first author given. A different year or venue is normal, since the preprint and the published version differ. A different paper: stop and report.
 
-[待答]
+The package is the PDF's text, page by page, with its tables and formulas. The PDF is the authority wherever the package carries one of these notes:
 
-## Q1 这篇论文试图解决什么问题？ [待答]
+- `<!-- open … -->`: never checked;
+- `<!-- unresolved … -->`: known wrong;
+- `unchecked_table`: a table without a text layer.
 
-## Q2 有哪些相关研究？ [待答]
+The note may hold answers already, someone else's work: change it by note-format.md, *Changing a note*.
 
-## Q3 论文如何解决这个问题？ [待答]
+Older notes are leads: a fact in one enters the note once you have found it in the paper. Their structure and wording are no model.
 
-## Q4 论文做了哪些实验？ [待答]
+## Reading
 
-## Q5 有什么可以进一步探索的点？ [待答]
+- Read the whole paper first, figures, tables and appendix included.
+- Answer one question at a time, and write the answer into the file before starting the next. Any answer may draw on any part of the paper.
+- Grow the tree as you go. An answer raises questions about the paper ("the input includes a tumour mask" → "is the mask needed at test time too?"). One whose evidence is in the paper now is asked and answered now, under the question it belongs to. One that waits on a later answer is marked 等 Qn. Nothing is listed ahead.
+- After each answer, look back: which questions it settled, which it raised, whether it overturns an earlier answer. If it does, set that answer back to 进行中 and correct it.
+- The summaries come last (Q8, then the one-sentence summary), built only from the answers written. A fact they need that no answer holds means that answer is short: complete it.
+- A project's questions are answered in your report, with sources, not in the note. Whatever they lead you to find about the paper itself goes into the note like any other answer.
 
-## Q6 总结一下论文的主要内容 [待答]
+**Settling the package.** When your prompt names open findings, settle them as you reach them in the reading. Follow settle.md §1–3 and record with its `doc.py commit`. You check those spots against the PDF anyway, and you know what the text is saying. Where settle.md and this brief differ, this brief wins: you write the note file as well as the package folder, and settle.md's five-part report becomes one section of your report.
 
-## 用在哪里
-```
+## Moving to another version
 
-The paragraph under the title is the **one-sentence summary**: asked last, since it rests on every answer, and shown first, since it is what a later reader reads first. *用在哪里* belongs to the projects (references/notes.md); the reader leaves it as it is.
+When your prompt names a previous version, the note was read in that PDF, and this read moves it onto the one given. A later version can add, change and remove content. Compare the two packages paragraph by paragraph (a diff of their Markdown) and deal with every difference:
 
-## The tree
+- **added**: read and answered like the rest; it grows the tree;
+- **changed**: corrected, with a correction mark that cites the new version;
+- **removed**: the note's sentence stays, with the removal mark (note-format.md, *Marks*).
 
-The note's headings are the question tree: one place for the tree, the answers and their states, which Zotero's Better Notes outline shows as a tree.
-- A question is a heading: number, question, state — `## Q3 论文如何解决这个问题？ [已答]`; its answer is written under it. The six trunk questions are `##`, a question one of them raises `###` (`### Q3.1 推理时也要真值 mask 吗？`), one level further `####`.
-- **States**, in these words: 待答 (not yet), 进行中 (being answered), 已答, 论文没有说明 (the paper does not say: written as such, never guessed), 要看别处 (the code, the supplement — these are the open questions; no separate list), 等 Qn (waits for another answer: `### Q3.2 对比方法也给了 mask 吗？ [等 Q4] → Q4.1`, asked again as Q4.1 under that answer).
-- A blank line before every block (Better Notes cuts its outline by them).
-- A formula in a heading stays as TeX text (Zotero's headings hold no math): keep formulas in the answers.
+Every source in the note then points into the new PDF: check each against it. The 读的版本 paragraph names the new PDF, and so does `pdf:` where the front matter still has it. A previous version that comes without its package is compared through its PDF's text (`pdftotext`); one without a PDF leaves only the new version to check every answer against.
 
-## How to read
+## Product
 
-1. Check the paper: the PDF's title is the one in the brief. Then read the whole paper — every question may use any part of it, the figures, tables and appendix included. Where the package and the PDF differ, the PDF is right.
-2. Answer the trunk in order, Q1 to Q6, one at a time: before each, list the headings — that is the tree — and take the next question that can be answered now. Write the answer into the file and set its state before starting the next.
-3. **Grow the tree as you go.** An answer raises questions about the paper ("the input includes a tumour mask" → "is the true mask needed at inference too?"): one whose evidence is in the paper now is asked now, under the question it belongs to; one that depends on an answer still open waits there (等 Qn). Nothing is listed ahead of time.
-4. **After each answer, look back**: which questions it settled, which it raised, and whether it overturns an earlier answer — then set that one back to 进行中 and correct it.
-5. A project's questions go under the trunk question they belong to, like your own.
-6. **Last, the summaries.** Q6 and the one-sentence summary come only from the answers already written: a fact they need that no answer holds means that answer is short — go back and complete it.
-7. Then reread any part and correct what you wrote.
+- The note file, edited in place.
+- The package folder, settled through `doc.py commit` (when it had open findings).
 
-An answer is **done** when someone who has not read the paper could use it without asking anything: every fact carries the version and page it comes from, a sentence the answer rests on is quoted verbatim with a Chinese line under it, an inference is marked as one, and what the paper does not say is written as 论文没有说明. No first person, and nothing about any project. Chinese prose, terms, names and numbers in English.
+Write only these, plus any drafts of yours in the scratch directory. Putting the note and the package into Zotero is the main agent's work.
 
-Hand the file back when no heading is 待答, 进行中 or 等 Qn and the summary is written (`check_note.py` says `complete`).
+## Done when
+
+1. The PDF's first page shows the title and first author given; otherwise you stopped and reported.
+2. `uv run <paper-read>/scripts/check_note.py <note> --full` prints `complete`.
+3. `uv run <paper-read>/scripts/check_quotes.py <note> --pdf <PDF> --package <package folder>` (no package: without `--package`) prints `pass`. A quotation short of `ok` is settled: an `unparsed` line rewritten in the quotation form; any other compared with the page image, corrected if need be, and marked （已核对 <source> · <date>）.
+4. With a settled package, `doc.py show <package folder>` prints `no open findings`.
+5. Then the self-review: split each answer into its claims, check every claim against the paper, correct what is wrong, and run the checks again.
+6. Your reply ends with the report (*Report*): every project question answered in it, and after a move, every difference listed.
+
+## Report
+
+Your reply is the report; the main agent saves it. Exceptions only:
+
+- the PDF is not this paper;
+- **package**: settle.md's five parts;
+- **library**: an error in the item's tags or fields: which, where, what it should be. A word the field uses for this paper that is not among its `aka/` names is one (`<paper-read>/../paper-to-zotero/references/tagging.md`, *Common name*). The main agent fixes it;
+- **version** (a move): each difference between the two versions, and what it became in the note;
+- **elsewhere**: the questions marked 要看别处, and where the answer would be;
+- **project questions**: each answered, with sources;
+- **self-review**: each correction, one line.
+
+## Rules
+
+- Do the work yourself: send no subagents.
+- Leave git alone.
+- On the web (the paper's code repository, say): one request at a time, seconds apart on one site. A bot check, a 403 or a 429 ends your work on that site: say so in the report.
+- Cannot finish: say what you tried, what is settled and what is missing, and hand back.

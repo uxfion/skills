@@ -1,6 +1,6 @@
 # paper-fetch：脚本和 agent 的分工——脚本判断不了、过不去的地方，没有交给 subagent
 
-> 已解决（2026-11-01）：按 spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` 重新分工。paper-fetch（第一期）和 paper-to-zotero（第二期）都已实现并实测通过，见下面“第一期验收实测”“第二期验收实测”两节。paper-read 这期没做：用户说它的设计还没想全，为它补的脚本细节挪到了 [20261028-paper-to-zotero-paper-notes.md](../20261028-paper-to-zotero-paper-notes.md) 的“paper-read 还没实现的脚本细节”一节，在那里接着定。实测中发现的另一处问题另记为 [20261101-paper-fetch-page-candidates-other-papers-fixed.md](20261101-paper-fetch-page-candidates-other-papers-fixed.md)。
+> 已解决（2026-11-01）：按 spec `docs/specs/20261031-paper-skills-script-agent-division-spec.md` 重新分工。paper-fetch（第一期）和 paper-to-zotero（第二期）都已实现并实测通过，见下面“第一期验收实测”“第二期验收实测”两节。paper-read 这期没做：用户说它的设计还没想全，为它补的脚本细节挪到了 [20261028-paper-to-zotero-paper-notes-fixed.md](20261028-paper-to-zotero-paper-notes-fixed.md) 的“paper-read 还没实现的脚本细节”一节，在那里接着定。实测中发现的另一处问题另记为 [20261101-paper-fetch-page-candidates-other-papers-fixed.md](20261101-paper-fetch-page-candidates-other-papers-fixed.md)。
 
 2026-10-30 记录。场景：拆分后实测 paper-fetch 经学校登录的那条路（spec `20261030-paper-to-zotero-split-spec.md` §11）。
 
@@ -58,7 +58,7 @@
 
 - **作者关键词**：用户选方案 2，不写进 Zotero，只给打标签的 agent 当参考（后来做成开关，这是开关关着时的样子，见下条）。查实的事实：Zotero 对自动标签只有“整批隐藏”和“删除本库所有自动标签”，写进去以后分不出来源，也不能单独删掉；库里现有 453 个自动标签，26 个是 arXiv 分类，其余是 IEEE 索引词和以前的关键词混在一起，37 对只差大小写。用户原话：「2 我们自己用agent打的标签不能丢，另外他那个自动标签也很换乱，我也不是很喜欢」。
 - **自动标签做成开关**：问 arXiv 分类时用户先选 B（不写），我删代码时用户叫停：「停，之前写了那么多，不就白费了，直接加个开关不就好了，我想要导入自动标签就导入，不想要就不要」，「这样不是会更优雅吗」。定为配置 `automatic_tags`，默认关，管 arXiv 分类和作者关键词；某次导入另说就只开这一次。细节见 spec §9 第 5 条。
-- **paper-read**：用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。这期先不实现；待讨论的脚本细节记在论文笔记 issue `20261028-paper-to-zotero-paper-notes.md` 的“paper-read 还没实现的脚本细节”一节。
+- **paper-read**：用户 2026-10-31：「paper read实际上还没有设计考虑完全，等你把其他的都做好后，再和我讨论完善spec，之前只是在issue中的一个最简单的初稿吧」。这期先不实现；待讨论的脚本细节记在论文笔记 issue `20261028-paper-to-zotero-paper-notes-fixed.md` 的“paper-read 还没实现的脚本细节”一节。
 
 ## 第一期验收实测（2026-10-31）
 

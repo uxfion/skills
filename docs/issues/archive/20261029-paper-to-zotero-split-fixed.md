@@ -1,14 +1,14 @@
 # paper-to-zotero 越长越臃肿：查文献、取全文、读论文应该拆成独立的 skill，p2z 只管 Zotero 这一层
 
-> 已解决（2026-11-01）：按 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` 拆成 paper-fetch、paper-to-zotero、paper-read 三个 skill。对照基线、code-review、写进 `tmp` 的实写和实测导入都通过了，和后面的重新分工一起提交、推送，并从 GitHub 重装。脚本和 agent 的重新分工见 [20261030-paper-fetch-script-agent-division-fixed.md](20261030-paper-fetch-script-agent-division-fixed.md)；读论文的流程和笔记格式还在 [20261028-paper-to-zotero-paper-notes.md](../20261028-paper-to-zotero-paper-notes.md) 里讨论。参考资料文件夹删了，还要用的去处见下面“参考资料”一条。
+> 已解决（2026-11-01）：按 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` 拆成 paper-fetch、paper-to-zotero、paper-read 三个 skill。对照基线、code-review、写进 `tmp` 的实写和实测导入都通过了，和后面的重新分工一起提交、推送，并从 GitHub 重装。脚本和 agent 的重新分工见 [20261030-paper-fetch-script-agent-division-fixed.md](20261030-paper-fetch-script-agent-division-fixed.md)；读论文的流程和笔记格式还在 [20261028-paper-to-zotero-paper-notes-fixed.md](20261028-paper-to-zotero-paper-notes-fixed.md) 里讨论。参考资料文件夹删了，还要用的去处见下面“参考资料”一条。
 
-- 来源：用户 · 2026-10-29。在设计论文笔记的读法时提出，那张 issue 是 [20261028-paper-to-zotero-paper-notes.md](../20261028-paper-to-zotero-paper-notes.md)。当时问题树刚定下来（那张 issue 的已定 28），用户说「A。 先不要在问了。有个设计上的非常重要的问题」，接着说了下面这段话。
+- 来源：用户 · 2026-10-29。在设计论文笔记的读法时提出，那张 issue 是 [20261028-paper-to-zotero-paper-notes-fixed.md](20261028-paper-to-zotero-paper-notes-fixed.md)。当时问题树刚定下来（那张 issue 的已定 28），用户说「A。 先不要在问了。有个设计上的非常重要的问题」，接着说了下面这段话。
 - 参考资料：原在 `20261029-paper-to-zotero-split-reference/`（git 不跟踪），2026-11-01 结案时删了。下文提到的报告文件名只是当时的出处，结论都记在对应条目和 spec 里。还要用的挪到了别处：
-  - Node 裁判：论文笔记 issue 参考资料文件夹的 `node-judge/`；
+  - Node 裁判：`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`；
   - 元数据改进的做法：issue `20261101-paper-fetch-metadata-from-zotero.md`；
   - 库里有毛病的条目：记忆 `zotero-library-todo`。
 
-  笔记格式、Better Notes 源码、实测结果一直放在论文笔记那张 issue 的参考资料文件夹里。
+  笔记格式、Better Notes 源码、实测结果一直放在论文笔记那张 issue 的参考资料文件夹里（2026-11-03 那张关闭时，笔记和 Better Notes 的调研挪到了 `20261103-paper-read-note-images-reference/`）。
 - 状态：2026-11-01 结案（见开头）。spec §10 第 0 到 6 步、§11 的验证和 code-review 都已完成，待验证 2（真编辑器核对）也做完了。
 - 和论文笔记那张 issue 的关系：读论文的流程、问题树和笔记格式，原来都打算放进 p2z（那张 issue 的"分工"一节）。如果按这张 issue 拆分，它们就归新的读论文 skill，p2z 只负责把笔记存进 Zotero、再取出来。
 
@@ -53,8 +53,8 @@
     我推荐 A。用户：「A」。定为已定 13。
 19. 我说了 p2z 笔记命令打算补的四样：读回成 Markdown、写两层列表、建独立笔记并设"相关"、按正文搜。然后问先写拆分的 spec，还是先把论文笔记的问题定完。我推荐方案 1，现在就写。用户：「1 . 有一个问题啊，刚才你提到的，我不太懂 Zotero 里面的笔记是用什么格式保存的，怎么用，你需要去查清楚。还有，我知道有一个叫做 Better Notes的插件，而且我也已经安装了。」
     - 我查到用户装的插件是 Better Notes for Zotero 3.3.3，另外还有 Better BibTeX 9.0.71、Zoplicate 5.1.1、Translate for Zotero 2.4.8、Ethereal Style 6.0.99。
-    - 笔记的存储格式，2026-10-28 已经查过，见 `20261028-paper-to-zotero-paper-notes-reference/zotero-notes.md`。
-    - Better Notes 当时只凭记忆写了一句，这次另派一个 agent 去查，结果写进同一个参考资料文件夹的 `better-notes.md`。
+    - 笔记的存储格式，2026-10-28 已经查过，见 `20261103-paper-read-note-images-reference/zotero-notes.md`。
+    - Better Notes 当时只凭记忆写了一句，这次另派一个 agent 去查，结果写进`20261103-paper-read-note-images-reference/better-notes.md`。
     - 定为已定 14：先写拆分的 spec。写之前先把笔记格式和 Better Notes 查清楚，因为 p2z 的笔记命令要按查到的情况来定。
 20. 我先用库里两条真实笔记讲了存储格式：一条是用户在编辑器里写的，外面包着 `<div data-schema-version="9">`；一条是 agent 经接口写的，是裸 HTML。用户：「具体关于 Zotero 里面笔记相关的内容，所有的信息内容是怎么存的，以及有哪些限制，你都需要查清楚。然后markdown具体怎么转换的？因为我看到 Better Notes 里面是有一个从 Markdown 导入的，它有没有相关的api等，这些都需要前期去调研清楚，你才能进行下一步」
     - 我另派一个 agent 补 Zotero 本身的空缺：数据库怎么存、同步服务器的清洗、图片、编辑器打开和保存外来 HTML 时的行为、Zotero 自己的 Markdown 粘贴和复制。结果写进 `zotero-notes-storage.md`。
@@ -109,7 +109,7 @@
     查清之前不再提方案，树用哪种形式也一并暂缓。
 28. 用户：「B . 另外装这个Zotero Debug Bridge插件完全可以，而且能便利化很多。或者你再查一下有没有更好的方案，其实，如果原作者就是他的话，我们倒真可以用起来，我只是以防万一有更好的选项让你去查一下」。定为已定 15、16。论文笔记那张 issue 的已定 28 和"问题树"一节已经跟着改了。
 29. 用户：「能复用就尽量复用，我的原则。我们避免去造这种复杂的轮子，能用起来就用别人的，而且本身 Zotero 的插件系统就是比较完善的」。定为已定 17。
-30. 查 Zotero 笔记存储和限制的调研回来了，见论文笔记那张 issue 参考资料里的 `zotero-notes-storage.md`。用户：「https://zotero-chinese.com/ 我一般找插件都是在这个网页上」。我让查对外接口的那个 agent 把这个站的插件列表也查一遍：找能让外面程序调用的插件，以及处理笔记、Markdown 的插件，每个都对照它的 GitHub 仓库核实。只交给这一个 agent，免得两个 agent 同时访问同一个网站。
+30. 查 Zotero 笔记存储和限制的调研回来了，见`20261103-paper-read-note-images-reference/zotero-notes-storage.md`。用户：「https://zotero-chinese.com/ 我一般找插件都是在这个网页上」。我让查对外接口的那个 agent 把这个站的插件列表也查一遍：找能让外面程序调用的插件，以及处理笔记、Markdown 的插件，每个都对照它的 GitHub 仓库核实。只交给这一个 agent，免得两个 agent 同时访问同一个网站。
 31. Better Notes 对外使用的调研回来了，见 `better-notes-external.md`。要点：
     - 没有对外接口，也没有计划做；
     - 有 6 个项目在 Zotero 里面跑代码、另开出口来用它，只用到最简单的 `md2html` 和 `html2md`；
@@ -360,7 +360,7 @@
     - **兜底机制自己要补两处**：相邻的同类列表要换分隔符，或者合成一块读；一块非空的内容读成空 Markdown 时要退回 HTML。另外，写入器写围栏代码块时，`<pre>` 结尾会多一个换行，要用第一次选型那条规则去掉。
 56. 用户：「那就是还是我们原来的方案，然后加兜底」。定为已定 21。下一个问题：兜底时靠什么判断"这一块对不上"。
 57. 我给了兜底判断的三个选项：A 纯 Python 自检（读两次一样、看得见的文字一字不差，加两条通用规则）；B 旧的仿编辑器程序；C 编辑器源码做的新裁判，运行时带 Node。我推荐 A。用户：「但是，你需要全面地设计一下，要把这个东西写得优雅一点，就是把它抽象成一个脚本，然后就可以相互转换」。我把转换整体设计成 p2z 里的一个双向脚本，A 放在里面当兜底，设计见下一条回复，等用户看。
-58. 用户（我写设计时插话）：「Skills 本来就只用纯 Python 的，我从来没有想要引入过 Node。」所以选项 C 不成立。skill 的代码和它在仓库里的测试都只用 Python。用编辑器源码做的 Node 裁判，只作为这次设计用的量具，留在 git 忽略的参考文件夹里（结案时挪到论文笔记 issue 参考资料文件夹的 `node-judge/`），不进 skill，也不进仓库测试。skill 调用的外部命令行工具（比如 OpenCLI）是工具，不算 skill 代码。
+58. 用户（我写设计时插话）：「Skills 本来就只用纯 Python 的，我从来没有想要引入过 Node。」所以选项 C 不成立。skill 的代码和它在仓库里的测试都只用 Python。用编辑器源码做的 Node 裁判，只作为这次设计用的量具，留在 git 忽略的参考文件夹里（结案时挪到`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`），不进 skill，也不进仓库测试。skill 调用的外部命令行工具（比如 OpenCLI）是工具，不算 skill 代码。
 59. 我给出转换脚本的整体设计（`note_md.py`，见那条回复），问用户整体这样设计可不可以。用户先说了只用 Python 的原因：「因为 UV 这一套对于包管理、像命令行一样的脚本调用，这些都管理得很好。而且它还有包内脚本的包管理，可以直接运行。我就不喜欢在外面再去加什么东西，只要一个 UV 就可以解决」。对设计的影响：markdown-it-py 和两个插件写进脚本的 PEP 723 块，由 uv 取，不再像第一次选型提议的那样把插件代码拷进仓库。
 60. 用户：「不对，我觉得调用方式还是要再抽象出来，有点类似 Linux 的设计理念，可以支持管道或者参数。你不要太草率，Linux 的设计理念我记得我们这个项目中之前也提到过」，接着说：「而且你现在这么写 to-md 或者 to-html 有点怪怪的吧」。项目里之前定过：p2z v2 spec（`docs/specs/20260923-paper-to-zotero-v2-spec.md`）已定 5「接口按 Unix 方式」，脚本是过滤器，管道让循环消失；§3.3 的约定是输入用路径，没给路径就读 stdin，输出到 stdout，诊断写 stderr，`-i` 写回原文件。现在的 `note.py` 是用 `--file`/`--text` 给内容，不是这个样子，正好借这次改过来。`structured take` 仍然写进目录，因为结构化包是一个文件夹，不是一条流。草稿在 `note-cli-draft.md`。我的提议（等用户定，一次问一个）：
     - 转换脚本 `note_md.py` 做成过滤器：`note_md.py [文件]` 把笔记转成 Markdown，`note_md.py -r [文件]` 反过来，和 `xxd -r` 一个路数；不给文件就读 stdin，结果写到 stdout。方向不用格式名来叫；
@@ -499,7 +499,7 @@
 18. **先不装桥接插件**（第 35 条，方案 A）：三个 skill 都只走本地 API。笔记读回 Markdown 也在 Zotero 外面做。选哪个 Markdown 工具，要先调研、比较（`markdown-tools.md`）再定。以后真有功能非在 Zotero 里面跑不可，再按已定 17 比较，决定要不要装。已定 16（"可以装 Debug Bridge"）就此搁置。
 19. **写入用 markdown-it-py**（第 47、48 条，用户定）：commonmark 加表格、dollarmath、中文加粗修正，打开 `html=True` 透传原始 HTML。写入器用 Markdown，也就是笔记按 Markdown 写（第 41 条的方案 C），不全用 HTML。读回用什么还没定。
 20. **读回用我们自己写的 Python 读回器**（第 48 到 50 条，方案 1）：只把写入器认得的那一小组写法转回 Markdown，其余原样保留成 HTML，只用标准库。参考 Better Notes 的是知识、识别规则和测试样例；它的转换代码是 TS 写在 unified 的语法树上，和我们的 Python 读回器搬不到一起，所以不搬代码。许可证不作考虑（第 52 条）。采用前做盲测（第 50 条）。
-21. **读回用子集读回器，加按块兜底**（第 53 到 56 条）：每个顶层块读成 Markdown，判断对不上的块原样保留成 HTML。这是在同一套盲测样例上和 12 个别的读回器重新比较后选的（`reselect-blind.md`）。兜底机制要补两处：相邻的同类列表、非空块读成空 Markdown。skill 和它的测试只用 Python（第 58 条）；用编辑器 schema 代码做的 Node 裁判只是这次设计的量具，留在参考文件夹里（结案时挪到论文笔记 issue 参考资料文件夹的 `node-judge/`）。盲测样例留作不调参的检验集（后来 spec §5.6 改定：这些样例都看过了，只作开发和回归用；另派 agent 写的新一批才算检验）。运行时靠什么判断"对不上"，见第 57 条以后。
+21. **读回用子集读回器，加按块兜底**（第 53 到 56 条）：每个顶层块读成 Markdown，判断对不上的块原样保留成 HTML。这是在同一套盲测样例上和 12 个别的读回器重新比较后选的（`reselect-blind.md`）。兜底机制要补两处：相邻的同类列表、非空块读成空 Markdown。skill 和它的测试只用 Python（第 58 条）；用编辑器 schema 代码做的 Node 裁判只是这次设计的量具，留在参考文件夹里（结案时挪到`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`）。盲测样例留作不调参的检验集（后来 spec §5.6 改定：这些样例都看过了，只作开发和回归用；另派 agent 写的新一批才算检验）。运行时靠什么判断"对不上"，见第 57 条以后。
 22. **转换方向用 `-t md|note` 指定**（第 60 到 62 条，方案 B）：和 pandoc 的 `-t` 一样。命令行同时支持管道和参数，约定照 p2z v2 spec 的 §3.3。
 23. **转换脚本叫 `note_md.py`，front matter 只在它一处读写**（第 62 到 64 条）：`-t md|note`；`to_md(html, meta)` 和 `to_note(md) -> (html, meta)`；`note.py` 只处理 `meta` 字典。`note.py take/put` 和 `note_md.py` 用同一套输入输出约定。p2z 的输出选项统一成 `-o/--out`，`-t/--to` 只表示格式。
 
@@ -518,7 +518,7 @@
 
      p2z 读这几张表，就能把 CSL 转成 Zotero 条目 JSON，然后照旧走 `check_item` 预览，再由 `create_item` 经本地 API 建条目。对照表是 Zotero 自己的，运行时读取，不用写死在代码里；也不碰用户的窗口；引用键直接对上。`doi_to_item` 里那三四百行手写的转换，大部分可以换成按表转换。剩下的特殊情况：疑似勘误的提醒、从网页 meta 补字段，属于认论文，归 paper-fetch，写进它结果文件里的 `warnings` 和 `metadata`；arXiv 分类标签是怎么打标签的问题，归 p2z。
    - 用户选了方案 B（第 17 条，已定 12）。
-2. **用真的 Zotero 编辑器核对读回器**（第 53 条）：2026-10-30 做完，结果见第 73 条。做法：用 `note put` 把 79 个样例（去掉了引用库里条目的引文、批注、图片）拼成一条测试笔记"p2z note_md 真编辑器核对（测试，可删）"，用户在 Zotero 里打开、改了几处，再 `note take` 回来，按模型和送进去的比对。测试笔记已移进回收站，送进去和存回来的两版 HTML 结案时挪到了论文笔记 issue 参考资料文件夹的 `node-judge/`，留作核对 Node 裁判的样例。
+2. **用真的 Zotero 编辑器核对读回器**（第 53 条）：2026-10-30 做完，结果见第 73 条。做法：用 `note put` 把 79 个样例（去掉了引用库里条目的引文、批注、图片）拼成一条测试笔记"p2z note_md 真编辑器核对（测试，可删）"，用户在 Zotero 里打开、改了几处，再 `note take` 回来，按模型和送进去的比对。测试笔记已移进回收站，送进去和存回来的两版 HTML 结案时挪到了`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`，留作核对 Node 裁判的样例。
 
 ## 待定（之后一件一件来）
 

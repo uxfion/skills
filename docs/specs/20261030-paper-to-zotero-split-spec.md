@@ -5,10 +5,10 @@
 > **草稿第二版**（2026-10-30）。第一版过了三份审阅：是否忠于决定、技术对不对、新 agent 能不能照着做。这一版按审阅改过，advisor 审过一轮，给用户看过以后又自审了一轮（§14 记了改了什么）。实现过程中如有修正，直接改本文。
 > 来源：
 > - [archive/20261029-paper-to-zotero-split-fixed.md](../issues/archive/20261029-paper-to-zotero-split-fixed.md)：拆分、交接、笔记的格式和转换，已定 1 到 23；
-> - [20261028-paper-to-zotero-paper-notes.md](../issues/20261028-paper-to-zotero-paper-notes.md)：论文笔记的读法和格式，拆分后归 paper-read。
+> - [archive/20261028-paper-to-zotero-paper-notes-fixed.md](../issues/archive/20261028-paper-to-zotero-paper-notes-fixed.md)：论文笔记的读法和格式，拆分后归 paper-read。
 >
 > 依据放在两张 issue 旁边的参考资料文件夹里，git 不跟踪。拆分这张的文件夹 2026-11-01 结案时删了：要点已经写进本文，下文提到的报告文件名只是当时的出处。还要用的两样挪到了别处：
-> - Node 裁判：论文笔记 issue 参考资料文件夹的 `node-judge/`；
+> - Node 裁判：`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`；
 > - 元数据改进的做法：issue `20261101-paper-fetch-metadata-from-zotero.md`。
 >
 > 论文笔记那张的文件夹里有 `zotero-notes-storage.md`、`better-notes.md`、`note-roundtrip-test.md`。
@@ -595,8 +595,8 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 - **`tests/test_note_md.py`**：纯 Python。每个样例都要：读成期望的 Markdown；写回以后按模型和原样相同（保证 1）；再读一次得到同样的 Markdown（保证 2）。另外检查哪些块退回了 HTML（14 个样例里有，都是 Markdown 说不了的：带属性的块、合并或着色的单元格、没有表头行的表格、带加粗的代码块、Better Notes 的任务列表）、front matter、写入的修正和命令行。`tests/test_note.py` 用假 Zotero 测 take、put、list。
 - **哪些不算盲测**：这些样例都看过了，是开发和回归用的。以后另派一个 agent，不看代码，按编辑器 schema 写一批新样例，只跑一次，那一批才算检验，之后也并进回归样例。
 - **保证 1 怎么验**：
-  - 开发时原想用参考文件夹里那个 Node 裁判量一下（结案后在论文笔记 issue 参考资料文件夹的 `node-judge/`），但它的 `node_modules` 已经没有了，重装是装非 Python 的东西，要用户同意，所以这次没用。
-  - 用真编辑器核对（issue 的待验证 2、第 73 条）：2026-10-30 做完。79 个样例拼成一条笔记，用户在 Zotero 里改过以后取回比对：差别都是用户的改动或编辑器自己的规范化（样式重写、链接加 `rel`、标记的先后、合并着色单元格的背景色拷到文字上），没有转换器丢的；存回来的那版读出写回不变。它暴露了一条编辑器规则：标题不收公式，写入因此加了修正 5。送进去和存回来的两版 HTML 结案时挪到了论文笔记 issue 参考资料文件夹的 `node-judge/`，留作核对 Node 裁判的样例。
+  - 开发时原想用参考文件夹里那个 Node 裁判量一下（结案后在`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`），但它的 `node_modules` 已经没有了，重装是装非 Python 的东西，要用户同意，所以这次没用。
+  - 用真编辑器核对（issue 的待验证 2、第 73 条）：2026-10-30 做完。79 个样例拼成一条笔记，用户在 Zotero 里改过以后取回比对：差别都是用户的改动或编辑器自己的规范化（样式重写、链接加 `rel`、标记的先后、合并着色单元格的背景色拷到文字上），没有转换器丢的；存回来的那版读出写回不变。它暴露了一条编辑器规则：标题不收公式，写入因此加了修正 5。送进去和存回来的两版 HTML 结案时挪到了`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`，留作核对 Node 裁判的样例。
 
 ## 6. 命令行约定（三个 skill 通用）
 

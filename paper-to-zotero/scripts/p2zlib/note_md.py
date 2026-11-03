@@ -399,11 +399,12 @@ def render(body: str) -> str:
 
 
 def to_note(md: str) -> tuple[str, dict]:
-    """The note's HTML, inside the editor's wrapper when the front matter carries one; the other keys as meta."""
+    """The note's HTML, inside the editor's wrapper when the front matter carries one; the other keys as meta. Without
+    the wrapper, no newline at the end: Zotero stores the note without it, and put reads the note back as stored."""
     meta, body = split_meta(md)
     schema, items = meta.pop("schema", None), meta.pop("citation-items", None)
     if schema is None and items is None:
-        return render(body), meta
+        return render(body).rstrip("\n"), meta
     wrapper = {"data-schema-version": schema or "9", **({"data-citation-items": items} if items else {})}
     return f"<div{attr_html(wrapper)}>{render(body)}</div>", meta
 
