@@ -86,6 +86,8 @@ The standard is the writing-for-agents skill *(mattpocock)*: every document foll
 
 **Words the reader already knows.** Name things with the words the reader uses: a role as main agent, subagent or user (用户), never a word like 人 that could mean any of them; a thing by a plain description, rather than a coined label or metaphor ("two halves") the reader has to decode. A new term, or one you are unsure reads well, goes to the user with what it means before it is used, settled there rather than kept in a glossary (as mattpocock/skills does); until they settle it, the thing is described in plain words.
 
+**Write from the task, not from an old document.** An old document, note, draft or template is a lead for facts, which are then checked; it is never the model for structure, order, wording or argument. The shape comes from the current task, its reader and what they need now.
+
 **Skill text** leaves out what other layers govern (examples simply use `uv run`). Each external CLI gets one labelled example, plus dated hints of practices established, with run-time discovery authoritative. It holds no personal facts: the repo is public, and root AGENTS.md has the placeholders. Principles like these, and a skill's way of reaching pages, are written into each skill's own prompt, not into the global instructions.
 
 **Language by reader.** What agents read (SKILL.md and its references, AGENTS.md, briefs, memory) is English, quoting the user verbatim in Chinese; what the user reads (README, specs, issues, reports) is Chinese.

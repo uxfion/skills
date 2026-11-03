@@ -3,6 +3,7 @@
 - 来源 · 日期：2026-11-01，交接标准的审查（issue `archive/20261101-skills-handoff-standard-fixed.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）。用户把那次的范围定为只改 paper-fetch 和 paper-to-zotero（「A」），其余 skill 记下来以后改：「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。
 - 条目编号（PO-1 到 PO-9）指文末附的审查条目原文。paddleocr 的 settle brief 是审查里最好的样板（PO-4）：brief 本身是一个文件，按路径交给 subagent，subagent 是那个文件夹唯一的写入者，用 `doc.py commit` 记下，每一节有完成条件，回报分五部分。交接标准的"brief 按读者拆成两半"就是照它来的。
 - 状态：open。等交接标准在 paper-fetch、paper-to-zotero 落地、spec 定稿后再改；由维护 paddleocr 的会话来做。
+  - 2026-11-02：交接标准已落地（d9bb12f），这张却暂缓。用户：「因为 vLLM serve 和 PaddleOCR 这些是外部的，如果能用的话，且不阻塞我们当前的进程，我可以暂缓」。等它碰到问题，或者挡住别的工作时再做。第 4 条（结构化包谁来整理）不等，随论文笔记那张 issue 的 paper-read 设计一起定。
 
 ## 要改的
 
@@ -10,6 +11,7 @@
 2. **安装要不要等用户点头（PO-3，和 vllm-serve 的 VS-5 相反）**：paddleocr 的 install.md:12 说先等用户同意，vllm-serve 说直接装。用户的规矩是用 uv 装的 Python 包不用批准，支持 vllm-serve 那边。两张 issue 一起统一。
 3. **回报之后还有没处理的问题（PO-6）**：subagent 回报后，`doc.py show` 仍列出没处理的问题时，主 agent 该退回同一个 subagent，还是自己处理，没写。
 4. **结构化包谁来整理（PO-7）**：paper-read 的 *Look it up* 会整理（经 paddleocr 第 2、3 步），而通读一篇的 *Read a paper* 不整理；p2z SKILL.md:63 要求"有了确定的结论就 `structured put`"，*Read a paper* 没提。和 paper-read 的设计一起定（paper-notes issue）。
+   - 2026-11-02 定了（论文笔记 issue 已定 46）：整篇精读时，由读论文的 subagent 顺手整理，照 paddleocr 的 `references/settle.md`、用 `doc.py commit` 记下，主 agent 再 `structured put`。spec `docs/specs/20261102-paper-read-notes-spec.md` §3.3、§7。paddleocr 这边要不要改，等实施 paper-read 时看。
 5. **改 `conventions.py` 归谁定（PO-8）**：那是改 skill 的代码，按仓库规矩要用户定；"在回报里说"到了主 agent 那里，没有一步把它转给用户。
 6. **整体对一遍标准**：
    - brief 按读者拆成两半；

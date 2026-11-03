@@ -3,6 +3,7 @@
 - 来源 · 日期：2026-11-01，交接标准的审查（issue `archive/20261101-skills-handoff-standard-fixed.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）。用户把那次的范围定为只改 paper-fetch 和 paper-to-zotero（「A」），其余 skill 记下来以后改：「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。
 - 条目编号（VS-1 到 VS-10）指文末附的审查条目原文。整体上 vllm-serve 写得好：脚本的每种输出都写明了对应的动作，要用户定的事也都标了（VS-2、VS-9）。
 - 状态：open。等交接标准在 paper-fetch、paper-to-zotero 落地、spec 定稿后再改，因为标准本身可能还会调整；由维护 vllm-serve 的会话来做。
+  - 2026-11-02：交接标准已落地（d9bb12f），这张却暂缓。用户：「因为 vLLM serve 和 PaddleOCR 这些是外部的，如果能用的话，且不阻塞我们当前的进程，我可以暂缓」。等它碰到问题，或者挡住别的工作时再做。
 
 ## 要改的
 
