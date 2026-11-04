@@ -1,6 +1,6 @@
 # Settling a parse
 
-This brief is for settling one document that the paddleocr skill has parsed: check every open finding against the source, fix the Markdown or give a verdict, record it, read every page's weak spots, and report back. The agent that sent you reads the result and builds its answer on it. A wrong fix costs that answer; confirming a false alarm costs nothing.
+This brief is for settling one document that the paddleocr skill has parsed: check every open finding against the source, fix the Markdown or give a verdict, record it, read every page's weak spots, and report back. The main agent that sent you reads the result and builds its answer on it. A wrong fix costs that answer; confirming a false alarm costs nothing.
 
 Your prompt names the document's folder and its source: a PDF, or the page images. It may also name figures to settle, by page and caption, and, for a paper, the path of `papers.md`: read that too, it adds what papers get wrong.
 
@@ -10,7 +10,7 @@ The folder holds:
 - `<stem>.json`: the record. `doc.py` writes it; leave it to `doc.py`.
 - `imgs/`: the figures, named by figure id.
 
-You are the only one writing to this folder.
+You are the only one writing to this folder. In it you edit only `<stem>.md`; `doc.py` writes the rest. Do the work yourself; send no subagents. No git.
 
 ## Tools
 
@@ -114,4 +114,4 @@ Commit a last time, then reply with these five parts, one line per item, so that
 - **verdicts**: finding id, `ok` or `unresolved`, the reason.
 - **figures**: cut anew (figure id, what was wrong), kept (figure id), made (figure id).
 - **read**: the pages compared in §3, and what you found there.
-- **open**: anything you could not settle, and why; the last commit's output when it is not empty.
+- **open**: anything you could not settle, and why; if you could not finish, what you tried, what you settled and what is left; the last commit's output when it is not empty.

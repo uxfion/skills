@@ -27,7 +27,13 @@ What to do on each extra field and each error (`{"error", "detail"}`, exit 2):
 - `host`: clients on other machines reach the server at this machine's address and the url's port.
 - `differs`: the server runs as shown there; use it as it is. To start it as you asked, `down` it once `status` shows it idle, then `up`.
 - `foreign_cuda`: report it to the user and fix it per install.md; then `down` and `up`, until `up` shows none.
-- `server_failed`: read the log named in `detail`. A long log goes to a background subagent on a cheap model (Claude Code `sonnet`, Codex `luna`), briefed with the log's path (on a server, with the `ssh` command that reads it) and install.md's section "A server that does not start, or loads foreign CUDA"; it returns the lines that give the cause and the entry they match, if any. Act on the entry, then `up`. No entry matches: work from the cause lines, then tell the user the cause and the fix, as a dated hint for install.md.
+- `server_failed`: read the log named in `detail`. A long log goes to a background subagent on a cheap model (Claude Code `model: "sonnet"`, Codex `luna`), sent with:
+
+  ```text
+  You are reading a vLLM server's log for the vllm-serve skill. The log: <its path; on a server, the ssh command that prints it>. Read all of it, then <vllm-serve's directory>/references/install.md, section "A server that does not start, or loads foreign CUDA". Reply with the log lines that give the cause, verbatim, and the entry of that section they match, or "no entry"; when no line gives a cause, "no cause" and the log's last 30 lines. Done when every traceback in the log is accounted for in your reply. Write no files, send no subagents, no git. If you cannot read the log, say what you tried.
+  ```
+
+  Act on the entry, then `up`. No entry matches: work from the cause lines, then tell the user the cause and the fix, as a dated hint for install.md.
 - `the last start of <profile> failed` on `up`'s stderr, or `"failed": true` in a stopped profile's `last` in `status`: the previous start ended in a failure that may have gone unseen, a hang or a crash while serving. Read its log, named there, as for `server_failed`; the new start is already under way, so while the cause is still there, `down` it and fix that first.
 - `port_busy`: `detail` names what holds the port.
   - A profile of ours serving the model you need, where you need it: `up` that profile instead.

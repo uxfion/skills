@@ -1,8 +1,20 @@
 # vllm-serve：按交接标准改它的几处交接
 
+> 已改（2026-11-04），和 paddleocr 那张一起（[20261101-paddleocr-handoff-standard-fixed.md](20261101-paddleocr-handoff-standard-fixed.md)）。暂缓是用户 11-02 定的（下面"状态"），今天用户解除：「那我觉得完全可以按交接标准改好，然后一起去提交推送啊」。逐条按设计原则和用户定过的规矩处理：
+> - **1（VS-3）采纳**：SKILL.md 的 `server_failed` 一条后面加了一段派发文字，作为读日志 subagent 的 brief，写明：
+>   - 交回什么：原样的出错行和 install.md 里对上的条目；对不上写"no entry"；一行原因都找不出，写"no cause"并附日志末尾 30 行；
+>   - 完成条件：日志里每个报错都在回复里有交代；
+>   - 规矩：不写文件，不派 subagent，不碰 git；读不了日志就说试过什么。
+>
+>   没另建 brief 文件：只有一个只读的角色、几行字，交接标准本来就允许"写成段落"。也没写进 install.md 那一节，因为那一节是主 agent 和用户自己排查时读的。
+>   - "长日志"多长算长，不规定：按设计原则 §4"只约束必须成立的事"，由主 agent 判断。
+> - **2（VS-5）不用改**：vllm-serve 现在的写法（告诉用户、直接装）就是用户的规矩；paddleocr 那边改成了一样的。
+> - **3 整体对一遍**：两边的模型、角色名早已写明；VS-10（"client"指谁）当时审查就判过"可以接受"，不改。
+>   - 没加交接索引表：*When `up` says more* 已经按输出逐条写了怎么做（审查评为范例），加一张表只是第二份副本。
+
 - 来源 · 日期：2026-11-01，交接标准的审查（issue `archive/20261101-skills-handoff-standard-fixed.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）。用户把那次的范围定为只改 paper-fetch 和 paper-to-zotero（「A」），其余 skill 记下来以后改：「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。
 - 条目编号（VS-1 到 VS-10）指文末附的审查条目原文。整体上 vllm-serve 写得好：脚本的每种输出都写明了对应的动作，要用户定的事也都标了（VS-2、VS-9）。
-- 状态：open。等交接标准在 paper-fetch、paper-to-zotero 落地、spec 定稿后再改，因为标准本身可能还会调整；由维护 vllm-serve 的会话来做。
+- 状态：已改，见开头。原来：open。等交接标准在 paper-fetch、paper-to-zotero 落地、spec 定稿后再改，因为标准本身可能还会调整；由维护 vllm-serve 的会话来做。
   - 2026-11-02：交接标准已落地（d9bb12f），这张却暂缓。用户：「因为 vLLM serve 和 PaddleOCR 这些是外部的，如果能用的话，且不阻塞我们当前的进程，我可以暂缓」。等它碰到问题，或者挡住别的工作时再做。
 
 ## 要改的

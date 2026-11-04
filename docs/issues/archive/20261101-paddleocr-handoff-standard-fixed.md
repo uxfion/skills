@@ -1,8 +1,21 @@
 # paddleocr：按交接标准改它的几处交接
 
+> 已改（2026-11-04），和 vllm-serve 那张一起。暂缓是用户 11-02 定的（下面"状态"），今天用户解除：「那我觉得完全可以按交接标准改好，然后一起去提交推送啊」。逐条按设计原则和用户定过的规矩处理，没有新的决定要用户定（用户：「你这些决策我觉得不应该让我一条一条看吧，你根据我们定下的 design principle 过一遍就好了」）：
+> - **1（PO-4）采纳**：
+>   - SKILL.md 派整理 subagent 时写上两边的模型（Claude Code `sonnet`，Codex `luna`）；
+>   - 派发清单补上"任务要用、但没有发现标出的图，按页码和图注"；
+>   - settle.md 写明在包文件夹里只改 `<stem>.md`、记录和图片由 `doc.py` 写，自己做、不派 subagent、不碰 git。没写成"只能写这个文件夹"，因为 paper-read 读论文的 subagent 也照 settle.md 整理包，它还要写笔记文件；
+>   - "做不完时说试过什么、定了什么、还缺什么"并进回报的 **open** 一行；"the agent that sent you" 改成 main agent。
+> - **2（PO-3）采纳**：install.md 改成告诉用户、直接装（uv 工具）。依据是用户 2026-10-09 的规矩：「Python工具因为使用的是UV，你可以随便调用或者下载」。poppler 是系统软件，照旧要用户批准。
+> - **3（PO-6）采纳**：回报后 `doc.py show` 还列着没处理的问题，就把输出原样发回同一个 subagent；接不上时另派一个，带上同一份 brief、文件夹现状、这份输出和上一位的回报。写法照 paper-read。
+> - **4（PO-7）不用改**：论文笔记 issue 已定 46 定了，paper-read 已实现，paddleocr SKILL.md 现在的写法和它相符。
+> - **5（PO-8）采纳，换了走法**：别的项目里装的 skill 是从 GitHub 装的副本，在那里改 `conventions.py` 会和仓库分叉，重装时也会被覆盖。现在由整理的 subagent 在回报里写出图注写法并附例子，主 agent 在汇报里转告用户，再到本仓库开 issue。这是用户说过的路子（[20261103-paper-read-flows-not-run.md](../20261103-paper-read-flows-not-run.md)：「我会让项目中的 Agent 开张issue到这边来的」）。papers.md 那句相应改了。
+> - **6 整体对一遍**：brief 分两处（SKILL.md 的派发说明、settle.md）、产物和完成条件（settle.md 每节都有）、固定规矩、两边的模型、角色名，现在都齐了。
+>   - 没加交接索引表：paddleocr 只有一种 subagent，每个停点在所在步骤里已经写明谁接手，加一张表只是第二份副本。这一条也不在本 issue 的清单里。
+
 - 来源 · 日期：2026-11-01，交接标准的审查（issue `archive/20261101-skills-handoff-standard-fixed.md`，spec `docs/specs/20261101-skills-handoff-standard-spec.md`）。用户把那次的范围定为只改 paper-fetch 和 paper-to-zotero（「A」），其余 skill 记下来以后改：「其他 skills 里面相关的，你要记个todo或issue，到时候去优化」。
 - 条目编号（PO-1 到 PO-9）指文末附的审查条目原文。paddleocr 的 settle brief 是审查里最好的样板（PO-4）：brief 本身是一个文件，按路径交给 subagent，subagent 是那个文件夹唯一的写入者，用 `doc.py commit` 记下，每一节有完成条件，回报分五部分。交接标准的"brief 按读者拆成两半"就是照它来的。
-- 状态：open。等交接标准在 paper-fetch、paper-to-zotero 落地、spec 定稿后再改；由维护 paddleocr 的会话来做。
+- 状态：已改，见开头。原来：open。等交接标准在 paper-fetch、paper-to-zotero 落地、spec 定稿后再改；由维护 paddleocr 的会话来做。
   - 2026-11-02：交接标准已落地（d9bb12f），这张却暂缓。用户：「因为 vLLM serve 和 PaddleOCR 这些是外部的，如果能用的话，且不阻塞我们当前的进程，我可以暂缓」。等它碰到问题，或者挡住别的工作时再做。第 4 条（结构化包谁来整理）不等，随论文笔记那张 issue 的 paper-read 设计一起定。
 
 ## 要改的

@@ -46,18 +46,20 @@ Done when every input has its summary line without `error`. Running again on a p
 
 A parse comes with findings: places where the checks against the source suspect the parse lost, garbled or invented something, or cut a figure wrong. Each open finding is a note in the Markdown, `<!-- open <id>: … -->`, before its block, figure or page, and the summary's `open` lists them. Settling means checking each against the source and either fixing the Markdown or giving a verdict, then recording that in the record with `doc.py commit`.
 
-That is routine work, so hand each document to a subagent on a smaller model that can view images (in Claude Code, `sonnet`). Give it:
+That is routine work, so hand each document to a background subagent on a cheap model that can view images (Claude Code `model: "sonnet"`, Codex `luna`). Give it:
 
 - the absolute path of [references/settle.md](references/settle.md), its brief;
 - the document's folder, `<outdir>/<stem>`;
 - its source: the PDF, or the image input;
-- for a paper, the absolute path of [references/papers.md](references/papers.md).
+- for a paper, the absolute path of [references/papers.md](references/papers.md);
+- figures your task rests on that no finding flags, by page and caption.
 
 Each document goes to one subagent, which is then the only writer of its folder. Separate documents go to separate subagents, at most five running at once unless the user sets another limit.
 
 - A document with no open findings needs no subagent.
 - In a batch parsed for later use, each document is settled when a task first reads it. Until then its notes stay open.
 - Without subagents, follow the brief yourself.
+- Findings still open after the report go back to the same subagent with `show`'s output as printed (Claude Code `SendMessage`); if it cannot be resumed, a new subagent gets the same brief, the folder as it stands, that output and the first report.
 
 Done when every document you will read has its subagent's report back and `uv run scripts/doc.py show <outdir>/<stem>` prints `no open findings`.
 
@@ -84,4 +86,5 @@ Report:
 - the Markdown and record paths;
 - the summary's `min_coverage`, or that the pages had no text layer;
 - the settle report: the fixes, the figures recut or kept, the verdicts, and anything left unresolved;
-- what you took from figure images rather than text.
+- what you took from figure images rather than text;
+- a caption style the settle report says the conventions miss, with its example caption: for the user to take to this skill as an issue (the conventions are its code, changed in its repository, not in an installed copy).

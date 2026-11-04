@@ -9,7 +9,7 @@ uv tool list | grep -A2 '^paddleocr'
 
 ## Install
 
-Installing is a multi-GB download that takes over ten minutes: say so to the user and wait for their go-ahead. The command that works (2026-10, PaddleOCR 3.7, the PaddleOCR-VL docs ask for PaddlePaddle ≥ 3.2.1):
+Installing is a multi-GB download that takes over ten minutes: tell the user, and go ahead (it is a uv tool). The command that works (2026-10, PaddleOCR 3.7, the PaddleOCR-VL docs ask for PaddlePaddle ≥ 3.2.1):
 
 ```bash
 uv tool install --python 3.12 \
