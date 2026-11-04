@@ -35,7 +35,7 @@ from collections import Counter
 
 import conventions
 
-VERSION = 5              # bump when the checks change, so stored parses are checked again
+VERSION = 6              # bump when the checks change, so stored parses are checked again
 
 NOISE_LABELS = ["number", "header", "header_image", "footer", "footer_image"]
 FIGURE_LABELS = {"image", "chart", "seal", "header_image", "footer_image"}
@@ -68,7 +68,9 @@ _HYPHEN_BREAK = re.compile(r"\ufffe|(?<=[^\W\d_])[-\u00ad\u2010\u2011\x02]\s*\r?
 _MATH = re.compile(r"\$\$.*?\$\$|\$[^$]*\$", re.S)
 _HTML_TAG = re.compile(r"<[^>]+>")
 _LATEX_CMD = re.compile(r"\\[A-Za-z]+")
-_TOKEN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]|[^\W\d_]{2,}|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?", re.U)
+# A grouped number ends on a group of three digits, so "23,2026", a date whose text layer lost the space after the
+# comma, reads as 23 and 2026, with that space or without it.
+_TOKEN = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]|[^\W\d_]{2,}|\d{1,3}(?:,\d{3})+(?!\d)(?:\.\d+)?|\d+(?:\.\d+)?", re.U)
 _ROW = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S)
 _CELL = re.compile(r"<t[dh][^>]*>(.*?)</t[dh]>", re.S)
 _GREEK = re.compile(r"[\u0370-\u03ff\u1f00-\u1fff]")  # Greek in a text layer is math; the parse spells it as LaTeX

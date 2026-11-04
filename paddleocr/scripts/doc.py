@@ -977,6 +977,10 @@ def content_of(label: str, piece: str, level) -> tuple[str, object]:
     return piece, level
 
 
+def paragraphs(text: str) -> int:
+    return len([s for s in re.split(r"\n\s*\n", text) if s.strip()])
+
+
 def commit(record: dict, text: str) -> list[str]:
     """Record the edits made to the Markdown `text` as changes, in place; returns one line per change made.
     Raises Refused when a protected line was changed."""
@@ -1084,8 +1088,15 @@ def commit(record: dict, text: str) -> list[str]:
                 elif last + 1 < len(c) and c[last + 1].strip() and next_g is not None and go[next_g] is not None:
                     touched = [go[next_g]]
                 else:
+                    # a block of their own per paragraph, each with the reason written above it
                     before = next((go[gi[i]] for i in range(i1 - 1, -1, -1) if go[gi[i]] is not None), None)
-                    inserts.append((page, before, "\n".join(c[first:last + 1]), why_at.get(c0 + 1 + first, [])))
+                    start = None
+                    for j in range(first, last + 2):
+                        if j <= last and c[j].strip():
+                            start = j if start is None else start
+                        elif start is not None:
+                            inserts.append((page, before, "\n".join(c[start:j]), why_at.get(c0 + 1 + start, [])))
+                            start = None
                     continue
             for k in touched[1:]:
                 parent[find(k)] = find(touched[0])
@@ -1124,8 +1135,15 @@ def commit(record: dict, text: str) -> list[str]:
             continue
         if IMAGE_LINE.search(new) and not any(IMAGE_LINE.search(p["text"]) for p in group):
             raise Refused("an image line was added; cut figures with the figure command")
-        why = new_why(whys, raw[group[0]["owners"][0]].get("changes", []))
         first, rest = group[0]["owners"][0], [o for p in group for o in p["owners"]][1:]
+        had, has = sum(paragraphs(p["text"]) for p in group), paragraphs(new)
+        if has > had:
+            # a block edited and a paragraph added beside it, in one go: which paragraph is the block cannot be told
+            who, its = ", ".join(p["owners"][0] for p in group), "its" if len(group) == 1 else "their"
+            raise Refused(f"the edit of {who} turns {had} paragraph{'s' * (had > 1)} into {has}, and which of them "
+                          f"{who} should hold cannot be told; commit {who} with only {its} own text first, then add "
+                          "the new paragraphs between blank lines and commit again")
+        why = new_why(whys, raw[first].get("changes", []))
         b = view[first]
         if not new.strip():
             for o in [first] + rest:

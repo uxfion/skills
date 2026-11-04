@@ -229,6 +229,25 @@ class Commit(unittest.TestCase):
         self.assertEqual((added[0]["text"], added[0]["added"]["after"]), ("A dropped line.", "p3-2"))
         self.assertIn("[1].\n\nA dropped line.", D.render_text(r)[0])
 
+    def test_a_heading_and_its_paragraph_are_two_blocks(self):
+        # 2026-11, T-CACE: a heading added with its first paragraph came out as one heading block holding both
+        r = record()
+        self.edit(r, "Text after the table with a reference [1].\n", "Text after the table with a reference [1].\n\n"
+                  "<!-- fixed: from the page image -->\n## 3 Discussion\n\nA dropped paragraph.\n")
+        added = [(b["id"], b["label"], b["text"], b["added"]["why"]) for b in r["blocks"] if b.get("added")]
+        self.assertEqual(added, [("p3-n1", "paragraph_title", "3 Discussion", "from the page image"),
+                                 ("p3-n2", "text", "A dropped paragraph.", "")])
+
+    def test_an_edit_that_adds_a_paragraph_is_refused(self):
+        with self.assertRaises(D.Refused):
+            self.edit(record(), "reference [1].\n", "reference [2].\n\nA dropped paragraph.\n")
+        # blank lines a block already holds are its own: 611 of 1465 algorithm blocks in 267 parses (2026-11)
+        r = record()
+        algorithm = next(b for b in r["blocks"] if b["id"] == "p3-5")
+        algorithm["text"] = "Algorithm 1 Search\n\n1: for each node do\n2:   expand it\n"
+        self.edit(r, "for each node", "for every node")
+        self.assertEqual([(c["was"], c["now"]) for c in changes(r, "p3-5")], [("each", "every")])
+
     def test_a_line_without_a_blank_joins_its_paragraph(self):
         r = record()
         self.edit(r, "reference [1].\n", "reference [1].\nAnd its second line.\n")

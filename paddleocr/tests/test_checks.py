@@ -125,6 +125,14 @@ class TextLayerCheck(unittest.TestCase):
         _, findings = C.check_document([block(0, 1, "text", parsed)], {1: chars(layer)})
         self.assertEqual([(f["id"], f["items"]) for f in findings], [("missing_numbers@p1", ["70.99"])])
 
+    def test_a_date_without_its_space_is_two_numbers(self):
+        # 2026-11: IEEE's download stamp reads "September 23,2026" in the text layer, "23, 2026" in the parsed footer
+        stamp = "Authorized licensed use limited to: Example University. Downloaded on September 23{}2026 at 16:44:56."
+        blocks = [block(0, 1, "text", PARAGRAPH), block(1, 1, "footer", stamp.format(", "))]
+        _, findings = C.check_document(blocks, {1: chars(PARAGRAPH + "\n" + stamp.format(",") + "\n")})
+        self.assertEqual(findings, [])
+        self.assertEqual(C.tokens("1,234.5 of 23,2026"), ["1,234.5", "of", "23", "2026"])
+
     def test_table_column_lost(self):
         table_layer = "\nModel Dice IOU HD ASD\nUNet 0.92 0.86 16.67 3.04\nResUNet 0.82 0.71 88.03 10.94\n"
         full = "<table><tr><td>Model</td><td>Dice</td><td>IOU</td><td>HD</td><td>ASD</td></tr>" \

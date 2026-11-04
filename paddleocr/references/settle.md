@@ -36,7 +36,7 @@ Boxes are in source units: PDF points for a PDF, as `pdftotext -x -y -W -H` take
 2. **Give a verdict** where there is nothing to fix: change the note's `open` to `ok` (the parse is right, or the finding is a false alarm) or to `unresolved` (the parse is wrong and cannot be fixed), and put your reason after the colon in place of what was there: `<!-- ok missing_numbers@p11: tick labels of the Figure 3 axes -->`. A finding you fix needs no verdict: once fixed it goes away.
 3. **Commit:** `doc.py commit <folder>`. It records each edit as a change of its block, each verdict with its reason, runs the checks again and rewrites the Markdown. It prints what it recorded and which findings went, came or reopened. A finding still there after your fix means the fix missed: look again. Commit after each page you work through.
 
-When commit refuses, it says why; put back what it names and commit again.
+When commit refuses, it says why and what to do: do that and commit again.
 
 ## 1. Text findings
 

@@ -370,7 +370,7 @@
     - 用户不在时不越过要用户点头的关口：spec 等用户确认才实施，标签迁移等用户确认才写库。
 70. 三份审阅共 72 条意见（要紧 5、应该改 41、小问题 26），按它们重写成 spec 第二版，advisor 又审了一遍。处理结果（照改、改了形式、没照改及理由）记在参考资料 `spec-review-triage.md`。
     - 最大的改动是新增"每次改笔记都走同一套"：取出 → 改 → 两个检查 → 存。
-    - 另记了 issue `20261102-paddleocr-download-stamp-false-findings.md`。
+    - 另记了 issue `archive/20261102-paddleocr-download-stamp-false-findings-fixed.md`。
     - 用户：「我在线了」。spec 第 9 节的 8 处待用户确认，一次问一处。
 71. 用户收紧了 `aka/` 的规矩（原话记在 `archive/20261102-paper-to-zotero-common-name-prefix-fixed.md`）：只有论文自己提出了带名字的模型，或者业内用这个名字称呼它，才打；可有可无，不补打。spec §5、§6.4 跟着改：没有简称就不写，不报 `no_aka`。
 
@@ -467,7 +467,7 @@
     - T-CACE 实测（spec §10）：读论文的 subagent 用了 31.9 分钟、29.5 万 token、94 次工具调用；19 问，31 条引文都在 PDF 文字层里；包整理完，没有未整理的地方。旧笔记讲论文的几点，它都从原文重新找到了。我对着页面图像抽查了 Table III。
     - 存的时候两条笔记都报 `readback_mismatch`，内容其实都存进去了。原因是 p2z `to_note` 输出的 HTML 结尾多一个换行，Zotero 去掉了（spec §12 第 12 条，已修）。同时发现标题里的 TeX 往返后变成 HTML 的 `<h3>`（第 11 条，已修）。改好后重存 T-CACE，往返一致。
     - VDSR 查一处：一问，编号 `### Q3.1`（第 9 条）。
-    - subagent 写不了 `report.md`（第 10 条）；它碰到的 `doc.py` 问题记成 issue `20261102-paddleocr-commit-merges-heading-and-paragraph.md`。
+    - subagent 写不了 `report.md`（第 10 条）；它碰到的 `doc.py` 问题记成 issue `archive/20261102-paddleocr-commit-merges-heading-and-paragraph-fixed.md`。
 88. 用户：「有一个paper read的新issue，你看一眼」：`20261102-paper-read-aka-wording.md`，p2z 那边放宽了 `aka/` 规则，spec 里的转述过时了。
     - 按 issue 给的方向改了 spec 和 skill（spec §12 第 13 条），给 T-CACE 补了 `aka/T-CACE`；issue 已关，移进 archive。
 89. 用户：「快速复用这个先不用管吧……」「读起来快不快倒无所谓……」「你先把没有做的东西分离出去……」「你在关这张issue之前，把所有涉及的代码的变动、文档的修改都用design principle过一遍，包括要用writing for agent skills优化一遍」。
