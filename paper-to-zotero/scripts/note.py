@@ -24,8 +24,8 @@ Zotero has nowhere to keep any other field, so put refuses a file that holds one
          related where the front matter names them) unless its version moved since the take, and left alone when it
          already holds the same note; without one, a note is created under `parent` (unless a child note there has
          its title already), else as a standalone note in `collections`, related both ways to the papers in
-         `related`. A note without text is refused. Every write is read back, as the editor's model
-         (an editor showing the note saves it again in its own HTML). -i writes the new key and version into the
+         `related`. A note without text is refused. Every write is read back and compared in the
+         editor's model, as an editor showing the note saves it again at once in its own HTML. -i writes the new key and version into the
          file's front matter, so the next put follows on.
   list   One line per note: the child notes of the item named, the notes in --collection K, or every note; --q TEXT
          keeps the notes whose text holds it (Zotero's "All Fields & Tags" search).

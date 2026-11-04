@@ -4,7 +4,7 @@
 # ///
 """A stand-in for paper-to-zotero's p2z.py in paper-read's tests: the commands prepare_note.py, put_note.py and
 index_heading.py run, answered from the library in the JSON file FAKE_P2Z names, as the real ones answer (their
-docstrings) at paper-to-zotero's commit 2788f2b (annotate: as added with paper-read's put_note.py): when their output
+docstrings) at paper-to-zotero's commit 2788f2b (note put and annotate: at 011a362): when their output
 changes, change this to match. Each call's arguments go to FAKE_P2Z.log, one JSON line each. Called as `objects`, it
 stands in for the paddleocr skill's `doc.py objects` (PAPER_READ_DOC).
 

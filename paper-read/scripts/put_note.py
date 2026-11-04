@@ -7,13 +7,16 @@
 
   uv run scripts/put_note.py <note>
 
-In one go: the links an earlier put left are taken off; each figure and table the note names (sources.py;
-references/note-format.md, *Clickable figures and tables*) becomes a link to a rectangle annotation on it in the PDF,
-which `p2z.py annotate` finds or creates (blue, tagged paper-read, its comment "paper-read · Fig. 9"), placed by the
-paddleocr skill's `doc.py objects` from the structured package; paper-to-zotero's `note put <note> -i` puts the note;
-then the links are taken off the file again, whatever the put answered, so the file holds the note's text alone (and
-the key and version -i wrote). The PDF's key (`attachment` in <stem>.zotero.json), the PDF (<stem>.pdf) and the
-package (<stem>/) are read beside the note <stem>.note.md, where prepare_note.py left them.
+In one go:
+  1. the links an earlier put left are taken off;
+  2. each figure and table the note names (references/note-format.md, *Clickable figures and tables*) becomes a link
+     to a rectangle annotation on it in the PDF: the paddleocr skill's `doc.py objects` places it from the structured
+     package, `p2z.py annotate` finds or creates it (blue, tagged paper-read, its comment "paper-read · Fig. 9");
+  3. paper-to-zotero's `note put <note> -i` puts the note;
+  4. the links are taken off the file again, whatever the put answered: the file holds the note's text alone, and the
+     key and version -i wrote.
+The PDF's key (`attachment` in <stem>.zotero.json), the PDF (<stem>.pdf) and the package (<stem>/) are read beside
+the note <stem>.note.md, where prepare_note.py left them.
 
 A figure or table that cannot be linked stays plain text, the rest linked and the note put. It is listed in
 `unmatched`, with why:

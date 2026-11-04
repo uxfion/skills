@@ -1,6 +1,6 @@
 # paper-read：笔记里的出处可以点，跳到 PDF 里的位置
 
-> **已解决（2026-11-04）**，做法见 spec [20261104-paper-read-source-links-spec.md](../../specs/20261104-paper-read-source-links-spec.md)，提交 011a362 和随后的一次。笔记里写到的图和表，存进 Zotero 时变成链接，点了跳到 PDF 上带 `paper-read` 标签的蓝框（paddleocr `doc.py objects` 给位置，p2z `annotate` 建框，paper-read `put_note.py` 加链接、存、去链接，`prepare_note` 取出时去链接）。页码不链（已定 3）。
+> **已解决（2026-11-04）**，做法见 spec [20261104-paper-read-source-links-spec.md](../../specs/20261104-paper-read-source-links-spec.md)，提交 011a362（实现）、a5eafe5（已定 3，页码不链）。笔记里写到的图和表，存进 Zotero 时变成链接，点了跳到 PDF 上带 `paper-read` 标签的蓝框（paddleocr `doc.py objects` 给位置，p2z `annotate` 建框，paper-read `put_note.py` 加链接、存、去链接，`prepare_note` 取出时去链接）。页码不链（已定 3）。
 > - 实测：T-CACE 笔记 71 个链接、12 个框，取回来和原文逐字相同，再存答 `skipped`；stein 2008（页面原点偏 9 pt）第 5 页 Figure 1 的框用户看过、对；CycleGAN 测试笔记从 arXiv 版换到 CVF 版，链接和框都落在新 PDF 上，用户看过，测完移进回收站。
 > - 库里 881 个包跑 `objects` 全部跑通：图 8152 个，6979 个拿到编号键（1136 个没编号、37 个编号重复）；表的标题 4992 个，4822 个拿到键（170 个重复，多是续表）；旋转页上图 1 个、表 25 个。
 > - 实测中发现并修的：Zotero 的笔记编辑器开着时会马上按它的格式重存笔记（给链接加 `rel`、外面套 `<div data-schema-version>`），p2z `note put` 原来逐字比 HTML，误报 `readback_mismatch`；改成按编辑器的模型比。

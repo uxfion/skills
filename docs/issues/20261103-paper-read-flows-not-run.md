@@ -81,4 +81,4 @@
 ## 相关的 issue（各自开着，不在这里做）
 
 - paddleocr 的两张（2026-11-04 已修，在 `archive/`）：`20261102-paddleocr-download-stamp-false-findings-fixed.md`、`20261102-paddleocr-commit-merges-heading-and-paragraph-fixed.md`。
-- 笔记的呈现：`20261103-paper-read-note-images.md`（暂停）、`20261103-paper-read-note-expression.md`、`20261103-paper-read-note-two-depths.md`、`20261103-paper-read-source-links.md`。
+- 笔记的呈现：`20261103-paper-read-note-images.md`（暂停）、`20261103-paper-read-note-expression.md`、`20261103-paper-read-note-two-depths.md`；出处链接那张 2026-11-04 做完，在 `archive/20261103-paper-read-source-links-fixed.md`。

@@ -2,11 +2,9 @@
 links to them in the PDF when the note is put into Zotero (put_note.py), those links taken off again (put_note.py,
 prepare_note.py), and the quotations, whose English words are the paper's own (check_quotes.py).
 
-A token, as references/note-format.md, *Clickable figures and tables*, shows it:
-  a figure   Fig. 9, Fig.9, Figure 9, Figs. 3 (of "Figs. 3–5"), Fig. 2 (of "Fig. 2(b)" and "Fig. 2b")
-  a table    Table III, Tables I (of "Tables I/II")
-  either may open with Supplementary or Extended Data. A figure or table's key is its number normalised as the
-  paddleocr skill's `doc.py objects` gives it: fig:9, table:III, fig:S3 (Supplementary), table:ED1 (Extended Data).
+A token is a figure or table written in a form references/note-format.md, *Clickable figures and tables*, lists
+(tests/test_sources.py holds TOKEN to that list). Its key is its number normalised as the paddleocr skill's
+`doc.py objects` gives it: fig:9, table:III, fig:S3 (Supplementary), table:ED1 (Extended Data).
 Tokens are read in the note's Markdown text, and never in: the front matter, headings, the 读的版本 paragraph, code,
 math, HTML blocks and tags, links, URLs, a quotation's English words, the deletion mark (it cites another PDF) and
 the 原写"…" of a correction mark (the old text).
