@@ -8,9 +8,9 @@ The folder holds:
 
 - `<stem>.md`: the text, page by page, with `<!-- page N -->` before each page. This is what you edit.
 - `<stem>.json`: the record. `doc.py` writes it; leave it to `doc.py`.
-- `imgs/`: the figures, named by figure id.
+- `imgs/`: the figures, named by figure id, cut by `doc.py figure`.
 
-You are the only one writing to this folder. In it you edit only `<stem>.md`; `doc.py` writes the rest. Do the work yourself; send no subagents. No git.
+You are the only one writing to this folder. Do the work yourself; send no subagents. No git.
 
 ## Tools
 

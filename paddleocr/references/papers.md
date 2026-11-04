@@ -33,4 +33,4 @@ A false alarm can sit next to a real misread in the same finding: `missing_numbe
 
 ## A caption style the conventions miss
 
-When a paper's captions get no figure number and its figures no `figure_check` though their captions are plain to see, the paper writes captions in a way `scripts/conventions.py` does not know (another word, another punctuation). Say so in your report, with an example caption: once its pattern is in `scripts/conventions.py` (a change made in this skill's repository), `doc.py render` on the parse gives that paper and every later one its figure numbers and checks.
+When a paper's captions get no figure number and its figures no `figure_check` though their captions are plain to see, the paper writes captions in a way `scripts/conventions.py` does not know (another word, another punctuation). Say so in your report, with an example caption: once its pattern is in `scripts/conventions.py`, `doc.py render` on the parse gives that paper and every later one its figure numbers and checks.

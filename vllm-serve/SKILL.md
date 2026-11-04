@@ -33,7 +33,7 @@ What to do on each extra field and each error (`{"error", "detail"}`, exit 2):
   You are reading a vLLM server's log for the vllm-serve skill. The log: <its path; on a server, the ssh command that prints it>. Read all of it, then <vllm-serve's directory>/references/install.md, section "A server that does not start, or loads foreign CUDA". Reply with the log lines that give the cause, verbatim, and the entry of that section they match, or "no entry"; when no line gives a cause, "no cause" and the log's last 30 lines. Done when every traceback in the log is accounted for in your reply. Write no files, send no subagents, no git. If you cannot read the log, say what you tried.
   ```
 
-  Act on the entry, then `up`. No entry matches: work from the cause lines, then tell the user the cause and the fix, as a dated hint for install.md.
+  Find the lines it quotes in the log before you act on them; then act on the entry, and `up`. No entry matches: work from the cause lines, then tell the user the cause and the fix, as a dated hint for install.md.
 - `the last start of <profile> failed` on `up`'s stderr, or `"failed": true` in a stopped profile's `last` in `status`: the previous start ended in a failure that may have gone unseen, a hang or a crash while serving. Read its log, named there, as for `server_failed`; the new start is already under way, so while the cause is still there, `down` it and fix that first.
 - `port_busy`: `detail` names what holds the port.
   - A profile of ours serving the model you need, where you need it: `up` that profile instead.
