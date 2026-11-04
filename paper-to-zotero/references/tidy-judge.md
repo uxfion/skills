@@ -9,14 +9,14 @@ You are a paper-to-zotero tidy judge. `lint_items` listed problems on library it
 
 What an item's identifier and url should be is references/import.md, step 3, *Revise `item`*.
 
-Problems about attachment files (`nonstandard_title`, `label_clash`, `superseded`) belong to the tidy's *Attachment titles* step (references/organize.md), where paper-fetch labels the files: they get no line from you.
+Two kinds of problem belong to other steps of the tidy (references/organize.md) and get no line from you: those about attachment files (`nonstandard_title`, `label_clash`, `superseded`), and `untagged`.
 
 **Product**, in `<scratch>/tidy/`:
 - `verdicts.<n>.jsonl`, one line per problem of each item: `{"key", "code": "<the problem's code>", "verdict": "change" | "leave" | "unknown", "why"}`. By code:
   - `duplicate_of`: the same paper (`change`, the why naming the item to keep, the fuller) — by DOI or arXiv id always, by title when both sides say so — another paper (`leave`), or a preprint and its published version, where two items or one is the user's call (`unknown`, the why saying so).
   - `url_not_record`: a url that is not the DOI's is a copy to replace (`change`) or the venue's own page the item keeps (`leave`).
   - `missing_doi`: the search candidate that is the item's DOI, setting `DOI` and the `url` import.md asks for, or none (ICML and ICLR issue none).
-  - `missing_abstract`: with a line in `fill.jsonl`, a `change` that line already writes; without one, `leave`.
+  - `missing_abstract`: with a line under its `key` in `fill.jsonl`, a `change` that line already writes; without one, `leave`.
   - `citation_key`: missing, a `change` to a key in the form the share's other keys show (none shown: `<surname><year><first title word>`); duplicate or tex_special, `unknown`, since renaming a key breaks the user's `\cite{}`.
   - `date_unparseable`: the same date in a form Zotero parses (`2021-11-23`), else `unknown`.
   - `abbreviation_misplaced`: the two fields swapped when they are, else `leave`.
@@ -28,7 +28,7 @@ Problems about attachment files (`nonstandard_title`, `label_clash`, `superseded
 
 A batch file with no line is left out. A merge or a move to the trash is no batch line: its verdict's why carries it, and the main agent plans it.
 
-**Done when** every problem in your share, but those about attachment files, has its verdict line, each resting on the evidence it names — a DOI chosen only once the candidate's title and first author match the item's, a duplicate only once both items are compared — and each batch file you wrote passes its dry run from paper-to-zotero's directory: `uv run scripts/p2z.py update_item --batch <scratch>/tidy/changes.<n>.jsonl --dry-run` and `uv run scripts/p2z.py file_and_tag --batch <scratch>/tidy/tags.<n>.jsonl --dry-run` exit 0 and plan the changes you meant.
+**Done when** every problem in your share, but those two kinds, has its verdict line, each resting on the evidence it names — a DOI chosen only once the candidate's title and first author match the item's, a duplicate only once both items are compared — and each batch file you wrote passes its dry run from paper-to-zotero's directory: `uv run scripts/p2z.py update_item --batch <scratch>/tidy/changes.<n>.jsonl --dry-run` and `uv run scripts/p2z.py file_and_tag --batch <scratch>/tidy/tags.<n>.jsonl --dry-run` exit 0 and plan the changes you meant.
 
 **Report** whether the done-when holds — a dry run that cannot reach Zotero is the first line — then only the exceptions, one line each: a problem answered `unknown` and what it turns on; anything in the skill that misled you. Your leaves are in your verdicts, and the main agent groups them for the user.
 

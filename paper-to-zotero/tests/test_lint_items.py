@@ -13,8 +13,9 @@ A, B, D, J, K = "AAAAAAAA", "BBBBBBBB", "DDDDDDDD", "JJJJJJJJ", "KKKKKKKK"
 
 
 def add(z, key, meta=None, **data):
-    """A top-level item with a parsed date and a citation key, unless the test says otherwise."""
+    """A top-level item with a parsed date, a citation key and a manual tag, unless the test says otherwise."""
     data.setdefault("citationKey", key.lower())
+    data.setdefault("tags", [{"tag": "topic/Segmentation"}])  # a manual tag as the API gives it: no type
     return z.add_item(key, meta={"parsedDate": "2021", **(meta or {})}, **data)
 
 
@@ -51,7 +52,7 @@ class LintItems(unittest.TestCase):
             collections=["COLL0002"], date="2021", abstractNote="x")
         add(z, "WWWWWWWW", itemType="webpage", title="Project page", url="https://proxy.example/x")
         add(z, D, {"parsedDate": None}, itemType="conferencePaper", title="An old conference paper",
-            date="十一月 23, 2021", collections=["COLL0001"])
+            date="十一月 23, 2021", collections=["COLL0001"], tags=[{"tag": "Training", "type": 1}])
         add(z, "CCCCCCCC", itemType="conferencePaper", title="A CVPR paper", DOI="10.1109/CVPR.2019.00453",
             abstractNote="x", date="2019", url="https://openaccess.thecvf.com/content_CVPR_2019/html/x.html")
         add(z, "NNNNNNNN", itemType="conferencePaper", title="A NeurIPS paper", DOI="10.52202/075280-3121",
@@ -122,8 +123,12 @@ class LintItems(unittest.TestCase):
         self.assertEqual((found["PPPPPPPP"]["duplicate_of"]["by"], found["PPPPPPPP"]["duplicate_of"]["keys"]),
                          ("arxiv", ["QQQQQQQQ"]))
         self.assertNotIn("superseded", found[A], "two sources side by side: no problem")
-        self.assertIn("unfiled_webpage", found["WWWWWWWW"])
-        self.assertEqual(set(found[D]), {"date_unparseable", "missing_doi", "missing_abstract", "no_identifier"})
+        self.assertEqual(set(found[D]), {"date_unparseable", "missing_doi", "missing_abstract", "no_identifier",
+                                         "untagged"}, "an automatic tag alone is no curated tag")
+        self.assertEqual(set(found["WWWWWWWW"]), {"unfiled_webpage"})
+        self.zot.data("WWWWWWWW")["tags"] = []
+        self.assertEqual(set(problems(self.run_("--key", "WWWWWWWW"))["WWWWWWWW"]), {"unfiled_webpage"},
+                         "a webpage without tags is no untagged paper")
         self.assertEqual(found[J]["abbreviation_misplaced"], {"code": "abbreviation_misplaced", "publicationTitle":
                          "Comput Biol Med", "journalAbbreviation": "Computers in Biology and Medicine"}, "no patch")
         self.assertEqual(found[A]["url_not_record"],

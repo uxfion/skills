@@ -6,8 +6,8 @@
 > - 这次还改了 tagging.md 的 `aka/` 规则：**说起这个词，业内都知道指的是这篇论文**，数据集也算。
 >
 > 剩下的事去了这些地方：
-> - lint 不报没标签的论文：[20261102-paper-to-zotero-lint-untagged-items.md](../20261102-paper-to-zotero-lint-untagged-items.md)；
-> - judge 漏看补全行：[20261102-paper-to-zotero-fill-lines-without-key.md](../20261102-paper-to-zotero-fill-lines-without-key.md)；
+> - lint 不报没标签的论文：[20261102-paper-to-zotero-lint-untagged-items-fixed.md](20261102-paper-to-zotero-lint-untagged-items-fixed.md)；
+> - judge 漏看补全行：[20261102-paper-to-zotero-fill-lines-without-key-fixed.md](20261102-paper-to-zotero-fill-lines-without-key-fixed.md)；
 > - 按新规则补打 `aka/`、复查约 418 篇没有 `aka/` 的论文、查 DiffBIR 和 Flow Matching 是否已正式发表：记在库待办（记忆 zotero-library-todo）；
 > - paper-read spec 里转述的旧说法，由改 paper-read 的会话同步。
 >

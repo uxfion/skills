@@ -13,8 +13,9 @@ key: its `cite`, else its slug. The result is drafted into an item by draft_item
 tables and draft_item's rules), and each drafted field goes to the library item's type under its own name or its
 base field's (a conferencePaper's proceedingsTitle -> a journalArticle's publicationTitle). A field the
 library item has empty and the draft has a value for is to fill; a value is never overwritten, and creators, tags,
-collections, itemType and extra are never listed. Each item with something to fill gets one line in -o FILE: {cite,
-set: {field: value}, from: the result's path}; update_item --batch writes them. Nothing is written to Zotero here.
+collections, itemType and extra are never listed. Each item with something to fill gets one line in -o FILE:
+{key (the item's, as lint_items names it), set: {field: value}, from: the result's path}; update_item --batch writes
+them. Nothing is written to Zotero here.
 
 stdout: one line per result {slug, cite?, key?, code, ...}, then {"summary": {total, ok, skipped, failed, batch,
 lines}} (lines: how many FILE holds).
@@ -83,7 +84,7 @@ def main(argv=None):
             sets = to_fill(draft, rows[keys[0]], types)
             if not sets:
                 return cli.skipped("nothing_to_fill", key=keys[0])
-            batch.append({"cite": cite, "set": sets, "from": str(path.absolute())})
+            batch.append({"key": keys[0], "set": sets, "from": str(path.absolute())})
             return {"code": "fill", "key": keys[0], "fields": list(sets), **({"warnings": warnings} if warnings else {})}
 
         for path, res, problem in results:

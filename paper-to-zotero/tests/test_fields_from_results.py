@@ -70,8 +70,8 @@ class FieldsFromResults(unittest.TestCase):
                           ("shinn2023reflexion", "shinn2023reflexion", "fill", SHINN, sorted(shinn_set))])
         self.assertEqual(r.lines[-1]["summary"], {"total": 2, "ok": 2, "skipped": 0, "failed": 0, "batch": str(batch), "lines": 2})
         self.assertEqual([json.loads(ln) for ln in batch.read_text(encoding="utf-8").splitlines()],
-                         [{"cite": "liu2022jbhi", "set": liu_set, "from": str(liu)},
-                          {"cite": "shinn2023reflexion", "set": shinn_set, "from": str(shinn)}])
+                         [{"key": LIU, "set": liu_set, "from": str(liu)},
+                          {"key": SHINN, "set": shinn_set, "from": str(shinn)}])
         self.assertEqual(self.zot.writes(), [], "listing writes nothing")
 
         r = call(update_item, "--batch", batch, "--base-url", self.zot.base_url, config=self.config)

@@ -44,6 +44,9 @@ Problem codes (each problem is {"code", ...}: a fact and its evidence; what it m
                           (an arXiv DOI is not one; venues that issue none - ICML, ICLR - are expected here: their
                           official page is the url); paper-fetch's identify --search looks a DOI up by title
   missing_abstract        a research item with no abstract
+  untagged                a research item with no manual tag, so no curated tag (references/tagging.md): automatic
+                          tags only, or none. Tagging subagents take it, not the judges (references/organize.md,
+                          "Tidying tags and collections")
   no_identifier           no DOI, no arXiv id and no url: nothing locates the paper
   url_not_record          an item with a DOI, not a preprint, whose url is not https://doi.org/<DOI> (http, dx.doi.org
                           and case aside): {"url", "host", "doi"}; "patch" sets https://doi.org/<DOI> when the url is
@@ -232,6 +235,9 @@ def problems_of(item, lib):
         out.append({"code": "missing_doi", "url": data.get("url") or None})
     if data.get("itemType") in RESEARCH_TYPES and not (data.get("abstractNote") or "").strip():
         out.append({"code": "missing_abstract"})
+    # The API leaves `type` out of a manual tag and writes 1 on an automatic one.
+    if data.get("itemType") in RESEARCH_TYPES and not any(t.get("type", 0) == 0 for t in data.get("tags") or []):
+        out.append({"code": "untagged"})
     url = (data.get("url") or "").strip()
     if not doi and not aid and not url and data.get("itemType") in RESEARCH_TYPES:
         out.append({"code": "no_identifier"})
