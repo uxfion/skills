@@ -8,7 +8,7 @@
   uv run scripts/index_heading.py --cite <citation key> [<citation key> ...]
 
 The line is `## <citation key> · <title> · <common names>（<venues> <year>）` (references/notes.md):
-  - common names from the paper's aka/ tags, venues from its venue/ tags, every one of them in tag order, joined
+  - common names from the paper's aka/ tags, venues from its venue/ tags, each kind sorted by name and joined
     by " / ": choosing among them is not the script's to do;
   - the year is the four-digit year in the item's date, which Zotero holds as typed ("2026-03", "6/2016");
   - a paper without an aka/ tag has no common-name part, which is the usual case: print it as it is.

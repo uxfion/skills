@@ -36,7 +36,7 @@ Older notes are leads: a fact in one enters the note once you have found it in t
 - The summaries come last (Q8, then the one-sentence summary), built only from the answers written. A fact they need that no answer holds means that answer is short: complete it.
 - A project's questions are answered in your report, with sources, not in the note. Whatever they lead you to find about the paper itself goes into the note like any other answer.
 
-**Settling the package.** When your prompt names open findings, settle them as you reach them in the reading. Follow settle.md §1–3 and record with its `doc.py commit`. You check those spots against the PDF anyway, and you know what the text is saying. Where settle.md and this brief differ, this brief wins: you write the note file as well as the package folder, and settle.md's five-part report becomes one section of your report.
+**Settling the package.** When your prompt names open findings, settle them as you reach them in the reading. Follow settle.md §1–3 and record with its `doc.py commit`. You check those spots against the PDF anyway, and you know what the text is saying. Where settle.md and this brief differ, this brief wins: you write the note file as well as the package folder, and of settle.md's report only what *Report* below asks for goes into yours.
 
 ## Moving to another version
 
@@ -46,7 +46,7 @@ When your prompt names a previous version, the note was read in that PDF, and th
 - **changed**: corrected, with a correction mark that cites the new version;
 - **removed**: the note's sentence stays, with the removal mark (note-format.md, *Marks*).
 
-Every source in the note then points into the new PDF: check each against it. The 读的版本 paragraph names the new PDF, and so does `pdf:` where the front matter still has it. A previous version that comes without its package is compared through its PDF's text (`pdftotext`); one without a PDF leaves only the new version to check every answer against.
+Every source in the note then points into the new PDF: check each against it. The 读的版本 paragraph names the new PDF. A previous version that comes without its package is compared through its PDF's text (`pdftotext`); one without a PDF leaves only the new version to check every answer against.
 
 ## Product
 
@@ -69,7 +69,7 @@ Write only these, plus any drafts of yours in the scratch directory. Putting the
 Your reply is the report; the main agent saves it. Exceptions only:
 
 - the PDF is not this paper;
-- **package**: settle.md's five parts;
+- **package**: what settle.md's report lists under **open**, and each `unresolved` verdict; the main agent checks the rest with `doc.py show`;
 - **library**: an error in the item's tags or fields: which, where, what it should be. A word the field uses for this paper that is not among its `aka/` names is one (`<paper-read>/../paper-to-zotero/references/tagging.md`, *Common name*). The main agent fixes it;
 - **version** (a move): each difference between the two versions, and what it became in the note;
 - **elsewhere**: the questions marked 要看别处, and where the answer would be;
@@ -80,5 +80,5 @@ Your reply is the report; the main agent saves it. Exceptions only:
 
 - Do the work yourself: send no subagents.
 - Leave git alone.
-- On the web (the paper's code repository, say): one request at a time, seconds apart on one site. A bot check, a 403 or a 429 ends your work on that site: say so in the report.
+- On the web (the paper's code repository, say): work by hand, one request at a time, seconds apart on one site. A login or check only the user can pass: leave it as it is and report it, for the main agent to bring to the user. Any other bot check, a 403 or a 429 ends your work on that site: say so in the report.
 - Cannot finish: say what you tried, what is settled and what is missing, and hand back.

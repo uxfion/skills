@@ -9,11 +9,11 @@
 
 Through paper-to-zotero's own commands (`structured take`, `note take`, `read_library items` and `pdf`):
   - the package and the PDF of the version the note was read in (its "读的版本：" line), or the best PDF for a new note
-    (best by paper-to-zotero's order: published, accepted, preprint, unknown); --title takes another PDF of the paper,
-    and for a note read in another one, that one's PDF and package too, to compare the two versions;
+    (best by the order `p2z.py read_library pdf --help` gives); --title takes another PDF of the paper, and for a note
+    read in another one, that one's PDF and package too, to compare the two versions;
   - the note titled 论文笔记 as <dir>/<package folder name>.note.md, or, when the paper has none, a new note from the
-    skeleton in references/note-format.md, its version in the front matter (pdf:) and in the body; --bare leaves the
-    eight questions out, for a note that starts with one looked-up answer;
+    skeleton in references/note-format.md, its version in the 读的版本 paragraph; --bare leaves the eight questions
+    out, for a note that starts with one looked-up answer;
   - beside it <note>.taken, the note as taken, which check_note.py compares question numbers against;
   - the paper's other child notes, left in <dir>/notes/ as leads.
 A rerun into the same directory, after a parse for instance, picks up what is already there.
@@ -73,7 +73,7 @@ def p2z(*args):
 
 
 def skeleton(cite, pdf_title, bare=False):
-    head = f"---\nparent: {cite}\npdf: {pdf_title}\n---\n# {TITLE}\n\n"
+    head = f"---\nparent: {cite}\n---\n# {TITLE}\n\n"
     if bare:
         return f"{head}读的版本：{pdf_title}\n"
     trunk = "\n\n".join(f"## Q{i} {q} [待答]" for i, q in enumerate(TRUNK, 1))

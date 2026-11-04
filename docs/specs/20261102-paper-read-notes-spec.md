@@ -161,7 +161,7 @@ pdf: <PDF 标题>
 **一句话概括**是标题下的第一段，最后写，最先读，沿用现有 reading.md 的做法。
 
 **读的版本**是第二段，元数据区的 `pdf` 也记一份（已定 49）：
-- `prepare_note` 两处同时写，换版本时两处一起改，读的时候读正文。元数据区里自己加的字段现在存不进 Zotero，等 p2z 修（issue `20261102-paper-to-zotero-note-front-matter-fields.md`），正文那份兜底；
+- `prepare_note` 两处同时写，换版本时两处一起改，读的时候读正文。元数据区里自己加的字段现在存不进 Zotero，等 p2z 修（issue `archive/20261102-paper-to-zotero-note-front-matter-fields-fixed.md`），正文那份兜底；
 - 出处里的页码都指这份 PDF，按 PDF 的页序从 1 数起，和结构化包里的 `<!-- page N -->` 一致；
 - 以后写回时，`prepare_note` 照这一行取同一份 PDF；
 - 换一份 PDF 读，两处都改，原来写的页码注明指哪份。

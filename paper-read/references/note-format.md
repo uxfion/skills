@@ -13,7 +13,6 @@ A note started for a read-through, as `prepare_note.py` writes it:
 ```markdown
 ---
 parent: <citation key>
-pdf: <PDF title>
 ---
 # 论文笔记
 
@@ -38,10 +37,10 @@ pdf: <PDF title>
 ## Q8 总结一下论文的主要内容 [待答]
 ```
 
-A note started for one looked-up answer (`--bare`) holds the title, the 读的版本 paragraph and that one question: no `[待答]` summary and no empty questions. The question is numbered under the trunk question it belongs to, `### Q3.1`, without that trunk heading; a later read-through adds the trunk around it, and its number stays.
+A note started for one looked-up answer (`--bare`) holds the title, the 读的版本 paragraph and that one question: no `[待答]` summary and no empty questions. The question is numbered under the trunk question (one of the eight) it belongs to, `### Q3.1`, without that trunk heading; a later read-through adds the trunk around it, and its number stays.
 
 - **The summary**, the first paragraph under the title: one sentence on what the paper does. Written last, from the answers already there; read first.
-- **读的版本**, the second paragraph: the title of the PDF the note was read in, also in the front matter's `pdf:`. Read the paragraph; the front matter copy is a spare. Every page number in the note counts that PDF's pages from 1, as the package's `<!-- page N -->` does. A new note is read in the library's best PDF, and a later reader reads the same one. When the library gains a better version, a read-through moves the note onto it (reading.md, *Moving to another version*).
+- **读的版本**, the second paragraph: the title of the PDF the note was read in. Every page number in the note counts that PDF's pages from 1, as the package's `<!-- page N -->` does. A new note is read in the library's best PDF, and every later read uses the same one. When the library gains a better version, a read-through moves the note onto it (reading.md, *Moving to another version*).
 
 ## The eight questions
 
@@ -75,7 +74,7 @@ A fixed item of Q5 or Q6 the paper says nothing about keeps its bold word, follo
 The headings are the question tree, which Zotero's Better Notes outline shows as one.
 
 - A question is a heading: its number, the question, its state in brackets: `## Q3 论文如何解决这个问题？ [已答]`. The trunk questions are `##`; a question one of them raises is `###` (`### Q3.1 推理时也要输入肿瘤 mask 吗？`); one level further is `####`. The answer is written under its heading.
-- **States**: 待答 (not yet), 进行中 (being answered), 已答, 论文没有说明 (the paper does not say; never guessed), 要看别处 (the answer is outside the paper: the code, the supplement), 等 Qn (waits for another answer, asked again under it: `### Q3.2 对比方法也给了 mask 吗？ [等 Q5] → Q5.1`).
+- **States**: 待答 (not yet), 进行中 (being answered), 已答, 论文没有说明 (the paper does not say; never guessed), 要看别处 (the answer is outside the paper: the code, the supplement), 等 Qn (waits for another answer, asked again under it: `### Q3.2 对比方法也给了 mask 吗？ [等 Q5] → Q5.1`; once Q5.1 is answered, `[已答] → Q5.1`).
 - A heading without a number is a section and has no state.
 - A heading is plain text in Zotero: it shows no math, and TeX in it does not come back as a heading. Write a symbol there in Unicode (ŷᵢ, fθ) and the formula in the answer.
 - A blank line before every block: Better Notes cuts its outline by them.

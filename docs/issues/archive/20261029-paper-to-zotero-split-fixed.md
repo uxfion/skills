@@ -4,7 +4,7 @@
 
 - 来源：用户 · 2026-10-29。在设计论文笔记的读法时提出，那张 issue 是 [20261028-paper-to-zotero-paper-notes-fixed.md](20261028-paper-to-zotero-paper-notes-fixed.md)。当时问题树刚定下来（那张 issue 的已定 28），用户说「A。 先不要在问了。有个设计上的非常重要的问题」，接着说了下面这段话。
 - 参考资料：原在 `20261029-paper-to-zotero-split-reference/`（git 不跟踪），2026-11-01 结案时删了。下文提到的报告文件名只是当时的出处，结论都记在对应条目和 spec 里。还要用的挪到了别处：
-  - Node 裁判：`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`；
+  - Node 裁判：后来放在 `20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`，2026-11-04 跑过一次检查后随那张 issue 关闭删了，结果见 [20261102-paper-to-zotero-note-front-matter-fields-fixed.md](20261102-paper-to-zotero-note-front-matter-fields-fixed.md)；
   - 元数据改进的做法：issue `20261101-paper-fetch-metadata-from-zotero.md`；
   - 库里有毛病的条目：记忆 `zotero-library-todo`。
 
@@ -360,7 +360,7 @@
     - **兜底机制自己要补两处**：相邻的同类列表要换分隔符，或者合成一块读；一块非空的内容读成空 Markdown 时要退回 HTML。另外，写入器写围栏代码块时，`<pre>` 结尾会多一个换行，要用第一次选型那条规则去掉。
 56. 用户：「那就是还是我们原来的方案，然后加兜底」。定为已定 21。下一个问题：兜底时靠什么判断"这一块对不上"。
 57. 我给了兜底判断的三个选项：A 纯 Python 自检（读两次一样、看得见的文字一字不差，加两条通用规则）；B 旧的仿编辑器程序；C 编辑器源码做的新裁判，运行时带 Node。我推荐 A。用户：「但是，你需要全面地设计一下，要把这个东西写得优雅一点，就是把它抽象成一个脚本，然后就可以相互转换」。我把转换整体设计成 p2z 里的一个双向脚本，A 放在里面当兜底，设计见下一条回复，等用户看。
-58. 用户（我写设计时插话）：「Skills 本来就只用纯 Python 的，我从来没有想要引入过 Node。」所以选项 C 不成立。skill 的代码和它在仓库里的测试都只用 Python。用编辑器源码做的 Node 裁判，只作为这次设计用的量具，留在 git 忽略的参考文件夹里（结案时挪到`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`），不进 skill，也不进仓库测试。skill 调用的外部命令行工具（比如 OpenCLI）是工具，不算 skill 代码。
+58. 用户（我写设计时插话）：「Skills 本来就只用纯 Python 的，我从来没有想要引入过 Node。」所以选项 C 不成立。skill 的代码和它在仓库里的测试都只用 Python。用编辑器源码做的 Node 裁判，只作为这次设计用的量具，留在 git 忽略的参考文件夹里（结案时挪到`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`，2026-11-04 跑过检查后删了，见本文开头的参考资料），不进 skill，也不进仓库测试。skill 调用的外部命令行工具（比如 OpenCLI）是工具，不算 skill 代码。
 59. 我给出转换脚本的整体设计（`note_md.py`，见那条回复），问用户整体这样设计可不可以。用户先说了只用 Python 的原因：「因为 UV 这一套对于包管理、像命令行一样的脚本调用，这些都管理得很好。而且它还有包内脚本的包管理，可以直接运行。我就不喜欢在外面再去加什么东西，只要一个 UV 就可以解决」。对设计的影响：markdown-it-py 和两个插件写进脚本的 PEP 723 块，由 uv 取，不再像第一次选型提议的那样把插件代码拷进仓库。
 60. 用户：「不对，我觉得调用方式还是要再抽象出来，有点类似 Linux 的设计理念，可以支持管道或者参数。你不要太草率，Linux 的设计理念我记得我们这个项目中之前也提到过」，接着说：「而且你现在这么写 to-md 或者 to-html 有点怪怪的吧」。项目里之前定过：p2z v2 spec（`docs/specs/20260923-paper-to-zotero-v2-spec.md`）已定 5「接口按 Unix 方式」，脚本是过滤器，管道让循环消失；§3.3 的约定是输入用路径，没给路径就读 stdin，输出到 stdout，诊断写 stderr，`-i` 写回原文件。现在的 `note.py` 是用 `--file`/`--text` 给内容，不是这个样子，正好借这次改过来。`structured take` 仍然写进目录，因为结构化包是一个文件夹，不是一条流。草稿在 `note-cli-draft.md`。我的提议（等用户定，一次问一个）：
     - 转换脚本 `note_md.py` 做成过滤器：`note_md.py [文件]` 把笔记转成 Markdown，`note_md.py -r [文件]` 反过来，和 `xxd -r` 一个路数；不给文件就读 stdin，结果写到 stdout。方向不用格式名来叫；
@@ -499,7 +499,7 @@
 18. **先不装桥接插件**（第 35 条，方案 A）：三个 skill 都只走本地 API。笔记读回 Markdown 也在 Zotero 外面做。选哪个 Markdown 工具，要先调研、比较（`markdown-tools.md`）再定。以后真有功能非在 Zotero 里面跑不可，再按已定 17 比较，决定要不要装。已定 16（"可以装 Debug Bridge"）就此搁置。
 19. **写入用 markdown-it-py**（第 47、48 条，用户定）：commonmark 加表格、dollarmath、中文加粗修正，打开 `html=True` 透传原始 HTML。写入器用 Markdown，也就是笔记按 Markdown 写（第 41 条的方案 C），不全用 HTML。读回用什么还没定。
 20. **读回用我们自己写的 Python 读回器**（第 48 到 50 条，方案 1）：只把写入器认得的那一小组写法转回 Markdown，其余原样保留成 HTML，只用标准库。参考 Better Notes 的是知识、识别规则和测试样例；它的转换代码是 TS 写在 unified 的语法树上，和我们的 Python 读回器搬不到一起，所以不搬代码。许可证不作考虑（第 52 条）。采用前做盲测（第 50 条）。
-21. **读回用子集读回器，加按块兜底**（第 53 到 56 条）：每个顶层块读成 Markdown，判断对不上的块原样保留成 HTML。这是在同一套盲测样例上和 12 个别的读回器重新比较后选的（`reselect-blind.md`）。兜底机制要补两处：相邻的同类列表、非空块读成空 Markdown。skill 和它的测试只用 Python（第 58 条）；用编辑器 schema 代码做的 Node 裁判只是这次设计的量具，留在参考文件夹里（结案时挪到`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`）。盲测样例留作不调参的检验集（后来 spec §5.6 改定：这些样例都看过了，只作开发和回归用；另派 agent 写的新一批才算检验）。运行时靠什么判断"对不上"，见第 57 条以后。
+21. **读回用子集读回器，加按块兜底**（第 53 到 56 条）：每个顶层块读成 Markdown，判断对不上的块原样保留成 HTML。这是在同一套盲测样例上和 12 个别的读回器重新比较后选的（`reselect-blind.md`）。兜底机制要补两处：相邻的同类列表、非空块读成空 Markdown。skill 和它的测试只用 Python（第 58 条）；用编辑器 schema 代码做的 Node 裁判只是这次设计的量具，留在参考文件夹里（结案时挪到`20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`，2026-11-04 跑过检查后删了，见本文开头的参考资料）。盲测样例留作不调参的检验集（后来 spec §5.6 改定：这些样例都看过了，只作开发和回归用；另派 agent 写的新一批才算检验）。运行时靠什么判断"对不上"，见第 57 条以后。
 22. **转换方向用 `-t md|note` 指定**（第 60 到 62 条，方案 B）：和 pandoc 的 `-t` 一样。命令行同时支持管道和参数，约定照 p2z v2 spec 的 §3.3。
 23. **转换脚本叫 `note_md.py`，front matter 只在它一处读写**（第 62 到 64 条）：`-t md|note`；`to_md(html, meta)` 和 `to_note(md) -> (html, meta)`；`note.py` 只处理 `meta` 字典。`note.py take/put` 和 `note_md.py` 用同一套输入输出约定。p2z 的输出选项统一成 `-o/--out`，`-t/--to` 只表示格式。
 

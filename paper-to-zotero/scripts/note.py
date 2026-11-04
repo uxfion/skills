@@ -12,6 +12,7 @@ matter says which note it is and where it belongs:
   parent       the citation key (else the item key) of the item it hangs off; none in a standalone note
   collections  a standalone note's collections, keys joined by ","
   related      the papers a standalone note is related to, both ways: citation keys (else item keys) joined by ","
+Zotero has nowhere to keep any other field, so put refuses a file that holds one (bad_front_matter, `fields`).
   schema, citation-items: the note's wrapper (note_md's)
 
   take   The child notes of the item named (--cite, --key), or one note (--note, a standalone one too); --title T keeps
@@ -241,6 +242,11 @@ def put_one(zot, names, text, args):
         html, meta = note_md.to_note(text)
     except ValueError as e:
         raise cli.Stop("bad_front_matter", hint="The front matter is `---`, `key: value` lines, `---`.", detail=str(e))
+    unknown = sorted(set(meta) - set(note_md.FIRST))
+    if unknown:
+        raise cli.Stop("bad_front_matter", hint="Zotero has nowhere to keep these fields: write what they say in the "
+                       "note's text, or delete them. Nothing was written.", fields=unknown,
+                       **({"key": meta["key"]} if meta.get("key") else {}))
     if not title_of(html):
         raise cli.Stop("empty_note", hint="The note has no text after its front matter: nothing was written.",
                        **({"key": meta["key"]} if meta.get("key") else {}))

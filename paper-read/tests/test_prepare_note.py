@@ -5,6 +5,7 @@
 """Tests for scripts/prepare_note.py, against tests/fake_p2z.py: a paper's note, package and PDF taken out of Zotero."""
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -21,35 +22,12 @@ ITEM = {"title": "T-CACE: A Time-Conditioned Autoregressive Contrast Enhancement
 PAPER = {"title": ITEM["title"], "first_author": "Xiao", "year": "2026",
          "venue": "IEEE Journal of Biomedical and Health Informatics", "doi": "10.1109/jbhi.2025.3599387", "aka": ["T-CACE"]}
 MINE = "读的版本：T-CACE (arXiv v1)\n\n## Q1 这篇论文要解决什么问题，为什么重要？这是哪类论文？ [已答]\n\n回答。"
-SKELETON = f"""---
-parent: {CITE}
-pdf: T-CACE (JBHI 2026)
----
-# 论文笔记
-
-[待答]
-
-读的版本：T-CACE (JBHI 2026)
-
-## Q1 这篇论文要解决什么问题，为什么重要？这是哪类论文？ [待答]
-
-## Q2 之前的工作怎么做，缺在哪里？ [待答]
-
-## Q3 论文如何解决这个问题？ [待答]
-
-## Q4 创新点是什么？ [待答]
-
-## Q5 做了哪些实验？ [待答]
-
-## Q6 结论站得住吗？ [待答]
-
-## Q7 有什么可以进一步探索的点？ [待答]
-
-## Q8 总结一下论文的主要内容 [待答]
-"""
+# The skeleton note-format.md shows is the expected value: prepare_note writes it with the paper's values in.
+DOC = (HERE.parent / "references" / "note-format.md").read_text(encoding="utf-8")
+SKELETON = (re.search(r"^## The skeleton\n.*?```markdown\n(.*?)```", DOC, re.S | re.M).group(1)
+            .replace("<citation key>", CITE).replace("<PDF title>", "T-CACE (JBHI 2026)"))
 BARE = f"""---
 parent: {CITE}
-pdf: T-CACE (JBHI 2026)
 ---
 # 论文笔记
 

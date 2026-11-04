@@ -33,10 +33,11 @@ Script paths are relative to this file's directory: `cd` there at the start of e
 A read-through, a looked-up answer written back, a check mark, a correction: each one changes the paper's one note, in four steps.
 
 1. **Take**: `uv run scripts/prepare_note.py --cite <citation key> -o <scratch> [--bare] [--title <PDF title>]`. It gives the note file (a new one from the skeleton when the paper has none; `--bare` starts it without the eight questions), the PDF the note was read in (`--title` takes another, note-format.md, *读的版本*), the package, and the paper's other notes.
-   - `no_package`: the PDF has not been parsed. Parse it with the paddleocr skill, `p2z.py structured put` the result, then run `prepare_note` again into the same directory. Without paddleocr, read the PDF alone and tell the user the skill to install.
+   - `no_package`: the PDF has not been parsed. Parse it with the paddleocr skill, `p2z.py structured put` the result, then run `prepare_note` again with the same arguments, into the same directory. Without paddleocr, read the PDF alone and tell the user the skill to install.
    - `two_notes`: the paper has two notes titled 论文笔记. Which to keep is the user's call.
-   - `failed` with `no_such_title`: the PDF the note was read in is no longer in the library under that title. One of its `titles` that is the same file renamed: run again with `--title` it, and name it in the 读的版本 paragraph (and in `pdf:`, where the front matter still has it); nothing needs reading again. None: it goes to the user.
-   - `better_pdf`: the library holds a better version than the one the note was read in (paper-to-zotero's order: published, accepted, preprint, unknown). A lookup reads on in the note's version; a read-through moves the note onto the better one (*Read a paper*).
+   - `failed` with `no_such_title`: the PDF the note was read in is no longer in the library under that title. One of its `titles` that is the same file renamed: run again with `--title` it, and name it in the 读的版本 paragraph; nothing needs reading again. None: it goes to the user.
+   - `failed` with any other code (a citation key that names no item, Zotero not running): `detail` holds paper-to-zotero's own line; follow its `hint`.
+   - `better_pdf`: the library holds a better version than the one the note was read in (by the order `p2z.py read_library pdf --help` gives). A lookup reads on in the note's version; a read-through moves the note onto the better one (*Read a paper*).
 2. **Edit** the note file by note-format.md, *Changing a note*.
 3. **Check**: `uv run scripts/check_note.py <note>` (`--full` after a read-through) prints `complete`, and `uv run scripts/check_quotes.py <note> --pdf <PDF> --package <package>` (no package: without `--package`) prints `pass`. `missing_numbers` lists questions lost since the take: put them back.
 4. **Put**: `p2z.py note put <note> -i`.
@@ -65,7 +66,7 @@ Done when the answer rests on the note or the paper's text, and what belongs in 
    - `git status` in the project shows nothing the reader left; remove what it did;
    - a move to a better version: `check_note` prints the new PDF as `version`, and the report's version section lists every difference between the two and what it became.
 
-   What fails goes back to the same reader with the output as printed: Claude Code `SendMessage`. If it cannot be resumed, send a new reader with the same brief and the note file as it stands.
+   What fails goes back to the same reader with the output as printed: Claude Code `SendMessage`. If it cannot be resumed, send a new reader with the same brief, the note file as it stands, that output and the first reader's reply.
 4. **Save the reader's reply** as `<scratch>/report.md`, then act on it:
    - the PDF is not this paper: stop; it goes to the user;
    - a settled package: `p2z.py structured put <package>`;

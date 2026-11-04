@@ -27,7 +27,7 @@
 2. **换版本**（issue 已定 51，spec §12 第 14 条）：
    - 库里进了比笔记那份更好的 PDF 时，`prepare_note` 报 `better_pdf`；用 `--title` 取新版，`previous` 带出旧版的 PDF 和包；
    - 读论文的 subagent 按 reading.md *Moving to another version* 逐段对比两份包，处理每一处差别，回报里列出。
-   - 要看的：两份包的 Markdown 结构差得大时，逐段对比会不会满是噪音；"新版删去了这段"的标记写得顺不顺；"读的版本"改对没有（元数据区的 `pdf:` 存不进 Zotero，见 p2z issue `20261102-paper-to-zotero-note-front-matter-fields.md`，所以只剩正文那一份）。
+   - 要看的：两份包的 Markdown 结构差得大时，逐段对比会不会满是噪音；"新版删去了这段"的标记写得顺不顺；正文的「读的版本」一段改对没有（这是唯一的一处，元数据区的 `pdf:` 2026-11-04 去掉了，见下面「已定 49 改了」）。
 3. **主题笔记**（spec §3.6）：一条都没建过。
    - 要先在 Zotero 里建"主题笔记"分类。
    - 原验证清单里有一项还没做：p2z `note put` 写 `related` 以后，论文条目那一侧的"相关"里能不能看到这条主题笔记。
@@ -42,16 +42,41 @@
    - 读论文的 subagent 没过检查，退回同一个 subagent（Claude Code `SendMessage`），或者接不上时另派一个；
    - 读论文的 subagent 在回报里报出库里的问题，由主 agent 核实后去改。
 
-## 关闭前审阅剩下的（2026-11-03）
+## 已定 49 改了（2026-11-04）
 
-用户：「重要的你可以审一下，但是那种不重要的，我觉得没必要逐一细节去过」。重要的 9 条改了（spec §12 第 15 项），下面这些留着：
+已定 49 原来是"读的是哪份 PDF，元数据区和正文各记一份"。元数据区里自己加的字段存不进 Zotero，用户选了不去修存储、而是不再往元数据区记：「第一个问题，你根据我们的设计原则想一下，我感觉还是会选 A，就是去掉在笔记里面存它的原数据。因为本身我的笔记里面已经提到了主动提取。」
 
-- **13 条小问题**，见参考资料 `principles-review-20261103.md` 第 11–23 条。
+- 现在只在正文的「读的版本」一段记，`prepare_note` 本来就只读这一段；新建的笔记不再写 `pdf:`。
+- p2z `note put` 遇到 Zotero 存不下的字段直接拒绝（`bad_front_matter`，列出字段），不再悄悄丢掉。
+- p2z 那张 issue 随之关闭：[archive/20261102-paper-to-zotero-note-front-matter-fields-fixed.md](archive/20261102-paper-to-zotero-note-front-matter-fields-fixed.md)。
+
+## 关闭前审阅剩下的（2026-11-03；小问题 2026-11-04 处理）
+
+用户 11-03：「重要的你可以审一下，但是那种不重要的，我觉得没必要逐一细节去过」。重要的 9 条改了（spec §12 第 15 项）。
+
+13 条小问题（参考资料 `principles-review-20261103.md` 第 11–23 条），用户 11-04：「你也是一样，按照我们的设计原则过一下，看是否符合，如果符合我们的设计原则的话，你就修了它」。逐条对照设计原则过了：
+
+- **修了**：
+  - 11：版本顺序改为指向 `read_library pdf --help`。
+  - 12：加了测试，`prepare_note` 写出的骨架要等于 note-format.md 的骨架，`check_note` 的 Q5、Q6 固定项要等于文档的清单。
+  - 13：`[等 Q5] → Q5.1` 答完写成 `[已答] → Q5.1`。
+  - 14：上网规矩补上手工操作，只有用户能过的关卡交回主 agent。
+  - 15：另派新的读论文 subagent 时，带上没过的检查输出和上一位的回报。
+  - 16：两处用词。
+  - 17：回报的 package 一节只要 open 和 `unresolved`。
+  - 18：随已定 49 一起去掉了 `pdf:`。
+  - 19：重跑 `prepare_note` 用同样的参数。
+  - 20：后两处，check_note 帮助里的文件名、index_heading 的排序说明；前一处（`--package` 没有 `.md` 时不报）之前已修。
+  - 21：其他 `failed` 和 index_heading 找不到时，照 p2z 那一行的 `hint` 做。
+  - 22：`fake_p2z` 写明照抄的是 p2z `2788f2b` 的输出。
+- **没修**：23（可选）。真 Zotero 去掉结尾换行这件事，`note_md.to_note` 已经处理，真编辑器也核对过；再让假 Zotero 也这样，测试抓不到更多问题，按「少而强的测试」不做。
+
+还留着的：
+
 - **要用户定的一条**（审阅第 9 条）："读的版本"现在只记 PDF 的标题，标题会被整理改掉。如果同时记下附件 key，改名以后 `prepare_note` 能按 key 找回同一份 PDF。这要改已定 49。
 - **引文比对的规范形式修过 bug 以后，在新论文上再盲测一次**：原来那两篇已经用过，修完以后的重跑只算回归检查。
 
 ## 相关的 issue（各自开着，不在这里做）
 
-- p2z：`20261102-paper-to-zotero-note-front-matter-fields.md`（元数据区里自己加的字段存不进 Zotero）。
 - paddleocr：`20261102-paddleocr-download-stamp-false-findings.md`、`20261102-paddleocr-commit-merges-heading-and-paragraph.md`。
 - 笔记的呈现：`20261103-paper-read-note-images.md`（暂停）、`20261103-paper-read-note-expression.md`、`20261103-paper-read-note-two-depths.md`、`20261103-paper-read-source-links.md`。

@@ -3,7 +3,8 @@
 # dependencies = []
 # ///
 """A stand-in for paper-to-zotero's p2z.py in paper-read's tests: the commands prepare_note.py and index_heading.py
-run, answered from the library in the JSON file FAKE_P2Z names, as the real ones answer (their docstrings). Each call's
+run, answered from the library in the JSON file FAKE_P2Z names, as the real ones answer (their docstrings) at
+paper-to-zotero's commit 2788f2b: when their output changes, change this to match. Each call's
 arguments go to FAKE_P2Z.log, one JSON line each.
 
 The library: {"items": {cite: item}, "notes": {cite: [{key, title, text}]}, "pdfs": {cite: [PDF title, best first]},

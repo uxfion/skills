@@ -5,6 +5,7 @@
 """Tests for scripts/check_note.py: when a paper note may go into Zotero, after any change and after a read-through."""
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -19,7 +20,7 @@ spec.loader.exec_module(check_note)
 # Half read: line numbers are counted by hand.
 HALF = """---
 parent: xiaoTCACE2026
-pdf: T-CACE (JBHI 2026)
+key: NOTE1234
 ---
 # 论文笔记
 
@@ -54,7 +55,7 @@ TAKEN = HALF.replace("## Q3 论文", "## Q2 之前的工作怎么做，缺在哪
 
 FULL = """---
 parent: xiaoTCACE2026
-pdf: T-CACE (JBHI 2026)
+key: NOTE1234
 ---
 # 论文笔记
 
@@ -85,6 +86,12 @@ pdf: T-CACE (JBHI 2026)
 
 
 class CheckNote(unittest.TestCase):
+    def test_the_fixed_items_are_note_format_s(self):
+        doc = (SCRIPT.parent.parent / "references" / "note-format.md").read_text(encoding="utf-8")
+        for q, n in (("Q5", 5), ("Q6", 6)):
+            block = re.search(rf"^{n}\. .*?(?=^{n + 1}\. )", doc, re.S | re.M).group(0)
+            self.assertEqual(tuple(re.findall(r"^ +- \*\*(.+?)\*\*", block, re.M)), check_note.ITEMS[q], q)
+
     def test_a_half_read_note_is_open(self):
         out = check_note.check(HALF, taken=TAKEN)
         self.assertEqual(out["code"], "open")
@@ -106,7 +113,7 @@ class CheckNote(unittest.TestCase):
         self.assertEqual(check_note.check(moved, full=True)["missing_items"], ["Q6 统计"])
 
     def test_a_looked_up_answer(self):
-        bare = ("---\nparent: xiaoTCACE2026\npdf: T-CACE (JBHI 2026)\n---\n# 论文笔记\n\n读的版本：T-CACE (JBHI 2026)\n\n"
+        bare = ("---\nkey: NOTE1234\nparent: xiaoTCACE2026\n---\n# 论文笔记\n\n读的版本：T-CACE (JBHI 2026)\n\n"
                 "### Q3.1 推理时也要输入肿瘤 mask 吗？ [论文没有说明]\n\n方法部分只写了训练。\n")
         self.assertEqual(check_note.check(bare)["code"], "complete")
         out = check_note.check(bare, full=True)

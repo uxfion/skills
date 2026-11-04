@@ -90,7 +90,7 @@ uv run scripts/p2z.py note put <scratch>/notes/*.note.md -i            # back in
 ```
 
 - Edit between take and put and leave `key` and `version` as take wrote them. `version_conflict`: the note changed in Zotero after the take (the user edited it) — take it again into the same directory and redo your change there.
-- A new note is a file without `key`: `parent: <citation key>` makes it a child note; `collections:` and `related:` (citation keys) a standalone one, related both ways.
+- A new note is a file without `key`: `parent: <citation key>` makes it a child note; `collections:` and `related:` (citation keys) a standalone one, related both ways. Zotero keeps no other front-matter field, so `put` refuses one (`bad_front_matter`): what it would say goes in the note's text.
 - Raw HTML blocks stand on their own lines with a blank line around them. Inline code stays out of links and bold: the editor drops the link or the bold when it saves. A heading holds no math in the editor, so a `$…$` there stays its TeX text.
 - `note list --q <words>` finds notes by their text.
 

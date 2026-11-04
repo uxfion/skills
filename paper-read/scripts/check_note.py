@@ -5,7 +5,7 @@
 # ///
 """Check a paper note's structure before it goes into Zotero: step 3 of every change to a note, with check_quotes.py.
 
-  uv run scripts/check_note.py <scratch>/<cite>.<PDF title>.note.md [--taken FILE] [--full]
+  uv run scripts/check_note.py <scratch>/<package folder name>.note.md [--taken FILE] [--full]
 
 The note's headings are its question tree (references/note-format.md): a question heading (## to ####) starts with
 its number (Q3, Q3.1) and ends in its state in brackets, [已答], [论文没有说明], [要看别处], [待答], [进行中] or [等 Qn]
@@ -123,7 +123,7 @@ def check(text, taken=None, full=False):
 def main(argv=None):
     first, _, rest = __doc__.strip().partition("\n")
     p = argparse.ArgumentParser(description=first, epilog=rest.strip(), formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("note", metavar="NOTE", help="the note file: <scratch>/<cite>.<PDF title>.note.md")
+    p.add_argument("note", metavar="NOTE", help="the note file: <scratch>/<package folder name>.note.md")
     p.add_argument("--taken", metavar="FILE", help="the note as taken (default: NOTE.taken when it exists)")
     p.add_argument("--full", action="store_true", help="a read-through: the eight questions, the summary, the fixed items")
     args = p.parse_args(argv)
