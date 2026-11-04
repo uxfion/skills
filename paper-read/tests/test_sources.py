@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/sources.py: which sources in a note become links, and the links taken off again."""
+"""Tests for scripts/sources.py: which figures and tables a note names become links, and the links taken off again."""
 import re
 import sys
 import unittest
@@ -51,9 +51,7 @@ Fig. 10, p.12
 def linked(note):
     out = note.split("\n")
     for n, a, b, text, m in sorted(sources.tokens(note), key=lambda t: (t[0], t[1]), reverse=True):
-        new = (sources.page_link("PDFKEY01", text, int(m.group("page"))) if m.group("page")
-               else sources.annotation_link("PDFKEY01", text, "ANNOT001"))
-        out[n - 1] = out[n - 1][:a] + new + out[n - 1][b:]
+        out[n - 1] = out[n - 1][:a] + sources.link("PDFKEY01", text, "ANNOT001") + out[n - 1][b:]
     return "\n".join(out)
 
 
@@ -70,13 +68,13 @@ class Tokens(unittest.TestCase):
     def test_where_they_are_read(self):
         got = [(n, text) for n, _, _, text, _ in sources.tokens(NOTE)]
         self.assertEqual(got, [
-            (6, "Fig. 1"), (6, "p.2"),                       # the summary is text; the title, front matter and 读的版本 not
-            (12, "Table III"), (12, "p.11"), (12, "Fig. 9"), (12, "p.11"),
-            (12, "Table I"), (12, "Figs. 3"), (12, "p.8–9"),  # of Table I/II and Figs. 3–5 the first alone
-            (14, "Table III"), (14, "p.11"),                 # the source after a quotation, not its words
+            (6, "Fig. 1"),                                   # the summary is text; the title, front matter and 读的版本 not
+            (12, "Table III"), (12, "Fig. 9"),               # pages are no tokens
+            (12, "Table I"), (12, "Figs. 3"),                # of Table I/II and Figs. 3–5 the first alone
+            (14, "Table III"),                               # the source after a quotation, not its words
             (16, "Table III"),                               # its Chinese line
-            (23, "Fig. 7"), (23, "p.7"),                     # inline HTML around it: text; an HTML block: not
-            (25, "Fig. 8"), (25, "Table II"), (25, "p.8"),  # not the deletion mark, nor 原写"…"
+            (23, "Fig. 7"),                                  # inline HTML around it: text; an HTML block: not
+            (25, "Fig. 8"), (25, "Table II"),               # not the deletion mark, nor 原写"…"
         ])
 
     def test_keys_and_labels(self):
@@ -96,15 +94,15 @@ class Strip(unittest.TestCase):
         self.assertEqual(sources.tokens(linked(NOTE)), [])   # a linked token is not linked twice
 
     def test_only_its_own_links(self):
-        kept = ("[p. 6](zotero://open-pdf/library/items/AAAAAAAA?page=6) "        # no token: a space after p.
-                "[p.6](zotero://open-pdf/library/items/AAAAAAAA?page=7) "         # the page is not the token's
+        kept = ("[p.6](zotero://open-pdf/library/items/AAAAAAAA?page=6) "         # a page link: someone else's
                 "[Fig. 3](zotero://open-pdf/library/items/AAAAAAAA?page=3) "      # a figure to a page
-                "[see Fig. 3](zotero://open-pdf/library/items/AAAAAAAA?annotation=BBBBBBBB) "
-                "[p.6](https://example.org/?page=6)")
+                "[see Fig. 3](zotero://open-pdf/library/items/AAAAAAAA?annotation=BBBBBBBB) "   # no token
+                "[Fig. 3](https://example.org/?annotation=BBBBBBBB)")
         self.assertEqual(sources.strip(kept), kept)
         html = ('<p>Fig. 3 <a href="zotero://open-pdf/library/items/OLDPDF01?annotation=BBBBBBBB" rel="noopener">Fig. 3</a>'
-                ' <a href="zotero://open-pdf/library/items/OLDPDF01?page=4">p.4–5</a></p>')
-        self.assertEqual(sources.strip(html), "<p>Fig. 3 Fig. 3 p.4–5</p>")   # any PDF's key: an older version's too
+                ' <a href="zotero://open-pdf/library/items/OLDPDF01?page=4">p.4</a></p>')
+        self.assertEqual(sources.strip(html),   # any PDF's key: an older version's too
+                         '<p>Fig. 3 Fig. 3 <a href="zotero://open-pdf/library/items/OLDPDF01?page=4">p.4</a></p>')
 
 
 class Quotation(unittest.TestCase):

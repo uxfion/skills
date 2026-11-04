@@ -3,30 +3,29 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Put a paper note into Zotero with its sources clickable: step 4 of every change to a note.
+"""Put a paper note into Zotero with its figures and tables clickable: step 4 of every change to a note.
 
   uv run scripts/put_note.py <note>
 
-In one go: the links an earlier put left are taken off; the note's source tokens (sources.py; references/note-format.md,
-*Clickable sources*) become links into the PDF; paper-to-zotero's `note put <note> -i` puts the note; then the links
-are taken off the file again, whatever the put answered, so the file holds the note's text alone (and the key and
-version -i wrote). A figure or table links to a rectangle annotation on it, which `p2z.py annotate` finds or creates
-(blue, tagged paper-read, its comment "paper-read · Fig. 9"), placed by the paddleocr skill's `doc.py objects` from
-the structured package; a page links to the page. The PDF's key (`attachment` in <stem>.zotero.json), the PDF
-(<stem>.pdf) and the package (<stem>/) are read beside the note <stem>.note.md, where prepare_note.py left them.
+In one go: the links an earlier put left are taken off; each figure and table the note names (sources.py;
+references/note-format.md, *Clickable figures and tables*) becomes a link to a rectangle annotation on it in the PDF,
+which `p2z.py annotate` finds or creates (blue, tagged paper-read, its comment "paper-read · Fig. 9"), placed by the
+paddleocr skill's `doc.py objects` from the structured package; paper-to-zotero's `note put <note> -i` puts the note;
+then the links are taken off the file again, whatever the put answered, so the file holds the note's text alone (and
+the key and version -i wrote). The PDF's key (`attachment` in <stem>.zotero.json), the PDF (<stem>.pdf) and the
+package (<stem>/) are read beside the note <stem>.note.md, where prepare_note.py left them.
 
-A source that cannot be linked leaves the rest linked and the note put. It is listed in `unmatched`, with why:
+A figure or table that cannot be linked stays plain text, the rest linked and the note put. It is listed in
+`unmatched`, with why:
   not_in_package     no figure or table in the package has this number, or two captions give it
   rotated_page       it sits on a rotated page, where no rectangle is placed
   no_package         no structured package beside the note
   no_paddleocr       the paddleocr skill is not installed beside this one
   objects_failed     doc.py objects failed: detail holds its stderr
   annotate_failed    p2z.py annotate neither found nor created the annotation: detail holds what it printed
-  page_out_of_range  the page is past the PDF's last (counted by pdfinfo; without pdfinfo, pages go unchecked)
   no_pdf             no <stem>.zotero.json with the PDF's key beside the note: nothing is linked
-A figure or table left unlinked leaves the page beside it linked.
 
-stdout: one JSON object {code, put, links: {pages, figures, tables}, unmatched: [{token, lines, why, detail?}],
+stdout: one JSON object {code, put, links: {figures, tables}, unmatched: [{token, lines, why, detail?}],
 annotations: {created, kept}}.
   code  note put's own code (ok, skipped, version_conflict, same_title, ...; its line is in put), or failed: the
         note file could not be read or written, or note put printed nothing (detail); then nothing was put
@@ -79,15 +78,6 @@ def pdf_key(side):
     return key if isinstance(key, str) and re.fullmatch(r"[A-Z0-9]{8}", key) else None
 
 
-def page_count(pdf):
-    try:
-        done = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True)
-    except OSError:
-        return None
-    m = re.search(r"^Pages:\s+(\d+)", done.stdout, re.M)
-    return int(m.group(1)) if done.returncode == 0 and m else None
-
-
 def locate(keys, package, pdf, key):
     """The figures and tables named -> ({key: annotation key}, {key: (why, detail)}, {created, kept})."""
     counts = {"created": 0, "kept": 0}
@@ -138,7 +128,7 @@ def link(note, clean):
     """-> (the note with links, links counted, unmatched, annotations counted)."""
     stem = note.name.removesuffix(".note.md")
     tokens, links, unmatched = sources.tokens(clean), {}, {}
-    counts = {"pages": 0, "figures": 0, "tables": 0}
+    counts = {"figures": 0, "tables": 0}
 
     def miss(t, why, detail=None):
         entry = unmatched.setdefault((t[3], why), {"token": t[3], "lines": [], "why": why, **({"detail": detail} if detail else {})})
@@ -149,21 +139,12 @@ def link(note, clean):
         for t in tokens:
             miss(t, "no_pdf")
         return clean, counts, list(unmatched.values()), {"created": 0, "kept": 0}
-    pdf = note.with_name(f"{stem}.pdf")
-    last = page_count(pdf)
-    named = list(dict.fromkeys(sources.key_of(t[4]) for t in tokens if not t[4].group("page")))
-    boxes, why, made = locate(named, note.with_name(stem), pdf, key)
+    named = list(dict.fromkeys(sources.key_of(t[4]) for t in tokens))
+    boxes, why, made = locate(named, note.with_name(stem), note.with_name(f"{stem}.pdf"), key)
     for t in tokens:
         n, start, end, text, m = t
-        if m.group("page"):
-            page = int(m.group("page"))
-            if last is not None and page > last:
-                miss(t, "page_out_of_range")
-                continue
-            links[(n, start, end)] = sources.page_link(key, text, page)
-            counts["pages"] += 1
-        elif (k := sources.key_of(m)) in boxes:
-            links[(n, start, end)] = sources.annotation_link(key, text, boxes[k])
+        if (k := sources.key_of(m)) in boxes:
+            links[(n, start, end)] = sources.link(key, text, boxes[k])
             counts["figures" if m.group("fig") else "tables"] += 1
         else:
             miss(t, *why[k])

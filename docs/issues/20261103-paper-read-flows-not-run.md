@@ -28,6 +28,7 @@
    - 库里进了比笔记那份更好的 PDF 时，`prepare_note` 报 `better_pdf`；用 `--title` 取新版，`previous` 带出旧版的 PDF 和包；
    - 读论文的 subagent 按 reading.md *Moving to another version* 逐段对比两份包，处理每一处差别，回报里列出。
    - 要看的：两份包的 Markdown 结构差得大时，逐段对比会不会满是噪音；"新版删去了这段"的标记写得顺不顺；正文的「读的版本」一段改对没有（这是唯一的一处，元数据区的 `pdf:` 2026-11-04 去掉了，见下面「已定 49 改了」）。
+   - 2026-11-04 出处链接实测时跑过取和存这两头（CycleGAN 的一条测试笔记，从 arXiv v7 换到 Published-CVF）：`--title` 取新版、`previous` 带出旧版；改「读的版本」后 `put_note` 存，链接全部换成新 PDF 的 key、新 PDF 上建了框，旧 PDF 上的框留着。读论文的 subagent 逐段对比两份包这一段没跑。
 3. **主题笔记**（spec §3.6）：一条都没建过。
    - 要先在 Zotero 里建"主题笔记"分类。
    - 原验证清单里有一项还没做：p2z `note put` 写 `related` 以后，论文条目那一侧的"相关"里能不能看到这条主题笔记。

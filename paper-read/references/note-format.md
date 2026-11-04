@@ -102,14 +102,14 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
 - `（更正 <date>：原写"…"，按 <evidence and its source> 改）`: what was there before a correction, and why it changed. It stays.
 - `（<new PDF title> 删去了这段，原见 <previous PDF title> <source>）`: a later version dropped what this sentence rests on. It stays.
 
-## Clickable sources
+## Clickable figures and tables
 
-When the note is put into Zotero, a source written in one of these forms becomes a link into the PDF the note was read in: a figure or a table to a blue box on it, a page to that page. The links live in Zotero only: the note file you edit has none.
+When the note is put into Zotero, each figure and table it names in one of these forms becomes a link to a blue box on it in the PDF the note was read in, so a reader of the note sees it in one click. The links live in Zotero only: the note file you edit has none.
 
-- Linked: `p.11`, `p.7–8`, `Fig. 9`, `Fig.9`, `Figure 9`, `Fig. 2(b)` (the link is `Fig. 2`), `Table III`, `Supplementary Fig. 3`, `Extended Data Table 1`.
-- Not linked: `Sec. III-A`, `Eq. (3)`, `pp.3–5`, `p. 6`, `图 4`.
+- Linked: `Fig. 9`, `Fig.9`, `Figure 9`, `Fig. 2(b)` (the link is `Fig. 2`), `Table III`, `Supplementary Fig. 3`, `Extended Data Table 1`.
+- Not linked: `p.11`, `Sec. III-A`, `Eq. (3)`, `图 4`.
 
-A section has no page to jump to: write the page beside it, (Sec. III-A, p.3). Of `Table I/II` only the first links: write each in full, `Table I, Table II`, for each to link.
+Of `Table I/II` only the first links: write each in full, `Table I, Table II`, for each to link.
 
 ## Changing a note
 

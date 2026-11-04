@@ -23,8 +23,7 @@ PAPER = {"title": ITEM["title"], "first_author": "Xiao", "year": "2026",
          "venue": "IEEE Journal of Biomedical and Health Informatics", "doi": "10.1109/jbhi.2025.3599387", "aka": ["T-CACE"]}
 MINE = "读的版本：T-CACE (arXiv v1)\n\n## Q1 这篇论文要解决什么问题，为什么重要？这是哪类论文？ [已答]\n\n回答（Fig. 2, p.4）。"
 # as Zotero holds it: with the links put_note.py added
-LINKED = MINE.replace("Fig. 2, p.4", "[Fig. 2](zotero://open-pdf/library/items/PDFKEY01?annotation=ANNOT001), "
-                                     "[p.4](zotero://open-pdf/library/items/PDFKEY01?page=4)")
+LINKED = MINE.replace("Fig. 2", "[Fig. 2](zotero://open-pdf/library/items/PDFKEY01?annotation=ANNOT001)")
 # The skeleton note-format.md shows is the expected value: prepare_note writes it with the paper's values in.
 DOC = (HERE.parent / "references" / "note-format.md").read_text(encoding="utf-8")
 SKELETON = (re.search(r"^## The skeleton\n.*?```markdown\n(.*?)```", DOC, re.S | re.M).group(1)

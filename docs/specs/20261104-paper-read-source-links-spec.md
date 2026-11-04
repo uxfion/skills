@@ -1,17 +1,18 @@
 # paper-read：笔记里的出处可以点，跳到 PDF 里的位置（设计）
 
-> 第二版，2026-11-04：用户看过预览，定了已定 2，说 compact 之后实施。第一版过了两份审阅（忠实度和可用性、技术正确性，在 issue 的参考资料文件夹 `review-fidelity.md`、`review-technical.md`），按审阅、自查和用户的选择改过，§10 记了改了什么。来源：issue [20261103-paper-read-source-links.md](../issues/20261103-paper-read-source-links.md)（实测和已定 1）。依据：`docs/design-principles.md`。
+> 第二版，2026-11-04：用户看过预览，定了已定 2，说 compact 之后实施；实施和实测后用户定了已定 3（页码不链，只链图和表），正文已按它改。第一版过了两份审阅（忠实度和可用性、技术正确性；审阅报告放在 issue 的参考资料文件夹里，issue 关闭时删掉了），按审阅、自查和用户的选择改过，§10 记了改了什么。来源：issue [20261103-paper-read-source-links-fixed.md](../issues/archive/20261103-paper-read-source-links-fixed.md)（实测和已定 1）。依据：`docs/design-principles.md`。
 
 ## 0. 一句话
 
-读论文的 agent 照旧只写出处；主 agent 把笔记存进 Zotero 之前，脚本把正文里的页码、图号、表号变成链接：图和表在 PDF 上有一个带 `paper-read` 标签的蓝色区域标注，链接跳到标注并框住，其余跳到页。取出笔记时再把链接去掉，agent 读写的始终是干净的出处。
+读论文的 agent 照旧只写出处；主 agent 把笔记存进 Zotero 之前，脚本把正文里的图号、表号变成链接：图和表在 PDF 上有一个带 `paper-read` 标签的蓝色区域标注，链接跳到标注并框住，读笔记时一点就看到那张图表。页码照写，不加链接。取出笔记时再把链接去掉，agent 读写的始终是干净的出处。
 
 ## 1. 要什么，已经定了什么
 
 - 用户（2026-11-03）：「你说的那个跳转能不能实现？就是我点一下，跳转到图所在的位置」；实测后：「那这样的话，本身就是和结构化包对应起来了呀。我们本身是有结构化信息的」。
 - **已定 1**（用户选 A）：笔记引用到的图、表，在 PDF 上建区域标注，链接到标注（蓝框定位）；其余出处只链接到页，不建标注。标注统一一种颜色，备注写明是 paper-read 建的，和用户自己的标注分开。
 - **已定 2**（2026-11-04，用户选 A：「A」）：表的框框住表的标题（"TABLE III" 那一行），不框整张表。标题自己写着编号，位置确定；框整张表要猜哪个标题配哪张表（§4.5）。图照旧框整张图。
-- **已定 45**（2026-11-02）：出处能定位就标，页码或章节都行，不强制。本设计不改它：只写节号的出处没有页码可链，就不加链接（§4.1）。
+- **已定 3**（2026-11-04，实测后）：页码不链，只链图和表。用户点过三种链接后说「好像跳转的没有很有必要」、「要不我们页码就没必要放了」，又讲明出发点：「我当初就是想为了方便更快地定位到图，一开始确实是想放图的，但是发现重复了……快速定位到图不就相当于解决了我放图的问题吗？」跳转是放图的替代，为的是一点就看到图表；页码和这件事无关（T-CACE 的 225 个链接里 154 个是页码，24 处 `Fig. 9, p.11` 两个链接指向同一处）。已定 1 里"其余出处只链接到页"那半句随之取消。
+- **已定 45**（2026-11-02）：出处能定位就标，页码或章节都行，不强制。本设计不改它。
 - 实测过的（issue）：`zotero://open-pdf/library/items/<PDF 附件 key>?page=N` 跳到第 N 页（从 1 数），`?annotation=<标注 key>` 跳到标注并框住；区域标注能经本地接口建；p2z 的笔记转换能完整往返 `zotero://` 链接（技术审阅在 T-CACE 笔记上加了 225 个链接，离线转成 Zotero 的格式再转回来、去掉链接，和原文逐字相同）。
 
 ## 2. 例子：T-CACE 笔记里的一行，从写到点
@@ -22,11 +23,11 @@ T-CACE 笔记 Q5 里现在的一行：
 4. 消融：CTE、DTAM、时间编码各贡献多少 → 只在 MG-2021 的 Delay 合成任务上做 → 去掉任一模块分割和分类都下降（Table III, p.11；Fig. 9, p.11）。见 Q5.4。
 ```
 
-1. 主 agent 检查过笔记，用 `put_note.py <笔记>` 存。它先认出 `Table III`、`p.11`、`Fig. 9`、`p.11` 四个记号。
+1. 主 agent 检查过笔记，用 `put_note.py <笔记>` 存。它先认出 `Table III`、`Fig. 9` 两个记号（页码不是记号）。
 2. 它问 paddleocr（`doc.py objects`）这个包里 Table III 和 Fig. 9 在哪：都在第 11 页；Fig. 9 给整张图的框，Table III 给 "TABLE III" 那行标题的框，都已换算成 PDF 自己的坐标。
 3. 它让 p2z（`annotate`）在这份 PDF 上为两者各找一个已有的 paper-read 标注，没有就建：蓝色、标签 `paper-read`、备注 `paper-read · Table III`，拿回 key。
-4. 这一行变成 `（[Table III](zotero://open-pdf/library/items/4UVJVU5R?annotation=…), [p.11](zotero://open-pdf/library/items/4UVJVU5R?page=11)；[Fig. 9](…?annotation=…), [p.11](…?page=11)）`，存进 Zotero；存完，主 agent 手里的笔记文件又是干净的。
-5. 用户在 Zotero 里点 `Fig. 9`：PDF 打开，蓝框框住图 9；点 `Table III`：跳到表 III，蓝框框住它的标题；点 `p.11`：翻到第 11 页。
+4. 这一行变成 `（[Table III](zotero://open-pdf/library/items/4UVJVU5R?annotation=…), p.11；[Fig. 9](…?annotation=…), p.11）`，存进 Zotero；存完，主 agent 手里的笔记文件又是干净的。
+5. 用户在 Zotero 里点 `Fig. 9`：PDF 打开，蓝框框住图 9；点 `Table III`：跳到表 III，蓝框框住它的标题。
 6. 下次 `prepare_note` 取出：链接去掉，这一行和原来逐字相同。
 
 ## 3. 谁做什么
@@ -45,7 +46,6 @@ T-CACE 笔记 Q5 里现在的一行：
 ### 4.1 哪些写法变成链接
 
 - **记号**：
-  - 页：`p.N`、`p.N–M`（链到第 N 页），和 note-format.md 的写法一样，`p.` 后面不空格；`p.9、p.11` 是两个。
   - 图：`Fig. N`、`Figure N`、`Fig.N`；表：`Table N`；前面可以有 `Supplementary`、`Extended Data`。编号照论文（`3`、`III`、`S1`）。
   - 每个记号都是完整的一个：`Table I/II`、`Figs. 3–5` 这样连写时，只有写全的第一个（`Table I`、`Figs. 3`）有链接，后面单独的编号不链。note-format.md 说明一句"各写全名才各有链接"，是提示，不是规矩。T-CACE 里这种连写只有 4 处。
   - 子图：`Fig. 2(b)`、`Fig. 2b` 链的是 `Fig. 2`，面板字母留在链接外面。
@@ -57,18 +57,14 @@ T-CACE 笔记 Q5 里现在的一行：
   - HTML 块（用户在 Zotero 里排过版的段落，取出时留成 HTML）和已经在链接里的文字；
   - 删去标记 `（<新 PDF> 删去了这段，原见 <旧 PDF> <出处>）` 和更正标记里 `原写"…"` 的部分：它们引的是旧版本或旧文字，不是这份 PDF。
 - **对不上的**进 `unmatched`，各带原因：
-  - 图表：包里没有这个图表或编号不唯一、旋转页、没有包、没装 paddleocr、`doc.py objects` 出错、`annotate` 被拒。这些图表不建标注，同一处出处里的 `p.N` 照样链到页。
-  - 页：页码超出 PDF 的页数，不加链接。页数用 `pdfinfo` 读（poppler，`check_quotes` 本来就要它）；没有 `pdfinfo` 就不查页数，照样链。
+  - 包里没有这个图表或编号不唯一、旋转页、没有包、没装 paddleocr、`doc.py objects` 出错、`annotate` 被拒。这些图表不建标注，留成文字。
   - 笔记旁边没有 `.zotero.json`（不是 `prepare_note` 取出的，比如主题笔记）：什么都不链（`no_pdf`），照样存。
-- 只写节号、没写页码的出处（如 `Sec. III-A`）不加链接，也不按节号去猜页码（拿不准）。note-format.md 写一句说明：节号后面写上页码，出处就能点。T-CACE 的 145 处括号出处里 137 处带页码。
 
 ### 4.2 链接的写法，和怎么去掉
 
-- 写法固定为两种：
-  - 页：`[<记号>](zotero://open-pdf/library/items/<PDF key>?page=<n>)`，`n` 等于记号里的第一页；
-  - 图表：`[<记号>](zotero://open-pdf/library/items/<PDF key>?annotation=<标注 key>)`，只带这一个参数。
-- 去掉：正好是这两种形状（Markdown 链接，或转换后留成 `<a href="…">…</a>` 的）、文字是记号的，还原成文字；页链接还要 `n` 等于记号里的第一页，`[p.6](…?page=7)` 这种不动。不按 PDF key 限定：换版本时旧链接带的是旧 PDF 的 key，也要去掉。用户自己做的链接，形状或文字对不上的都不动（样例里的 `[p. 6](…?page=6)` 带空格，不是记号）。
-- `prepare_note` 取出时去掉（笔记和 `.taken` 都去）；`put_note` 每次先去掉再加，所以 agent 改了页码或图号、用户在 Zotero 里改了出处文字，下次存时链接都跟着对。
+- 写法固定为一种：`[<记号>](zotero://open-pdf/library/items/<PDF key>?annotation=<标注 key>)`，只带这一个参数。
+- 去掉：正好是这种形状（Markdown 链接，或转换后留成 `<a href="…">…</a>` 的）、文字是记号的，还原成文字。不按 PDF key 限定：换版本时旧链接带的是旧 PDF 的 key，也要去掉。用户自己做的链接，形状或文字对不上的都不动（比如指向页的 `[p.6](…?page=6)`）。
+- `prepare_note` 取出时去掉（笔记和 `.taken` 都去）；`put_note` 每次先去掉再加，所以 agent 改了图号、用户在 Zotero 里改了出处文字，下次存时链接都跟着对。
 - 不经 `prepare_note`、直接 `p2z note take` 的读者会看到链接，只是多些字。
 
 ### 4.3 PDF 的 key
@@ -102,7 +98,7 @@ uv run scripts/doc.py objects <folder> --source <PDF>
 - **表：框住表的标题**（已定 2，用户选 A）：
   - 对象是表的标题块本身（`TABLE III` 那一行），`rect` 是标题块的框，编号就写在标题里，不用和表配对。点 `Table III` 跳到标题，表就贴在它上方或下方；蓝框圈住的是标题那一行，不是整张表。
   - 标题判定用严的那条（`figures.is_table_caption`，要求正文块在编号后面有标点），不用 `conventions.is_table_caption`（会把 "Table 7 shows that…" 当成标题）。
-  - 同一个表号出现在不止一个标题上（如续表的 "TABLE I (continued)"），不给 `key`，这张表只链到页。
+  - 同一个表号出现在不止一个标题上（如续表的 "TABLE I (continued)"），不给 `key`，这张表不加链接。
   - 为什么不框整张表：包里有表的框，也有标题的框，但哪个标题属于哪张表要按位置去猜。第一版审阅在库里试过：按顺序配只配上 72%，有 14 页会悄悄配错；改按位置配要借图的配对逻辑、在库里试验、抽查。框标题是确定的，整块都省掉了。
   - 这样也不用改 paddleocr 的处理、不用重新处理库里的包：标题块和它的框包里本来就有。
 
@@ -124,18 +120,18 @@ uv run scripts/put_note.py <note>
 ```
 
 - 一条命令做完存笔记：去掉旧链接 → 认记号 → `doc.py objects`（有包、装了 paddleocr 时）→ `p2z.py annotate` → 把链接写进笔记文件 → `p2z.py note put <note> -i` → **存完把文件里的链接再去掉**（不管 put 的结果是什么）。工作文件除了存的那一下，始终没有链接，和 `.taken` 一样干净；`-i` 写回的 key 和 version 留在文件里。
-- 输出 `{code, put, links: {pages, figures, tables}, unmatched: [{token, lines, why, detail?}], annotations: {created, kept}}`（`unmatched` 每个记号、每种原因一条，列出它在哪些行；`detail` 只在出错类的原因上）：`put` 是 p2z `note put` 原样的那一行，`code` 就是它的 code（`ok`、`skipped`、`version_conflict`、`same_title` 等），照 SKILL.md 现在的写法处理。
-  - 加链接哪部分做不了就降一级，不挡存笔记：查不到图表位置（没有包、没装 paddleocr、`doc.py objects` 出错、旋转页）或 `annotate` 被拒，这些图表就只链到页，原因进 `unmatched`，下游的原话带在里面（原则 §1"拿不准的不挡交付"）。
+- 输出 `{code, put, links: {figures, tables}, unmatched: [{token, lines, why, detail?}], annotations: {created, kept}}`（`unmatched` 每个记号、每种原因一条，列出它在哪些行；`detail` 只在出错类的原因上）：`put` 是 p2z `note put` 原样的那一行，`code` 就是它的 code（`ok`、`skipped`、`version_conflict`、`same_title` 等），照 SKILL.md 现在的写法处理。
+  - 加链接哪部分做不了就降一级，不挡存笔记：查不到图表位置（没有包、没装 paddleocr、`doc.py objects` 出错、旋转页）或 `annotate` 被拒，这些图表就留成文字，原因进 `unmatched`，下游的原话带在里面（原则 §1"拿不准的不挡交付"）。
   - `failed`：笔记文件本身读不了、写不了，什么都不存。存一份没加上链接的笔记会把 Zotero 里原有的链接冲掉，所以不能绕过它直接 `note put`。
 - 有 `--help`，列出输出和代码。
 - **SKILL.md *Every change to a note* 改动**：
   - 第 4 步：`p2z.py note put <note> -i` 换成 `uv run scripts/put_note.py <note>`。这一步写 Zotero，只有主 agent 跑，读论文的 subagent 不跑。`version_conflict`、`same_title` 的处理不变（工作文件已经是干净的，和 `.taken` 比就是这次的改动）。
   - `unmatched` 由主 agent 看，对照 PDF：
-    - 笔记写错了号或页码：按 *Changing a note* 改（精读时退回读论文的 subagent），再从第 3 步走；
-    - 包里没有这个图表、旋转页、没有包、没装 paddleocr：留着，它只链到页；
+    - 笔记写错了号：按 *Changing a note* 改（精读时退回读论文的 subagent），再从第 3 步走；
+    - 包里没有这个图表、旋转页、没有包、没装 paddleocr：留成文字；
     - `doc.py objects` 出错、`annotate` 被拒：按带着的原话修，修好重跑；修不了就留着，在汇报里说。
   - 完成条件：`put_note` 的 code 是 `ok` 或 `skipped`，`unmatched` 每一条都看过。
-- *Sibling skills* 表：paddleocr 那一行加上"没有它时，图表只链到页"。
+- *Sibling skills* 表：paddleocr 那一行加上"没有它时，图表不加链接"。
 - `prepare_note` 取出时去链接，`.taken` 也去。它的输出不用加字段：`put_note` 自己读 `.zotero.json`。
 
 ## 5. 和设计原则对一下
@@ -164,7 +160,7 @@ uv run scripts/put_note.py <note>
    - `annotate`：坐标换算、按标签和备注第一行找到已有的（备注下面加了字也认得）、有两个时用最早的，对着假 Zotero。
 2. **库里的包**：`objects` 在全部包上跑一遍，不出错；报出图和表各有多少拿到了 `key`（只是了解，不设门槛）。
 3. **实测**（要用户看的三项攒成一条消息，每项写明看哪里、对的样子是什么）：
-   - T-CACE 笔记加链接、存进 Zotero，请用户点一个图、一个表、一个页码，确认跳得对、框得准；取出后和存之前逐字相同。第一次建标注时顺带确认两个从没经本地接口写过的字段：标签（用户在标注栏能按 `paper-read` 筛出来），页标签（读回来是 PDF 的页标签）；
+   - T-CACE 笔记加链接、存进 Zotero，请用户点一个图、一个表（当时还有页码），确认跳得对、框得准；取出后和存之前逐字相同。第一次建标注时顺带确认两个从没经本地接口写过的字段：标签（用户在标注栏能按 `paper-read` 筛出来），页标签（读回来是 PDF 的页标签）；
    - `steinUseCarotidUltrasound2008` 的 PDF（页面原点偏移）上建一个标注，请用户看框的位置；
    - 找一篇有两份 PDF、还没有论文笔记的论文，建一条测试笔记，用 `--title` 换到另一份 PDF，确认链接和标注都落在新 PDF 上；测完把测试笔记和它在两份 PDF 上建的标注都清理掉。
 4. 之后读一篇新论文时整条流程跑一遍（顺带 check_quotes 的新论文盲测）。
@@ -205,3 +201,5 @@ uv run scripts/put_note.py <note>
 - advisor 审过以后：连写编号的链接也能去掉；排序键要的离页顶距离由 `objects` 给；测试用的 PDF 用 reportlab 生成；两个没写过的字段在第一次实测时确认；要用户看的攒成一条消息；先做图、表的配对最后做。
 - 实施中（2026-11-04）对照代码改的：`unmatched` 按记号和原因合并，带行号列表，出错类带 `detail`；加 `no_pdf`（笔记旁边没有 `.zotero.json`）；没有 `pdfinfo` 时不查页数；页标签那句改准（T-CACE 的 PDF 自带标签 1–12，用户看到的 2445 是 Zotero 自己从页面认出来的）；标注的备注由归一化的键生成（`Fig. 9` 和 `Figure 9` 是同一个框），不用笔记里的原样写法；`annotate` 建完读回来核对标签和备注第一行，对不上报 `readback_mismatch`（否则每次存都会多建一个框）。
 - 实测时（2026-11-04）发现、在 p2z 修的：T-CACE 笔记存进去后，Zotero 的笔记编辑器（笔记正开着）马上按它的格式重存了一遍，给 225 个链接加上 `rel="noopener noreferrer nofollow"`、外面套上 `<div data-schema-version>`，内容不变。`note put` 读回时逐字比 HTML，报了 `readback_mismatch`，也没把新版本号写回文件。改成和判断要不要写时一样，按编辑器的模型比（`note_md.same`），版本号取读回的那个；加了测试。
+- 用户问「这些链接存来存去移来移去有必要吗？」（2026-11-04，实现之后）：一份笔记给两种读者，agent 要纯文字、用户在 Zotero 里要能点，Zotero 只显示存进去的东西，所以存时加、取时去。真要省掉，只能写 Zotero 插件在显示时把记号变成链接（多一个要长期维护的组件），或让 agent 读带链接的笔记（T-CACE 按字节多 29%）。用户：「那我觉得你现在说的还是挺有道理的，那就不用改」。
+- 用户实测后（2026-11-04）定了已定 3：页码不链，只链图和表。代码里去掉页码记号、页链接的形状和 `pdfinfo` 数页数，`page_out_of_range` 随之去掉；note-format.md 那一节改名 *Clickable figures and tables*。T-CACE 笔记按新规则重存：71 个链接全是图表的框，12 个框原样复用；取回来和原文逐字相同，再存答 `skipped`。CycleGAN 的测试笔记和 4 个框移进回收站。

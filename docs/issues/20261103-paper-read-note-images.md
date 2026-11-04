@@ -67,7 +67,7 @@
 
 ## 点链接跳到图
 
-挪到了 [20261103-paper-read-source-links.md](20261103-paper-read-source-links.md)：实测可行，而且能从结构化包自动生成。
+挪到了 [20261103-paper-read-source-links-fixed.md](archive/20261103-paper-read-source-links-fixed.md)，2026-11-04 做完：笔记里写到的图和表一点就跳到 PDF 上的蓝框，页码不链。
 
 ## 可选的做法（没拍板）
 

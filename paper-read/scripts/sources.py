@@ -1,9 +1,8 @@
-"""Where a paper note points into its paper, read from the note's text: the sources that become links into the PDF
-when the note is put into Zotero (put_note.py), those links taken off again (put_note.py, prepare_note.py), and the
-quotations, whose English words are the paper's own (check_quotes.py).
+"""Where a paper note points at the paper's figures and tables, read from the note's text: the tokens that become
+links to them in the PDF when the note is put into Zotero (put_note.py), those links taken off again (put_note.py,
+prepare_note.py), and the quotations, whose English words are the paper's own (check_quotes.py).
 
-A source token, as references/note-format.md, *Clickable sources*, shows it:
-  a page     p.11, p.7–8 (a link to its first page)
+A token, as references/note-format.md, *Clickable figures and tables*, shows it:
   a figure   Fig. 9, Fig.9, Figure 9, Figs. 3 (of "Figs. 3–5"), Fig. 2 (of "Fig. 2(b)" and "Fig. 2b")
   a table    Table III, Tables I (of "Tables I/II")
   either may open with Supplementary or Extended Data. A figure or table's key is its number normalised as the
@@ -12,9 +11,8 @@ Tokens are read in the note's Markdown text, and never in: the front matter, hea
 math, HTML blocks and tags, links, URLs, a quotation's English words, the deletion mark (it cites another PDF) and
 the 原写"…" of a correction mark (the old text).
 
-A link is one of two shapes, and only these are taken off:
-  [<page token>](zotero://open-pdf/library/items/<PDF key>?page=<its first page>)
-  [<figure or table token>](zotero://open-pdf/library/items/<PDF key>?annotation=<annotation key>)
+A link has one shape, and only that shape is taken off:
+  [<token>](zotero://open-pdf/library/items/<PDF key>?annotation=<annotation key>)
 also as <a href="…">…</a>, as a block kept as HTML holds it. Any PDF key: an older version's links go too.
 """
 import re
@@ -42,16 +40,13 @@ def quotation(line):
 # ---- tokens -------------------------------------------------------------------------------------------------------
 
 TOKEN = re.compile(
-    r"(?<![A-Za-z0-9])(?:p\.(?P<page>\d+)(?:[–-]\d+)?"
-    r"|(?:(?P<words>Supplementary|Extended Data) )?(?:(?P<fig>Figs?\.|Figures?) ?|(?P<table>Tables?) )"
-    r"(?P<number>[A-Z]?\d+|[IVX]+(?![A-Za-z])))")
+    r"(?<![A-Za-z0-9])(?:(?P<words>Supplementary|Extended Data) )?(?:(?P<fig>Figs?\.|Figures?) ?|(?P<table>Tables?) )"
+    r"(?P<number>[A-Z]?\d+|[IVX]+(?![A-Za-z]))")
 PREFIX = {None: "", "Supplementary": "S", "Extended Data": "ED"}
 
 
 def key_of(m):
-    """A figure or table token's key: fig:9, table:III, fig:S3; None for a page."""
-    if m.group("page"):
-        return None
+    """A token's key: fig:9, table:III, fig:S3."""
     prefix, number = PREFIX[m.group("words")], m.group("number").upper()
     return f"{'fig' if m.group('fig') else 'table'}:{number if number.startswith(prefix) else prefix + number}"
 
@@ -111,7 +106,7 @@ def text_lines(note):
 
 
 def tokens(note):
-    """[(line number, start, end, token text, re.Match)] for each source token in the note's text."""
+    """[(line number, start, end, token text, re.Match)] for each token in the note's text."""
     out = []
     for n, line in text_lines(note):
         kept = [m.span() for m in KEPT.finditer(line)]
@@ -126,27 +121,17 @@ def tokens(note):
 
 # ---- links --------------------------------------------------------------------------------------------------------
 
-URL = r"zotero://open-pdf/library/items/[A-Z0-9]{8}\?(?:page=(?P<n>\d+)|annotation=[A-Z0-9]{8})"
-LINK = re.compile(r"\[(?P<text>[^\[\]\n]+)\]\((?P<url>" + URL + r")\)"
-                  r"|<a\s[^>]*?href=\"(?P<href>" + URL.replace("?P<n>", "?P<hn>") + r")\"[^>]*>(?P<atext>[^<\n]+)</a>")
+URL = r"zotero://open-pdf/library/items/[A-Z0-9]{8}\?annotation=[A-Z0-9]{8}"
+LINK = re.compile(r"\[(?P<text>[^\[\]\n]+)\]\(" + URL + r"\)|<a\s[^>]*?href=\"" + URL + r"\"[^>]*>(?P<atext>[^<\n]+)</a>")
 
 
-def page_link(pdf_key, token, page):
-    return f"[{token}](zotero://open-pdf/library/items/{pdf_key}?page={page})"
-
-
-def annotation_link(pdf_key, token, annotation):
+def link(pdf_key, token, annotation):
     return f"[{token}](zotero://open-pdf/library/items/{pdf_key}?annotation={annotation})"
 
 
 def strip(note):
-    """The note with every link of the two shapes back to its token's text; every other link as it is."""
+    """The note with every link of that shape back to its token's text; every other link as it is."""
     def back(m):
-        text, n = (m.group("text"), m.group("n")) if m.group("text") else (m.group("atext"), m.group("hn"))
-        t = TOKEN.fullmatch(text)
-        if not t:
-            return m.group()
-        if t.group("page"):
-            return text if n is not None and int(n) == int(t.group("page")) else m.group()
-        return text if n is None else m.group()
+        text = m.group("text") or m.group("atext")
+        return text if TOKEN.fullmatch(text) else m.group()
     return LINK.sub(back, note)

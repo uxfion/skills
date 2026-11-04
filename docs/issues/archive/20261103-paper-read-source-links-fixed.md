@@ -1,9 +1,16 @@
 # paper-read：笔记里的出处可以点，跳到 PDF 里的位置
 
+> **已解决（2026-11-04）**，做法见 spec [20261104-paper-read-source-links-spec.md](../../specs/20261104-paper-read-source-links-spec.md)，提交 011a362 和随后的一次。笔记里写到的图和表，存进 Zotero 时变成链接，点了跳到 PDF 上带 `paper-read` 标签的蓝框（paddleocr `doc.py objects` 给位置，p2z `annotate` 建框，paper-read `put_note.py` 加链接、存、去链接，`prepare_note` 取出时去链接）。页码不链（已定 3）。
+> - 实测：T-CACE 笔记 71 个链接、12 个框，取回来和原文逐字相同，再存答 `skipped`；stein 2008（页面原点偏 9 pt）第 5 页 Figure 1 的框用户看过、对；CycleGAN 测试笔记从 arXiv 版换到 CVF 版，链接和框都落在新 PDF 上，用户看过，测完移进回收站。
+> - 库里 881 个包跑 `objects` 全部跑通：图 8152 个，6979 个拿到编号键（1136 个没编号、37 个编号重复）；表的标题 4992 个，4822 个拿到键（170 个重复，多是续表）；旋转页上图 1 个、表 25 个。
+> - 实测中发现并修的：Zotero 的笔记编辑器开着时会马上按它的格式重存笔记（给链接加 `rel`、外面套 `<div data-schema-version>`），p2z `note put` 原来逐字比 HTML，误报 `readback_mismatch`；改成按编辑器的模型比。
+> - 留给以后的事实：`objects --source` 要用 `structured take` 取出的那份 PDF，包记录里存的路径可能已过时（881 个包里 252 个的 PDF 解析后改过名，sha256 核对能认出对的那份）。
+> - 没做的：框整张表（已定 2 改为框表标题）；页码链接（已定 3 取消）；引文跳到所在段落（已定 1）。
+
 - 来源：用户 · 2026-11-03。放图片的讨论里，问：「你说的那个跳转能不能实现？就是我点一下，跳转到图所在的位置」；实测后说：「那这样的话，本身就是和结构化包对应起来了呀。我们本身是有结构化信息的」。
-- 状态：open，实测可行，设计讨论中（已定 1）。spec `20261102-paper-read-notes-spec.md` §11 原把 `zotero://open-pdf` 链接放到"看过真笔记的效果再定"，现在看过了。
-  - 2026-11-04：用户定先做这张，好去真读论文：「我觉得可以先做引用可点的那个，这样的话，这个解决了以后，你就可以去真的读论文了嘛，可以跑流程了」。设计写成 spec [20261104-paper-read-source-links-spec.md](../specs/20261104-paper-read-source-links-spec.md)，第二版，过了两份审阅（参考资料 `review-fidelity.md`、`review-technical.md`）和 advisor；用户看过预览、定了已定 2，compact 之后说「实现」，2026-11-04 开始实施。
-- 相关：[20261103-paper-read-note-images.md](20261103-paper-read-note-images.md)（放图片，暂停）、[20261103-paper-read-note-two-depths.md](20261103-paper-read-note-two-depths.md)。
+- 状态：已解决（见顶上）。原先：实测可行，设计讨论中（已定 1）。spec `20261102-paper-read-notes-spec.md` §11 原把 `zotero://open-pdf` 链接放到"看过真笔记的效果再定"，现在看过了。
+  - 2026-11-04：用户定先做这张，好去真读论文：「我觉得可以先做引用可点的那个，这样的话，这个解决了以后，你就可以去真的读论文了嘛，可以跑流程了」。设计写成 spec [20261104-paper-read-source-links-spec.md](../../specs/20261104-paper-read-source-links-spec.md)，第二版，过了两份审阅和 advisor（审阅的结论记在 spec §10，参考资料文件夹随本 issue 关闭删掉了）；用户看过预览、定了已定 2，compact 之后说「实现」，2026-11-04 开始实施。
+- 相关：[20261103-paper-read-note-images.md](../20261103-paper-read-note-images.md)（放图片，暂停）、[20261103-paper-read-note-two-depths.md](../20261103-paper-read-note-two-depths.md)。
 
 ## 实测（2026-11-03）
 
@@ -27,8 +34,9 @@
 
 1. **只有图和表精确跳转**（用户选 A，2026-11-03）：笔记引用到的图、表，在 PDF 上建区域标注，出处链接到标注（蓝框定位）；引文和其他出处只链接到页，不建标注。标注统一一种颜色，备注写明是 paper-read 建的，和用户自己的标注分开。
 2. **表的框框住表的标题**（用户选 A，2026-11-04）：用户问「你觉得这个方案是最优最优雅的了吗？」，我提出：框整张表要猜哪个标题配哪张表（第一版审阅在库里试过：按顺序只配上 72%，14 页会悄悄配错），而 "TABLE III" 这行标题自己写着编号、位置确定。A 框标题（跳到的位置几乎一样，框只圈住标题行）；B 框整张表（要配对）。用户：「A」。图照旧框整张图。
+3. **页码不链，只链图和表**（2026-11-04，实测后）：用户点过三种链接后说「好像跳转的没有很有必要」、「要不我们页码就没必要放了」，又讲明出发点：「我当初就是想为了方便更快地定位到图，一开始确实是想放图的，但是发现重复了。那如果重复的话，我能不能快速定位到图呢？快速定位到图不就相当于解决了我放图的问题吗？」跳转是放图的替代，为的是一点就看到图表；页码和这件事无关。已定 1 里"其余出处只链接到页"那半句随之取消。
 
-设计和实施计划在 spec [20261104-paper-read-source-links-spec.md](../specs/20261104-paper-read-source-links-spec.md)。用户看过预览，说 compact 之后实施：「然后实现前，你要给我预览一下大致的方案，以及我们要做成什么样子。然后再让我compact一下上下文。然后再去实现」。
+设计和实施计划在 spec [20261104-paper-read-source-links-spec.md](../../specs/20261104-paper-read-source-links-spec.md)。用户看过预览，说 compact 之后实施：「然后实现前，你要给我预览一下大致的方案，以及我们要做成什么样子。然后再让我compact一下上下文。然后再去实现」。
 
 ## 原来要讨论的两件，已经定了
 
