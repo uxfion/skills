@@ -60,6 +60,14 @@ def is_table_caption(b: dict) -> bool:
     return b["label"] in ("figure_title", "table_title", "text", "vision_footnote") and bool(TABLE_CAPTION.match(b["text"].strip()))
 
 
+def table_id(b: dict) -> tuple[str, str]:
+    """The table a caption names, as figure_id: ("", "III") for "TABLE III", ("supplementary", "2") for
+    "Supplementary Table 2", ("", "3") for "表 3"."""
+    m = TABLE_CAPTION.match(b["text"])
+    number = m.group(4) or re.search(r"\d+", m.group(2)).group()
+    return " ".join((m.group(3) or "").lower().split()), number.upper()
+
+
 def is_subtitle(b: dict) -> bool:
     """A title inside a figure, which the VL model labels figure_title too: "Step 1: ...", "(a) in silico"."""
     return b["label"] == "figure_title" and not is_caption(b) and not is_panel(b) and not is_table_caption(b)

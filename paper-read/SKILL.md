@@ -40,11 +40,15 @@ A read-through, a looked-up answer written back, a check mark, a correction: eac
    - `better_pdf`: the library holds a better version than the one the note was read in (by the order `p2z.py read_library pdf --help` gives). A lookup reads on in the note's version; a read-through moves the note onto the better one (*Read a paper*).
 2. **Edit** the note file by note-format.md, *Changing a note*.
 3. **Check**: `uv run scripts/check_note.py <note>` (`--full` after a read-through) prints `complete`, and `uv run scripts/check_quotes.py <note> --pdf <PDF> --package <package>` (no package: without `--package`) prints `pass`. `missing_numbers` lists questions lost since the take: put them back.
-4. **Put**: `p2z.py note put <note> -i`.
+4. **Put**: `uv run scripts/put_note.py <note>`, run by you alone, as it writes Zotero. It links the note's sources into the PDF (note-format.md, *Clickable sources*), puts the note with `p2z.py note put -i`, and leaves the file without links. Its `code` is note put's.
    - `version_conflict`: the note changed in Zotero meanwhile. Take it into a new scratch directory, carry this change over, check and put again. Taking into the old directory would overwrite the change.
    - `same_title`: another session created the paper's note meanwhile. Take that one, merge this change in, put again.
+   - `unmatched` lists the sources left unlinked, each with its `why`. Look each one up in the PDF:
+     - the note gives a wrong number or page (often `not_in_package`, `page_out_of_range`): correct it by note-format.md, *Changing a note* (in a read-through, send it back to the reader), then go on from step 3;
+     - right as written, with `not_in_package`, `rotated_page`, `no_package`, `no_paddleocr` or `no_pdf` (no PDF beside the note, as for a topic note): leave it. The token stays plain text; a page written beside it still links;
+     - `objects_failed`, `annotate_failed`: fix what `detail` says and run `put_note` again. What you cannot fix goes into your report.
 
-Done when both checks pass and `note put` answers `ok`, or `skipped` (Zotero already holds this note).
+Done when both checks pass, `put_note` answers `ok` or `skipped` (Zotero already holds this note), and every `unmatched` entry has been looked up.
 
 ## Look it up
 
@@ -106,6 +110,6 @@ Each is installed on its own, beside this one; look for its `SKILL.md` when the 
 | operation | needs | missing → |
 |---|---|---|
 | every operation | paper-to-zotero (`../paper-to-zotero/`): takes the note, the package and the PDF out of Zotero and puts them back | stop; tell the user to install it |
-| a PDF without a structured package; settling a package | paddleocr (`../paddleocr/`) | read the PDF alone; tell the user the skill to install |
+| a PDF without a structured package; settling a package; links to figures and tables | paddleocr (`../paddleocr/`) | read the PDF alone; figures and tables go unlinked, pages still link; tell the user the skill to install |
 | checking quotations | poppler's `pdftotext`, which `check_quotes.py` runs | `check_quotes` says `unreadable`: tell the user to install poppler; the note is put once the check passes |
 | a paper not yet in the library | paper-to-zotero's import, which needs paper-fetch | import it first, as paper-to-zotero's own table says |

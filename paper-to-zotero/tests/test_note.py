@@ -119,6 +119,25 @@ class Note(unittest.TestCase):
         self.assertIn(f"version: {version}\n", path.read_text(encoding="utf-8"), "-i writes the new version back")
         self.assertEqual(self.run_("put", path).lines[0]["reason"], "unchanged", "the next put follows on")
 
+    def test_put_while_the_editor_shows_the_note(self):
+        path = self.taken()
+        path.write_text(path.read_text(encoding="utf-8") + "- Q2 见 [Fig. 2](zotero://open-pdf/library/items/ATTA0001?page=4)\n",
+                        encoding="utf-8")
+        z = self.zot
+
+        def editor(it):   # the editor saves the note again at once, in its own HTML
+            it["data"]["note"] = it["data"]["note"].replace("<a href", "<a rel=\"noopener noreferrer nofollow\" href")
+            z.touch(it)
+        z.on_write = editor
+        r = self.run_("put", path, "-i")
+        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
+        self.assertIn('rel="noopener', z.data("NOTE0001")["note"])
+        self.assertIn(f"version: {z.items['NOTE0001']['version']}\n", path.read_text(encoding="utf-8"))
+        z.on_write = lambda it: it["data"].update(note="<p>something else</p>")
+        path.write_text(path.read_text(encoding="utf-8") + "- Q3 [待答]\n", encoding="utf-8")
+        r = self.run_("put", path)
+        self.assertEqual((r.code, r.lines[0]["code"]), (1, "readback_mismatch"), r)
+
     def test_put_refuses_a_note_changed_since_the_take(self):
         path = self.taken()
         self.zot.touch(self.zot.items["NOTE0001"])

@@ -24,8 +24,9 @@ Zotero has nowhere to keep any other field, so put refuses a file that holds one
          related where the front matter names them) unless its version moved since the take, and left alone when it
          already holds the same note; without one, a note is created under `parent` (unless a child note there has
          its title already), else as a standalone note in `collections`, related both ways to the papers in
-         `related`. A note without text is refused. Every write is read back. -i writes the new key
-         and version into the file's front matter, so the next put follows on.
+         `related`. A note without text is refused. Every write is read back, as the editor's model
+         (an editor showing the note saves it again in its own HTML). -i writes the new key and version into the
+         file's front matter, so the next put follows on.
   list   One line per note: the child notes of the item named, the notes in --collection K, or every note; --q TEXT
          keeps the notes whose text holds it (Zotero's "All Fields & Tags" search).
 
@@ -327,8 +328,10 @@ def create(zot, names, html, where, rel_want, args):
 
 
 def read_back(zot, key, html, action, retried=False):
+    """The note as Zotero now holds it is the one sent when the editor's model is the same: an editor showing the
+    note saves it again at once in its own HTML (a wrapper, rel on links), and the version read back is that save's."""
     after = zot.item(key)
-    if after is None or (html is not None and zotero.data(after).get("note") != html):
+    if after is None or (html is not None and not note_md.same(zotero.data(after).get("note") or "", html)):
         raise cli.Stop("readback_mismatch", hint="The write was accepted, but the note reads back otherwise; look at it "
                        "in Zotero.", key=key, action=action)
     return cli.ok(key=key, version=after.get("version"), action=action, **({"retried": True} if retried else {}))

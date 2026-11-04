@@ -40,10 +40,10 @@ import sys
 import unicodedata
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sources  # noqa: E402
+
 MIN_PIECE = 20
-OPENING = re.compile(r'^>\s*(["“])')
-CLOSING = {'"': '"', "“": "”"}
-TAIL = re.compile(r"^\s*(?:[（(].*[）)])?\s*$")
 TAG = re.compile(r"</?[A-Za-z][^<>\n]*>")  # the package's HTML; a "<" in the text (p < 0.05) is no tag
 COMMENT = re.compile(r"<!--.*?-->", re.S)
 LATEX = re.compile(r"\\[A-Za-z]+")
@@ -66,16 +66,14 @@ def canon(text):
 def quotations(note):
     """(line number, words or None when the line is not in the form, checked)."""
     for n, line in enumerate(note.split("\n"), 1):
-        line = line.strip()
-        m = OPENING.match(line)
-        if not m:
+        q = sources.quotation(line)
+        if q is None:
             continue
-        close = line.rfind(CLOSING[m.group(1)])
-        text, tail = line[m.end():close], line[close + 1:]
-        if close < m.end() or not text or not TAIL.match(tail):
-            yield n, None, False, line
+        start, end, tail = q
+        if end is None:
+            yield n, None, False, line.strip()
         else:
-            yield n, text, "已核对" in tail, line
+            yield n, line[start:end], "已核对" in tail, line.strip()
 
 
 def found(pieces, haystacks):

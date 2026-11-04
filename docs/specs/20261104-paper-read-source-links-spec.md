@@ -58,7 +58,8 @@ T-CACE 笔记 Q5 里现在的一行：
   - 删去标记 `（<新 PDF> 删去了这段，原见 <旧 PDF> <出处>）` 和更正标记里 `原写"…"` 的部分：它们引的是旧版本或旧文字，不是这份 PDF。
 - **对不上的**进 `unmatched`，各带原因：
   - 图表：包里没有这个图表或编号不唯一、旋转页、没有包、没装 paddleocr、`doc.py objects` 出错、`annotate` 被拒。这些图表不建标注，同一处出处里的 `p.N` 照样链到页。
-  - 页：页码超出 PDF 的页数，不加链接。页数用 `pdfinfo` 读（poppler，`check_quotes` 本来就要它）。
+  - 页：页码超出 PDF 的页数，不加链接。页数用 `pdfinfo` 读（poppler，`check_quotes` 本来就要它）；没有 `pdfinfo` 就不查页数，照样链。
+  - 笔记旁边没有 `.zotero.json`（不是 `prepare_note` 取出的，比如主题笔记）：什么都不链（`no_pdf`），照样存。
 - 只写节号、没写页码的出处（如 `Sec. III-A`）不加链接，也不按节号去猜页码（拿不准）。note-format.md 写一句说明：节号后面写上页码，出处就能点。T-CACE 的 145 处括号出处里 137 处带页码。
 
 ### 4.2 链接的写法，和怎么去掉
@@ -78,7 +79,7 @@ T-CACE 笔记 Q5 里现在的一行：
 
 ### 4.4 标注
 
-- 区域标注（`annotationType: image`），颜色 `#2ea8e5`（11-03 实测用的蓝色，用户认可"蓝框定位"；库里用户自己的 28 个标注都是高亮，没有蓝色），标签 `paper-read`，备注第一行 `paper-read · Table III`。页标签用 PDF 自己的页标签（期刊 PDF 上是印的页码）。排序键 `<pageIndex，5 位>|000000|<离页顶的点数取整，5 位>`，和 11-03 实测的 `00003|000000|00132` 一样；中间一段是字符偏移，写 0，同一页里排在高亮前面。
+- 区域标注（`annotationType: image`），颜色 `#2ea8e5`（11-03 实测用的蓝色，用户认可"蓝框定位"；库里用户自己的 28 个标注都是高亮，没有蓝色），标签 `paper-read`，备注第一行 `paper-read · Table III`。页标签用 PDF 自己的页标签，PDF 没有就用页码。Zotero 给用户自己的标注写的是它从页面上认出的印刷页码（T-CACE 第 11 页，PDF 的标签是 11，Zotero 认出的是 2445），所以标注栏里这些框显示的页码可能和用户自己的高亮不一样，只影响显示。排序键 `<pageIndex，5 位>|000000|<离页顶的点数取整，5 位>`，和 11-03 实测的 `00003|000000|00132` 一样；中间一段是字符偏移，写 0，同一页里排在高亮前面。
 - 有了标签，用户可以在 Zotero 的标注栏里按 `paper-read` 筛选，把这些框藏起来或只看它们。
 - 一份 PDF 上，同一张图或表只有一个 paper-read 标注，笔记里多处引用共用。
 - **身份**：标签 `paper-read`，加备注第一行。用户在备注下面加了字，仍认得出。
@@ -123,7 +124,7 @@ uv run scripts/put_note.py <note>
 ```
 
 - 一条命令做完存笔记：去掉旧链接 → 认记号 → `doc.py objects`（有包、装了 paddleocr 时）→ `p2z.py annotate` → 把链接写进笔记文件 → `p2z.py note put <note> -i` → **存完把文件里的链接再去掉**（不管 put 的结果是什么）。工作文件除了存的那一下，始终没有链接，和 `.taken` 一样干净；`-i` 写回的 key 和 version 留在文件里。
-- 输出 `{code, put, links: {pages, figures, tables}, unmatched: [{line, token, why}], annotations: {created, kept}}`：`put` 是 p2z `note put` 原样的那一行，`code` 就是它的 code（`ok`、`skipped`、`version_conflict`、`same_title` 等），照 SKILL.md 现在的写法处理。
+- 输出 `{code, put, links: {pages, figures, tables}, unmatched: [{token, lines, why, detail?}], annotations: {created, kept}}`（`unmatched` 每个记号、每种原因一条，列出它在哪些行；`detail` 只在出错类的原因上）：`put` 是 p2z `note put` 原样的那一行，`code` 就是它的 code（`ok`、`skipped`、`version_conflict`、`same_title` 等），照 SKILL.md 现在的写法处理。
   - 加链接哪部分做不了就降一级，不挡存笔记：查不到图表位置（没有包、没装 paddleocr、`doc.py objects` 出错、旋转页）或 `annotate` 被拒，这些图表就只链到页，原因进 `unmatched`，下游的原话带在里面（原则 §1"拿不准的不挡交付"）。
   - `failed`：笔记文件本身读不了、写不了，什么都不存。存一份没加上链接的笔记会把 Zotero 里原有的链接冲掉，所以不能绕过它直接 `note put`。
 - 有 `--help`，列出输出和代码。
@@ -202,3 +203,5 @@ uv run scripts/put_note.py <note>
 - 用户问「你觉得这个方案是最优最优雅的了吗？」之后：表改成框住标题，用户选 A（已定 2），表和标题的配对、库里的配对试验、比例门槛整块去掉；连写只链写全的第一个记号，去掉"只有编号的链接"这种特殊形状。
 - 用户再问「现在是最优的了吗？」之后：加链接和存合成一条命令 `put_note.py`，存完马上去掉文件里的链接。存笔记从两条命令变成一条，不会漏掉加链接而冲掉 Zotero 里的链接；工作文件始终干净，版本冲突的流程不变，`--strip` 模式不要了。
 - advisor 审过以后：连写编号的链接也能去掉；排序键要的离页顶距离由 `objects` 给；测试用的 PDF 用 reportlab 生成；两个没写过的字段在第一次实测时确认；要用户看的攒成一条消息；先做图、表的配对最后做。
+- 实施中（2026-11-04）对照代码改的：`unmatched` 按记号和原因合并，带行号列表，出错类带 `detail`；加 `no_pdf`（笔记旁边没有 `.zotero.json`）；没有 `pdfinfo` 时不查页数；页标签那句改准（T-CACE 的 PDF 自带标签 1–12，用户看到的 2445 是 Zotero 自己从页面认出来的）；标注的备注由归一化的键生成（`Fig. 9` 和 `Figure 9` 是同一个框），不用笔记里的原样写法；`annotate` 建完读回来核对标签和备注第一行，对不上报 `readback_mismatch`（否则每次存都会多建一个框）。
+- 实测时（2026-11-04）发现、在 p2z 修的：T-CACE 笔记存进去后，Zotero 的笔记编辑器（笔记正开着）马上按它的格式重存了一遍，给 225 个链接加上 `rel="noopener noreferrer nofollow"`、外面套上 `<div data-schema-version>`，内容不变。`note put` 读回时逐字比 HTML，报了 `readback_mismatch`，也没把新版本号写回文件。改成和判断要不要写时一样，按编辑器的模型比（`note_md.same`），版本号取读回的那个；加了测试。

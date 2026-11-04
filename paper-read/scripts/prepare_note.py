@@ -11,9 +11,10 @@ Through paper-to-zotero's own commands (`structured take`, `note take`, `read_li
   - the package and the PDF of the version the note was read in (its "读的版本：" line), or the best PDF for a new note
     (best by the order `p2z.py read_library pdf --help` gives); --title takes another PDF of the paper, and for a note
     read in another one, that one's PDF and package too, to compare the two versions;
-  - the note titled 论文笔记 as <dir>/<package folder name>.note.md, or, when the paper has none, a new note from the
-    skeleton in references/note-format.md, its version in the 读的版本 paragraph; --bare leaves the eight questions
-    out, for a note that starts with one looked-up answer;
+  - the note titled 论文笔记 as <dir>/<package folder name>.note.md, without the links put_note.py added to its
+    sources (sources.py says which), or, when the paper has none, a new note from the skeleton in
+    references/note-format.md, its version in the 读的版本 paragraph; --bare leaves the eight questions out, for a
+    note that starts with one looked-up answer;
   - beside it <note>.taken, the note as taken, which check_note.py compares question numbers against;
   - the paper's other child notes, left in <dir>/notes/ as leads.
 A rerun into the same directory, after a parse for instance, picks up what is already there.
@@ -42,6 +43,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sources  # noqa: E402
 
 SKILL = Path(__file__).resolve().parent.parent
 TITLE = "论文笔记"
@@ -180,6 +184,7 @@ def main(argv=None):
     else:
         if mine:
             shutil.move(mine[0]["file"], note)
+            note.write_text(sources.strip(note.read_text(encoding="utf-8")), encoding="utf-8")
         else:
             note.write_text(skeleton(cite, pdf_title, args.bare), encoding="utf-8")
             created = True

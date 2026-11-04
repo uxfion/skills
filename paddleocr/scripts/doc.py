@@ -13,13 +13,23 @@ A parse is the folder OUTDIR/<stem>/:
   imgs/         the figures, and the images inside tables, as PNG cut from the source at 300 dpi
   pages/        --photo only: the corrected page images the boxes refer to
 
-Commands; each first commits Markdown edits that the record does not hold yet:
+Commands; each but objects first commits Markdown edits that the record does not hold yet:
   render DIR             process the models' output again with the current code, check, write the Markdown
   show DIR [WHAT]        read-only. No WHAT: the open findings. WHAT a finding, block, figure or page (p4): its
                          text, the text layer under it, the page image and an overlay; --box crops a region at --dpi
   commit DIR             record the edits made to the Markdown as changes, check again, write the Markdown
   figure DIR ID --box X1 Y1 X2 Y2 [--why WHY]   cut figure ID anew from that box; --page N instead of ID makes a
                          new figure, for one the parse read as text or missed
+  objects DIR            read-only, for links into the PDF: one JSON line per figure and table, {id, kind figure |
+                         table, key, number, page, page_label, rect, top}. A figure is its whole box, its pieces
+                         under one caption joined; a table is its caption line ("TABLE III"), which carries its
+                         number. number: as the caption writes it. key: the number normalised,
+                         <fig|table>:<prefix><number>, prefix "", S (Supplementary) or ED (Extended Data), roman
+                         numerals upper case: fig:3, fig:S2, table:III; null when two captions give the same key, or
+                         there is no number. rect: [x1, y1, x2, y2] in the PDF's user space (points, origin bottom
+                         left, the page's crop box offset included), as PDF annotations store it; top: the box's top
+                         in points below the page's top edge; both null on a rotated page. page_label: the PDF's
+                         label for the page, else its number. The source must be a PDF.
 Boxes given and shown are in source units: PDF points (as pdftotext -x -y -W -H takes them), image pixels, or for
 --photo the pixels of pages/. The source is found at the record's path or --source, and must match its sha256.
 
@@ -1429,10 +1439,55 @@ def set_figure(record: dict, ident: str | None, page: int | None, box: list, why
     return ident
 
 
+# ---------------------------------------------------------------- objects: what a note can link to in the PDF
+
+PREFIX = {"": "", "supplementary": "S", "extended data": "ED"}
+
+
+def object_key(kind: str, words: str, number: str) -> str:
+    """fig:3, fig:S2 (Supplementary), table:ED1 (Extended Data); a number that already carries its prefix
+    (Supplementary Fig. S2) carries it once."""
+    prefix = PREFIX.get(words, "")
+    return f"{kind}:{number if number.startswith(prefix) else prefix + number}"
+
+
+def objects(record: dict, src: dict) -> list[dict]:
+    """The figures and tables of the objects command, in page order."""
+    if src["kind"] != "pdf":
+        raise Refused("objects places figures and tables in a PDF, and this record was parsed from images")
+    found = {}
+    for f in figures_view(record):
+        # the pieces of one figure, cut apart under one caption, are one object
+        o = found.setdefault(("figure", f["caption"] or f["id"]), {"id": f["id"], "kind": "figure", "number": f["number"],
+                                                       "page": f["page"], "boxes": []})
+        o["boxes"].append(f["box"])
+    for b in blocks_view(record):
+        if figures.is_table_caption(b):
+            m = conventions.TABLE_CAPTION.match(b["text"])
+            found[("table", b["id"])] = {"id": b["id"], "kind": "table", "number": " ".join(b["text"][m.start(2):m.end()].split()),
+                              "page": b["page"], "boxes": [b["box"]]}
+    for o in found.values():
+        kind, named = ("fig", conventions.figure_id) if o["kind"] == "figure" else ("table", conventions.table_id)
+        o["key"] = object_key(kind, *named({"text": o["number"]})) if o["number"] else None
+    keys = [o["key"] for o in found.values()]
+    pdf, infos, out = pdf_of(src), {p["page"]: p for p in record["pages"]}, []
+    for o in sorted(found.values(), key=lambda o: (o["page"], min(b[1] for b in o["boxes"]))):
+        info, page = infos[o["page"]], pdf[o["page"] - 1]
+        rect = top = None
+        if not info.get("photo") and not page.get_rotation():
+            x1, y1, x2, y2 = to_source(info, figures.box_union(o["boxes"]))
+            left, _, _, ptop = page.get_cropbox()
+            rect, top = [round(left + x1, 2), round(ptop - y2, 2), round(left + x2, 2), round(ptop - y1, 2)], y1
+        out.append({"id": o["id"], "kind": o["kind"], "key": o["key"] if keys.count(o["key"]) == 1 else None,
+                    "number": o["number"], "page": o["page"],
+                    "page_label": pdf.get_page_label(o["page"] - 1) or str(o["page"]), "rect": rect, "top": top})
+    return out
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="command", required=True)
-    for name in ("render", "show", "commit", "figure"):
+    for name in ("render", "show", "commit", "figure", "objects"):
         s = sub.add_parser(name)
         s.add_argument("folder", help="the parse's folder, OUTDIR/<stem>")
         s.add_argument("--source", help="the PDF or image input, when not at the record's path")
@@ -1451,6 +1506,10 @@ def main(argv=None) -> int:
         if args.command == "render":
             ensure_engine()
         record = load(folder)
+        if args.command == "objects":  # read-only: no lock, and edits in the Markdown stay uncommitted
+            for o in objects(record, source_of(record, args.source)):
+                print(json.dumps(o, ensure_ascii=False))
+            return 0
         try:
             src = source_of(record, args.source)
         except FileNotFoundError:

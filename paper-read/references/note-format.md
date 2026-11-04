@@ -4,7 +4,7 @@ What a paper note holds and how it is written. Read it before writing in a note,
 
 A paper has one **paper note**: a child note of its item in Zotero whose first line is 论文笔记. It holds the paper alone: what the paper says, each fact with its **source** (where in the paper it is), and judgements about the paper, marked as judgements. A project never appears in it; what a project decided goes into that project's paper index (references/notes.md). A note is never finished or final: every task that reads the paper may add to it or correct it (*Changing a note*).
 
-Outside Zotero the note is a Markdown file, `<scratch>/<package folder name>.note.md`, which `prepare_note.py` writes and `p2z.py note put` turns back into the Zotero note.
+Outside Zotero the note is a Markdown file, `<scratch>/<package folder name>.note.md`, which `prepare_note.py` writes and `put_note.py` puts back into Zotero.
 
 ## The skeleton
 
@@ -101,6 +101,15 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
 - `（已核对 <source> · <date>）`: someone compared this fact with the PDF. One per fact, the latest only.
 - `（更正 <date>：原写"…"，按 <evidence and its source> 改）`: what was there before a correction, and why it changed. It stays.
 - `（<new PDF title> 删去了这段，原见 <previous PDF title> <source>）`: a later version dropped what this sentence rests on. It stays.
+
+## Clickable sources
+
+When the note is put into Zotero, a source written in one of these forms becomes a link into the PDF the note was read in: a figure or a table to a blue box on it, a page to that page. The links live in Zotero only: the note file you edit has none.
+
+- Linked: `p.11`, `p.7–8`, `Fig. 9`, `Fig.9`, `Figure 9`, `Fig. 2(b)` (the link is `Fig. 2`), `Table III`, `Supplementary Fig. 3`, `Extended Data Table 1`.
+- Not linked: `Sec. III-A`, `Eq. (3)`, `pp.3–5`, `p. 6`, `图 4`.
+
+A section has no page to jump to: write the page beside it, (Sec. III-A, p.3). Of `Table I/II` only the first links: write each in full, `Table I, Table II`, for each to link.
 
 ## Changing a note
 

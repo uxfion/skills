@@ -21,7 +21,10 @@ ITEM = {"title": "T-CACE: A Time-Conditioned Autoregressive Contrast Enhancement
         "tags": [{"tag": "venue/JBHI"}, {"tag": "aka/T-CACE"}]}
 PAPER = {"title": ITEM["title"], "first_author": "Xiao", "year": "2026",
          "venue": "IEEE Journal of Biomedical and Health Informatics", "doi": "10.1109/jbhi.2025.3599387", "aka": ["T-CACE"]}
-MINE = "读的版本：T-CACE (arXiv v1)\n\n## Q1 这篇论文要解决什么问题，为什么重要？这是哪类论文？ [已答]\n\n回答。"
+MINE = "读的版本：T-CACE (arXiv v1)\n\n## Q1 这篇论文要解决什么问题，为什么重要？这是哪类论文？ [已答]\n\n回答（Fig. 2, p.4）。"
+# as Zotero holds it: with the links put_note.py added
+LINKED = MINE.replace("Fig. 2, p.4", "[Fig. 2](zotero://open-pdf/library/items/PDFKEY01?annotation=ANNOT001), "
+                                     "[p.4](zotero://open-pdf/library/items/PDFKEY01?page=4)")
 # The skeleton note-format.md shows is the expected value: prepare_note writes it with the paper's values in.
 DOC = (HERE.parent / "references" / "note-format.md").read_text(encoding="utf-8")
 SKELETON = (re.search(r"^## The skeleton\n.*?```markdown\n(.*?)```", DOC, re.S | re.M).group(1)
@@ -62,14 +65,14 @@ class PrepareNote(unittest.TestCase):
         return [c[2:] for c in calls if c[:2] == ["structured", "take"]]
 
     def test_a_note_already_there_and_a_rerun(self):
-        self.library(notes=[{"key": "NOTE0001", "title": "论文笔记", "text": MINE},
+        self.library(notes=[{"key": "NOTE0001", "title": "论文笔记", "text": LINKED},
                             {"key": "NOTE0002", "title": "Comment: 12 pages", "text": "旧的。"}])
         code, out, err = self.run_it()
         stem = self.out / f"{CITE}.T-CACE (arXiv v1)"
         self.assertEqual((code, out["code"], out["created"]), (0, "ok", False), err)
         self.assertEqual((out["note"], out["taken"], out["pdf"], out["package"], out["pdf_title"]),
                          (f"{stem}.note.md", f"{stem}.note.md.taken", f"{stem}.pdf", str(stem), "T-CACE (arXiv v1)"))
-        mine = f"---\nkey: NOTE0001\nparent: {CITE}\n---\n# 论文笔记\n\n{MINE}\n"
+        mine = f"---\nkey: NOTE0001\nparent: {CITE}\n---\n# 论文笔记\n\n{MINE}\n"   # the links taken off, in both
         self.assertEqual(Path(out["note"]).read_text(encoding="utf-8"), mine)
         self.assertEqual(Path(out["taken"]).read_text(encoding="utf-8"), mine)
         self.assertEqual(out["old_notes"], [str(self.out / "notes" / f"{CITE}.NOTE0002.note.md")])

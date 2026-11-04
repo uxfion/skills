@@ -8,7 +8,8 @@
 What the real local API does that the fake keeps: GETs need no key; writes need Zotero-API-Key and
 Zotero-Server-ID (401, then 412 "Zotero-Server-ID mismatch"); listings page with `start`/`limit` (25 by default,
 at most 100) and send Total-Results and a rel="next" Link; `/items/<unknown>/children` answers with the whole
-library; `itemKey` also returns the children of the keys asked for; trashed items are left out of listings; an
+library; `/items/<key>/children` leaves a PDF's annotations out unless `itemType=annotation` asks for them;
+`itemKey` also returns the children of the keys asked for; trashed items are left out of listings; an
 attachment's /file redirects to its file:// address; a PATCH or a POSTed update with a stale version fails with 412.
 
 A file reaches a stored-file attachment (imported_url / imported_file) in three steps; the first and the last are
@@ -409,6 +410,9 @@ class _Handler(BaseHTTPRequestHandler):
                 if parts[2:] == ["children"]:
                     rows = ([it for it in z.items.values() if it["data"].get("parentItem") == key]
                             if key in z.items else list(z.items.values()))
+                    # a PDF's annotations come only when asked for by type
+                    rows = [it for it in rows if (it["data"].get("itemType") == query["itemType"] if "itemType" in query
+                                                  else it["data"].get("itemType") != "annotation")]
                     return self.page(rows, query)
                 if parts[2:] == ["file"]:
                     if key in z.files:  # as Zotero: the storage folder and the attachment's filename
