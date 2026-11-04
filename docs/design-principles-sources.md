@@ -40,6 +40,7 @@ The user's words behind [design-principles.md](design-principles.md), verbatim a
 - Heuristics — 2026-10-12: 「在探索过程中完成一阶段要 review 并且反思…等到探索完成后，再给我简报各个方案和最优方案，让我审一遍，我确定没问题同意后再动手改」
 - Standards — 2026-11-01, on a standard for handoffs: 「如果能设计得通用一点、标准一点，然后在标准之下，因为针对不同的任务，也会有不同的方向或不同的差异。我说的不一定正确，但是你需要考虑一下。如果方向对，或者值得那么做，值得去标准化一部分，我会给每个人定制化一部分。如果方便的话，并且对我们整个项目有益的话，我觉得可以做」
 - Removing steps — 2026-11-01, the same preset (§5): 「有能省掉步骤的方案，优先于把繁琐步骤自动化的方案。」
+- Unix/Linux — 2026-11-04, a library search that printed whole items, which an agent filtered through a pipe into a heredoc script that lost the data: 「或者你有没有办法能通过 Linux 的那种概念理论，像管道服务，grep/rg 那样支持」; 「我倒是想把这整套系统都和UNIX哲学给对接好,这样的话也方便使用，因为现在我感觉还是用 Python 的思维多一点，但实际上我更喜欢 UNIX 哲学,包括以其他数据流的方式，它的管道符，还有它使用的各种键值，以及简称之类的」; 「短选项，标准选项,反正就是一切涉及到UNIX的哲学，Linux那套操作逻辑…还有它的文件base的思路，可能还不止，就是它的一整套系统」; 「你先把我们刚才说的 UNIX 哲学记进 design principle 里面，防止下次增加新功能或者新增脚本时又没有加上…还不如从一开始设计的时候，我们就从 UNIX 哲学的角度去设计」; on the person at the terminal: 「因为那个时候提到的就没有 Agent 这个概念，但是现在实际上就是给agent看嘛，这里的人和 Agent 应该没有区别的」
 
 ## §4 Writing for agents
 - 2026-09-24: 「面向用户、需要用户真的自己去读的内容就用中文；面向 Agent 或者 harness、让 Agent 读的，要保持英文」
