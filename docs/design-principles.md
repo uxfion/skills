@@ -74,15 +74,30 @@ Every run, a test run included, follows the SKILL.md: at each stop, read the ste
 
 ### The Unix/Linux philosophy
 
-Every command a skill offers is designed, from its first draft, as a Unix/Linux tool: Python inside, Unix outside. Agents already drive such tools without reading their help, and the user prefers working this way *(POSIX 12.2 Utility Syntax Guidelines; Raymond, The Art of Unix Programming; clig.dev)*. Where these sources speak of the person at the terminal, that person is the agent as much as the user: what serves one serves the other.
+Every command a skill offers is designed, from its first draft, as a Unix/Linux tool: Python inside, Unix outside. Agents already drive such tools without reading their help, and the user prefers working this way *(POSIX 12.2 Utility Syntax Guidelines; Raymond, The Art of Unix Programming; clig.dev; papis and pubs, bibliography tools built this way)*. Where these sources speak of the person at the terminal, that person is the agent as much as the user: one output serves both. This subsection is the one home of these conventions for every skill; a skill's own docs say only what is its own — its words, how its things are named, what each `-` reads.
 
-- **Joined by streams.** What a command acts on — keys, citation keys, paths — comes as operands, or one per line on stdin when the operand is `-`; its output is the next command's input. Commands and skills are joined by pipes and files where they can be; a script that joins them follows *Orchestrate, don't absorb*.
-- **stdout is data.** One record per line, a record's own status and hint inside it; what belongs to no record — progress, warnings, a closing summary — goes to stderr. Silent when there is nothing to say; loud on failure, saying on stderr what failed and why, with a non-zero exit (0 done, 1 something to act on, 2 cannot go on).
-- **Options by convention.** POSIX syntax: one-letter options, groupable (`-nv`), before the operands, `--` ending them; GNU long forms beside them (`--dry-run`, `--output=FILE`). A letter keeps its customary meaning — `-a` all, `-f` file or force, `-h` help, `-n` dry run, `-o` output, `-q` quiet, `-r` recursive, `-v` verbose, `-V` version — and a name a convention has taken (`--version`, `-q`) means nothing else. What a command searches for or acts on is an operand (`grep PATTERN`), not an option.
+- **One entry, short words.** Each skill has one entry in `scripts/`, named for the skill and unique across skills (`p2z.py`, `pf.py`). Under it, each command is one English word: a verb for doing (`tag`, `merge`), a noun for listing (`items`, `tags`, as `git tag`). A table in the entry maps each word to its script; `<entry> -h` lists the words, and an unknown word exits 2 with the list. Code in another skill runs the entry by its path.
+- **Called through PATH.** A call starts with `set -o pipefail; export PATH="<the skill's absolute path>/scripts:$PATH";` as a statement of its own: every command in the pipeline finds the entry, an upstream failure sets the line's exit status, and the working directory stays the project's.
+- **What a command acts on comes after it.** Commands and skills are joined by pipes and files where they can be, a command's output being the next one's input; a script that joins them follows *Orchestrate, don't absorb*. Items, files, records, handoffs and search words are operands, not options (`grep PATTERN`); several search words make one query. Where an operand could name a file or something else, one that looks like a path — holding `/` or ending in a file extension — is a path, and so is every operand of a command that takes only files: a missing one is `file_not_found`, never looked up as something else, and a directory counts as a file. `-` stands for a file whose content comes from stdin — a list (one thing per line: a value, or one of the skill's own JSON lines, read by the field that names the thing), a list of paths, or a document; each command's help says which. A command reads stdin only for `-`. An operand that matches several things lists them all and exits 1; the command picks none.
+- **Options by convention.** Short forms, groupable (`-nv`), with GNU long forms beside them, a long one shortened to any unique prefix; options and operands may come in any order, and `--` ends the options. An option takes one value, repeated for more (`--add-tag A --add-tag B`), since an option taking several would swallow the operands after it. A long name means one thing across all skills: `--collection` selects, an option that replaces is `--set-…`, and `--version` only prints the program's version. These letters, each with one meaning, are the only ones used; the conventions check reads this table, one letter per row:
+
+  | Letter | Long form | Meaning |
+  |---|---|---|
+  | `-h` | `--help` | help |
+  | `-n` | `--dry-run` | list what would be done, and do nothing |
+  | `-o` | `--output` | where the output goes, stdout when absent; a directory ends in `/` |
+  | `-a` | `--all` | include what is normally left out |
+  | `-r` | `--recursive` | include what lies below |
+  | `-f` | `--force` | force |
+  | `-i` | | write in place, as `sed -i` |
+  | `-t` | `--to` | the format to convert to, as pandoc |
+
+  `-q`, `-v` and `-V` keep their customary meanings (quiet, verbose, version) and join the table only when a command needs one.
+- **stdout is data.** A command that outputs records prints one JSON object per line, each record's status and hint inside it; a command whose product is a document (BibTeX, Markdown, a TSV another command reads) writes it as it is, to stdout or `-o`. stderr carries only what the reader needs and stdout cannot hold: the progress of a run that takes minutes, a warning that bears on the result. When all is done (exit 0), it holds no closing summary and no log of routine steps: the count is `wc -l`, each status in its line. When something is left to act on (exit 1), it ends with a closing summary; when the whole command cannot go on (exit 2), its last line is one JSON object `{code, hint, …}`, the records already done still on stdout and each one left undone there as `not_run`. A search that finds nothing exits 1, as `grep`; an empty listing exits 0, as `ls`. When the reader closes the pipe (`| head`), the command stops printing and finishes its work, its exit status unchanged.
 - **Everything is a file.** State, intermediate results, handoffs and configuration are plain files and directories that `ls`, `cat` and `grep` read: configuration under `~/.config/<skill>/`, an environment variable overriding it.
-- **Help shaped like a man page.** `-h`/`--help` gives the usage line, what the command does, its options, its exit status and an example or two.
+- **Help shaped like a man page.** `-h`/`--help` gives, for each command and subcommand, the usage line under the name the user types (`p2z.py search`), what it does, its options, its exit status and an example or two, without needing the service or the config.
 
-Existing commands are brought over step by step, a pilot first.
+Existing commands are brought over one skill at a time, paper-to-zotero first.
 
 ### Code and checks
 
@@ -100,7 +115,7 @@ The standard is the writing-for-agents skill *(mattpocock)*: every document foll
 
 **Write from the task, not from an old document.** An old document, note, draft or template is a lead for facts, which are then checked; it is never the model for structure, order, wording or argument. The shape comes from the current task, its reader and what they need now.
 
-**Skill text** leaves out what other layers govern (examples simply use `uv run`). Each external CLI gets one labelled example, plus dated hints of practices established, with run-time discovery authoritative. It holds no personal facts: the repo is public, and root AGENTS.md has the placeholders. Principles like these, and a skill's way of reaching pages, are written into each skill's own prompt, not into the global instructions.
+**Skill text** leaves out what other layers govern (examples simply call the entry's words: `p2z.py search …`). Each external CLI gets one labelled example, plus dated hints of practices established, with run-time discovery authoritative. It holds no personal facts: the repo is public, and root AGENTS.md has the placeholders. Principles like these, and a skill's way of reaching pages, are written into each skill's own prompt, not into the global instructions.
 
 **Language by reader.** What agents read (SKILL.md and its references, AGENTS.md, briefs, memory) is English, quoting the user verbatim in Chinese; what the user reads (README, specs, issues, reports) is Chinese.
 
