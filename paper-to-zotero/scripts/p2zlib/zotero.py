@@ -9,7 +9,8 @@ How a reply becomes a result code is decided here and nowhere else:
   any other 412 on a PATCH         a version conflict: the item is read again and the write tried once more,
                                    then version_conflict
   anything else unexpected         write_failed on a write, unexpected_response on a read
-The local API answers GETs without a key; writes carry the key ready.py --authorize stored and the server id.
+The local API answers GETs without a key, a listing whole (no paging); writes carry the key `p2z.py ready
+--authorize` stored and the server id.
 """
 import hashlib
 import json
@@ -22,7 +23,7 @@ import urllib.request
 from pathlib import Path
 
 from . import config, paper
-from .cli import CANNOT, Stop, log, skipped
+from .cli import CANNOT, KEY_RE, Stop, skipped
 
 DEFAULT_BASE_URL = "http://127.0.0.1:23119"
 LIB = "/api/users/0"
@@ -37,9 +38,10 @@ HINT_UNREACHABLE = ("Zotero does not answer: ask the user to start it (never res
                     "check --base-url if it is not the default.")
 HINT_DISABLED = ("Ask the user to enable the local API in Zotero Settings > Advanced ('Allow other applications on this "
                  "computer to communicate with Zotero'), then rerun.")
-HINT_NOT_FOUND = "No item with that key; find it with read_library.py items --q, or by --cite."
-HINT_CITE_NOT_FOUND = "No item carries this citationKey (case matters); find it with read_library.py items --q, or name it by its item key."
-HINT_CITE_AMBIGUOUS = "Several items carry this citationKey; name the one you mean by its item key."
+HINT_NOT_FOUND = "No item has this key or citation key (case matters); find it with p2z.py search."
+HINT_AMBIGUOUS = "Several items answer to this (`keys`); name the one you mean by its key."
+HINT_COLLECTION = ("No collection outside the trash has this key, path or name; p2z.py collections lists them "
+                   "(-a: the trash's too).")
 
 
 def detail(body, limit=400):
@@ -81,11 +83,6 @@ def own_field(t, field):
     return field if field in t["fields"] else t["by_base"].get(field)
 
 
-class _Stay(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args, **kwargs):
-        return None
-
-
 class Zotero:
     """A client for one Zotero instance; proxies from the environment are bypassed (the API listens on loopback)."""
 
@@ -93,14 +90,14 @@ class Zotero:
         self.base = base_url.rstrip("/")
         self.timeout = timeout
         self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-        self.stay = urllib.request.build_opener(urllib.request.ProxyHandler({}), _Stay)
         self._server_id = self._key = self._schema = None
 
     # ---- requests -------------------------------------------------------------------------------------------
 
-    def request(self, method, path, body=None, headers=None, *, params=None, timeout=None, follow=True):
-        """-> (status, headers, body bytes). A dict or list body goes as JSON, a str as it is (a form), bytes raw."""
-        url = self.base + path + ("?" + urllib.parse.urlencode(params) if params else "")
+    def request(self, method, path, body=None, headers=None, *, params=None, timeout=None):
+        """-> (status, headers, body bytes). A dict or list body goes as JSON, a str as it is (a form), bytes raw; a
+        list in params repeats the parameter."""
+        url = self.base + path + ("?" + urllib.parse.urlencode(params, doseq=True) if params else "")
         h = {"Accept": "application/json", **(headers or {})}
         payload = None
         if isinstance(body, (bytes, bytearray)):
@@ -112,7 +109,7 @@ class Zotero:
             h.setdefault("Content-Type", "application/json")
         req = urllib.request.Request(url, data=payload, method=method, headers=h)
         try:
-            with (self.opener if follow else self.stay).open(req, timeout=timeout or self.timeout) as resp:
+            with self.opener.open(req, timeout=timeout or self.timeout) as resp:
                 return resp.status, resp.headers, resp.read()
         except urllib.error.HTTPError as e:
             return e.code, e.headers, e.read()
@@ -128,11 +125,11 @@ class Zotero:
         if status == 403 and "not enabled" in low:
             raise Stop("local_api_disabled", exit=CANNOT, hint=HINT_DISABLED, detail=text)
         if status == 401:
-            raise Stop("key_rejected", exit=CANNOT, hint="Zotero does not accept the stored key; run ready.py --authorize again.",
+            raise Stop("key_rejected", exit=CANNOT, hint="Zotero does not accept the stored key; run p2z.py ready --authorize again.",
                        detail=text)
         if status == 412 and "server-id" in low:
             raise Stop("server_mismatch", exit=CANNOT,
-                       hint="The key belongs to another Zotero instance (or Zotero restarted); run ready.py --authorize again.",
+                       hint="The key belongs to another Zotero instance (or Zotero restarted); run p2z.py ready --authorize again.",
                        detail=text)
 
     def _get(self, path, params=None, allow_404=False):
@@ -152,9 +149,16 @@ class Zotero:
     def get(self, path, params=None, *, allow_404=False):
         return self._get(path, params, allow_404)[0]
 
+    def rows(self, path, params=None):
+        """A whole listing in one request (the local API does not page unless asked)."""
+        rows = self.get(path, params)
+        if not isinstance(rows, list):
+            raise Stop("unexpected_response", hint="The local API sent a listing that is not a list.", path=path)
+        return rows
+
     def pages(self, path, params=None, *, limit=None, until=None):
-        """Every row of a paged listing (100 a page), up to `limit`, or until until(page) is true for a page read; a
-        page that is not a list stops the read."""
+        """A listing read 100 rows a request, up to `limit`, or until until(page) is true for a page read (items() and
+        files_by_md5 stop early); a page that is not a list stops the read."""
         out, start = [], 0
         while limit is None or len(out) < limit:
             size = PAGE if limit is None else min(PAGE, limit - len(out))
@@ -188,59 +192,32 @@ class Zotero:
         return found
 
     def children(self, key):
-        """The item's attachments and notes. The local API answers a key it does not know with the whole library,
-        so only rows whose parentItem is the key count."""
-        return [c for c in self.pages(f"{LIB}/items/{key}/children") if data(c).get("parentItem") == key]
+        """The item's attachments and notes (an attachment's annotations come only when asked for by itemType)."""
+        return self.rows(f"{LIB}/items/{key}/children")
 
-    def resolve_cites(self, cites):
-        """{cite: [item keys]}: a q=everything search per citation key, then one scan of every top-level item for
-        those the search missed."""
-        hits = {}
-        for cite in cites:
-            rows = self.pages(f"{LIB}/items", {"q": cite, "qmode": "everything"}, limit=50)
-            hits[cite] = [r["key"] for r in rows if is_top(r) and data(r).get("citationKey") == cite]
-        missing = {c for c in cites if not hits[c]}
-        if missing:
-            log(f"no search hit for citationKey {', '.join(sorted(map(repr, missing)))}; scanning the top-level items")
-            for row in self.pages(f"{LIB}/items/top"):
-                cite = data(row).get("citationKey")
-                if cite in missing:
-                    hits[cite].append(row["key"])
-        return hits
-
-    @staticmethod
-    def cite_failure(cite, keys):
+    def resolve(self, name):
+        """The key of the one item a cli.Name names. A bare value is checked both ways, never guessed by its shape: as
+        a key (any item: attachments, notes and the trash too) and as a citation key (the quick search, exact match;
+        it sees the regular items outside the trash). A value from one of our JSON lines is checked only as the field
+        it came from. -> the key; not_found, or ambiguous with `keys`."""
+        value, field = name
+        keys = []
+        if field in (None, "key") and KEY_RE.match(value) and self.item(value) is not None:
+            keys.append(value)
+        if field in (None, "cite"):
+            keys += [r["key"] for r in self.rows(f"{LIB}/items", {"q": value})
+                     if data(r).get("citationKey") == value and r["key"] not in keys]
+        if len(keys) == 1:
+            return keys[0]
         if not keys:
-            return Stop("cite_not_found", hint=HINT_CITE_NOT_FOUND, cite=cite)
-        return Stop("cite_ambiguous", hint=HINT_CITE_AMBIGUOUS, cite=cite, keys=keys)
+            raise Stop("not_found", hint=HINT_NOT_FOUND)
+        raise Stop("ambiguous", hint=HINT_AMBIGUOUS, keys=keys)
 
-    def resolve_cite(self, cite):
-        keys = self.resolve_cites([cite])[cite]
-        if len(keys) != 1:
-            raise self.cite_failure(cite, keys)
-        return keys[0]
-
-    def targets(self, keys, cites):
-        """[(key, cite, failure)] in the order given, keys first; an item named twice (a key and a cite) once."""
-        hits = self.resolve_cites(cites) if cites else {}
-        out, seen = [], set()
-        for key, cite in [(k, None) for k in keys] + [(None, c) for c in cites]:
-            if cite is not None:
-                if len(hits[cite]) != 1:
-                    out.append((None, cite, self.cite_failure(cite, hits[cite])))
-                    continue
-                key = hits[cite][0]
-            if key in seen:
-                log(f"{key} is named more than once; handled once")
-                continue
-            seen.add(key)
-            out.append((key, cite, None))
-        return out
-
-    def collections(self):
-        """{key: {key, name, parent, path, version, data}} for the live collections, parents first. A collection in
-        the trash, and every collection under one, is left out; `path` joins the names from the root with "/"."""
-        rows = {r["key"]: r for r in self.pages(f"{LIB}/collections") if not data(r).get("deleted")}
+    def collections(self, trashed=False):
+        """{key: {key, name, parent, path, version, data}} for the collections, parents first; `path` joins the names
+        from the root with "/". A collection in the trash, and every collection under one, is left out unless
+        `trashed`."""
+        rows = {r["key"]: r for r in self.rows(f"{LIB}/collections") if trashed or not data(r).get("deleted")}
         tree = {}
 
         def place(key, depth=0):
@@ -264,14 +241,22 @@ class Zotero:
         live = [c for c in tree.values() if c]
         return {c["key"]: c for c in sorted(live, key=lambda c: c["path"].casefold())}
 
-    def collection_scope(self, key, recursive=False, tree=None):
-        """[key, and with recursive every live collection under it, parents first]; collection_not_found for a key
-        that is not a live collection (missing, in the trash, or under one)."""
+    def collection(self, value, tree=None):
+        """The key of the one collection outside the trash whose key, path (`p2z.py collections`) or name is `value`;
+        collection_not_found, or ambiguous with each candidate's key and path."""
         tree = self.collections() if tree is None else tree
-        if key not in tree:
-            raise Stop("collection_not_found", hint="No live collection has this key (it may be in the trash); take it from "
-                       "read_library.py collections --tree.", collection=key)
-        keys = [key]
+        hits = [c for c in tree.values() if value in (c["key"], c["path"], c["name"])]
+        if len(hits) == 1:
+            return hits[0]["key"]
+        if not hits:
+            raise Stop("collection_not_found", hint=HINT_COLLECTION, collection=value)
+        raise Stop("ambiguous", collection=value, candidates=[{"key": c["key"], "path": c["path"]} for c in hits],
+                   hint="Several collections answer to this; name the one you mean by its path or key.")
+
+    def collection_scope(self, value, recursive=False, tree=None):
+        """[the collection `value` names (collection()), and with recursive every one under it, parents first]."""
+        tree = self.collections() if tree is None else tree
+        keys = [self.collection(value, tree)]
         for c in tree.values() if recursive else ():   # parents come first
             if c["parent"] in keys and c["key"] not in keys:
                 keys.append(c["key"])
@@ -315,7 +300,7 @@ class Zotero:
             return {"code": "found", **self.describe(row), "matched_by": "same_paper"}, []
         doi, aid = paper.identifiers(item)
         excluded, searched = set(distinct or ()), []
-        rows = lambda q, qmode=None: [r for r in self._search(q, qmode, searched) if r["key"] not in excluded]  # noqa: E731
+        rows = lambda q, qmode=None: [r for r in self.search(q, qmode, searched) if r["key"] not in excluded]  # noqa: E731
         matches, pairs, matched_by = [], [], None
         if doi:
             matches, matched_by = [r for r in rows(doi, "fields") if paper.same_paper(item, data(r)) == "doi"], "doi"
@@ -336,10 +321,11 @@ class Zotero:
             c["attachments"] = paper.file_titles(self.attachments(c["key"]))
         return {"code": "not_found", "searched": searched, **({"more": more} if more else {})}, near
 
-    def _search(self, q, qmode, searched):
-        """The top-level items a quick search hits; a hit on an attachment or note counts for its parent."""
+    def search(self, q, qmode=None, searched=None):
+        """The top-level items a quick search hits, outside the trash; a hit on an attachment or note counts for its
+        parent. `searched` collects {q, qmode, hits}."""
         found, parents = {}, []
-        for r in self.pages(f"{LIB}/items", {"q": q, **({"qmode": qmode} if qmode else {})}):
+        for r in self.rows(f"{LIB}/items", {"q": q, **({"qmode": qmode} if qmode else {})}):
             if is_top(r):
                 found.setdefault(r["key"], r)
             elif data(r).get("parentItem"):
@@ -349,7 +335,8 @@ class Zotero:
                 parent = self.item(key)
                 if parent is not None and is_top(parent):
                     found[key] = parent
-        searched.append({"q": q, "qmode": qmode or "titleCreatorYear", "hits": len(found)})
+        if searched is not None:
+            searched.append({"q": q, "qmode": qmode or "titleCreatorYear", "hits": len(found)})
         return list(found.values())
 
     def describe(self, row):
@@ -386,11 +373,11 @@ class Zotero:
     # ---- attachments and files ------------------------------------------------------------------------------
 
     def file_path(self, attachment_key):
-        """Where the attachment's file is on this machine (the local API redirects to its file:// address), or None."""
-        status, headers, body = self.request("GET", f"{LIB}/items/{attachment_key}/file", follow=False)
+        """Where the attachment's file is on this machine (the local API answers with its file:// address), or None."""
+        status, _, body = self.request("GET", f"{LIB}/items/{attachment_key}/file/view/url")
         self.check(status, body)
-        location = headers.get("Location") if 300 <= status < 400 else None
-        return local_path(location) if location and location.startswith("file:") else None
+        url = body.decode("utf-8", errors="replace").strip() if status == 200 else ""
+        return local_path(url) if url.startswith("file:") else None
 
     def attachments(self, key):
         """The item's attachments, best first: attachment_rows(its children); file_path() says where one is."""
@@ -449,7 +436,6 @@ class Zotero:
             if attempt == 2:
                 raise Stop("version_conflict", hint="The item keeps changing under us (Zotero sync, or the user editing it); "
                            "wait, then rerun.", key=key, status=status, detail=detail(resp))
-            log(f"{key}: 412 ({detail(resp, 120)}); reading the item again and retrying once")
             retried = True
             item = self.item(key)
             if item is None:
@@ -466,7 +452,6 @@ class Zotero:
         results = self._post(objects, path)
         stale = [i for i, r in enumerate(results) if (r.get("failed") or {}).get("code") == "version_conflict"]
         if replan and stale:
-            log(f"{len(stale)} object(s) changed meanwhile; reading them again and retrying once")
             fresh, again = self.items([objects[i]["key"] for i in stale]), []
             for i in stale:
                 item = fresh.get(objects[i]["key"])
@@ -609,7 +594,6 @@ class Zotero:
 
         if reuse is not None:
             key = reuse["key"]
-            log(f"{parent_key}: reusing the empty attachment {key} (same filename, no file)")
             self.retitle(key, title, reuse)
         else:
             attachment = {"itemType": "attachment", "linkMode": "imported_url" if url else "imported_file",
@@ -623,7 +607,6 @@ class Zotero:
             if not key:
                 raise Stop("unexpected_response", hint="Zotero's answer names no attachment item; look at the parent in Zotero.",
                            step="create")
-            log(f"{parent_key}: created the attachment {key}")
         existed = self._upload(key, body, md5, filename, int(path.stat().st_mtime * 1000), content_type)
         after = data(self.item(key))
         read_back = (after.get("md5") or "").lower()
@@ -691,7 +674,6 @@ class Zotero:
         try:
             auth = json.loads(resp)
             if auth.get("exists"):
-                log(f"{key}: Zotero already has this file")
                 return True
             target, upload_key = urllib.parse.urlsplit(auth["url"]), auth["uploadKey"]
         except (ValueError, AttributeError, KeyError, TypeError):

@@ -72,7 +72,7 @@ class Ready(unittest.TestCase):
         self.assertEqual((saved["zotero"]["serverID"], saved["openalex_key"]), (SERVER_ID, "x"), "the rest of the config kept")
         self.assertEqual(stat.S_IMODE(self.config.stat().st_mode), 0o600)
         self.config.write_text(json.dumps({"zotero": {"key": API_KEY, "serverID": "ANOTHER1"}}))
-        self.assertEqual(self.run_().lines[0]["code"], "server_mismatch")
+        self.assertEqual(self.run_().last["code"], "server_mismatch")
         for replies, code in (([(403, {}, {"denied": True})], "authorize_denied"),
                               ([(200, {}, {"key": "single", "remember": False})], "authorize_single_use"),
                               ([("sleep", 3)], "authorize_timeout")):
@@ -83,11 +83,11 @@ class Ready(unittest.TestCase):
 
     def test_cannot_check(self):
         self.zot.disabled = True
-        self.assertEqual(self.run_().lines[0]["code"], "local_api_disabled")
+        self.assertEqual(self.run_().last["code"], "local_api_disabled")
         self.zot.disabled = False
         self.config.write_text("{broken")
         r = self.run_()
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "config_unreadable"))
+        self.assertEqual((r.code, r.last["code"]), (2, "config_unreadable"))
 
     def test_smoke(self):
         r = smoke("ready", "--dir", self.work.root, "--base-url", self.zot.base_url, config=self.config)

@@ -22,7 +22,7 @@ Any task, in any project, that needs what a library paper says gets it fast from
 | A topic note across papers (主题笔记) | references/notes.md, *Topic notes* |
 | The library's older notes | references/notes.md, *Older notes* |
 
-Script paths are relative to this file's directory: `cd` there at the start of every shell call. paper-to-zotero runs as `uv run ../paper-to-zotero/scripts/p2z.py <command>`. Each script's `--help` is the reference for its output and codes.
+Script paths are relative to this file's directory: `cd` there at the start of every shell call. paper-to-zotero runs as `uv run ../paper-to-zotero/scripts/p2z.py <word>` (`p2z.py -h` lists its words). Each script's `--help` is the reference for its output and codes.
 
 **Zotero is the one home** of a paper's note and structured package. Take them out whenever a task needs them, into a **scratch directory**: a new subdirectory of the session's scratchpad (else of `${TMPDIR:-/tmp}`), one per change, never in a project. Delete it once Zotero holds the result and no question for the user still rests on it. A file that did not reach Zotero is the user's: hand it over with its full path.
 
@@ -33,17 +33,17 @@ Script paths are relative to this file's directory: `cd` there at the start of e
 A read-through, a looked-up answer written back, a check mark, a correction: each one changes the paper's one note, in four steps.
 
 1. **Take**: `uv run scripts/prepare_note.py --cite <citation key> -o <scratch> [--bare] [--title <PDF title>]`. It gives the note file (a new one from the skeleton when the paper has none; `--bare` starts it without the eight questions), the PDF the note was read in (`--title` takes another, note-format.md, *读的版本*), the package, and the paper's other notes.
-   - `no_package`: the PDF has not been parsed. Parse it with the paddleocr skill, `p2z.py structured put` the result, then run `prepare_note` again with the same arguments, into the same directory. Without paddleocr, read the PDF alone and tell the user the skill to install.
+   - `no_package`: the PDF has not been parsed. Parse it with the paddleocr skill, `p2z.py package put` the result, then run `prepare_note` again with the same arguments, into the same directory. Without paddleocr, read the PDF alone and tell the user the skill to install.
    - `two_notes`: the paper has two notes titled 论文笔记. Which to keep is the user's call.
    - `failed` with `no_such_title`: the PDF the note was read in is no longer in the library under that title. One of its `titles` that is the same file renamed: run again with `--title` it, and name it in the 读的版本 paragraph; nothing needs reading again. None: it goes to the user.
-   - `failed` with any other code (a citation key that names no item, Zotero not running): `detail` holds paper-to-zotero's own line; follow its `hint`.
-   - `better_pdf`: the library holds a better version than the one the note was read in (by the order `p2z.py read_library pdf --help` gives). A lookup reads on in the note's version; a read-through moves the note onto the better one (*Read a paper*).
+   - `failed` with any other code (a citation key that names no item, Zotero not running): `detail` holds paper-to-zotero's own line (when it could not go on, the `{code, hint}` its stderr ended with); follow its `hint`.
+   - `better_pdf`: the library holds a better version than the one the note was read in (by the order `p2z.py pdf -h` gives). A lookup reads on in the note's version; a read-through moves the note onto the better one (*Read a paper*).
 2. **Edit** the note file by note-format.md, *Changing a note*.
 3. **Check**: `uv run scripts/check_note.py <note>` (`--full` after a read-through) prints `complete`, and `uv run scripts/check_quotes.py <note> --pdf <PDF> --package <package>` (no package: without `--package`) prints `pass`. `missing_numbers` lists questions lost since the take: put them back.
 4. **Put**: `uv run scripts/put_note.py <note>`, run by you alone, as it writes Zotero. It links each figure and table the note names to a box on it in the PDF (note-format.md, *Clickable figures and tables*), puts the note with `p2z.py note put -i`, and leaves the file without links. Its `code` is note put's.
    - `version_conflict`: the note changed in Zotero meanwhile. Take it into a new scratch directory, carry this change over, check and put again. Taking into the old directory would overwrite the change.
    - `same_title`: another session created the paper's note meanwhile. Take that one, merge this change in, put again.
-   - any other code (`readback_mismatch`, `write_denied`, Zotero not running): `put` holds note put's own line; follow its `hint`.
+   - any other code (`readback_mismatch`, `write_denied`, Zotero not running): `put` holds note put's own line (when it could not go on, the `{code, hint}` its stderr ended with); follow its `hint`.
    - `unmatched` lists the figures and tables left unlinked, each with its `why`. Look each one up in the PDF:
      - the note gives a wrong number (often `not_in_package`): correct it by note-format.md, *Changing a note* (in a read-through, send it back to the reader), then go on from step 3;
      - right as written, with `not_in_package`, `rotated_page`, `no_package`, `no_paddleocr` or `no_pdf` (no PDF beside the note, as for a topic note): leave it as plain text;
@@ -74,7 +74,7 @@ Done when the answer rests on the note or the paper's text, and what belongs in 
    What fails goes back to the same reader with the output as printed: Claude Code `SendMessage`. If it cannot be resumed, send a new reader with the same brief, the note file as it stands, that output and the first reader's reply.
 4. **Save the reader's reply** as `<scratch>/report.md`, then act on it:
    - the PDF is not this paper: stop; it goes to the user;
-   - a settled package: `p2z.py structured put <package>`;
+   - a settled package: `p2z.py package put <package>`;
    - a library error it names, such as a common name the paper goes by without its `aka/` tag: read the item, and if the error is real, fix it by paper-to-zotero's rules and list it in your report. Deleting or merging items waits for the user;
    - questions marked 要看别处: they stay open until the user asks;
    - answers to a project's questions: write back what *Look it up* step 3 says belongs in the note;
@@ -100,7 +100,7 @@ You are paper-read's reader. <paper-read> is <this skill's directory>. Your brie
 | stop | taker | brief | what comes back, recorded by |
 |---|---|---|---|
 | a paper to read through (*Read a paper*, step 2) | the reader | references/reading.md | the note file, edited in place; the package, by `doc.py commit`; its report, in its reply, which you save as `report.md`. You put the note and the package into Zotero |
-| `no_package` | you, with the paddleocr skill | paddleocr's SKILL.md | the parse, by `structured put`; then `prepare_note` again |
+| `no_package` | you, with the paddleocr skill | paddleocr's SKILL.md | the parse, by `p2z.py package put`; then `prepare_note` again |
 | a quotation `check_quotes` cannot find, outside a read-through | you | references/note-format.md, *Evidence* | the quotation compared with the page image, marked （已核对 …） |
 | `two_notes`, a PDF that is not the paper, older notes to trash, deleting or merging items | the user, in the batch's one message | — | their answer, carried out by you |
 

@@ -1,12 +1,12 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Merge what one Zotero item holds into its duplicate, keeping one item whole; nothing is deleted.
 
---keep and --drop name the two items (an 8-character key or a citation key). The plan, shown by --dry-run and
-carried out without it:
+What follows the options is the duplicate to merge away, --into the item that stays (each a key or a citation key):
+"merge X into Y", so the item that stays is always named as such. The plan, shown by -n and carried out without it:
   fields        every field of the kept item's type (from the schema, matched across types by base field, so a
                 journal's publicationTitle fills a conference paper's proceedingsTitle): a field the kept item
                 leaves empty takes the dropped item's value (creators only when the kept item has none); `extra`
@@ -19,26 +19,25 @@ carried out without it:
                 notes, move under the kept item (parentItem); its other attachments (snapshots, links, a PDF the kept
                 item already has) stay and are listed under `left_with_drop`; children in the trash are left alone
 The kept item is written in one PATCH with its version (changed meanwhile: read again, planned again and tried
-once more), each moved child in its own; then everything is read back. The dropped item is left in place: the
-output ends with the trash_item.py line to run once the user confirms.
+once more), each moved child in its own; then everything is read back. The dropped item is left in place: `next`
+is the p2z.py trash line to run once the user confirms.
 
 stdout: one line {code, keep: {key, title, citationKey}, drop: {...}, fields: {fill, conflicts, not_carried},
 collections: {before, after}, tags: {added}, move, left_with_drop, next, dry_run? | version, retried}.
-  ok                 merged and read back so (--dry-run: the plan; nothing written)
+  ok                 merged and read back so (-n: the plan; nothing written)
   skipped            reason nothing_to_merge: the kept item already holds everything
-  not_found          no item with that key
-  cite_not_found     no top-level item carries the citationKey; cite_ambiguous: several do (`keys`), pass the key
-  same_item          --keep and --drop name one item
-  not_top_level      one of them is an attachment or a note; trashed: one is in the trash
+  not_found          {item, code}: no item has this key or citation key; ambiguous: several do (`keys`)
+  same_item          the two name one item
+  not_a_parent       one of them is an attachment or a note (`parentItem`); trashed: one is in the trash
   version_conflict   an item (`key`) changed twice while it was being written; wait, then rerun the dry run
   write_denied       the library is not editable; write_failed: Zotero rejected the write of `key` (detail)
   readback_mismatch  the writes were accepted, but the kept item does not show them (`wrong` fields, `unmoved`)
-Exit 0 = ok or skipped, 1 = any other code, 2 = cannot check (zotero_unreachable, local_api_disabled, no_key,
-key_rejected, server_mismatch, config_unreadable).
+Exit 0 = ok or skipped; 1 = any other code; 2 = cannot check (zotero_unreachable, local_api_disabled, no_key,
+key_rejected, server_mismatch, config_unreadable), then stderr's last line is {code, hint}.
 
 Examples:
-  uv run scripts/merge_items.py --keep 9NB4JT94 --drop 3G7J5DN9 --dry-run   # show the plan to the user first
-  uv run scripts/merge_items.py --keep goodfellow2014generative --drop 3G7J5DN9
+  p2z.py merge -n 3G7J5DN9 --into 9NB4JT94                    # show the plan to the user first
+  p2z.py merge 3G7J5DN9 --into goodfellow2014generative
 """
 import json
 
@@ -49,11 +48,18 @@ NOT_FIELDS = {"key", "version", "itemType", "collections", "tags", "relations", 
 SHOWN = 160  # characters of a long value shown in `conflicts`
 
 
-def resolve(zot, name):
-    key = name if cli.KEY_RE.match(name) else zot.resolve_cite(name)
-    item = zot.item(key)
+def resolve(zot, value):
+    """The item a key or citation key names; not_found, ambiguous name it as `item`."""
+    name = cli.Name(value, None)
+    try:
+        item = zot.item(zot.resolve(name))
+    except cli.Stop as stop:
+        if stop.exit == cli.CANNOT:
+            raise
+        stop.extra = {**cli.head(name), **stop.extra}
+        raise
     if item is None:
-        raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND, key=key)
+        raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND, **cli.head(name))
     return item
 
 
@@ -131,14 +137,15 @@ def write(zot, key, plan, item=None):
 def merge(zot, args):
     if not args.dry_run:
         zot.write_headers()
-    keep, drop = resolve(zot, args.keep), resolve(zot, args.drop)
+    keep, drop = resolve(zot, args.into), resolve(zot, args.drop)
     if keep["key"] == drop["key"]:
-        raise cli.Stop("same_item", hint="--keep and --drop name the same item.", key=keep["key"])
+        raise cli.Stop("same_item", hint="The duplicate and --into name the same item.", key=keep["key"])
     for item in (keep, drop):
         if not zotero.is_top(item):
-            raise cli.Stop("not_top_level", hint="Both must be top-level items.", key=item["key"])
+            raise cli.Stop("not_a_parent", hint="Both are papers' own items; an attachment or note goes with its parent "
+                           "(parentItem).", key=item["key"], parentItem=zotero.data(item).get("parentItem"))
         if zotero.in_trash(item):
-            raise cli.Stop("trashed", hint="That item is in the trash; restore it first (trash_item.py --restore) or pick another.",
+            raise cli.Stop("trashed", hint="That item is in the trash; restore it first (p2z.py trash --restore) or pick another.",
                            key=item["key"])
     keep_children, drop_children = ([c for c in zot.children(it["key"]) if not zotero.in_trash(c)] for it in (keep, drop))
     tmp_keys = {key for key, c in zot.collections().items() if c["name"] == "tmp"}
@@ -150,7 +157,7 @@ def merge(zot, args):
     shown, patch = plan(keep)
     head = {side: {"key": it["key"], "title": zotero.data(it).get("title"), "citationKey": zotero.data(it).get("citationKey")}
             for side, it in (("keep", keep), ("drop", drop))}
-    nxt = f"uv run scripts/trash_item.py --key {drop['key']} --dry-run   # once the user confirms the drop"
+    nxt = f"p2z.py trash -n {drop['key']}   # once the user confirms the drop"
     if not patch and not shown["move"]:
         cli.emit(cli.skipped("nothing_to_merge", **head, **shown, next=nxt))
         return cli.OK
@@ -184,11 +191,11 @@ def merge(zot, args):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("--keep", required=True, metavar="KEY|CITE", help="the item that stays and gains")
-    p.add_argument("--drop", required=True, metavar="KEY|CITE", help="the duplicate whose information moves over")
-    p.add_argument("--dry-run", action="store_true", help="print the plan; write nothing")
+    p.add_argument("drop", metavar="DUPLICATE", help="the duplicate whose information moves over: a key or citation key")
+    p.add_argument("--into", required=True, metavar="ITEM", help="the item that stays and gains")
+    cli.add_dry_run(p, help="print the plan; write nothing")
     cli.add_base_url(p)
-    args = p.parse_args(argv)
+    args = cli.parse(p, argv)
     return cli.run(lambda: merge(zotero.Zotero(args.base_url), args))
 
 

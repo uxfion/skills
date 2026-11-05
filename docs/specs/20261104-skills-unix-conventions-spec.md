@@ -1,7 +1,7 @@
 # skills 对接 Unix 哲学：全系统约定与 p2z 样板
 
 - 日期：2026-11-04。来源：[docs/issues/20261104-skills-unix-conventions.md](../issues/20261104-skills-unix-conventions.md)（目标、已定的决策、现状数据都在那里，这里不重复）。
-- 状态：定稿（2026-11-04），等用户点头后实现。经三路审阅（忠于需求和原则、技术、换个 agent 试用）和 advisor 改过；第 8 节两个问题用户都定了；第 6 节的规则文字用户同意，已改进原则、AGENTS.md 和 README。实现时修正，实现完冻结。
+- 状态：已冻结（2026-11-05）。定稿 2026-11-04；p2z 样板已实现（提交 `1e81c30`）并通过第 5 节的验收，实测写入在第 9 节末尾；实现时的修正见第 9 节。经三路审阅（忠于需求和原则、技术、换个 agent 试用）和 advisor 改过；第 8 节两个问题用户都定了；第 6 节的规则文字用户同意，已改进原则、AGENTS.md 和 README。实现时修正，实现完冻结。
 - 范围：一遍约定整理。流程不动，输出的内容不动（字段照旧），不重新设计。定两件事：所有 skill 都照的**全系统约定**（第 1 节），和先做的**样板：整个 paper-to-zotero**（第 2–5 节）。
 - 第 1 节只有一个出处：定稿后，其中必须遵守的规矩改写成英文并进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，做法上的放进 AGENTS.md 和各 skill 自己的文档（第 6 节）；这份 spec 和以后各 skill 的 spec 都只引用它们。其余四个 skill 在样板用过一阵后照它改，各自的 spec 只写自己的短词表、各种东西怎么指定、要跟着改的地方。用户：「设计原则尽量是统一的，因为后续我们同样会扩展到其他的skill上，如果设计原则上或者比较顶层方面不一致，到时候会非常的混乱」。
 - 试用期间各 skill 之间新旧并存：p2z 用新约定，paper-fetch 等还是旧的。p2z 的文档调 paper-fetch 时经 `pf.py` 和它的 PATH，选项照 paper-fetch 现在的写。
@@ -56,6 +56,7 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
   - **路径清单**：一行一个路径（读记录、结果文件的命令）。
   - **文档**：整份内容（.bib、笔记正文、框的清单）。
 - 不写 `-` 就不读标准输入：agent 的环境里，没接管道时标准输入可能一直开着，命令会挂住。
+- `-` 读到空清单是零件事，退出 0：上游搜不到时，整条管道的退出码是上游的。后面什么都没写才是用法错误，退出 2，绝不当成"全部"（第 9 节）。
 
 ### 1.4 选项
 
@@ -84,7 +85,7 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
 - 标准错误只放读的人需要、标准输出又放不下的：跑上好几分钟的任务的进度（paddleocr 解析时的那几行），影响结果的警告（vllm-serve 的"上一次启动失败过"）。
   - 全做完了（退出 0）：不打汇总，不打例行步骤的日志。条数用 `wc -l` 数，每条的状态在它那一行里。p2z 的命令没有长任务，所以全做完时标准错误是空的。
   - 没全做完（退出 1）：最后打一行汇总。
-  - 整个命令做不下去（连不上 Zotero、本地 API 没开、配置缺了）：标准错误最后一行是一个 JSON `{code, hint, …}`，退出 2。已经做完的记录照旧留在标准输出，没做的每条一行 `code: not_run`。
+  - 整个命令做不下去（连不上 Zotero、本地 API 没开、配置缺了、用法错了、输入读不了）：标准错误最后一行是一个 JSON `{code, hint, …}`，退出 2。已经做完的记录照旧留在标准输出，没做的每条一行 `code: not_run`。
   - p2z 成功路上的日志（"named more than once"、"reusing" 之类）去掉，或者并进那条记录的行里。
 - 退出码：0 做完；1 有要处理的（某条没找到、有歧义、要人定、有一条失败）；2 做不下去。搜东西的命令一条都没搜到是 1，学 `grep`；列表为空是 0，学 `ls`。
 - 下游关掉管道（`| head`）后：不再打印，不报错；命令照常做完，退出码照常。写东西的命令不会做到一半停下。
@@ -137,7 +138,7 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
 
 - 命令行上给了改动（`update` 的 `--set`、`--patch`；`tag` 的 `--add-*`、`--remove-*`、`--set-*`）：写在后面的东西和 `-` 都是条目清单，取 `key`。所以 `p2z.py search X | head -3 | p2z.py tag -n --add-tag method/diffusion -` 能直接用。
 - 没给改动：写在后面的是改动清单文件，`-` 是改动清单：一行一个 JSON，用 `key` 或 `cite` 指明条目，带上要改的内容。`fill`、`retitle` 打出的正是这种行：`p2z.py fill <结果>… | p2z.py update -n -`。
-- 改动清单里有一行带 `itemType` 或 `version`（那是条目行，不是改动行）：报 `item_line`，提示改动要写成选项，什么都不写，退出 1。
+- 改动清单里有一行带 `itemType` 或 `version`（那是条目行，不是改动行）：报 `item_line`，提示改动要写成选项，什么都不写，退出 2（第 9 节）。
 
 ### 2.4 短词表
 
@@ -176,7 +177,7 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
 | `note` | note | `take 条目或笔记`、`put 文件…`（`-` 读文档）、`list [条目…]`、`search 词 [条目…]` | `take`：`-o DIR/`、`--title`；`put`：`-i`、`-n`；`list`、`search`：`--collection` | `search` 照样能限定在某篇论文或某个集合里 |
 | `convert` | note_md | 文件…（文档） | `-t md\|note`、`-o` | `md -t md` 读着像"md 转 md" |
 | `package` | structured | `take 条目…`、`put 目录…`、`names [条目…]` | `take`：`--title` / `--every` / `--missing`、`-o DIR/`；`put`：`-n` | 文档和 `pdf` 的字段都叫 package；`-h` 写明"PDF 的解析包" |
-| `annotate` | annotate | PDF 附件、框的清单文件（`-` 读文档） | `-n` | |
+| `annotate` | annotate | PDF 附件、框的清单文件（`-` 读它的内容；空的就是没东西可标） | `-n` | |
 
 ## 3. 读库内部的减法
 
@@ -191,7 +192,7 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
 
 ## 4. 要跟着改的
 
-- **p2z 的共用代码**（`p2zlib/cli.py`、`zotero.py`）：2.1 的条目解析、2.2 的集合解析、2.3 的两种读法、1.3 的路径和 `-`、1.5 的输出（汇总只在退出 1 时打，整命令报错写标准错误最后一行，空跑也一样，做不完的记 `not_run`，成功路上的日志去掉）、管道关掉后照常做完（所有脚本的 `__main__` 和入口都套上同一层：接住 BrokenPipeError，把标准输出接到 `/dev/null`，往下做）、选项交错写（`parse_intermixed_args`；带子命令的脚本由入口定好子命令，按子命令单独解析；`--base-url` 挂到每个子命令上）、一个选项一个值。25 个脚本里 22 个走这里。
+- **p2z 的共用代码**（`p2zlib/cli.py`、`zotero.py`）：2.1 的条目解析、2.2 的集合解析、2.3 的两种读法、1.3 的路径和 `-`、1.5 的输出（汇总只在退出 1 时打，整命令报错写标准错误最后一行，空跑也一样，做不完的记 `not_run`，成功路上的日志去掉）、管道关掉后照常做完（写标准输出的 `cli.write`、`cli.emit` 接住 BrokenPipeError，把标准输出接到 `/dev/null`，往下做；第 9 节）、选项交错写（`parse_intermixed_args`；带子命令的脚本由入口定好子命令，按子命令单独解析；`--base-url` 挂到每个子命令上）、一个选项一个值。25 个脚本里 22 个走这里。
 - **p2z 的入口** `p2z.py`：短词表；`-h` 列短词，作用那一句取自表；`prepare`、`save` 各自的帮助；`-` 读成路径再交给两个脚本；执行脚本前设一个环境变量告诉它用户敲的命令名，`cli.parser` 用它当用法行里的名字。
 - **p2z 的脚本**：各自的选项按 1.4 和 2.4 改；`fill`、`retitle` 不给 `-o` 时写标准输出，标准输出只放改动行；条目解析的报错代码 `cite_not_found`、`cite_ambiguous` 改成 `not_found`、`ambiguous`（paper-read `index_heading.py` 的说明、p2z 的提示里提到它们的地方跟着改）；帮助按 1.6 改，带子命令的把模块说明拆到各子命令；所有提示（约 96 处 hint）和帮助里的例子换成新写法；`answer.py` 补上可执行位。
 - **p2z 的文档**：SKILL.md 和 `references/` 里所有调用；1.7 那几条写进 SKILL.md；四份 brief（`same-paper-judge.md`、`recognizer-judge.md`、`tidy-judge.md`、`tagging.md`）的调用写法和派发模板。
@@ -208,9 +209,9 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
   - `p2z.py search POCUS | p2z.py pdf - | jq -r 'select(.exists) | .path'` 列出那几篇的 PDF；
   - `p2z.py items --collection 自然图像/Diffusion | head -3` 取对集合；`p2z.py items --collection Diffusion` 报两条路径、退出 1；
   - `p2z.py tags | head -1` 标准错误为空、退出 0；
-  - 把地址指到一个没人用的端口（`PAPER_TO_ZOTERO_BASE_URL=http://127.0.0.1:9 p2z.py tags`，不用关 Zotero）：标准输出为空，标准错误最后一行是 `zotero_unreachable`，退出 2。
+  - 把地址指到一个没人用的端口（`PAPER_TO_ZOTERO_BASE_URL=http://127.0.0.1:<现找的空闲端口> p2z.py tags`，不用关 Zotero；9 号在 WSL 里会挂到超时）：标准输出为空，标准错误最后一行是 `zotero_unreachable`，退出 2。
 - 实测写入：用户指定一篇论文，走完整的导入（`ready`、`draft`、`prepare`、`save`、`report`），再做一次 `tag -n` 和用户点头后的 `tag`。论文由用户定，写入要用户点头。
-- p2z 的文档变短：SKILL.md 加 `references/` 现在 554 行，改完要更短；脚本现在 7,596 行，删掉的（翻页、扫全库、`--batch` 的另一套读法、汇总）抵得过加上的，不变长。
+- p2z 的文档变短：SKILL.md 加 `references/` 现在 554 行，改完要更短。脚本多出的只能是 1.6 要的帮助和只写一次、各命令共用的机制，没有一样在几个脚本里各写一遍（原写"不变长"，见第 9 节；用户 2026-11-05 选 A）。
 - p2z 的文档里没有 `cd`、`uv run`、`2>/dev/null`。
 - 用一阵之后：重跑 `usage.py`，看 p2z 的调用里 `cd`、`2>/dev/null`、接 heredoc 的 Python 是否消失，新写法出错几次，用之前查 `-h` 几次；结果写进 issue，再决定铺开。
 
@@ -248,3 +249,20 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
 2. ~~`merge` 怎么写两个条目~~：已定，并掉的写在后面，留下的用 `--into`（2.4）。
 
 两个问题都定了，第 6 节的规则文字也已同意。
+
+## 9. 实现时的修正（2026-11-05）
+
+- **整命令的输入错误退出 2**（用户 2026-11-05 选 A；Unix 里 grep、diff 一派把参数写错、输入读不了都归 2）：读不了的清单（`invalid_list`）、改动清单（`invalid_changes`，原 `invalid_batch`）、条目行（`item_line`，2.3 原写退出 1）、`update` 的 `refused_property` 和 `invalid_patch_file`、`annotate` 的框（`invalid_boxes`），和用法错误一样退出 2，标准错误最后一行 `{code, hint}`。什么都没做、要改的是调用本身；退出 1 留给看过了、有几样要人处理的。只处理一样东西的命令（`merge`、`mkcol`、`answer`、`ready`）退出 1 时那一行照旧在标准输出。
+- **`-` 读到空清单是零件事**（用户 2026-11-05 同意）：明写了 `-`、清单（或改动清单、框的清单）是空的，什么都不做，退出 0，不碰 Zotero；什么都没写才是用法错误。这样 `search X | pdf -` 搜不到时整行是 search 的 1，不会被下游说成用法错误；按"清单是否为空"决定范围的地方（`lint`、`package take --missing`、`package names`）也不会因空清单落到整个库上。
+- **退出 1 的汇总**是标准错误最后一行 `{"summary": {...}}`，和退出 2 那行一样能直接解析。用法错误：用法行之后，最后一行 `{code: usage, detail, hint}`。
+- **解析不出的名字**那一行以 `item` 开头：`{item, code: not_found | ambiguous, keys?}`，不按长相猜成 key 或 cite；解析出的照旧 `{key, cite?}`。
+- **条目怎么查**（2.1 的"成批地查，由实现定"）：裸值像 key 时 `GET /items/<值>`（附件、笔记、回收站里的都找得到；`itemKey` 列表找不到回收站里的，加 `includeTrashed` 也不行），每个裸值再用默认模式快速搜一次、只认引用键完全相同的；我们自己 JSON 行里的 `key` 只按 key 查，`cite` 只按引用键查，所以 `search … | pdf -` 每条只多一次 5–9 毫秒的 GET。回收站里的条目按引用键找不到（快速搜索不看回收站）。
+- **删扫全库前的核对**（第 3 节）：库里 921 个引用键，按默认模式快速搜索全部精确命中自己那一条（含两个带 `+` 的），0 条歧义。整库一次读 `/items` 是 2,966 条、10 MB、约 40 秒：`items` 什么都不写时退出 2，就是为了不走到这里。
+- **管道关掉后**：在 `cli.write`、`cli.emit` 里接住 BrokenPipeError，把标准输出接到 `/dev/null`，往下做；不套在 `__main__` 外面，那样会中断后面的工作。
+- **约定检查**（1.8）的运行时多一条：写库的命令（`update` 改 400 条）接 `| head -1`，事后核对每一条都写了。只拿只读命令试管道，测不到"改到一半就停"这种最怕的情况（side agent 提醒）；四条各自成子测试，去掉防断管时读、写两条都单独变红。
+- **规则文字**（用户 2026-11-05 选 A）：AGENTS.md 加一条约定检查的用法；原则 §3 加上空清单那一句；sources 记了原话。
+- **9 号端口**在 WSL 里会挂到超时，不会马上被拒：验收和测试用现找的空闲端口。
+- **各命令的小改动**：`have` 去掉 `--file`，读得成一个 JSON 对象的是记录，其余文件按 md5 查，两种可混写；`note take` 只收一个条目或笔记，`note list --q` 移到 `note search`；`fill` 的改动行带上 draft 的 `warnings`（`update` 只读 `set`），`retitle` 不再出 `not_in_library` 行；`tag` 的 `not_a_parent` 字段 `parent` 改名 `parentItem`，`merge` 的 `not_top_level` 改为 `not_a_parent`，和别的命令一致；记录文件不存在报 `file_not_found`（原 `record_invalid`）；`ids` 不再在成功时打条数（`grep -c ^title:` 数得出）。
+- **paper-read 读整命令错误**：它调 p2z 的小函数在 p2z 退出 2 时，把标准错误最后一行 `{code, hint}` 放进返回的行里，SKILL.md 第 39、46 行"跟着 `hint` 走"的说法不变，补了一句它从哪里来。
+- **第 5 节的行数**：p2z 文档 554 → 547 行，变短了。脚本 7,596 → 8,038 行，没做到原写的"不变长"：帮助文字多约 160 行（1.6 要每个短词、每个子命令一页 man），代码多约 280 行（条目和集合的解析、`-` 读清单、改动清单的读法、用法错误的 JSON、防断管、停下后的 `not_run`、`have` 的混写），都只写在一处；删掉的（翻页、扫全库、`--batch` 的另一套读法、标准输出上的汇总）比当初估的少。用户选 A：接受，第 5 节改成上面的说法，并做了一轮去重（`cli.summarize` 合并了六处各写一遍的收尾，读库改用 `cli.resolved`），删 21 行。删功能压回原行数（选项 B）省不到一百行，要压回去只能砍 man 页。
+- **实测写入**（第 5 节，2026-11-05）：用户让主 agent 从 papers.cool 找一篇和方向近的新论文，选的是 arXiv 2611.05206（UltraDiff，超声视频的扩散先验修复，只有预印本）。走完整的导入：`ready`、paper-fetch 的 `identify` 和第 1 遍 `fetch`（judge 标为 `Preprint-arXiv-v2`）、`draft`、`prepare`（缺标签时退出 1，汇总在标准错误）、`save`、`package take`、paddleocr 解析、`package put`、`report`、`have`，然后 `tag -n` 和用户点头（选 A）后的 `tag`，把条目从 `tmp` 移到 `医疗图像`。条目 `chenDiffusionPluginPriors2026`（`ALMTF7T5`），回读和写进去的一致；全部做完的命令标准错误都是空的。碰到的两处不顺记成 issue：`20261105-paper-fetch-arxiv-date-year-only`、`20261105-paper-to-zotero-dry-run-collection-keys`。

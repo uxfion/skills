@@ -5,22 +5,22 @@ records/, one record per paper, records/<slug>.json under its result's slug, han
 agent, and tags/, the curated tags of each paper whose item the import creates. p2z reads a result as plain JSON
 and never writes it; paper-fetch never reads a record.
 
-A record is one JSON object, the main agent's. Its fields — scripts read them and never change them; draft_item
+A record is one JSON object, the main agent's. Its fields — scripts read them and never change them; p2z.py draft
 writes their first values:
   fetched         the result file's absolute path (paper-fetch's <dir>/results/<slug>.json): the paper's ids, CSL,
                   versions, and the files got for it with their labels and checks
-  item            the Zotero item to create (draft_item drafts it from the result; the agent revises it)
-  warnings        [str]: what draft_item noticed (a type guessed, the DOI put in extra, fields dropped)
-  tags            [{tag, type}]: draft_item's automatic tags (the curated ones are the tags file's, below)
+  item            the Zotero item to create (p2z.py draft drafts it from the result; the agent revises it)
+  warnings        [str]: what p2z.py draft noticed (a type guessed, the DOI put in extra, fields dropped)
+  tags            [{tag, type}]: p2z.py draft's automatic tags (the curated ones are the tags file's, below)
   collection      KEY or [KEYS]               citationKey    str
   keep_preprint   str: why the item stays the preprint although the result's versions.published has entries
   accepted        [str]: what the agent accepts as it is: a check's flag (check_flags: "mapped:publicationTitle")
                   or a warning's text; decisions no longer list them
   blocker         str: what the record waits for (the last pass with the user, ...)
 Blocks, each written by one script and nothing else:
-  checks          check_item: {from, code: ok | needs_attention | unknown_item_type, itemType, ok_fields, mapped,
+  checks          p2z.py check: {from, code: ok | needs_attention | unknown_item_type, itemType, ok_fields, mapped,
                   to_extra, dropped_or_rewritten, empty_fields, missing_minimum, suggestions?}
-  found           zotero.Zotero.lookup (find_in_library; create_item's look before it posts): {from, code: found,
+  found           zotero.Zotero.lookup (p2z.py have; p2z.py create's look before it posts): {from, code: found,
                   key, version, citationKey, title, date, collections, tags, attachments: [{key, title, version,
                   source, detail, standard, contentType, linkMode, filename, md5, url}], matched_by: doi | arxiv |
                   same_paper (a same_paper handoff's answer)} or
@@ -28,18 +28,18 @@ Blocks, each written by one script and nothing else:
   near_matches    written with found, under its `from`: the candidates (paper.candidates: {key, title, year,
                   first_author, doi, arxiv, itemType, venue, similarity, matched_by?, attachments: [titles]}); several
                   items carrying the paper's DOI or arXiv id are candidates too, each with its matched_by
-  saved           create_item: {pending: true, at} right before the POST, then {key, version, citationKey, created_at};
-                  or recognize.py, for a stub's PDF Zotero's recognizer made an item from: the same, with via: recognizer
-  recognize       recognize.py: {md5, title, url, sessionID, at, code: sent | recognized | not_recognized, attachment?}:
+  saved           p2z.py create: {pending: true, at} right before the POST, then {key, version, citationKey, created_at};
+                  or p2z.py recognize, for a stub's PDF Zotero's recognizer made an item from: the same, with via: recognizer
+  recognize       p2z.py recognize: {md5, title, url, sessionID, at, code: sent | recognized | not_recognized, attachment?}:
                   the stub's PDF sent through the connector, and what came of it (sent: a rerun asks again, never sends twice)
-  attach          attach_file: [{attachment, md5, title, filename, kind, url, at, existing?}], an entry per file of the
+  attach          p2z.py attach: [{attachment, md5, title, filename, kind, url, at, existing?}], an entry per file of the
                   result it attached (existing: the item had this file already, under its own title)
 The blocks prepare fills (PREPARED) carry `from`, a short hash of the inputs they were computed from (inputs() names
 them), and `incomplete: [sources]` when a source did not answer. Such a block is due again when it is absent (or has
 no `from`: an older run's, not trusted), incomplete, or stale; due() says which. `saved` and `attach` record writes
 to the library and are trusted as they are.
 
-Handoffs, handoffs/<slug>.<n>.json, written by the script that stops (find_in_library, create_item), the shape
+Handoffs, handoffs/<slug>.<n>.json, written by the command that stops (p2z.py have, p2z.py create), the shape
 paper-fetch's take: {id, kind: same_paper, slug, record, paper: the item's evidence, candidates: the near matches
 still open, more?, answers, answered: [{key, answer, reason, by, at}], at}; `answered` is `p2z.py answer`'s alone,
 one entry appended per answer. Who takes a handoff is SKILL.md's to say. Which library item is this paper lives only
@@ -51,7 +51,7 @@ are read no more, the handoffs' `answered` holds every answer `p2z.py answer` re
 is asked again through a handoff.
 
 A tags file, tags/<slug>.json, is the paper's curated tags, written only by whoever tags it (references/tagging.md):
-a JSON list in file_and_tag's tag-list form, "name" or {"tag": "name", "type": 0} (other keys are notes). create_item
+a JSON list in p2z.py tag's tag-list form, "name" or {"tag": "name", "type": 0} (other keys are notes). p2z.py create
 writes them with the record's `tags`, and creates nothing for a paper whose tags file is not there yet (untagged).
 A paper the library holds already gets none: its item is not tagged at import.
 """
@@ -136,7 +136,7 @@ class Record(dict):
         self.saved_text = json.dumps(self, sort_keys=True)
 
     def keys_of(self, field):
-        """An agent field holding item keys (collection), as a list whether given as one or several."""
+        """An agent field holding one value or several (collection), as a list."""
         value = self.get(field)
         return [value] if isinstance(value, str) and value else [v for v in value if isinstance(v, str)] if isinstance(value, list) else []
 
@@ -151,10 +151,10 @@ def result_of(rec):
         res = json.loads(path.read_text(encoding="utf-8")) if rec.get("fetched") else None
     except (OSError, ValueError) as e:
         raise Stop("no_result", path=str(path), detail=str(e), hint="The record's result file cannot be read: draft the "
-                                                                   "record again from its result (draft_item.py).") from None
+                                                                   "record again from its result (p2z.py draft).") from None
     if not isinstance(res, dict):
         raise Stop("no_result", hint="The record names no result file (`fetched`): draft it from its result with "
-                                     "draft_item.py.")
+                                     "p2z.py draft.")
     return res, path
 
 
@@ -167,12 +167,13 @@ def renamed_from(result_path):
 
 
 def read(path):
-    """The record at path -> Record; a file that is not one JSON object -> Stop record_invalid."""
+    """The record at path -> Record; no such file -> Stop file_not_found; a file that is not one JSON object -> Stop
+    record_invalid."""
     path = Path(path)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        raise Stop("record_invalid", exit=ACT, hint="No such record file.", path=str(path)) from None
+        raise Stop("file_not_found", exit=ACT, hint="No such file.", path=str(path)) from None
     except (OSError, ValueError) as e:
         raise Stop("record_invalid", exit=ACT, hint="A record file holds one JSON object; fix or redraft it.",
                    path=str(path), detail=str(e)) from None
@@ -220,8 +221,8 @@ def old_format(rec):
     return [b for b in PREPARED if b in rec and not (isinstance(rec[b], dict) and "from" in rec[b])]
 
 
-HINT_NO_ITEM = ("The record has no item: draft it from its result with draft_item.py; a stub's record gets its item from "
-                "its PDF (recognize.py, references/no-doi-record.md).")
+HINT_NO_ITEM = ("The record has no item: draft it from its result with p2z.py draft; a stub's record gets its item from "
+                "its PDF (p2z.py recognize, references/no-doi-record.md).")
 HINT_NEAR = ("The library may hold this paper (near_matches): a judge reads the handoff and answers with p2z.py answer "
              "(references/import.md, step 3); then run p2z.py prepare (or save) again.")
 

@@ -49,7 +49,7 @@ class MergeItems(unittest.TestCase):
         return [(p.rsplit("/", 1)[1], json.loads(body)) for _, p, _, body in self.zot.requested("PATCH")]
 
     def test_the_plan(self):
-        r = self.run_("--keep", KEEP, "--drop", DROP, "--dry-run")
+        r = self.run_(DROP, "--into", KEEP, "-n")
         self.assertEqual(r.code, 0, r)
         self.assertEqual(len(r.out.splitlines()), 1, "one compact object")
         out = r.lines[0]
@@ -65,15 +65,15 @@ class MergeItems(unittest.TestCase):
         self.assertEqual(out["tags"]["added"], ["FooNet"])
         self.assertEqual([m["key"] for m in out["move"]], ["DPDF0002", "DNOTE001"], "a trashed child is left out")
         self.assertEqual({m["key"] for m in out["left_with_drop"]}, {"DPDF0001", "DSNAP001"})
-        self.assertIn(f"trash_item.py --key {DROP} --dry-run", out["next"])
+        self.assertIn(f"p2z.py trash -n {DROP}", out["next"])
         self.assertEqual(self.zot.writes(), [], "a dry run writes nothing")
 
     def test_dry_run_needs_no_key(self):
-        r = self.run_("--keep", KEEP, "--drop", DROP, "--dry-run", config=config_file(key=None))
+        r = self.run_(DROP, "--into", KEEP, "-n", config=config_file(key=None))
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
     def test_the_merge_writes_and_reads_back(self):
-        r = self.run_("--keep", KEEP, "--drop", DROP)
+        r = self.run_(DROP, "--into", KEEP)
         self.assertEqual(r.code, 0, r)
         out = r.lines[0]
         self.assertEqual((out["code"], out["retried"]), ("ok", False))
@@ -90,37 +90,32 @@ class MergeItems(unittest.TestCase):
         self.assertNotIn("deleted", self.zot.data(DROP))
 
     def test_nothing_to_merge_is_a_skip(self):
-        r = self.run_("--keep", KEEP, "--drop", DROP)
+        r = self.run_(DROP, "--into", KEEP)
         self.assertEqual(r.code, 0, r)
         self.zot.requests.clear()
-        r = self.run_("--keep", KEEP, "--drop", DROP)
+        r = self.run_(DROP, "--into", KEEP)
         self.assertEqual(r.code, 0, r)
         self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"]), ("skipped", "nothing_to_merge"))
         self.assertNotIn("hint", r.lines[0])
         self.assertEqual(self.zot.writes(), [])
 
-    def test_cite_resolution_with_the_fallback_scan(self):
-        r = self.run_("--keep", "liu2022paper", "--drop", DROP, "--dry-run")
+    def test_items_by_key_or_citation_key(self):
+        r = self.run_(DROP, "--into", "liu2022paper", "-n")
         self.assertEqual((r.code, r.lines[0]["keep"]["key"]), (0, KEEP), r)
-        self.assertEqual(self.zot.requested("GET", f"{LIB}/items/top"), [], "the search hit; no scan")
+        r = self.run_("liu2022journal", "-n", "--into", "liu2022paper")
+        self.assertEqual((r.code, r.lines[0]["keep"]["key"], r.lines[0]["drop"]["key"]), (0, KEEP, DROP), r)
+        self.assertEqual(r.lines[0]["next"], f"p2z.py trash -n {DROP}   # once the user confirms the drop")
 
-        self.zot.search_sees_citekey = False
-        self.zot.requests.clear()
-        r = self.run_("--keep", "liu2022paper", "--drop", "liu2022journal", "--dry-run")
-        self.assertEqual(r.code, 0, r)
-        self.assertEqual((r.lines[0]["keep"]["key"], r.lines[0]["drop"]["key"]), (KEEP, DROP), "found by the scan")
-        self.assertTrue(self.zot.requested("GET", f"{LIB}/items/top"))
-
-        r = self.run_("--keep", "nobody2099", "--drop", DROP)
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["cite"]), (1, "cite_not_found", "nobody2099"))
+        r = self.run_(DROP, "--into", "nobody2099")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["item"]), (1, "not_found", "nobody2099"))
         self.zot.data(DROP)["citationKey"] = "liu2022paper"
-        r = self.run_("--keep", "liu2022paper", "--drop", "DPDF0002")
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["keys"]), (1, "cite_ambiguous", [KEEP, DROP]))
+        r = self.run_("DPDF0002", "--into", "liu2022paper")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["keys"]), (1, "ambiguous", [KEEP, DROP]))
 
     def test_412_once_plans_again_on_the_fresh_item(self):
         self.zot.bump_before_write = 1
         self.zot.concurrent_edit = lambda it: it["data"].update(abstractNote="Someone else's abstract.")
-        r = self.run_("--keep", KEEP, "--drop", DROP)
+        r = self.run_(DROP, "--into", KEEP)
         self.assertEqual(r.code, 0, r)
         out = r.lines[0]
         self.assertEqual((out["code"], out["retried"]), ("ok", True))
@@ -134,7 +129,7 @@ class MergeItems(unittest.TestCase):
 
     def test_412_twice_is_a_version_conflict(self):
         self.zot.bump_before_write = 2
-        r = self.run_("--keep", KEEP, "--drop", DROP)
+        r = self.run_(DROP, "--into", KEEP)
         self.assertEqual(r.code, 1)
         self.assertEqual((r.lines[0]["code"], r.lines[0]["key"]), ("version_conflict", KEEP))
         self.assertIn("hint", r.lines[0])
@@ -142,12 +137,12 @@ class MergeItems(unittest.TestCase):
 
     def test_write_denied_and_readback_mismatch(self):
         self.zot.write_status = (403, "Write access denied")
-        r = self.run_("--keep", KEEP, "--drop", DROP)
+        r = self.run_(DROP, "--into", KEEP)
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["detail"], r.lines[0]["key"]),
                          (1, "write_denied", "Write access denied", KEEP))
         self.setUp()
         self.zot.ignore_writes = True
-        r = self.run_("--keep", KEEP, "--drop", DROP)
+        r = self.run_(DROP, "--into", KEEP)
         out = r.lines[0]
         self.assertEqual((r.code, out["code"]), (1, "readback_mismatch"))
         self.assertEqual(out["unmoved"], ["DPDF0002", "DNOTE001"])
@@ -155,33 +150,32 @@ class MergeItems(unittest.TestCase):
         self.assertIn("hint", out)
 
     def test_refusals(self):
-        for keep, drop, code in ((KEEP, KEEP, "same_item"), (KEEP, "DPDF0002", "not_top_level"),
+        for keep, drop, code in ((KEEP, KEEP, "same_item"), (KEEP, "DPDF0002", "not_a_parent"),
                                  (KEEP, "NOSUCHK1", "not_found")):
-            r = self.run_("--keep", keep, "--drop", drop)
+            r = self.run_(drop, "--into", keep)
             self.assertEqual((r.code, r.lines[0]["code"]), (1, code), r)
             self.assertIn("hint", r.lines[0])
         self.zot.data(DROP)["deleted"] = True
-        r = self.run_("--keep", KEEP, "--drop", DROP)
+        r = self.run_(DROP, "--into", KEEP)
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["key"]), (1, "trashed", DROP))
         self.assertEqual(self.zot.writes(), [])
 
     def test_cannot_check_and_arguments(self):
-        r = self.run_("--keep", KEEP, "--drop", DROP, base_url=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "zotero_unreachable"))
-        r = self.run_("--keep", KEEP, "--drop", DROP, config=config_file(key=None))
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "no_key"))
+        r = self.run_(DROP, "--into", KEEP, base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, r.last["code"]), (2, "zotero_unreachable"))
+        r = self.run_(DROP, "--into", KEEP, config=config_file(key=None))
+        self.assertEqual((r.code, r.last["code"]), (2, "no_key"))
         self.assertEqual(self.zot.writes(), [])
-        r = self.run_("--keep", KEEP, "--drop", DROP, config=config_file(key="wrong"))
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "key_rejected"))
+        r = self.run_(DROP, "--into", KEEP, config=config_file(key="wrong"))
+        self.assertEqual((r.code, r.last["code"]), (2, "key_rejected"))
         self.zot.disabled = True
-        r = self.run_("--keep", KEEP, "--drop", DROP, "--dry-run")
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "local_api_disabled"))
-        self.assertEqual(self.run_("--keep", KEEP).code, 2)
+        r = self.run_(DROP, "--into", KEEP, "-n")
+        self.assertEqual((r.code, r.last["code"]), (2, "local_api_disabled"))
+        self.assertEqual(self.run_(DROP).code, 2, "--into is required")
 
     def test_smoke(self):
-        r = smoke("merge_items", "--keep", KEEP, "--drop", DROP, "--dry-run", "--base-url", self.zot.base_url,
-                  config=self.config)
-        self.assertEqual(r.code, 0, r)
+        r = smoke("merge", "-n", DROP, "--into", KEEP, "--base-url", self.zot.base_url, config=self.config)
+        self.assertEqual((r.code, r.err), (0, ""), r)
         self.assertEqual((len(r.out.splitlines()), r.lines[0]["code"]), (1, "ok"))
 
 

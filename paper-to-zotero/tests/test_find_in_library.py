@@ -43,8 +43,8 @@ class FindInLibrary(unittest.TestCase):
         path.write_text(json.dumps(data), encoding="utf-8")
         return path
 
-    def run_(self, *argv, base_url=None):
-        return call(find, *argv, "--base-url", base_url or self.zot.base_url)
+    def run_(self, *argv, base_url=None, stdin=""):
+        return call(find, *argv, "--base-url", base_url or self.zot.base_url, stdin=stdin)
 
     def test_found_near_and_not_found_go_into_the_record(self):
         paths = [self.record("a", {"item": {"DOI": DOI, "title": "x"}}),
@@ -64,7 +64,7 @@ class FindInLibrary(unittest.TestCase):
                          ("same_paper", "Deep Residual Learning for Image Recognition", [C, E]),
                          "the open candidates go to a judge, with the evidence in the file")
         self.assertNotIn("taker", handoff, "who takes a handoff is SKILL.md's to say, in one place")
-        self.assertEqual(r.lines[-1]["summary"], {"total": 4, "ok": 2, "skipped": 0, "failed": 2})
+        self.assertEqual(r.last["summary"], {"total": 4, "ok": 2, "skipped": 0, "failed": 2})
         a, b, c = (run.read(p) for p in paths[:3])
         self.assertEqual((a["found"]["code"], a["found"]["key"], a["near_matches"]), ("found", A, []))
         self.assertEqual((b["found"]["code"], [m["key"] for m in b["near_matches"]]), ("not_found", [C, E]))
@@ -107,26 +107,31 @@ class FindInLibrary(unittest.TestCase):
         other.write_bytes(b"%PDF other")
         md5 = hashlib.md5(b"%PDF held").hexdigest()
         self.zot.add_item("AAAAATT2", itemType="attachment", parentItem=A, title="PDF", contentType="application/pdf", md5=md5)
-        r = self.run_("--file", held, other, self.work.root / "gone.pdf")
+        rec = self.record("a", {"item": {"DOI": DOI, "title": "x"}})
+        r = self.run_(held, rec, other, self.work.root / "gone.pdf")
         self.assertEqual(r.code, 1, r)
         self.assertEqual(r.lines[0], {"file": str(held), "md5": md5, "code": "found", "attachment": "AAAAATT2", "parent": A,
                                       "citationKey": "liu2022progressive", "title": "Progressive Residual Learning"})
-        self.assertEqual([o["code"] for o in r.lines[1:3]], ["not_found", "unreadable"])
-        self.assertEqual(self.run_("--file", other).code, 0, "not_found is an answer")
-        self.assertEqual(self.run_("--file", held, base_url=f"http://127.0.0.1:{closed_port()}").code, 2)
+        self.assertEqual([o["code"] for o in r.lines[1:]], ["found", "not_found", "file_not_found"],
+                         "a record and files in one run, in their order")
+        self.assertEqual(r.lines[1]["slug"], "a")
+        r = self.run_("-", stdin=f"{other}\n")
+        self.assertEqual((r.code, r.err), (0, ""), "not_found is an answer")
+        r = self.run_(held, base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, r.lines, r.last["code"]), (2, [{"file": str(held), "code": "not_run"}], "zotero_unreachable"))
 
     def test_cannot_check(self):
         a = self.record("a", {"item": {"DOI": DOI, "title": "x"}})
         r = self.run_(a, self.record("b", {"item": {"title": "y"}}), base_url=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, [o["code"] for o in r.lines[:2]]), (2, ["zotero_unreachable", "not_run"]))
+        self.assertEqual((r.code, [o["code"] for o in r.lines], r.last["code"]), (2, ["not_run", "not_run"], "zotero_unreachable"))
         self.assertNotIn("found", run.read(a))
         self.zot.disabled = True
-        self.assertEqual(self.run_(a).lines[0]["code"], "local_api_disabled")
-        self.assertEqual(self.run_().lines[0]["code"], "no_records")
+        self.assertEqual(self.run_(a).last["code"], "local_api_disabled")
+        self.assertEqual(self.run_().last["code"], "usage")
 
     def test_smoke(self):
-        r = smoke("find_in_library", self.record("a", {"item": {"DOI": DOI, "title": "x"}}), "--base-url", self.zot.base_url)
-        self.assertEqual((r.code, r.lines[0]["code"]), (0, "found"), r)
+        r = smoke("have", self.record("a", {"item": {"DOI": DOI, "title": "x"}}), "--base-url", self.zot.base_url)
+        self.assertEqual((r.code, r.err, r.lines[0]["code"]), (0, "", "found"), r)
 
 
 if __name__ == "__main__":

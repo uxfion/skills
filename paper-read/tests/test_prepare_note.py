@@ -59,9 +59,9 @@ class PrepareNote(unittest.TestCase):
                                "-o", str(self.out), *extra], capture_output=True, text=True, timeout=120, env=env)
         return done.returncode, json.loads(done.stdout), done.stderr
 
-    def structured_takes(self):
+    def package_takes(self):
         calls = [json.loads(l) for l in Path(f"{self.lib}.log").read_text(encoding="utf-8").splitlines()]
-        return [c[2:] for c in calls if c[:2] == ["structured", "take"]]
+        return [c[2:] for c in calls if c[:2] == ["package", "take"]]
 
     def test_a_note_already_there_and_a_rerun(self):
         self.library(notes=[{"key": "NOTE0001", "title": "论文笔记", "text": LINKED},
@@ -80,7 +80,7 @@ class PrepareNote(unittest.TestCase):
         # read in the arXiv version while the library ranks the published one first
         self.assertEqual((out["better_pdf"], out["previous"]), ("T-CACE (JBHI 2026)", None))
         # the version the note was read in is the one taken, not the best PDF
-        self.assertEqual(self.structured_takes(), [["--cite", CITE, "-o", str(self.out), "--title", "T-CACE (arXiv v1)"]])
+        self.assertEqual(self.package_takes(), [[CITE, "-o", f"{self.out}/", "--title", "T-CACE (arXiv v1)"]])
 
         # a rerun in the same change keeps the working note and the note as taken
         Path(out["note"]).write_text(mine + "\n## Q2 之前的工作怎么做，缺在哪里？ [进行中]\n", encoding="utf-8")
@@ -105,7 +105,7 @@ class PrepareNote(unittest.TestCase):
         self.assertEqual((out["better_pdf"], out["previous"]), (None, None))
         self.assertEqual(Path(out["note"]).read_text(encoding="utf-8"), SKELETON)
         self.assertEqual(Path(out["taken"]).read_text(encoding="utf-8"), SKELETON)
-        self.assertEqual(self.structured_takes(), [["--cite", CITE, "-o", str(self.out)]])
+        self.assertEqual(self.package_takes(), [[CITE, "-o", f"{self.out}/"]])
         self.out = self.dir / "bare"
         code, out, err = self.run_it("--bare")
         self.assertEqual((code, Path(out["note"]).read_text(encoding="utf-8")), (0, BARE), err)

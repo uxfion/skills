@@ -1,39 +1,38 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Move Zotero items or attachments to the trash (undoable for 30 days), or restore them, once the user has confirmed the list.
 
-Run --dry-run first and show its list to the user: superseded attachments, duplicate items the user agreed to drop,
-stray attachments. The trash is a 30-day undo: the user, or --restore, brings an item back, and Zotero deletes for
-good what has sat there longer (its trashAutoEmptyDays setting, 30 by default). Nothing here empties the trash.
+Run -n first and show its list to the user: superseded attachments, duplicate items the user agreed to drop, stray
+attachments. The trash is a 30-day undo: the user, or --restore, brings an item back, and Zotero deletes for good
+what has sat there longer (its trashAutoEmptyDays setting, 30 by default). Nothing here empties the trash.
 
-Items: --key (a top-level item, or an attachment or note by its own key) and --cite (the top-level item carrying
-that citationKey). For each: read it; already where it should be -> skipped; else PATCH {"deleted": 1} (--restore:
-0) with its version and read it back. Trashing a parent takes its attachments and notes along, as in Zotero;
-`children` says how many. Trashing a PDF takes its structured package along (the zip beside it under its title;
-`packages`); restoring the PDF leaves the package in the trash: restore it by the key that line gave.
+The items: keys or citation keys, an attachment or a note by its own key; - reads a list from stdin (a value a line,
+or our JSON lines: their `key`). For each: read it; already where it should be -> skipped; else PATCH {"deleted": 1}
+(--restore: 0) with its version and read it back. Trashing a parent takes its attachments and notes along, as in
+Zotero; `children` says how many. Trashing a PDF takes its structured package along (the zip beside it under its
+title; `packages`); restoring the PDF leaves the package in the trash: restore it by the key that line gave.
 
 stdout: one line per item {key, cite?, code, itemType, title, parent, parent_title?, children?, packages?: [{key,
-code}], version, retried},
-then {"summary": {total, ok, skipped, failed}}.
+code}], version, retried}:
   ok                 moved to the trash (--restore: restored) and read back so
   skipped            reason already_trashed, or not_in_trash with --restore
-  not_found          no item with that key
-  cite_not_found     no top-level item carries the citationKey; cite_ambiguous: several do (`keys`), pass --key
+  not_found          {item, code}: no item has this key or citation key; ambiguous: several do (`keys`)
   version_conflict   the item changed twice while it was being written; wait, then rerun
   write_denied       the library is not editable
   readback_mismatch  the write was accepted, but the item still shows its old state
-  not_run            Zotero stopped answering before this item (summary.stopped says why)
-Exit 0 = every item ok or skipped, 1 = some item not, 2 = cannot check (zotero_unreachable, local_api_disabled,
-no_key, key_rejected, server_mismatch).
+  not_run            Zotero stopped answering before this item
+Exit 0 = every item ok or skipped; 1 = some item not, then stderr's last line is {"summary": {total, ok, skipped,
+failed}}; 2 = cannot check (zotero_unreachable, local_api_disabled, no_key, key_rejected, server_mismatch), then
+stderr's last line is {code, hint}.
 
 Examples:
-  uv run scripts/trash_item.py --key ABCD1234 EFGH5678 --dry-run   # show the list to the user first
-  uv run scripts/trash_item.py --key ABCD1234 EFGH5678             # after the user confirmed it
-  uv run scripts/trash_item.py --cite liu2022progressive --dry-run
-  uv run scripts/trash_item.py --key ABCD1234 --restore            # undo
+  p2z.py trash -n ABCD1234 EFGH5678          # show the list to the user first
+  p2z.py trash ABCD1234 EFGH5678             # after the user confirmed it
+  p2z.py children ABCD1234 | jq -c 'select(.title == "Snapshot")' | p2z.py trash -n -
+  p2z.py trash --restore ABCD1234            # undo
 """
 from p2zlib import cli, paper, zotero
 

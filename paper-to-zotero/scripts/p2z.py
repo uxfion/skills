@@ -1,36 +1,20 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Run paper-to-zotero's commands: `p2z.py <command> [args...]` runs scripts/<command>.py; prepare and save run several.
+"""paper-to-zotero: put papers into Zotero, read the library, keep it tidy. `p2z.py WORD ...`; each word has its -h.
 
-`p2z.py --help` (or no arguments) lists every command with the first line of its docstring. A script runs with the
-`uv run --script`, so its own PEP 723 dependencies load, and its exit code is passed through; an unknown command
-exits 2 with the list.
+Each word runs one script of scripts/ (through uv, so the script's own dependencies load), its exit code passed
+through; prepare and save run two in turn. An unknown word exits 2 with this list.
 
-Two commands run several scripts over the same record files, one after the other, and print one line per record:
-  prepare RECORD...   fill the blocks computed from a record: find_in_library (found, near_matches), check_item
-                      (checks). Each script skips a block that is done, so after any change to a record run prepare
-                      again.
-  save RECORD...      create_item, then attach_file: the item, then its file. Each skips what it has done, so save can
-                      run after every pass of fetch.
-Each line: {slug, code: decide | failed | ok, decide?: [what is still open], failed?: [the scripts whose line for
-it is not done], steps: {script: its code}}. `decide` comes from the record and its result, each entry naming who
-settles it:
-  same_paper      the open handoff's path and waiting_on: judge (it answers with answer.py) | user (a judge answered
-                  pair or unknown; the agent records the user's word with answer.py --by user). Several library items
-                  carrying the paper's identifier come this way too, as candidates with matched_by
-  tags            the paper's tags file (tags/<slug>.json) is not written yet, and its item is still to be created:
-                  whoever tags it writes it (references/tagging.md); save creates nothing for the paper until then
-  published_versions  a preprint item whose result lists published versions: identify --redraft and draft_item
-                  --redraft, or keep_preprint with the reason
-  checks, warnings    check_item's flags (mapped:publicationTitle, missing_minimum:date, ...) and draft_item's
-                  warnings that `accepted` does not hold: revise the item, or accept them
-  unanswered      sources that did not answer: prepare (for versions, identify) again later; a source that stays
-                  silent is accepted by adding "unanswered:<source>" to the record's `accepted`
-Then {"summary"}. --dry-run and --base-url go to every script. Exit 0 = nothing to settle; 1 = something is; 2 = a
-script could not go on (the next steps did not run).
+Exit codes, every word: 0 done (stderr empty); 1 something is yours to act on: a line's code says what, and stderr's
+last line is {"summary": ...}; 2 cannot go on (Zotero not running, no key, a usage error): stderr's last line is
+{code, hint}.
+
+Examples:
+  p2z.py search POCUS | p2z.py pdf -
+  p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusive2026
 """
 import json
 import os
@@ -42,8 +26,79 @@ from p2zlib import cli, run
 
 HERE = Path(__file__).resolve().parent
 SELF = Path(__file__).name
-STEPS = {"prepare": ("find_in_library", "check_item"),
-         "save": ("create_item", "attach_file")}
+
+# word: (script, whether the word is also the script's own command, what it does)
+WORDS = {
+    "items": ("read_library", True, "items' data: those named, or a collection's, a tag's"),
+    "search": ("read_library", True, "the items a quick search finds"),
+    "children": ("read_library", True, "items' attachments and notes, an attachment's annotations"),
+    "pdf": ("read_library", True, "where items' PDFs are on disk, best version first"),
+    "collections": ("read_library", True, "the collections, with their paths"),
+    "tags": ("read_library", True, "the tags, with their item counts"),
+    "schema": ("read_library", True, "Zotero's schema: item types, fields, creator types"),
+    "ready": ("ready", False, "is Zotero ready for an import; --authorize stores a write key"),
+    "draft": ("draft_item", False, "draft records from paper-fetch's results"),
+    "prepare": (None, False, "have, then check, over records"),
+    "save": (None, False, "create, then attach, over records"),
+    "have": ("find_in_library", False, "is a record's paper, or a file, in the library already"),
+    "check": ("check_item", False, "check records' drafted items against the schema"),
+    "create": ("create_item", False, "create records' items"),
+    "attach": ("attach_file", False, "attach records' files to their items"),
+    "recognize": ("recognize", False, "send records' PDFs to Zotero's recognizer"),
+    "answer": ("answer", False, "record a judge's or the user's answer to a handoff"),
+    "report": ("report", False, "what an import did, record by record"),
+    "ids": ("read_bib", False, "a .bib's DOIs and arXiv ids with their citation keys"),
+    "lint": ("lint_items", False, "flag items' problems: fields, versions, tags, duplicates"),
+    "update": ("update_item", False, "change items' fields"),
+    "tag": ("file_and_tag", False, "change items' tags and collections"),
+    "merge": ("merge_items", False, "merge a duplicate into the item that stays"),
+    "trash": ("trash_item", False, "move items to the trash, or restore them"),
+    "mkcol": ("make_collection", False, "make a collection"),
+    "fill": ("fields_from_results", False, "change lines for fields paper-fetch found"),
+    "retitle": ("titles_from_labels", False, "change lines for attachment titles from paper-fetch's labels"),
+    "export": ("export_bib", False, "BibTeX keyed by citation key"),
+    "note": ("note", False, "notes out of Zotero as Markdown, and back"),
+    "convert": ("note_md", False, "note HTML to Markdown, and back"),
+    "package": ("structured", False, "PDFs' structured packages: take, put, names"),
+    "annotate": ("annotate", False, "boxes on a PDF as Zotero annotations"),
+}
+STEPS = {"prepare": ("find_in_library", "check_item"), "save": ("create_item", "attach_file")}
+
+PREPARE = """Fill the blocks computed from records: have (found, near_matches), then check (checks).
+
+Each script skips a block that is done, so after any change to a record run prepare again. One line per record:
+{slug, code: decide | failed | ok, decide?: [what is still open], failed?: [the words whose line for it is not done],
+steps: {word: its code}}. `decide` comes from the record and its result, each entry naming who settles it:
+  same_paper      the open handoff's path and waiting_on: judge (it answers with p2z.py answer) | user (a judge
+                  answered pair or unknown; the agent records the user's word with p2z.py answer --by user). Several
+                  library items carrying the paper's identifier come this way too, as candidates with matched_by
+  tags            the paper's tags file (tags/<slug>.json) is not written yet, and its item is still to be created:
+                  whoever tags it writes it (references/tagging.md); save creates nothing for the paper until then
+  published_versions  a preprint item whose result lists published versions: paper-fetch's identify --redraft and
+                  p2z.py draft --redraft, or keep_preprint with the reason
+  checks, warnings    check's flags (mapped:publicationTitle, missing_minimum:date, ...) and draft's warnings that
+                  `accepted` does not hold: revise the item, or accept them
+  unanswered      sources that did not answer: prepare (for versions, identify) again later; a source that stays
+                  silent is accepted by adding "unanswered:<source>" to the record's `accepted`
+Exit 0 = nothing to settle; 1 = something is, then stderr's last line is {"summary": {total, ok, decide, failed}}; 2 = a
+step could not go on (the next did not run), then stderr's last line is that step's {code, hint}.
+
+Examples:
+  p2z.py prepare <scratch>/paper-to-zotero/records/*.json
+  ls <scratch>/paper-to-zotero/records/*.json | p2z.py prepare -
+"""
+SAVE = """Create the records' items, then attach their files: create, then attach.
+
+Each skips what it has done, so save can run after every pass of paper-fetch's fetch. One line per record, as
+prepare's: {slug, code: decide | failed | ok, decide?, failed?, steps: {word: its code}}.
+Exit 0 = every record saved; 1 = something is to settle or failed, then stderr's last line is {"summary": ...}; 2 = a
+step could not go on (the next did not run), then stderr's last line is that step's {code, hint}.
+
+Examples:
+  p2z.py save -n <scratch>/paper-to-zotero/records/*.json
+  p2z.py save <scratch>/paper-to-zotero/records/*.json
+"""
+WORD_OF = {script: word for word, (script, _, _) in WORDS.items() if script}
 
 
 def command(script, *args):
@@ -51,23 +106,11 @@ def command(script, *args):
     return ["uv", "run", "--quiet", "--script", str(HERE / f"{script}.py"), *args]
 
 
-def scripts():
-    return sorted(p.stem for p in HERE.glob("*.py") if p.name != SELF)
-
-
-def usage(stream):
-    import ast
-
-    def first_line(name):
-        doc = ast.get_docstring(ast.parse((HERE / f"{name}.py").read_text(encoding="utf-8"))) or ""
-        return doc.strip().splitlines()[0] if doc.strip() else "(no docstring)"
-
-    listing = {**{name: first_line(name) for name in scripts()},
-               **{name: f"runs {', '.join(steps)} over the records" for name, steps in STEPS.items()}}
-    width = max(map(len, listing)) + 2
-    print(f"usage: {SELF} <command> [args...]   (each command takes --help)\n\ncommands:", file=stream)
-    for name in sorted(listing):
-        print(f"  {name:<{width}}{listing[name]}", file=stream)
+def listing():
+    width = max(map(len, WORDS)) + 2
+    first, _, rest = __doc__.strip().partition("\n")
+    words = "\n".join(f"  {word:<{width}}{text}" for word, (_, _, text) in WORDS.items())
+    return f"usage: {SELF} WORD [options] [operands]   ({SELF} WORD -h for each)\n\n{first}\n\nwords:\n{words}\n\n{rest.strip()}\n"
 
 
 def decisions(rec):
@@ -98,21 +141,26 @@ def decisions(rec):
     return out
 
 
-def compound(name, argv):
-    """Run the command's scripts in turn over the records -> the exit code."""
-    if not argv or argv[0] in ("-h", "--help"):
-        print(__doc__)
-        return 0
-    env, args = dict(os.environ), list(argv)
-    if "--base-url" in args:  # every script takes it from the environment: not every one talks to Zotero
-        i = args.index("--base-url")
-        env["PAPER_TO_ZOTERO_BASE_URL"] = args[i + 1]
-        del args[i:i + 2]
-    paths = [a for a in args if a.endswith(".json")]
-    steps, stopped = {Path(p).stem: {} for p in paths}, None
-    for script in STEPS[name]:
-        done = subprocess.run(command(script, *args), capture_output=True, text=True, env=env)
-        sys.stderr.write(done.stderr)
+def compound(word, argv):
+    """Run the word's scripts in turn over the records -> the exit code."""
+    p = cli.parser(PREPARE if word == "prepare" else SAVE, sub=word)
+    p.add_argument("records", nargs="*", metavar="RECORD",
+                   help="record files: <scratch>/paper-to-zotero/records/*.json; - reads their paths from stdin")
+    cli.add_dry_run(p)
+    cli.add_base_url(p)
+    args = cli.parse(p, argv)
+    if not args.records:
+        p.error("name the record files, or - to read their paths from stdin")
+    paths = cli.paths(args.records)
+    if not paths:   # `-` with an empty list: nothing to do
+        return cli.OK
+    env = {**os.environ, cli.BASE_URL_ENV: args.base_url}   # every script takes it from there
+    env.pop(cli.PROG_ENV, None)
+    steps, stopped = {Path(path).stem: {} for path in paths}, None
+    for script in STEPS[word]:
+        done = subprocess.run(command(script, *(["-n"] if args.dry_run else []), *paths), capture_output=True,
+                              text=True, env=env)
+        name = WORD_OF[script]
         for raw in done.stdout.splitlines():
             try:
                 line = json.loads(raw)
@@ -121,47 +169,57 @@ def compound(name, argv):
             slug = line.get("slug") if isinstance(line, dict) else None
             if slug in steps:
                 code = line.get("code")
-                steps[slug][script] = f"skipped: {line.get('reason')}" if code == "skipped" else code
+                steps[slug][name] = f"skipped: {line.get('reason')}" if code == "skipped" else code
                 if "hint" in line:  # a script gives a hint only on a line that is not done (cli.tidy)
-                    steps[slug].setdefault("_failed", []).append(script)
-        for slug, got in steps.items():
-            if script not in got and done.returncode:  # the script ended without a line for it
-                got[script] = f"exit {done.returncode}"
-                got.setdefault("_failed", []).append(script)
-        if done.returncode == 2:
-            stopped = script
+                    steps[slug].setdefault("_failed", []).append(name)
+        for got in steps.values():
+            if name not in got and done.returncode:  # the script ended without a line for it
+                got[name] = f"exit {done.returncode}"
+                got.setdefault("_failed", []).append(name)
+        if done.returncode == cli.CANNOT:
+            last = (done.stderr.strip().splitlines() or [""])[-1]
+            try:
+                stopped = json.loads(last)
+            except ValueError:
+                stopped = {"code": "step_failed", "step": name, "detail": last}
             break
-    lines = []
+    counts = {"total": len(paths), "ok": 0, "decide": 0, "failed": 0}
     for path in paths:
         slug = Path(path).stem
         try:
             settle = decisions(run.read(path))
         except cli.Stop as stop:
-            lines.append(stop.line(slug=slug))
-            continue
-        failed = steps[slug].pop("_failed", [])
-        lines.append({"slug": slug, "code": "decide" if settle else "failed" if failed else "ok",
-                      **({"decide": settle} if settle else {}), **({"failed": failed} if failed else {}), "steps": steps[slug]})
-    counts = {"total": len(lines), "ok": sum(1 for x in lines if x["code"] == "ok"),
-              "decide": sum(1 for x in lines if x["code"] == "decide"),
-              "failed": sum(1 for x in lines if x["code"] not in ("ok", "decide"))}
-    for line in lines + [{"summary": {**counts, **({"stopped": stopped} if stopped else {})}}]:
-        print(json.dumps(line, ensure_ascii=False))
-    return 2 if stopped else 1 if counts["decide"] or counts["failed"] else 0
+            line = stop.line(slug=slug)
+        else:
+            failed = steps[slug].pop("_failed", [])
+            line = {"slug": slug, "code": "decide" if settle else "failed" if failed else "ok",
+                    **({"decide": settle} if settle else {}), **({"failed": failed} if failed else {}), "steps": steps[slug]}
+        counts[line["code"] if line["code"] in counts else "failed"] += 1
+        cli.emit(line)
+    if stopped is not None:
+        cli.emit(stopped, sys.stderr)
+        return cli.CANNOT
+    if counts["decide"] or counts["failed"]:
+        cli.emit({"summary": counts}, sys.stderr)
+        return cli.ACT
+    return cli.OK
 
 
 def main(argv):
-    if not argv or argv[0] in ("-h", "--help"):
-        usage(sys.stdout)
-        return 0
-    name = argv[0]
-    if name in STEPS:
-        return compound(name, argv[1:])
-    if name not in scripts():
-        print(f"{SELF}: unknown command {name!r}\n", file=sys.stderr)
-        usage(sys.stderr)
-        return 2
-    os.execvp("uv", command(name, *argv[1:]))
+    if argv and argv[0] in ("-h", "--help"):
+        cli.write(listing())
+        return cli.OK
+    word = argv[0] if argv else None
+    if word not in WORDS:
+        sys.stderr.write(listing())
+        cli.emit({"code": "usage", "detail": f"no word {word!r}" if word else "name a word", "hint": f"See {SELF} -h."},
+                 sys.stderr)
+        return cli.CANNOT
+    if word in STEPS:
+        return compound(word, argv[1:])
+    script, is_command, _ = WORDS[word]
+    os.environ[cli.PROG_ENV] = SELF if is_command else f"{SELF} {word}"
+    os.execvp("uv", command(script, *([word] if is_command else []), *argv[1:]))
 
 
 if __name__ == "__main__":

@@ -94,7 +94,7 @@ class Answer(unittest.TestCase):
 
     def test_refusals(self):
         _, line = self.prepared("b", {"item": {"title": TITLE}})
-        cases = [(("maybe",), "bad_answer"), (("same",), "one_key"), (("same", "--key", f"{C},{E}"), "one_key"),
+        cases = [(("maybe",), "bad_answer"), (("same",), "one_key"), (("same", "--key", C, "--key", E), "one_key"),
                  (("pair",), "no_key"), (("distinct", "--key", "NOPE0001"), "no_such_key")]
         for argv, code in cases:
             r = self.answer(line["handoff"], *argv)

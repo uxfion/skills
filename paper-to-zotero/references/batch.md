@@ -8,7 +8,7 @@ A paper is a result in `<imp>/fetch/results/<slug>.json`, written by paper-fetch
 
 ## The run
 
-**1. Triage** (you, the main agent, in minutes): identify every paper (import.md step 1; a .bib through `read_bib`, a list as `id<TAB>citation key` lines on `identify`'s stdin), choose the versions (step 2), then draft and prepare (step 3): its `decide` lists say what is still open. Send the same-paper judges and the tagging subagents (step 3), who work beside the passes. Put every question in one message (below).
+**1. Triage** (you, the main agent, in minutes): identify every paper (import.md step 1; a .bib through `p2z.py ids`, a list as `id<TAB>citation key` lines on `identify`'s stdin), choose the versions (step 2), then draft and prepare (step 3): its `decide` lists say what is still open. Send the same-paper judges and the tagging subagents (step 3), who work beside the passes. Put every question in one message (below).
 
 **2. First pass**: paper-fetch's chain over the results of the records that need a file (import.md step 4).
 
@@ -28,7 +28,7 @@ Identify all papers first, then put every question in one message: candidates to
 
 The scripts that call Zotero in bulk (`prepare`, `save`) are yours, the main agent's, one at a time, like paper-fetch's (its batch.md, *What runs in parallel*). Subagents take the judgement beside them, reading only local files (SKILL.md, *Handoffs*): same-paper judges answer the library candidates in their handoffs, and for many papers tagging subagents write the papers' tags files (import.md step 3); none of them writes a record.
 
-A paper the user downloads outside the run: paper-fetch identifies and claims it (its batch.md); then `draft_item`, `prepare` and `save` take it in here like the rest.
+A paper the user downloads outside the run: paper-fetch identifies and claims it (its batch.md); then `draft`, `prepare` and `save` take it in here like the rest.
 
 ## Report
 

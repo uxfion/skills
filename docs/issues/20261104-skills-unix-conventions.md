@@ -1,7 +1,7 @@
 # skills：整套系统对接 Unix 哲学
 
 - 来源：用户 · 2026-11-04。讨论库里搜索结果太长时（见 [archive/20261104-paper-to-zotero-search-output-compact-wontfix.md](archive/20261104-paper-to-zotero-search-output-compact-wontfix.md)），用户先问：「或者你有没有办法能通过 Linux 的那种概念理论，像管道服务，grep/rg 那样支持」，「那有没有可能通过外部工具去调用呢？因为Unix的哲学就是通过各种工具、接工具或者管道或者数据流去传递嘛」；然后：「我倒是想把这整套系统都和UNIX哲学给对接好,这样的话也方便使用，因为现在我感觉还是用 Python 的思维多一点，但实际上我更喜欢 UNIX 哲学,包括以其他数据流的方式，它的管道符，还有它使用的各种键值，以及简称之类的」；又说明范围：「短选项，标准选项,反正就是一切涉及到UNIX的哲学，Linux那套操作逻辑…我还是挺欣赏 UNIX、Linux 那一套操作逻辑或者展现形式，还有它的文件base的思路，可能还不止，就是它的一整套系统」。
-- 状态：open。设计都已定（下面「已定」），spec 是 [docs/specs/20261104-skills-unix-conventions-spec.md](../specs/20261104-skills-unix-conventions-spec.md)，经三路审阅和 advisor；规则文字已改进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，新命令从第一版设计起照它做。下一步：用户点头后实现 p2z 样板。
+- 状态：open。设计都已定（下面「已定」），spec 是 [docs/specs/20261104-skills-unix-conventions-spec.md](../specs/20261104-skills-unix-conventions-spec.md)，经三路审阅和 advisor；规则文字已改进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，新命令从第一版设计起照它做。p2z 样板已实现（2026-11-05）：p2z、paper-read、paper-fetch 的测试和根目录的约定检查全过，真库只读验收通过；实现时的修正记在 spec 第 9 节。删扫全库前的核对：921 个引用键全部按默认快速搜索精确命中，0 歧义。实现已提交（`1e81c30`），真写入验收 2026-11-05 通过（spec 第 9 节末尾），spec 已冻结。下一步：推送后三个 skill 一起重装；用户用一阵后重跑 `usage.py`，再定铺开。
 
 ## 目标
 
@@ -27,6 +27,22 @@
 10. **成功时不出声**：脚本开头加 `--quiet`；管道被下游关掉后不再打印、不报错，命令照常做完，退出码照实。
 11. **帮助统一成 man 页的样子**：用法行、做什么、选项、退出码、例子。
 12. **规则文字**（用户同意）：spec 第 1 节里必须遵守的规矩并进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，成为所有 skill 共用的唯一出处；§4 *Skill text* 的例子改成入口加短词；AGENTS.md 的脚本那条加 `--quiet`、可执行位改成必须；README 改成指向原则；出处文件记了用户的原话。约定检查放在哪、怎么跑，实现时写进 AGENTS.md。
+13. **不另立共用代码，靠约定、检查和样板**（2026-11-05，用户同意）。p2z 里和具体服务无关、各 skill 都能用的代码约 220 行：`p2zlib/cli.py` 里 186 行，入口里约 30 行。整块用得上的只有 paper-fetch，它改造时本来就是拷一份；paper-read、paddleocr、vllm-serve 现在每个的命令行代码粗数十几到四十几行，各自只用得上几十行。各 skill 一致靠的是约定（原则 §3）和约定检查，检查按命令的行为验，不看代码是不是同一份；另立共用源文件、加拷贝一致的检查、每次改完同步几份，代价比省下的多。做法：p2z 的代码当样板，改造某个 skill 时拷它需要的部分，自己写它自己的部分。哪天同一处修改真要在几份拷贝里反复做，再抽。用户：「其实我觉得这套共用的东西，你完全可以以怎样的形式给抽象出来，就像我们design principle 里面那个交付标准还是什么东西，好像也是类似的思想。就是共用的东西我们可以一起约定好、规范好，然后每个 skill 定制化的东西，你再独立去定制嘛」；「这个工作有没有必要做，就是它共用的代码多吗？如果共用代码少的话，我感觉没必要」；「对，我也是想着，如果共用的少的话，我们就在 design principle 里面或者在哪个地方把它规范好，或者把设计理念讲好，这样的话，每个区实现的时候都是按照同一套思路」。原则不改（用户同意）：这个理念原则 §3 里已有，*A standard where cases share a shape, the rest per case*、*Cut where it pays*、*Small, independent, pure-Python scripts* 三条就推得出；哪个 skill 当样板、拷哪些文件，是这次铺开的做法，记在下面一节。
+
+## 铺开到其余 skill 时（p2z 样板的经验，2026-11-05）
+
+每个 skill 照同一套做：
+
+1. **先写调用的前后对照**：这个 skill 最常见的几种用法，改前怎么敲、改后怎么敲（像 spec 第 0 节），短词、写在命令后面的东西、`-` 读什么，从这里一次定下，再定细节。
+2. **先在真服务上量，再定做法**。p2z 这次量出四件和设想不同的事，都改了 spec（第 9 节）：`itemKey` 找不到回收站里的条目；整库一次读要约 40 秒；默认的快速搜索就能按引用键命中；9 号端口在 WSL 里会挂到超时。
+3. **假服务先改成和真的一样**：假 Zotero 不带 `limit` 时只给 25 条，"一次读完"的测试白白通过。
+4. **从 p2z 拷需要的部分**（`p2zlib/cli.py`、`p2z.py`），自己写"一样东西"指什么、名字怎么解析、服务报什么错。先改共用的那层和一个样例脚本，其余照样例改，测试跟着每个脚本一起改。
+5. **整条管道测**：`-` 读到空清单（没有要做的事）和后面什么都没写（用法错误）、`pipefail`、写库的命令被 `head` 截断后仍做完。范围看后面写没写东西，不看清单空不空：p2z 这次就查出 `package names` 读到空清单会去改整个库。
+6. **调用方同一遍改**：别的 skill 里调它的地方，连同那边测试里的假替身（如 paper-read 的 `fake_p2z.py`）；推送后几个 skill 一起重装。
+7. **约定检查**：把这个 skill 从 `NOT_YET` 拿掉；运行时那几条，第二个 skill 加入时改成读各 skill 自己的假服务和示例命令。
+8. **行数目标文档和脚本分开算**：说明从文档搬进 `-h`，文档变短、帮助变长。
+9. **批量替换**：每处先断言原文正好出现一次，换完再 grep 一遍误伤（这次误伤过同名的 `p2zlib/note_md.py`）。
+10. **原则里的进度已拿掉**（2026-11-05，用户选 A）：原则 §3 *The Unix/Linux philosophy* 最后一句原为 "Existing commands are brought over one skill at a time, paper-to-zotero first."，改成 "Existing commands are brought over a whole skill at a time."：整个 skill 一次改过来是规则，留下；哪个先改是进度，归这张 issue 和约定检查的 `NOT_YET`。用户：「我说的是项目层面的那种具体的代码或者进度之类的」。
 
 ## 现状（2026-11-04 盘点）
 

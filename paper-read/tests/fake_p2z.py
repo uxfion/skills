@@ -4,8 +4,7 @@
 # ///
 """A stand-in for paper-to-zotero's p2z.py in paper-read's tests: the commands prepare_note.py, put_note.py and
 index_heading.py run, answered from the library in the JSON file FAKE_P2Z names, as the real ones answer (their
-docstrings) at paper-to-zotero's commit 2788f2b (note put and annotate: at 011a362): when their output
-changes, change this to match. Each call's arguments go to FAKE_P2Z.log, one JSON line each. Called as `objects`, it
+-h) since paper-to-zotero's Unix conventions (2026-11-05): when their output changes, change this to match. Each call's arguments go to FAKE_P2Z.log, one JSON line each. Called as `objects`, it
 stands in for the paddleocr skill's `doc.py objects` (PAPER_READ_DOC).
 
 The library: {"items": {cite: item}, "notes": {cite: [{key, title, text}]}, "pdfs": {cite: [PDF title, best first]},
@@ -24,10 +23,10 @@ def arg(args, flag):
 
 
 def note_take(lib, args):
-    cite, out = arg(args, "--cite"), Path(arg(args, "-o"))
+    cite, out = args[2], Path(arg(args, "-o"))
     notes = lib["notes"].get(cite, [])
     if not notes:
-        print(json.dumps({"cite": cite, "code": "no_notes"}))
+        print(json.dumps({"code": "no_notes", "hint": "No note matches."}))
         return 1
     out.mkdir(parents=True, exist_ok=True)
     for n in notes:
@@ -38,8 +37,8 @@ def note_take(lib, args):
     return 0
 
 
-def structured_take(lib, args):
-    cite, out, title = arg(args, "--cite"), Path(arg(args, "-o")), arg(args, "--title")
+def package_take(lib, args):
+    cite, out, title = args[2], Path(arg(args, "-o")), arg(args, "--title")
     pdfs = lib["pdfs"][cite]
     head = {"cite": cite, "key": "ITEMKEY1"}
     if title and title not in pdfs:
@@ -66,7 +65,7 @@ def structured_take(lib, args):
 
 
 def read_pdfs(lib, args):
-    cite = arg(args, "--cite")
+    cite = args[1]
     for n, title in enumerate(lib["pdfs"].get(cite, [])):
         print(json.dumps({"key": "ITEMKEY1", "citationKey": cite, "attachment": f"PDF{n:05d}", "attachment_title": title},
                          ensure_ascii=False))
@@ -74,14 +73,14 @@ def read_pdfs(lib, args):
 
 
 def read_items(lib, args):
-    cites = args[args.index("--cite") + 1:]
+    cites = args[1:]
     failed = 0
     for cite in cites:
         if cite in lib["items"]:
             print(json.dumps({"key": "ITEMKEY1", "itemType": "journalArticle", "citationKey": cite, **lib["items"][cite]},
                              ensure_ascii=False))
         else:
-            print(json.dumps({"cite": cite, "code": "cite_not_found"}))
+            print(json.dumps({"item": cite, "code": "not_found", "hint": "No item has this key or citation key."}))
             failed = 1
     return failed
 
@@ -103,7 +102,7 @@ def note_put(lib, args, path):
 
 def annotate(lib, args, path):
     known = lib.setdefault("annotations", {})
-    for raw in Path(args[args.index("--batch") + 1]).read_text(encoding="utf-8").splitlines():
+    for raw in Path(args[2]).read_text(encoding="utf-8").splitlines():
         e = json.loads(raw)
         code = "kept" if e["comment"] in known else "created"
         known.setdefault(e["comment"], f"ANNOT{len(known):03d}")
@@ -126,11 +125,11 @@ def main(args):
     command = tuple(args[:2])
     if command == ("note", "take"):
         return note_take(lib, args)
-    if command == ("structured", "take"):
-        return structured_take(lib, args)
-    if command == ("read_library", "items"):
+    if command == ("package", "take"):
+        return package_take(lib, args)
+    if args[0] == "items":
         return read_items(lib, args)
-    if command == ("read_library", "pdf"):
+    if args[0] == "pdf":
         return read_pdfs(lib, args)
     if command == ("note", "put"):
         return note_put(lib, args, path)

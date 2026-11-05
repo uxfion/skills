@@ -1,44 +1,46 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Create a Zotero collection by name under an optional parent, once: a rerun finds the one already there.
+"""Create a Zotero collection, once: `p2z.py mkcol PARENT/NAME` (or a NAME alone, at the top level); a rerun finds the one already there.
 
-Reads the live collection tree (a collection in the trash, and every collection under one, left out) and looks for
-the same name under the same parent (the top level without --parent). None there: POST {name, parentCollection},
-then read the new collection back. Run again, it finds that collection, so it never makes a second copy.
+What follows the options is the new collection's path: its last part is the new name, what comes before it is the
+parent, found as everywhere else (a key, a path from p2z.py collections, or a name one collection has). The live
+collection tree is read (a collection in the trash, and every collection under one, left out) and the name looked
+for under that parent. None there: POST {name, parentCollection}, then read the new collection back. Run again, it
+finds that collection, so it never makes a second copy. A name with "/" in it cannot be made here.
 
 stdout: one line {key, code, name, parent, path, ...}; `path` joins the names from the root with "/".
-  ok                 created and read back (`version`); --dry-run: would be created, key null
-  skipped            reason exists: the collection is already there, `key` is it
-  ambiguous          several collections of this name under that parent (`keys`); the user decides which stays
-  parent_not_found   no live collection has the --parent key (it may be in the trash); take it from ready.py's tree
-  invalid_name       --name is blank
-  write_denied       the library is not editable
-  write_failed       Zotero did not create it; see status and detail
-  readback_mismatch  created, but it reads back with another name or parent; look at it in Zotero
-Exit 0 = ok or skipped, 1 = any other code, 2 = cannot check (zotero_unreachable, local_api_disabled, no_key,
-key_rejected, server_mismatch).
+  ok                    created and read back (`version`); -n: would be created, key null
+  skipped               reason exists: the collection is already there, `key` is it
+  ambiguous             several collections of this name under that parent (`keys`): the user decides which stays;
+                        or the parent named answers to several collections (`candidates`)
+  collection_not_found  no live collection is the parent named (it may be in the trash)
+  invalid_name          the new name is blank
+  write_denied          the library is not editable
+  write_failed          Zotero did not create it; see status and detail
+  readback_mismatch     created, but it reads back with another name or parent; look at it in Zotero
+Exit 0 = ok or skipped; 1 = any other code; 2 = cannot check (zotero_unreachable, local_api_disabled, no_key,
+key_rejected, server_mismatch), then stderr's last line is {code, hint}.
 
 Examples:
-  uv run scripts/make_collection.py --name "Mean Flow" --parent SV9NEBPJ --dry-run
-  uv run scripts/make_collection.py --name "投稿文献"
+  p2z.py mkcol -n "自然图像/Mean Flow"
+  p2z.py mkcol 投稿文献
 """
 from p2zlib import cli, zotero
 
 
 def make(args):
-    name, parent = args.name.strip(), args.parent
+    parent_name, _, name = args.path.strip().rpartition("/")
+    name = name.strip()
     if not name:
-        raise cli.Stop("invalid_name", hint="--name must not be blank.")
+        raise cli.Stop("invalid_name", hint="Name the new collection: PARENT/NAME or NAME.", path=args.path)
     zot = zotero.Zotero(args.base_url)
     if not args.dry_run:
         zot.write_headers()
     tree = zot.collections()
-    if parent and parent not in tree:
-        raise cli.Stop("parent_not_found", hint="No live collection has this key (it may be in the trash); take the key "
-                       "from ready.py's tree.", name=name, parent=parent)
+    parent = zot.collection(parent_name.strip(), tree) if parent_name.strip() else None
     path = f"{tree[parent]['path']}/{name}" if parent else name
     same = sorted(k for k, c in tree.items() if c["name"] == name and c["parent"] == parent)
     if len(same) > 1:
@@ -60,13 +62,10 @@ def make(args):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("--name", required=True, help="the collection's name (an exact match counts as already there)")
-    p.add_argument("--parent", metavar="KEY", help="the parent collection's key; without it, the top level")
-    p.add_argument("--dry-run", action="store_true", help="look for it and check the parent; create nothing")
+    p.add_argument("path", metavar="[PARENT/]NAME", help="the new collection: its parent's key, path or name, then its name")
+    cli.add_dry_run(p, help="look for it and check the parent; create nothing")
     cli.add_base_url(p)
-    args = p.parse_args(argv)
-    if args.parent is not None and not cli.KEY_RE.match(args.parent):
-        p.error("--parent takes an 8-character collection key")
+    args = cli.parse(p, argv)
 
     def run():
         cli.emit(make(args))

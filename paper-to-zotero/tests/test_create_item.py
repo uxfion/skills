@@ -55,7 +55,7 @@ class CreateItem(unittest.TestCase):
         return [r for r in self.zot.requested("POST", "/api/users/0/items")]
 
     def test_creates_filed_tagged_and_keyed(self):
-        a = self.record("a", collection=[COLL, COLL2], citationKey="liu_2022")
+        a = self.record("a", collection=[COLL, "Methods"], citationKey="liu_2022")
         b = self.record("b", curated=[], tags=[{"tag": "auto", "type": 1}])
         r = self.run_(a, b)
         self.assertEqual(r.code, 0, r)
@@ -145,18 +145,19 @@ class CreateItem(unittest.TestCase):
         self.assertNotIn("saved", run.read(self.work.records / "refused.json"), "nothing created: no pending mark")
         self.zot.write_status = None
         dry, posts = self.record("dry"), len(self.posts())
-        r = self.run_(dry, "--dry-run")
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[-1]["summary"]["dry_run"]), (0, "ok", True))
+        r = self.run_(dry, "-n")
+        self.assertEqual((r.code, r.lines[0]["code"], r.err), (0, "ok", ""))
         self.assertEqual((len(self.posts()), "saved" in run.read(dry)), (posts, False))
         bad = self.work.records / "bad.json"
         bad.write_text("[1]")
         r = self.run_(dry, bad)
-        self.assertEqual((r.code, r.lines[-1]["summary"]["not_run"]), (1, 1), "a file that is not a record: nothing written")
+        self.assertEqual((r.code, [o["code"] for o in r.lines]), (1, ["not_run", "record_invalid"]),
+                         "a file that is not a record: nothing written")
         r = self.run_(dry, base_url=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "zotero_unreachable"))
+        self.assertEqual((r.code, r.lines, r.last["code"]), (2, [{"slug": "dry", "code": "not_run"}], "zotero_unreachable"))
 
     def test_smoke(self):
-        r = smoke("create_item", self.record("s"), "--dry-run", "--base-url", self.zot.base_url, config=self.config)
+        r = smoke("create", self.record("s"), "--dry-run", "--base-url", self.zot.base_url, config=self.config)
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
 

@@ -44,12 +44,10 @@ class Structured(unittest.TestCase):
         self.tmp = Path(tmp.name)
 
     def run_(self, module, *argv):
-        url = ["--base-url", self.zot.base_url]
-        subcommands = module in (structured, read_library)
-        return call(module, *(url + list(argv) if subcommands else list(argv) + url), config=self.config)
+        return call(module, *argv, "--base-url", self.zot.base_url, config=self.config)
 
     def take(self, name, *argv):
-        return self.run_(structured, "take", "--cite", CITE, "-o", self.tmp / name, *argv)
+        return self.run_(structured, "take", CITE, "-o", self.tmp / name, *argv)
 
     def parse(self, folder, body=PUB_PDF):
         """What paddleocr's parse leaves: <stem>/<stem>.md, .json (source.sha256), imgs/, and its lock file."""
@@ -82,7 +80,7 @@ class Structured(unittest.TestCase):
                              "no lock file")
         self.assertEqual(self.run_(structured, "put", folder).lines[0]["reason"], "already_current")
 
-        rows = {row["attachment_title"]: row["package"] for row in self.run_(read_library, "pdf", "--cite", CITE).lines}
+        rows = {row["attachment_title"]: row["package"] for row in self.run_(read_library, "pdf", CITE).lines}
         self.assertEqual(rows, {"Published-IEEE": pkg["key"], "Preprint-arXiv-v1": None})
 
         r = self.take("b")
@@ -100,7 +98,7 @@ class Structured(unittest.TestCase):
         self.assertEqual(self.run_(structured, "put", late).lines[0]["code"], "changed_since_take")
 
         latest = self.packages()[0]
-        r = self.run_(update_item, "--key", PUB, "--set", "title=Published-IEEE-in_press")
+        r = self.run_(update_item, PUB, "--set", "title=Published-IEEE-in_press")
         self.assertEqual(r.code, 0, r)
         [pkg] = self.packages()
         self.assertEqual((pkg["key"], pkg["md5"], pkg["title"], pkg["filename"]),
@@ -113,12 +111,12 @@ class Structured(unittest.TestCase):
         self.zot.data(ITEM)["citationKey"] = CITE
 
         r = self.run_(structured, "take", "--missing", "-o", self.tmp / "d")
-        self.assertEqual([(x["title"], x["package"]) for x in r.lines[:-1]], [("Preprint-arXiv-v1", None)])
+        self.assertEqual([(x["title"], x["package"]) for x in r.lines], [("Preprint-arXiv-v1", None)])
         pre = self.tmp / "d" / f"{CITE}.Preprint-arXiv-v1"
         self.parse(pre, body=PUB_PDF)
         self.assertEqual(self.run_(structured, "put", pre).lines[0]["code"], "source_mismatch")
 
-        r = self.run_(trash_item, "--key", PUB)
+        r = self.run_(trash_item, PUB)
         self.assertEqual([p["code"] for p in r.lines[0]["packages"]], ["ok"], "the PDF takes its package along")
         self.assertEqual(self.packages(), [])
 

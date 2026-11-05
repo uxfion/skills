@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -6,7 +6,7 @@
 """Identify papers without metadata from their PDF, with Zotero's recognizer: the record's `saved` and `recognize`.
 
 A record here is one whose result (`fetched`) is a stub: paper-fetch found no metadata (no CSL) to check the file
-against, and filed the PDF as cannot_judge (draft_item writes such a record: {"fetched": <the result's path>}). The
+against, and filed the PDF as cannot_judge (p2z.py draft writes such a record: {"fetched": <the result's path>}). The
 PDF sent is the stub's cannot_judge PDF that is not a supplement; of several, the first, the others named on the line
 (`others`). It goes to Zotero as Zotero's browser connector saves a PDF (/connector/saveStandaloneAttachment), titled
 with the file's label: a standalone attachment in the collection Zotero has selected, which Zotero's recognizer then
@@ -18,7 +18,7 @@ that attachment is looked at, never what else the library gains meanwhile.
   - A parent: the record's saved is {key, version, citationKey, created_at, via: recognizer}. The recognizer renames
     the attachment's file and sets its title (to "PDF"): the title goes back to the label, the file keeps its new
     name. The line prints the item's fields and the PDF's path, for a judge to compare with the PDF's first page.
-  - None: the attachment goes to the trash, and the agent writes the record's item by hand (check_item.py --help
+  - None: the attachment goes to the trash, and the agent writes the record's item by hand (p2z.py check --help
     prints a skeleton).
   - Still recognizing after --wait seconds (Zotero's recognizer queued, or offline): nothing is trashed; a rerun waits
     on the same attachment.
@@ -29,31 +29,31 @@ longer knows it, the attachment's parent decides at once), or sends the PDF agai
 Before anything is sent, the library is searched for the PDF's md5: an attachment this record did not send stops it
 (in_library).
 
-stdout: one line per record {slug, code, ...}, then {"summary"}.
+stdout: one line per record {slug, code, ...}.
   recognized      the recognizer made the item: {key, item: its fields, pdf, attachment, retitled?: {from, to},
-                  others?}. A judge checks item against the PDF's first page; the agent corrects it with update_item.py
-                  and files and tags it with file_and_tag.py; fields that name another paper are set from the PDF's
+                  others?}. A judge checks item against the PDF's first page; the agent corrects it with p2z.py update
+                  and files and tags it with p2z.py tag; fields that name another paper are set from the PDF's
                   first page the same way (the PDF is this paper's, whatever the recognizer matched)
-  ok              --dry-run: what would be sent {pdf, title, url, others?, attachment?: the earlier run's, to wait
+  ok              -n: what would be sent {pdf, title, url, others?, attachment?: the earlier run's, to wait
                   on}; nothing sent, nothing written
   skipped         reason saved (the record's item is in Zotero) | not_recognized (an earlier run's recognizer found
                   nothing: the agent writes the item by hand; to send the PDF again, remove the record's recognize)
   recognizing     the recognizer is not done after --wait seconds {attachment, pdf}: nothing trashed; rerun later
   not_recognized  the recognizer found nothing {attachment, pdf, canRecognize?: false when Zotero would not try}: the
-                  attachment is in the trash; the agent writes the record's item by hand from check_item.py's skeleton
-  not_a_stub      the result has metadata: draft_item.py drafts the item, p2z.py save attaches its files
+                  attachment is in the trash; the agent writes the record's item by hand from p2z.py check's skeleton
+  not_a_stub      the result has metadata: p2z.py draft drafts the item, p2z.py save attaches its files
   no_file         the stub has no PDF filed cannot_judge: paper-fetch has not got it yet
   file_changed    the PDF's md5 is not the one in the result: settle the result again, then rerun
   in_library      the PDF is in Zotero already {attachment, parent, parent_title, citationKey}; nothing sent. Under
                   `parent`, the paper is there, nothing to import; parent null, a stray standalone copy: once it is
-                  in the trash (trash_item.py), rerun
+                  in the trash (p2z.py trash), rerun
   no_result | connector_failed | readback_mismatch | unexpected_response | not_found | write_denied |
   write_failed    see the hint
-Exit 0 = every record recognized or skipped; 1 = not; 2 = cannot go on (Zotero not running, local API off, no key, the
-key rejected, another Zotero than the key's).
+Exit 0 = every record recognized or skipped; 1 = not, then stderr's last line is {"summary": {total, ok, skipped, failed}}; 2 = cannot go on (Zotero not running, local API
+off, no key, the key rejected, another Zotero than the key's), then stderr's last line is {code, hint}.
 
 Example:
-  uv run scripts/recognize.py <scratch>/paper-to-zotero/records/<slug>.json
+  p2z.py recognize <scratch>/paper-to-zotero/records/<slug>.json
 """
 import uuid
 
@@ -113,7 +113,7 @@ def process(rec, ctx):
         return cli.skipped("not_recognized", attachment=block.get("attachment"))
     res, path = run.result_of(rec)
     if isinstance(res.get("csl"), dict):
-        raise cli.Stop("not_a_stub", hint="The result has metadata: draft_item.py drafts the record's item, and p2z.py "
+        raise cli.Stop("not_a_stub", hint="The result has metadata: p2z.py draft drafts the record's item, and p2z.py "
                                           "save creates it and attaches its files.")
     f, file, others = the_pdf(res, path)
     title = ((f.get("label") or {}).get("title") or "").strip() or paper.label_title("Unknown")
@@ -125,7 +125,7 @@ def process(rec, ctx):
                        citationKey=held["citationKey"],
                        hint="This PDF is in Zotero already, on the item `parent` (null: a standalone copy): the paper is "
                             "there, nothing to import, and nothing was sent. A stray standalone copy goes to the trash "
-                            "(trash_item.py), then rerun.")
+                            "(p2z.py trash), then rerun.")
     more = {"others": others} if others else {}
     if args.dry_run:
         return {"code": "ok", "pdf": str(file), "title": title, "url": url,
@@ -160,7 +160,7 @@ def process(rec, ctx):
         return {"code": "not_recognized", "attachment": key, "pdf": str(file), **more,
                 **({"canRecognize": False} if recognizable is False else {}),
                 "hint": "Zotero's recognizer did not identify the PDF; its attachment is in the trash. Write the record's "
-                        "item by hand (check_item.py --help prints a skeleton), then p2z.py prepare and save."}
+                        "item by hand (p2z.py check --help prints a skeleton), then p2z.py prepare and save."}
     retitled = {}
     now = zotero.data(zot.item(key)).get("title")
     if now != title:

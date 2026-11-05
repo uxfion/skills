@@ -1,11 +1,11 @@
 # Tidy judge brief
 
-You are a paper-to-zotero tidy judge. `lint_items` listed problems on library items, each a fact with its evidence; you decide, for every problem of every item in your share, what it means. Your dispatch names `<scratch>`, your number `<n>` and paper-to-zotero's directory.
+You are a paper-to-zotero tidy judge. `p2z.py lint` listed problems on library items, each a fact with its evidence; you decide, for every problem of every item in your share, what it means. Your dispatch names `<scratch>`, your number `<n>` and the statement every shell call starts with.
 
 **Inputs**, in `<scratch>/tidy/`:
-- `lint.<n>.jsonl`, your share: one item per line with its problems (`uv run scripts/p2z.py lint_items --help` says what each code states);
+- `lint.<n>.jsonl`, your share: one item per line with its problems (`p2z.py lint -h` says what each code states);
 - `search/<key>.jsonl` for an item `missing_doi`: Crossref's top five for its title and first author;
-- `fill.jsonl`: `update_item --batch` lines filling the empty fields of items `missing_abstract` from their DOI records.
+- `fill.jsonl`: change lines for `p2z.py update` filling the empty fields of items `missing_abstract` from their DOI records.
 
 What an item's identifier and url should be is references/import.md, step 3, *Revise `item`*.
 
@@ -23,12 +23,12 @@ Two kinds of problem belong to other steps of the tidy (references/organize.md) 
   - `no_identifier`: `unknown`, the why saying what the item is.
   - `unfiled_webpage`: where it belongs, or whether it goes to the trash, is the user's: `unknown`, the why saying what the page is.
   - A problem with a `patch`, whatever its code: a `change` whose `set` is that patch.
-- `changes.<n>.jsonl`: one `update_item --batch` line per item whose fields change, every change to the item in its one `set`: `{"key", "set": {field: value}, "why"}`;
-- `tags.<n>.jsonl`: one `file_and_tag --batch` line per item whose tags or collections a problem's evidence settles (`add_tags`, `remove_tags`, `add_collection`, `remove_collection` leave the rest as it is; `file_and_tag --help` has every field). Lint's codes seldom do: a destination you cannot tell is `unknown`.
+- `changes.<n>.jsonl`: one change line for `p2z.py update` per item whose fields change, every change to the item in its one `set`: `{"key", "set": {field: value}, "why"}`;
+- `tags.<n>.jsonl`: one change line for `p2z.py tag` per item whose tags or collections a problem's evidence settles (`add_tags`, `remove_tags`, `add_collection`, `remove_collection` leave the rest as it is; `p2z.py tag -h` has every field). Lint's codes seldom do: a destination you cannot tell is `unknown`.
 
 A batch file with no line is left out. A merge or a move to the trash is no batch line: its verdict's why carries it, and the main agent plans it.
 
-**Done when** every problem in your share, but those two kinds, has its verdict line, each resting on the evidence it names — a DOI chosen only once the candidate's title and first author match the item's, a duplicate only once both items are compared — and each batch file you wrote passes its dry run from paper-to-zotero's directory: `uv run scripts/p2z.py update_item --batch <scratch>/tidy/changes.<n>.jsonl --dry-run` and `uv run scripts/p2z.py file_and_tag --batch <scratch>/tidy/tags.<n>.jsonl --dry-run` exit 0 and plan the changes you meant.
+**Done when** every problem in your share, but those two kinds, has its verdict line, each resting on the evidence it names — a DOI chosen only once the candidate's title and first author match the item's, a duplicate only once both items are compared — and each change list you wrote passes its dry run: `p2z.py update -n <scratch>/tidy/changes.<n>.jsonl` and `p2z.py tag -n <scratch>/tidy/tags.<n>.jsonl` exit 0 and plan the changes you meant.
 
 **Report** whether the done-when holds — a dry run that cannot reach Zotero is the first line — then only the exceptions, one line each: a problem answered `unknown` and what it turns on; anything in the skill that misled you. Your leaves are in your verdicts, and the main agent groups them for the user.
 

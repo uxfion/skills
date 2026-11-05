@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -26,18 +26,19 @@ Sections, each only when it has something to say:
                                older file of the same version from the same source), a snapshot standing in for the
                                PDF that is now attached, the same file twice; a file this run attached that
                                paper-fetch has since withdrawn (an unconfirmed file a confirmed one replaced); with
-                               the trash_item.py line to run on the user's word
+                               the p2z.py trash line to run on the user's word
   建议改名 (suggested renames)  files the item had already, whose title is outside the scheme or differs from the
                                record's label: the title, and the label's when there is one; renamed only on the
-                               user's word (update_item.py --key <attachment> --set title=...)
+                               user's word (p2z.py update <attachment> --set title=...)
   新标签 (new tags)             manual tags on this run's items that no other item carries, by prefix
 What the fetching left behind (Downloads files, refused files, the browser session) is paper-fetch's residue.
 
-stdout: the Markdown, or with --json {code, rows, summary, sections?}; problems go to stderr as JSON lines. Exit 0 =
-written; 1 = no records; 2 = Zotero cannot be read.
+The records follow the options (- reads their paths from stdin). stdout: the Markdown, or with --json {code, rows,
+summary, sections?}. Exit 0 = written; 1 = a path is not a record (each such path a JSON line on stderr, then
+{"summary": {total, failed}} last) or none is; 2 = Zotero cannot be read, then stderr's last line is {code, hint}.
 
 Example:
-  uv run scripts/report.py <scratch>/paper-to-zotero/records/*.json
+  p2z.py report <scratch>/paper-to-zotero/records/*.json
 """
 import json
 import re
@@ -184,30 +185,37 @@ def markdown(rows, summary, sections):
         rows_ = sections[name]
         out += ["", f"### {headings[name]}: {len(rows_)}", ""] + table(head, [shape(r) for r in rows_])
         if name == "attachments_to_clean":
-            out += ["", "Only on the user's word: `uv run scripts/trash_item.py --dry-run --key "
-                    + " ".join(r["attachment"] for r in rows_) + "`, then without --dry-run."]
+            out += ["", "Only on the user's word: `p2z.py trash -n "
+                    + " ".join(r["attachment"] for r in rows_) + "`, then without -n."]
         if name == "renames":
-            out += ["", "Only on the user's word, a title settled for each: `uv run scripts/update_item.py --key <attachment> "
-                    "--set title=<title> --dry-run`, then without --dry-run."]
+            out += ["", "Only on the user's word, a title settled for each: `p2z.py update -n <attachment> "
+                    "--set title=<title>`, then without -n."]
     return "\n".join(out) + "\n"
 
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("records", nargs="*", metavar="RECORD", help="record files: <scratch>/paper-to-zotero/records/*.json")
+    p.add_argument("records", nargs="*", metavar="RECORD",
+                   help="record files: <scratch>/paper-to-zotero/records/*.json; - reads their paths from stdin")
     p.add_argument("--json", action="store_true", help="JSON instead of Markdown")
     cli.add_base_url(p)
-    args = p.parse_args(argv)
+    args = cli.parse(p, argv)
+    if not args.records:
+        p.error("name the record files, or - to read their paths from stdin")
+    named = cli.paths(args.records)
+    if not named:   # `-` with an empty list: nothing to report
+        return cli.OK
 
     def go():
-        records = []
-        for path in args.records:
+        records, failed = [], 0
+        for path in named:
             try:
                 records.append(run.read(path))
             except cli.Stop as stop:
                 cli.emit(stop.line(slug=Path(path).stem), sys.stderr)
+                failed += 1
         if not records:
-            raise cli.Stop("no_records", hint="Pass the record files: <scratch>/paper-to-zotero/records/*.json.")
+            raise cli.Stop("no_records", hint="None of the paths is a record file: <scratch>/paper-to-zotero/records/*.json.")
         zot = zotero.Zotero(args.base_url)
         gathered, paths = gather(zot, records)
         rows = [row_of(rec, lib, atts, paths) for rec, lib, atts in gathered]
@@ -217,11 +225,11 @@ def main(argv=None):
                    "missing": sum(1 for r in rows if not r["key"]), "blocked": sum(1 for r in rows if r["blocker"])}
         sections = sections_of(gathered, rows, zot)
         if args.json:
-            print(json.dumps({"code": "ok", "rows": rows, "summary": summary, **({"sections": sections} if sections else {})},
-                             ensure_ascii=False, indent=2))
+            cli.write(json.dumps({"code": "ok", "rows": rows, "summary": summary, **({"sections": sections} if sections else {})},
+                                 ensure_ascii=False, indent=2) + "\n")
         else:
-            sys.stdout.write(markdown(rows, summary, sections))
-        return cli.OK
+            cli.write(markdown(rows, summary, sections))
+        return cli.summarize(len(named), failed)
 
     return cli.run(go, sys.stderr)
 

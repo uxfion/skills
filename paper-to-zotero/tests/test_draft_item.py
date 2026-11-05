@@ -177,7 +177,7 @@ class DraftItem(unittest.TestCase):
         r = self.draft(path)
         self.assertEqual(r.lines[0]["code"], "skipped")
         self.assertEqual(self.rec("numpy2020")["item"]["title"], "Revised by the agent")
-        r = self.draft("--redraft", stdin=f"{path}\n")
+        r = self.draft("--redraft", "-", stdin=f"{path}\n")
         rec = self.rec("numpy2020")
         self.assertEqual((r.code, rec["item"]["title"], rec["collection"], rec["tags"], rec["citationKey"]),
                          (0, "Trials", "RIBA5MZJ", [{"tag": "mine", "type": 0}], "harris2020"), "the agent's fields stay")
@@ -187,7 +187,7 @@ class DraftItem(unittest.TestCase):
         elsewhere = self.root / "elsewhere.json"
         elsewhere.write_text(json.dumps(JAMA), encoding="utf-8")
         r = self.draft("--redraft", path, stub, elsewhere)
-        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]]), (1, ["already_saved", "stub", "no_records_dir"]))
+        self.assertEqual((r.code, [o["code"] for o in r.lines]), (1, ["already_saved", "stub", "no_records_dir"]))
         self.assertEqual(self.rec("stub"), {"fetched": str(stub)}, "a stub's record: its result, for recognize.py")
         r = self.draft(elsewhere, "-o", self.root / "other")
         self.assertEqual((r.code, (self.root / "other" / "jama.json").is_file()), (0, True))
@@ -220,10 +220,11 @@ class DraftItem(unittest.TestCase):
     def test_zotero_not_running(self):
         (self.root / "scratch" / "schema.json").unlink()
         r = self.draft(self.put(JAMA), self.put(THESIS))
-        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]]), (2, ["zotero_unreachable", "not_run"]), r)
+        self.assertEqual((r.code, [o["code"] for o in r.lines], r.last["code"]), (2, ["not_run", "not_run"], "zotero_unreachable"), r)
+        self.assertEqual(self.draft(stdin=f"{self.put(JAMA)}\n").code, 2, "stdin only with -")
 
     def test_smoke(self):
-        r = smoke("draft_item", self.put(JAMA), "--base-url", f"http://127.0.0.1:{closed_port()}")
+        r = smoke("draft", self.put(JAMA), "--base-url", f"http://127.0.0.1:{closed_port()}")
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
 

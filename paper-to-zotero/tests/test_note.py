@@ -53,18 +53,18 @@ class Note(unittest.TestCase):
     # ---- take -------------------------------------------------------------------------------------------------
 
     def test_take_one_note_to_stdout(self):
-        r = self.run_("take", "--cite", "one2020paper", "--title", "论文笔记")
+        r = self.run_("take", "one2020paper", "--title", "论文笔记")
         self.assertEqual(r.code, 0, r)
         self.assertEqual(r.out, "---\nkey: NOTE0001\nversion: 13\nparent: one2020paper\nschema: 9\n---\n"
                                 "# 论文笔记\n\n- Q1 问题 [已答]\n")
         self.assertEqual(self.zot.writes(), [])
 
     def test_take_several_needs_a_directory(self):
-        r = self.run_("take", "--key", "ITEM0001")
+        r = self.run_("take", "ITEM0001")
         self.assertEqual(r.code, 2)
         self.assertIn("NOTE0001  论文笔记", r.err)
         self.assertIn("NOTE0002  Reading log", r.err)
-        r = self.run_("take", "--key", "ITEM0001", "-o", f"{self.dir}/notes/")
+        r = self.run_("take", "ITEM0001", "-o", f"{self.dir}/notes/")
         self.assertEqual(r.code, 0, r)
         self.assertEqual([(x["key"], x["title"], Path(x["file"]).name) for x in r.lines[:2]],
                          [("NOTE0001", "论文笔记", "one2020paper.NOTE0001.note.md"),
@@ -74,30 +74,30 @@ class Note(unittest.TestCase):
 
     def test_take_writes_over_the_same_note_only(self):
         out = self.dir / "n.md"
-        self.assertEqual(self.run_("take", "--note", "NOTE0002", "-o", out).code, 0)
-        self.assertEqual(self.run_("take", "--note", "NOTE0002", "-o", out).code, 0, "the same note: written over")
-        r = self.run_("take", "--note", "NOTE0001", "-o", out)
+        self.assertEqual(self.run_("take", "NOTE0002", "-o", out).code, 0)
+        self.assertEqual(self.run_("take", "NOTE0002", "-o", out).code, 0, "the same note: written over")
+        r = self.run_("take", "NOTE0001", "-o", out)
         self.assertEqual(r.code, 2)
         self.assertIn("holds another note (NOTE0002)", r.err)
 
     def test_take_a_standalone_note(self):
-        r = self.run_("take", "--note", "NOTE0003")
+        r = self.run_("take", "NOTE0003")
         self.assertEqual(r.out, "---\nkey: NOTE0003\nversion: 15\ncollections: COLL0001\nrelated: two2021paper\n---\n"
                                 "# 主题：扩散\n\n见两篇\n")
 
     def test_take_finds_nothing(self):
-        r = self.run_("take", "--cite", "one2020paper", "--title", "nope")
+        r = self.run_("take", "one2020paper", "--title", "nope")
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "no_notes"))
-        r = self.run_("take", "--note", "ITEM0001")
-        self.assertEqual((r.code, r.lines[0]["code"]), (1, "not_a_note"))
-        r = self.run_("take", "--key", "ATTA0001")
+        r = self.run_("take", "nobody2099")
+        self.assertEqual((r.code, r.lines[0]["code"]), (1, "not_found"))
+        r = self.run_("take", "ATTA0001")
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "not_a_parent"))
 
     # ---- put --------------------------------------------------------------------------------------------------
 
     def taken(self, key="NOTE0001"):
         path = self.dir / f"{key}.note.md"
-        self.assertEqual(self.run_("take", "--note", key, "-o", path).code, 0)
+        self.assertEqual(self.run_("take", key, "-o", path).code, 0)
         return path
 
     def test_put_unchanged_writes_nothing(self):
@@ -166,7 +166,7 @@ class Note(unittest.TestCase):
         self.assertTrue(path.read_text(encoding="utf-8").startswith(f"---\nkey: {key}\nversion: "))
 
     def test_put_a_new_standalone_note_related_both_ways(self):
-        r = self.run_("put", stdin="---\ncollections: COLL0001\nrelated: one2020paper,ITEM0002\n---\n# 主题\n")
+        r = self.run_("put", "-", stdin="---\ncollections: COLL0001\nrelated: one2020paper,ITEM0002\n---\n# 主题\n")
         self.assertEqual((r.code, r.lines[0]["action"]), (0, "created"), r)
         key = r.lines[0]["key"]
         [obj] = self.posts()
@@ -186,50 +186,52 @@ class Note(unittest.TestCase):
         self.assertEqual(self.zot.data("ITEM0002").get("relations"), {})
 
     def test_put_dry_run_and_bad_input(self):
-        r = self.run_("put", "--dry-run", stdin="---\nparent: one2020paper\n---\nx\n")
+        r = self.run_("put", "-n", "-", stdin="---\nparent: one2020paper\n---\nx\n")
         self.assertEqual((r.code, r.lines[0]["action"], r.lines[0]["note"]), (0, "created", "<p>x</p>"))
         self.assertEqual(self.zot.writes(), [])
         cases = {"---\nkey NOTE0001\n---\nx\n": "bad_front_matter", "---\nkey: NOTE0001\n---\nx\n": "no_version",
                  "---\nparent: one2020paper\npdf: Published-IEEE\n---\nx\n": "bad_front_matter",
-                 "---\nkey: ZZZZZZZZ\nversion: 1\n---\nx\n": "not_found", "---\nparent: nobody\n---\nx\n": "cite_not_found",
+                 "---\nkey: ZZZZZZZZ\nversion: 1\n---\nx\n": "not_found", "---\nparent: nobody\n---\nx\n": "not_found",
                  "---\ncollections: NOPE0000\n---\nx\n": "collection_not_found",
                  "---\nkey: ATTA0001\nversion: 12\n---\nx\n": "not_a_note", "---\nparent: ATTA0001\n---\nx\n": "not_a_parent",
                  "---\nparent: one2020paper\n---\n\n  \n": "empty_note",
                  "---\nparent: one2020paper\n---\n# 论文笔记\n\nQ1 another start\n": "same_title"}
         for text, code in cases.items():
             with self.subTest(code=code):
-                r = self.run_("put", stdin=text)
+                r = self.run_("put", "-", stdin=text)
                 self.assertEqual((r.code, r.lines[0]["code"]), (1, code))
                 if "pdf:" in text:
                     self.assertEqual(r.lines[0]["fields"], ["pdf"], "a field Zotero cannot keep is refused, not lost")
                 if code == "same_title":
                     self.assertEqual(r.lines[0]["keys"], ["NOTE0001"], "the note already there, to take and carry on")
-        self.assertEqual(self.run_("put", "-i", stdin="x").code, 2)
+        self.assertEqual(self.run_("put", "-i", "-", stdin="x").code, 2)
+        self.assertEqual(self.run_("put", stdin="x").last["code"], "usage", "stdin only with -")
         self.assertEqual(self.zot.writes(), [])
 
     # ---- list -------------------------------------------------------------------------------------------------
 
     def test_list(self):
-        r = self.run_("list", "--cite", "one2020paper")
-        self.assertEqual([(x["key"], x["parent"], x["title"]) for x in r.lines[:-1]],
+        r = self.run_("list", "one2020paper")
+        self.assertEqual([(x["key"], x["parent"], x["title"]) for x in r.lines],
                          [("NOTE0001", "one2020paper", "论文笔记"), ("NOTE0002", "one2020paper", "Reading log")])
         r = self.run_("list", "--collection", "COLL0001")
-        self.assertEqual([(x["key"], x["title"], x["collections"]) for x in r.lines[:-1]],
+        self.assertEqual([(x["key"], x["title"], x["collections"]) for x in r.lines],
                          [("NOTE0003", "主题：扩散", ["COLL0001"])])
-        r = self.run_("list", "--q", "两篇")
-        self.assertEqual([x["key"] for x in r.lines[:-1]], ["NOTE0003"])
+        r = self.run_("search", "两篇")
+        self.assertEqual([x["key"] for x in r.lines], ["NOTE0003"])
         self.assertEqual([q.get("qmode") for _, _, q, _ in self.zot.requested("GET") if q.get("q") == "两篇"], ["everything"])
+        self.assertEqual(self.run_("search", "两篇", "one2020paper").code, 1, "searched among that item's notes: none")
 
     # ---- Zotero not there -------------------------------------------------------------------------------------
 
     def test_cannot_check(self):
-        r = self.run_("put", stdin="x", base_url=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "zotero_unreachable"))
-        r = self.run_("put", stdin="x", config=config_file(key=None))
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "no_key"))
+        r = self.run_("put", "-", stdin="x", base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, r.last["code"]), (2, "zotero_unreachable"))
+        r = self.run_("put", "-", stdin="x", config=config_file(key=None))
+        self.assertEqual((r.code, r.last["code"]), (2, "no_key"))
 
     def test_smoke(self):
-        r = smoke("note", "take", "--note", "NOTE0002", "--base-url", self.zot.base_url, config=self.config)
+        r = smoke("note", "take", "NOTE0002", "--base-url", self.zot.base_url, config=self.config)
         self.assertEqual((r.code, r.out), (0, "---\nkey: NOTE0002\nversion: 14\nparent: one2020paper\n---\nReading log\n\nx\n"), r)
 
 

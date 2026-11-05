@@ -61,32 +61,48 @@ class Client(unittest.TestCase):
         self.assertEqual(set(found), set(keys))
         self.assertEqual(len(self.fake.requested("GET", f"{LIB}/items")), 3)
 
-    def test_children_filters_the_whole_library_answer(self):
+    def test_children_is_one_listing(self):
         self.fake.add_item("PARENT01", itemType="journalArticle", title="p")
         self.fake.add_item("ATTACH01", itemType="attachment", parentItem="PARENT01", title="PDF")
         self.assertEqual([c["key"] for c in self.zot.children("PARENT01")], ["ATTACH01"])
         self.assertEqual(self.zot.children("NOPE0000"), [])
 
-    def test_cites_search_first_then_one_shared_scan(self):
-        self.fake.add_item("ITEM0001", itemType="journalArticle", title="One", citationKey="one2020")
-        self.fake.add_item("ITEM0002", itemType="journalArticle", title="Two", citationKey="two2021")
-        self.fake.add_item("DUP00001", itemType="journalArticle", title="Dup a", citationKey="dup")
-        self.fake.add_item("DUP00002", itemType="journalArticle", title="Dup b", citationKey="dup")
-        self.assertEqual(self.zot.resolve_cite("one2020"), "ITEM0001")
-        self.assertEqual(self.fake.requested("GET", f"{LIB}/items/top"), [])
-        self.fake.search_sees_citekey = False
-        self.assertEqual(self.zot.resolve_cites(["one2020", "two2021", "none"]),
-                         {"one2020": ["ITEM0001"], "two2021": ["ITEM0002"], "none": []})
-        self.assertEqual(len(self.fake.requested("GET", f"{LIB}/items/top")), 1, "one scan for every cite the search missed")
-        self.assertEqual(self.stop(self.zot.resolve_cite, "none").code, "cite_not_found")
-        failure = self.stop(self.zot.resolve_cite, "dup")
-        self.assertEqual((failure.code, failure.extra["keys"]), ("cite_ambiguous", ["DUP00001", "DUP00002"]))
+    def test_resolve_checks_a_value_as_a_key_and_as_a_citation_key(self):
+        f, name = self.fake, cli.Name
+        f.add_item("ITEM0001", itemType="journalArticle", title="One", citationKey="one2020")
+        f.add_item("ATTACH01", itemType="attachment", parentItem="ITEM0001", title="PDF")
+        f.add_item("GONE0001", itemType="journalArticle", title="Gone", citationKey="gone2020", deleted=True)
+        f.add_item("DUP00001", itemType="journalArticle", title="Dup a", citationKey="dup")
+        f.add_item("DUP00002", itemType="journalArticle", title="Dup b", citationKey="dup")
+        f.add_item("ODDKEY01", itemType="journalArticle", title="Keyed like an item", citationKey="ITEM0001")
+        self.assertEqual(self.zot.resolve(name("one2020", None)), "ITEM0001")
+        self.assertEqual(self.fake.requested("GET", f"{LIB}/items/one2020"), [], "no shape of a key: no GET by key")
+        self.assertEqual(self.zot.resolve(name("ATTACH01", None)), "ATTACH01", "an attachment by its own key")
+        self.assertEqual(self.zot.resolve(name("GONE0001", None)), "GONE0001", "a key finds the trash too")
+        self.assertEqual(self.stop(self.zot.resolve, name("gone2020", None)).code, "not_found",
+                         "the quick search does not see the trash")
+        self.assertEqual(self.stop(self.zot.resolve, name("none", None)).code, "not_found")
+        failure = self.stop(self.zot.resolve, name("dup", None))
+        self.assertEqual((failure.code, failure.extra["keys"]), ("ambiguous", ["DUP00001", "DUP00002"]))
+        failure = self.stop(self.zot.resolve, name("ITEM0001", None))
+        self.assertEqual((failure.code, failure.extra["keys"]), ("ambiguous", ["ITEM0001", "ODDKEY01"]),
+                         "one item's key, another's citation key: not guessed")
+        self.assertEqual(self.zot.resolve(name("ITEM0001", "key")), "ITEM0001", "our JSON line's key is a key")
+        self.assertEqual(self.zot.resolve(name("ITEM0001", "cite")), "ODDKEY01", "and its cite a citation key")
 
-    def test_targets_keep_the_order_and_name_an_item_once(self):
-        self.fake.add_item("ITEM0001", itemType="journalArticle", title="One", citationKey="one2020")
-        out = self.zot.targets(["ITEM0001", "OTHER001"], ["one2020", "none"])
-        self.assertEqual([(k, c, f.code if f else None) for k, c, f in out],
-                         [("ITEM0001", None, None), ("OTHER001", None, None), (None, "none", "cite_not_found")])
+    def test_a_collection_by_key_path_or_name(self):
+        self.fake.add_collection("C1AAAAAA", "自然图像")
+        self.fake.add_collection("C2AAAAAA", "Diffusion", "C1AAAAAA")
+        self.fake.add_collection("C3AAAAAA", "Diffusion")
+        self.fake.add_collection("C4AAAAAA", "Old", deleted=True)
+        self.assertEqual([self.zot.collection(v) for v in ("C2AAAAAA", "自然图像/Diffusion", "自然图像")],
+                         ["C2AAAAAA", "C2AAAAAA", "C1AAAAAA"])
+        failure = self.stop(self.zot.collection, "Diffusion")
+        self.assertEqual((failure.code, failure.extra["candidates"]),
+                         ("ambiguous", [{"key": "C3AAAAAA", "path": "Diffusion"}, {"key": "C2AAAAAA", "path": "自然图像/Diffusion"}]))
+        self.assertEqual([self.stop(self.zot.collection, v).code for v in ("Old", "C4AAAAAA", "nope")],
+                         ["collection_not_found"] * 3, "the trash is no collection to file into")
+        self.assertEqual(self.zot.collection_scope("自然图像", recursive=True), ["C1AAAAAA", "C2AAAAAA"])
 
     def test_collection_tree_leaves_out_the_trash_and_what_is_under_it(self):
         self.fake.add_collection("C1AAAAAA", "医疗图像")
@@ -341,17 +357,44 @@ class Skeleton(unittest.TestCase):
         line = cli.Stop("x", exit=2, hint="h", detail="d").line(key="K")
         self.assertEqual(list(line), ["key", "code", "detail", "hint"])
 
-    def test_finish_counts_and_exits(self):
-        with mock.patch("sys.stdout") as out:
-            self.assertEqual(cli.finish([cli.ok(), cli.skipped("unchanged")]), cli.OK)
-            self.assertEqual(cli.finish([cli.ok(), {"code": "not_found"}]), cli.ACT)
-            stop = cli.Stop("key_rejected", exit=cli.CANNOT)
-            self.assertEqual(cli.finish([{"code": "not_run"}], stopped=stop), cli.CANNOT)
-        last = json.loads(out.write.call_args_list[-2][0][0])
-        self.assertEqual(last, {"summary": {"total": 1, "ok": 0, "skipped": 0, "failed": 1, "stopped": "key_rejected"}})
+    def test_lines_say_nothing_on_success_and_why_on_failure(self):
+        r = call(_Lines([cli.ok(), cli.skipped("unchanged")]))
+        self.assertEqual((r.code, len(r.lines), r.err), (cli.OK, 2, ""))
+        r = call(_Lines([cli.ok(), {"code": "not_found", "hint": "h"}]))
+        self.assertEqual((r.code, r.last), (cli.ACT, {"summary": {"total": 2, "ok": 1, "skipped": 0, "failed": 1}}))
+        r = call(_Lines([cli.ok(), cli.Stop("key_rejected", exit=cli.CANNOT, hint="h"), cli.ok()]))
+        self.assertEqual((r.code, [o["code"] for o in r.lines], r.last), (cli.CANNOT, ["ok", "not_run", "not_run"],
+                                                                           {"code": "key_rejected", "hint": "h"}))
 
-    def test_split_takes_repeats_and_commas(self):
-        self.assertEqual(cli.split(["A,B", "C", " B "]), ["A", "B", "C"])
+    def test_names_take_values_and_our_json_lines_from_stdin(self):
+        with mock.patch("sys.stdin", __import__("io").StringIO('ABCD1234\n{"key": "EFGH5678", "title": "t"}\n'
+                                                                '{"cite": "liu2022", "code": "not_found"}\n\n')):
+            self.assertEqual(cli.names(["one2020", "-"]), [cli.Name("one2020", None), cli.Name("ABCD1234", None),
+                                                           cli.Name("EFGH5678", "key"), cli.Name("liu2022", "cite")])
+        with mock.patch("sys.stdin", __import__("io").StringIO('{"tag": "x"}\n')):
+            self.assertEqual(self.stop(cli.names, ["-"]).code, "invalid_list")
+
+    def stop(self, fn, *args):
+        with self.assertRaises(cli.Stop) as caught:
+            fn(*args)
+        return caught.exception
+
+
+class _Lines:
+    """A script whose lines are the given fields, a Stop raised for a Stop given."""
+
+    def __init__(self, items):
+        self.items = items
+
+    def main(self, argv):
+        out = cli.Lines()
+        for i, item in enumerate(self.items):
+            def fn(item=item):
+                if isinstance(item, cli.Stop):
+                    raise item
+                return item
+            out.add({"n": i}, fn)
+        return out.finish()
 
 
 class Rules(unittest.TestCase):

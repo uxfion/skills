@@ -1,32 +1,30 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""List the empty fields of library items that paper-fetch's results can fill, as lines for update_item --batch.
+"""Change lines for the empty fields of library items that paper-fetch's results can fill: a change list for p2z.py update.
 
-  uv run scripts/fields_from_results.py <scratch>/paper-fetch/results/liu2022jbhi.json -o <scratch>/paper-to-zotero/fields.jsonl
-  uv run scripts/update_item.py --batch <scratch>/paper-to-zotero/fields.jsonl --dry-run
+Each result (paper-fetch's result file, identified with --slug <citation key>) names its library item by citation
+key: its `cite`, else its slug. The result is drafted into an item by p2z.py draft's own conversion (Zotero's CSL
+tables and draft's rules), and each drafted field goes to the library item's type under its own name or its base
+field's (a conferencePaper's proceedingsTitle -> a journalArticle's publicationTitle). A field the library item has
+empty and the draft has a value for is to fill; a value is never overwritten, and creators, tags, collections,
+itemType and extra are never listed. Nothing is written to Zotero here.
 
-Each RESULT (paper-fetch's result file, identified with --slug <citation key>) names its library item by citation
-key: its `cite`, else its slug. The result is drafted into an item by draft_item.py's own conversion (Zotero's CSL
-tables and draft_item's rules), and each drafted field goes to the library item's type under its own name or its
-base field's (a conferencePaper's proceedingsTitle -> a journalArticle's publicationTitle). A field the
-library item has empty and the draft has a value for is to fill; a value is never overwritten, and creators, tags,
-collections, itemType and extra are never listed. Each item with something to fill gets one line in -o FILE:
-{key (the item's, as lint_items names it), set: {field: value}, from: the result's path}; update_item --batch writes
-them. Nothing is written to Zotero here.
+The result files follow the options (- reads their paths from stdin). stdout (or -o FILE): one change line per
+item with something to fill, {key, set: {field: value}, from: the result's path, warnings?: draft's}; a result
+whose item has every field gets none. Exit 0 = every result read; 1 = a result is not one with metadata
+(result_invalid: a stub, paper-fetch could not identify the paper, or not JSON) or names no one item (not_found,
+ambiguous), each a JSON line on stderr {slug, code, ...}, then {"summary": {total, failed}} last; 2 = cannot check
+(zotero_unreachable, local_api_disabled), then stderr's last line is {code, hint}.
 
-stdout: one line per result {slug, cite?, key?, code, ...}, then {"summary": {total, ok, skipped, failed, batch,
-lines}} (lines: how many FILE holds).
-  fill             fields to fill (`fields`: their names; `warnings`: draft_item's, when it had any): a line in FILE
-  skipped          reason nothing_to_fill: the library item has every field the draft could give it
-  cite_not_found   no top-level item carries the citation key; cite_ambiguous: several do (`keys`)
-  result_invalid   not a result with metadata (a stub: paper-fetch could not identify the paper), or not JSON
-fill is an answer. Exit 0 = every result filled or skipped; 1 = some not; 2 = cannot check (zotero_unreachable,
-local_api_disabled).
+Examples:
+  p2z.py fill <scratch>/paper-fetch/results/*.json | p2z.py update -n -
+  p2z.py fill <scratch>/paper-fetch/results/liu2022jbhi.json -o <scratch>/paper-to-zotero/fields.jsonl
 """
 import json
+import sys
 from pathlib import Path
 
 import draft_item
@@ -60,46 +58,50 @@ def to_fill(draft, have, types):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("results", nargs="+", metavar="RESULT", help="paper-fetch's result files")
-    p.add_argument("-o", "--out", required=True, metavar="FILE", help="where the update_item --batch lines go")
+    p.add_argument("results", nargs="*", metavar="RESULT", help="paper-fetch's result files; - reads their paths from stdin")
+    p.add_argument("-o", "--output", metavar="FILE", help="write the change lines here instead of stdout")
     cli.add_base_url(p)
-    args = p.parse_args(argv)
+    args = cli.parse(p, argv)
+    if not args.results:
+        p.error("name the result files, or - to read their paths from stdin")
+    paths = cli.paths(args.results)
 
     def go():
-        results = [(Path(path), *read_result(path)) for path in args.results]
-        zot = zotero.Zotero(args.base_url)
-        cites = list(dict.fromkeys(res.get("cite") or res["slug"] for _, res, _ in results if res))
-        hits = zot.resolve_cites(cites) if cites else {}
-        rows = zot.items([keys[0] for keys in hits.values() if len(keys) == 1]) if hits else {}
-        schema = zot.schema() if rows else {}
-        types = zotero.types_of(schema)
-        out, batch = cli.Lines(answers=("fill",)), []
-
-        def line(path, res, cite):
-            keys = hits[cite]
-            if len(keys) != 1:
-                raise zot.cite_failure(cite, keys)
-            warnings = []
-            draft, _ = draft_item.item_of(res, schema, warnings)
-            sets = to_fill(draft, rows[keys[0]], types)
-            if not sets:
-                return cli.skipped("nothing_to_fill", key=keys[0])
-            batch.append({"key": keys[0], "set": sets, "from": str(path.absolute())})
-            return {"code": "fill", "key": keys[0], "fields": list(sets), **({"warnings": warnings} if warnings else {})}
-
+        results = [(Path(path), *read_result(path)) for path in paths]
+        zot, problems, keys = zotero.Zotero(args.base_url), [], {}
         for path, res, problem in results:
             if res is None:
-                out.lines.append({"slug": path.stem, "code": "result_invalid", "path": str(path), "detail": problem,
-                                  "hint": "Give paper-fetch's result files of identified papers."})
+                problems.append({"slug": path.stem, "code": "result_invalid", "path": str(path), "detail": problem,
+                                 "hint": "Give paper-fetch's result files of identified papers."})
                 continue
             cite = res.get("cite") or res["slug"]
-            out.add({"slug": res["slug"], "cite": cite}, lambda: line(path, res, cite))
-        target = Path(args.out).expanduser().absolute()
-        target.parent.mkdir(parents=True, exist_ok=True)
-        run.atomic_write(target, "".join(json.dumps(b, ensure_ascii=False) + "\n" for b in batch))
-        return out.finish({"batch": str(target), "lines": len(batch)})
+            try:
+                keys[path] = zot.resolve(cli.Name(cite, "cite"))
+            except cli.Stop as stop:
+                if stop.exit == cli.CANNOT:
+                    raise
+                problems.append(stop.line(slug=res["slug"], cite=cite))
+        rows = zot.items(list(dict.fromkeys(keys.values()))) if keys else {}
+        schema = zot.schema() if rows else {}
+        types, changes = zotero.types_of(schema), []
+        for path, res, _ in results:
+            if path in keys and keys[path] in rows:
+                warnings = []
+                draft, _ = draft_item.item_of(res, schema, warnings)
+                sets = to_fill(draft, rows[keys[path]], types)
+                if sets:
+                    changes.append({"key": keys[path], "set": sets, "from": str(path.absolute()),
+                                    **({"warnings": warnings} if warnings else {})})
+        text = "".join(json.dumps(c, ensure_ascii=False) + "\n" for c in changes)
+        if args.output:
+            target = Path(args.output).expanduser().absolute()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            run.atomic_write(target, text)
+        else:
+            cli.write(text)
+        return cli.summarize(len(results), len(problems), problems=problems)
 
-    return cli.run(go)
+    return cli.run(go, sys.stderr)
 
 
 if __name__ == "__main__":

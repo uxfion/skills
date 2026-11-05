@@ -2,7 +2,8 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/read_library.py against the fake Zotero."""
+"""Tests for scripts/read_library.py (p2z.py items, search, children, pdf, collections, tags, schema) against the fake Zotero."""
+import json
 import shutil
 import tempfile
 import unittest
@@ -32,13 +33,15 @@ class ReadLibrary(unittest.TestCase):
     def setUp(self):
         z = self.zot
         z.reset()
-        for i in range(250):
+        for i in range(30):
             z.add_item(f"K{i:07d}", version=i + 1, itemType="journalArticle", title=f"Paper number {i}",
-                       citationKey=f"auth{i}", collections=["C1AAAAAA"] if i % 5 == 0 else [])
+                       citationKey=f"auth{i}", collections=["C1AAAAAA"] if i % 5 == 0 else ["C2AAAAAA"] if i == 7 else [],
+                       tags=[{"tag": "a"}, {"tag": "b"}] if i < 3 else [{"tag": "a"}] if i < 6 else [])
         z.data("K0000001")["citationKey"] = z.data("K0000002")["citationKey"] = "dupkey"
         z.add_item("ATT00001", version=300, itemType="attachment", parentItem="K0000000", title="PDF",
                    contentType="application/pdf", md5="abc")
-        z.add_item("NOTE0001", version=301, itemType="note", parentItem="K0000000", note="<p>hi</p>")
+        z.add_item("NOTE0001", version=301, itemType="note", parentItem="K0000000", note="<p>speckle</p>")
+        z.add_item("ANNO0001", version=306, itemType="annotation", parentItem="ATT00001", annotationComment="look")
         # K0000004: a title outside the scheme first, a preprint, then the published version; K0000005: only a snapshot.
         z.add_item("ATT00005", version=305, itemType="attachment", parentItem="K0000004", title="Full Text PDF",
                    contentType="application/pdf", linkMode="imported_file", dateAdded="2025-12-01T00:00:00Z", md5="old")
@@ -51,121 +54,102 @@ class ReadLibrary(unittest.TestCase):
         z.files["ATT00002"] = PUBLISHED
         z.add_collection("C1AAAAAA", "医疗图像", version=1)
         z.add_collection("C2AAAAAA", "超声挑战赛", "C1AAAAAA", version=2)
-        z.add_collection("C3AAAAAA", "Agent", version=3)
+        z.add_collection("C3AAAAAA", "超声挑战赛", version=3)     # the same name at the top level
         z.add_collection("C4AAAAAA", "Old", deleted=True, version=4)
         z.add_collection("C5AAAAAA", "Orphan of Old", "C4AAAAAA", version=5)
         z.tag_meta = [{"tag": "CVPR", "meta": {"type": 0, "numItems": 4}},
                       {"tag": "Deep learning", "meta": {"type": 1, "numItems": 6}},
                       {"tag": "rare", "meta": {"type": 0, "numItems": 1}}]
 
-    def run_(self, *argv, base=None):
-        return call(read, "--base-url", base or self.zot.base_url, *argv)
+    def run_(self, command, *argv, base=None, stdin=""):
+        return call(read, command, *argv, "--base-url", base or self.zot.base_url, stdin=stdin)
 
     def gets(self, path):
         return [q for _, _, q, _ in self.zot.requested("GET", path)]
 
-    def test_items_paginates_by_100(self):
+    def keys(self, r):
+        return [row.get("key") for row in r.lines]
+
+    def test_items_picked_by_filters_in_one_request(self):
+        r = self.run_("items", "--collection", "医疗图像")
+        self.assertEqual((r.code, r.err), (0, ""), r)
+        self.assertEqual(self.keys(r), [f"K{i:07d}" for i in range(0, 30, 5)])
+        self.assertNotIn("data", r.lines[0])
+        self.assertNotIn("limit", self.gets(f"{LIB}/collections/C1AAAAAA/items/top")[0], "a listing comes whole")
+        self.assertEqual(self.keys(self.run_("items", "--collection", "医疗图像", "-r"))[-1], "K0000007",
+                         "-r: the collection under it too")
+        self.assertEqual(self.keys(self.run_("items", "--tag", "a", "--tag", "b")), ["K0000000", "K0000001", "K0000002"],
+                         "a repeated --tag: each")
+        self.assertEqual(self.keys(self.run_("items", "--since-version", "28")), ["K0000028", "K0000029"])
+        self.assertIn("ATT00001", self.keys(self.run_("items", "--collection", "C1AAAAAA", "-a")) +
+                      self.keys(self.run_("items", "-a", "--since-version", "299")), "-a: children too")
+
         r = self.run_("items")
-        self.assertEqual(r.code, 0, r)
-        rows = r.lines
-        self.assertEqual(len(rows), 250)
-        self.assertEqual((rows[0]["key"], rows[0]["version"]), ("K0000000", 1))
-        self.assertNotIn("data", rows[0])
-        self.assertTrue(all("parentItem" not in row for row in rows))
-        self.assertEqual([(q["start"], q["limit"]) for q in self.gets(f"{LIB}/items/top")],
-                         [("0", "100"), ("100", "100"), ("200", "100")])
+        self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "usage"), "nothing named: not the whole library")
+        r = self.run_("items", "--collection", "超声挑战赛")
+        self.assertEqual((r.code, r.lines[0]["code"]), (1, "ambiguous"))
+        self.assertEqual({c["path"] for c in r.lines[0]["candidates"]}, {"超声挑战赛", "医疗图像/超声挑战赛"})
 
-    def test_limit_caps_total_and_requests(self):
-        self.assertEqual(len(self.run_("items", "--limit", "150").lines), 150)
-        self.assertEqual([(q["start"], q["limit"]) for q in self.gets(f"{LIB}/items/top")], [("0", "100"), ("100", "50")])
+    def test_items_named_by_key_cite_or_stdin(self):
+        r = self.run_("items", "K0000003", "auth7", "ATT00001", "auth7", "NOPE1234", "dupkey")
+        self.assertEqual(r.code, 1, r)
+        self.assertEqual([(row.get("key") or row.get("item"), row.get("code")) for row in r.lines],
+                         [("K0000003", None), ("K0000007", None), ("ATT00001", None), ("NOPE1234", "not_found"),
+                          ("dupkey", "ambiguous")], "an attachment by its key; an item named twice once")
+        self.assertEqual(r.lines[-1]["keys"], ["K0000001", "K0000002"])
+        self.assertEqual(r.last, {"summary": {"total": 6, "failed": 2}})
 
-    def test_all_includes_children(self):
-        rows = self.run_("items", "--all").lines
-        self.assertEqual(len(rows), 256)
-        self.assertIn("ATT00001", {row["key"] for row in rows})
+        stdin = "\n".join([json.dumps({"key": "K0000009", "title": "x"}), json.dumps({"cite": "auth8"}), "auth10", ""])
+        r = self.run_("items", "-", "--collection", "医疗图像", stdin=stdin)
+        self.assertEqual((r.code, self.keys(r)), (0, ["K0000010"]), "named items pass the filters or print nothing")
+        r = self.run_("items", "-", stdin='{"tag": "a"}\n')
+        self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "invalid_list"))
 
-    def test_top_is_gone(self):
-        self.assertEqual(self.run_("items", "--top").code, 2, "--top was the default all along")
+    def test_search(self):
+        r = self.run_("search", "number", "24")
+        self.assertEqual((r.code, self.keys(r)), (0, ["K0000024"]), "the words make one query")
+        self.assertEqual(self.keys(self.run_("search", "auth13")), ["K0000013"], "the citation key, by default")
+        self.assertEqual(self.keys(self.run_("search", "--all-fields", "speckle")), ["K0000000"], "a note's hit: its parent")
+        self.assertEqual(self.keys(self.run_("search", "--all-fields", "speckle", "-a")), ["NOTE0001"])
+        self.assertEqual(self.keys(self.run_("search", "Paper", "--collection", "医疗图像", "-r", "--tag", "a")),
+                         ["K0000000", "K0000005"], "the filters keep the hits that pass")
+        r = self.run_("search", "Paper", "--collection", "超声挑战赛")
+        self.assertEqual((r.code, [row["code"] for row in r.lines]), (1, ["ambiguous"]))
+        r = self.run_("search", "nothing-like-it")
+        self.assertEqual((r.code, r.out, r.err), (1, "", ""), "no hit is exit 1, as grep")
 
-    def test_tag_filter_is_passed_to_zotero(self):
-        self.run_("items", "--tag", "venue/CVPR")
-        self.assertEqual(self.gets(f"{LIB}/items/top")[0].get("tag"), "venue/CVPR")
-
-    def test_collection_filter(self):
-        rows = self.run_("items", "--collection", "C1AAAAAA").lines
-        self.assertEqual(len(rows), 50)
-        self.assertTrue(self.gets(f"{LIB}/collections/C1AAAAAA/items/top"))
-
-    def test_keys_are_filtered_to_the_request(self):
-        r = self.run_("items", "--key", "K0000000", "--key", "K0000007,NOPE1234")
-        self.assertEqual(r.code, 1, "a key that names no item is the agent's to look at")
-        self.assertEqual((r.lines[0]["key"], r.lines[0]["code"]), ("NOPE1234", "not_found"))
-        self.assertEqual([row["key"] for row in r.lines[1:]], ["K0000000", "K0000007"], "children of a requested key left out")
-
-    def test_q_and_since(self):
-        rows = self.run_("items", "--q", "number 24").lines
-        self.assertEqual({row["key"] for row in rows}, {"K0000024", "K0000124", "K0000224"} | {f"K000024{i}" for i in range(10)},
-                         "every word, anywhere in the field, as Zotero's quick search")
-        rows = self.run_("items", "--since", "248").lines
-        self.assertEqual([row["key"] for row in rows], ["K0000248", "K0000249"])
-
-    def test_cite_resolution(self):
-        r = self.run_("items", "--cite", "auth7")
-        self.assertEqual(r.code, 0, r)
-        self.assertEqual([row["key"] for row in r.lines], ["K0000007"])
-        first = self.gets(f"{LIB}/items")[0]
-        self.assertEqual((first["q"], first["qmode"]), ("auth7", "everything"))
-        self.assertEqual(self.gets(f"{LIB}/items/top"), [], "no fallback scan when the search hits")
-
-        r = self.run_("items", "--cite", "nobody")
-        self.assertEqual((r.code, r.lines[0]["code"]), (1, "cite_not_found"))
-        self.assertTrue(self.gets(f"{LIB}/items/top"), "the fallback scan ran")
-
-        r = self.run_("items", "--cite", "dupkey")
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["keys"]), (1, "cite_ambiguous", ["K0000001", "K0000002"]))
-
-    def test_children_by_key_or_cite(self):
-        rows = self.run_("children", "--key", "K0000000").lines
-        self.assertEqual({row["key"] for row in rows}, {"ATT00001", "NOTE0001"})
-        self.assertEqual({row["key"] for row in self.run_("children", "--cite", "auth0").lines}, {"ATT00001", "NOTE0001"})
-        r = self.run_("children", "--key", "NOPE1234")
-        self.assertEqual((r.code, [(o["key"], o["code"]) for o in r.lines]), (1, [("NOPE1234", "not_found")]),
-                         "not the whole library the local API answers an unknown key with")
-        self.assertEqual(self.run_("item", "K0000003").code, 2, "`item` is `items --key`")
+    def test_children(self):
+        self.assertEqual(set(self.keys(self.run_("children", "auth0"))), {"ATT00001", "NOTE0001"})
+        self.assertEqual(self.keys(self.run_("children", "ATT00001")), ["ANNO0001"], "an attachment: its annotations")
+        r = self.run_("children", "NOPE1234")
+        self.assertEqual((r.code, r.lines), (1, [{"item": "NOPE1234", "code": "not_found", "hint": zotero.HINT_NOT_FOUND}]))
         self.assertEqual(self.run_("children").code, 2)
 
-    def test_collections_and_tree(self):
+    def test_collections_tags_schema(self):
         rows = self.run_("collections").lines
-        self.assertEqual(len(rows), 5)
-        self.assertNotIn("path", rows[0])
-        rows = self.run_("collections", "--tree").lines
-        self.assertEqual([row["path"] for row in rows], ["Agent", "医疗图像", "医疗图像/超声挑战赛"])
-        self.assertEqual(rows[2]["parentCollection"], "C1AAAAAA")
-
-    def test_tags_min_count(self):
+        self.assertEqual([row["path"] for row in rows], ["医疗图像", "医疗图像/超声挑战赛", "超声挑战赛"])
+        self.assertEqual(rows[1]["parentCollection"], "C1AAAAAA")
+        self.assertEqual(len(self.run_("collections", "-a").lines), 5, "-a: the trash's too")
         self.assertEqual(self.run_("tags").lines[0], {"tag": "CVPR", "type": 0, "count": 4})
         self.assertEqual([row["tag"] for row in self.run_("tags", "--min-count", "3").lines], ["CVPR", "Deep learning"])
-
-    def test_schema_once(self):
         rows = self.run_("schema").lines
         self.assertEqual((len(rows), rows[0]["version"]), (1, 44))
 
-    def test_pdf_by_version_with_path_and_md5(self):
-        r = self.run_("pdf", "--cite", "auth4")
-        self.assertEqual(r.code, 0, r)
-        rows = r.lines
-        self.assertEqual([(row["attachment"], row["version"], row["source"], row["detail"], row["standard"], row["md5"], row["exists"])
-                          for row in rows],
+    def test_pdf(self):
+        r = self.run_("pdf", "auth4")
+        self.assertEqual((r.code, r.err), (0, ""), r)
+        self.assertEqual([(row["attachment"], row["version"], row["source"], row["detail"], row["standard"], row["md5"],
+                           row["exists"]) for row in r.lines],
                          [("ATT00002", "published", "IEEE", ["in_press"], True, "pub", True),
                           ("ATT00003", "preprint", "arXiv", ["v3"], True, "pre", False),
                           ("ATT00005", "unknown", None, [], False, "old", False)], "a title outside the scheme: unknown")
-        self.assertEqual((rows[0]["path"], rows[0]["citationKey"], rows[0]["title"]), (str(PUBLISHED), "auth4", "Paper number 4"))
-        self.assertIsNone(rows[1]["path"])
+        self.assertEqual((r.lines[0]["path"], r.lines[0]["citationKey"]), (str(PUBLISHED), "auth4"))
+        self.assertIsNone(r.lines[1]["path"])
 
-    def test_pdf_without_one(self):
-        r = self.run_("pdf", "--key", "K0000005")
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["attachments"]), (1, "no_pdf", ["text/html"]))
-        self.assertEqual(self.run_("pdf").code, 2, "pdf needs --key or --cite")
+        r = self.run_("pdf", "K0000005", "ATT00002")
+        self.assertEqual([(row["code"], row.get("attachments") or row.get("parentItem")) for row in r.lines],
+                         [("no_pdf", ["text/html"]), ("not_a_parent", "K0000004")])
+        self.assertEqual((r.code, r.last), (1, {"summary": {"total": 2, "failed": 2}}))
 
     def test_local_path(self):
         self.assertEqual(zotero.local_path("file:///home/me/Zotero/storage/AB12CD34/a%20b.pdf"),
@@ -174,16 +158,20 @@ class ReadLibrary(unittest.TestCase):
         self.assertEqual(win, "/mnt/c/Users/me/Zotero/storage/AB12CD34/a b.pdf" if shutil.which("wslpath")
                          else "C:/Users/me/Zotero/storage/AB12CD34/a b.pdf")
 
-    def test_unreachable_and_disabled(self):
-        r = self.run_("items", base=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "zotero_unreachable"))
+    def test_cannot_read(self):
+        r = self.run_("pdf", "auth4", "auth5", base=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, r.lines, r.last["code"]), (2, [{"item": "auth4", "code": "not_run"},
+                                                                 {"item": "auth5", "code": "not_run"}], "zotero_unreachable"))
         self.zot.disabled = True
         r = self.run_("tags")
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "local_api_disabled"))
+        self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "local_api_disabled"))
 
-    def test_smoke(self):
-        r = smoke("read_library", "--base-url", self.zot.base_url, "items", "--limit", "2")
-        self.assertEqual((r.code, len(r.lines)), (0, 2), r)
+    def test_through_the_entry(self):
+        r = smoke("search", "--base-url", self.zot.base_url, "auth13")
+        self.assertEqual((r.code, [row["key"] for row in r.lines], r.err), (0, ["K0000013"], ""), r)
+        r = smoke("pdf", "-h")
+        self.assertEqual(r.code, 0)
+        self.assertTrue(r.out.startswith("usage: p2z.py pdf "), r.out[:80])
 
 
 if __name__ == "__main__":

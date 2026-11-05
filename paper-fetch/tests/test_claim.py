@@ -158,7 +158,7 @@ class Claim(unittest.TestCase):
         r = call(claim, "--help")
         self.assertEqual(r.code, 0)
         self.assertIn(claim.__doc__.strip().splitlines()[0], r.out)
-        self.assertIn("find_in_library --file", r.out)
+        self.assertIn("p2z.py have <files>", r.out)
 
     def test_smoke(self):
         self.assertEqual(smoke("claim", "--dir", self.work.root, "--scan").code, 0)

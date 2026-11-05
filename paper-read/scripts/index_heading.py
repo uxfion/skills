@@ -15,7 +15,7 @@ The line is `## <citation key> · <title> · <common names>（<venues> <year>）
 
 stdout: one JSON line per citation key, in the order given.
   ok      {cite, code, heading}
-  other   paper-to-zotero's own line for a key it could not resolve (cite_not_found, cite_ambiguous, not_found)
+  other   paper-to-zotero's own line for a key it could not resolve (not_found, ambiguous), under `cite`
 Exit 0 = every key resolved; 1 = some did not; 2 = paper-to-zotero could not be run.
 """
 import argparse
@@ -40,6 +40,12 @@ def p2z(*args):
             lines.append(json.loads(line))
         except json.JSONDecodeError:
             continue
+    if done.returncode >= 2:  # it could not go on: why is stderr's last line, {code, hint}
+        last = (done.stderr.strip().splitlines() or [""])[-1]
+        try:
+            lines.append(json.loads(last))
+        except json.JSONDecodeError:
+            lines.append({"code": "failed", "detail": last})
     return lines, done.returncode, done.stderr
 
 
@@ -63,12 +69,13 @@ def main(argv=None):
     p.add_argument("--cite", nargs="+", required=True, metavar="CITE", help="citation key(s)")
     args = p.parse_args(argv)
     cites = list(dict.fromkeys(args.cite))
-    lines, code, err = p2z("read_library", "items", "--cite", *cites)
+    lines, code, err = p2z("items", *cites)
     if code >= 2:
-        print(json.dumps({"code": "failed", "detail": err.strip() or lines}, ensure_ascii=False))
+        print(json.dumps({"code": "failed", "detail": lines}, ensure_ascii=False))
         return 2
     items = {l["citationKey"]: l for l in lines if "itemType" in l and l.get("citationKey")}
-    failures = {l.get("cite"): l for l in lines if "itemType" not in l and l.get("code")}
+    failures = {l.get("item"): {"cite": l.get("item"), **{k: v for k, v in l.items() if k != "item"}}
+                for l in lines if "itemType" not in l and l.get("code")}
     missing = False
     for cite in cites:
         if cite in items:

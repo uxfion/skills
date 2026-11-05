@@ -54,7 +54,8 @@ DETAIL = 600
 
 
 def run(script, *args):
-    """A sibling skill's script run through uv -> (its JSON lines, exit code, stderr)."""
+    """A sibling skill's script run through uv -> (its JSON lines, exit code, stderr). When p2z.py could not go on (exit
+    2), stderr's last line {code, hint} says why: it stands in for the not_run lines."""
     done = subprocess.run(["uv", "run", "--quiet", script, *args], capture_output=True, text=True)
     lines = []
     for line in done.stdout.splitlines():
@@ -62,7 +63,15 @@ def run(script, *args):
             lines.append(json.loads(line))
         except json.JSONDecodeError:
             continue
-    return [l for l in lines if isinstance(l, dict)], done.returncode, done.stderr
+    lines = [l for l in lines if isinstance(l, dict)]
+    if done.returncode >= 2:
+        try:
+            last = json.loads((done.stderr.strip().splitlines() or [""])[-1])
+        except json.JSONDecodeError:
+            last = None
+        if isinstance(last, dict):
+            lines = [l for l in lines if l.get("code") != "not_run"] + [last]
+    return lines, done.returncode, done.stderr
 
 
 def write(path, text):
@@ -110,7 +119,7 @@ def locate(keys, package, pdf, key):
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in entries.values()))
-        lines, _, err = run(P2Z, "annotate", key, "--batch", batch)
+        lines, _, err = run(P2Z, "annotate", key, batch)
     finally:
         os.unlink(batch)
     answers = {l["comment"]: l for l in lines if "comment" in l}

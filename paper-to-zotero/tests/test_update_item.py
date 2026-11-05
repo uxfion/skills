@@ -65,8 +65,8 @@ class UpdateItem(unittest.TestCase):
         z.add_item(DUP1, version=14, itemType="journalArticle", title="Dup one", citationKey="dupkey")
         z.add_item(DUP2, version=15, itemType="journalArticle", title="Dup two", citationKey="dupkey")
 
-    def run_(self, *argv, base_url=None, config=None):
-        return call(update, *argv, "--base-url", base_url or self.zot.base_url, config=config or self.config)
+    def run_(self, *argv, base_url=None, config=None, stdin=""):
+        return call(update, *argv, "--base-url", base_url or self.zot.base_url, config=config or self.config, stdin=stdin)
 
     def patches(self):
         return [(p.rsplit("/", 1)[1], json.loads(body)) for _, p, _, body in self.zot.requested("PATCH")]
@@ -77,7 +77,7 @@ class UpdateItem(unittest.TestCase):
         return path
 
     def test_set_writes_what_differs_and_reads_it_back(self):
-        r = self.run_("--key", JOURNAL, "--set", "date=2023", "--set", "DOI= 10.1109/CVPR.2023.1 ", "--set", "pages=1-10")
+        r = self.run_(JOURNAL, "--set", "date=2023", "--set", "DOI= 10.1109/CVPR.2023.1 ", "--set", "pages=1-10")
         self.assertEqual(r.code, 0, r)
         line = r.lines[0]
         self.assertEqual(line, {"key": JOURNAL, "code": "ok",
@@ -85,35 +85,35 @@ class UpdateItem(unittest.TestCase):
                                 "mapped_fields": {}, "fields_to_extra": {}, "applied": ["date", "DOI"], "normalized": {},
                                 "version_before": 10, "version_after": line["version_after"], "retried": False})
         self.assertGreater(line["version_after"], 10)
-        self.assertEqual(r.lines[-1], {"summary": {"total": 1, "ok": 1, "skipped": 0, "failed": 0}})
+        self.assertEqual((len(r.lines), r.err), (1, ""))
         self.assertEqual(self.patches(), [(JOURNAL, {"date": "2023", "DOI": "10.1109/CVPR.2023.1"})])
         self.assertEqual(self.zot.data(JOURNAL)["DOI"], "10.1109/CVPR.2023.1")
 
     def test_rerun_is_skipped_unchanged(self):
-        self.run_("--key", JOURNAL, "--set", "date=2023")
-        r = self.run_("--key", JOURNAL, "--set", "date=2023")
+        self.run_(JOURNAL, "--set", "date=2023")
+        r = self.run_(JOURNAL, "--set", "date=2023")
         self.assertEqual(r.code, 0, r)
         self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"], r.lines[0]["retried"]), ("skipped", "unchanged", False))
         self.assertNotIn("hint", r.lines[0])
-        self.assertEqual(r.lines[-1]["summary"], {"total": 1, "ok": 0, "skipped": 1, "failed": 0})
+        self.assertEqual(r.err, "")
         self.assertEqual(len(self.patches()), 1)
 
     def test_every_item_named_gets_the_same_set(self):
-        r = self.run_("--key", JOURNAL, "--cite", "chen2021conf", "--set", "date=2024")
+        r = self.run_(JOURNAL, "chen2021conf", "--set", "date=2024")
         self.assertEqual(r.code, 0, r)
         self.assertEqual([(o["key"], o.get("cite"), o["code"]) for o in r.lines[:2]],
                          [(JOURNAL, None, "ok"), (CONF, "chen2021conf", "ok")])
         self.assertEqual(self.patches(), [(JOURNAL, {"date": "2024"}), (CONF, {"date": "2024"})])
 
     def test_base_name_goes_to_the_types_own_field(self):
-        r = self.run_("--key", CONF, "--set", "publicationTitle=Proc. CVPR 2023")
+        r = self.run_(CONF, "--set", "publicationTitle=Proc. CVPR 2023")
         self.assertEqual(r.code, 0, r)
         self.assertEqual(r.lines[0]["mapped_fields"], {"publicationTitle": "proceedingsTitle"})
         self.assertEqual(r.lines[0]["applied"], ["proceedingsTitle"])
         self.assertEqual(self.patches(), [(CONF, {"proceedingsTitle": "Proc. CVPR 2023"})])
 
     def test_type_change_lists_the_fields_zotero_moves_to_extra(self):
-        r = self.run_("--key", JOURNAL, "--set", "itemType=conferencePaper", "--set", "conferenceName=CVPR", "--dry-run")
+        r = self.run_(JOURNAL, "--set", "itemType=conferencePaper", "--set", "conferenceName=CVPR", "--dry-run")
         self.assertEqual(r.code, 0, r)
         line = r.lines[0]
         self.assertEqual(line["fields_to_extra"], {"journalAbbreviation": "Old J.", "volume": "12"},
@@ -123,7 +123,7 @@ class UpdateItem(unittest.TestCase):
         self.assertEqual(self.zot.writes(), [])
 
         self.zot.on_write = changes_type_to_conference
-        r = self.run_("--key", JOURNAL, "--set", "itemType=conferencePaper", "--set", "conferenceName=CVPR")
+        r = self.run_(JOURNAL, "--set", "itemType=conferencePaper", "--set", "conferenceName=CVPR")
         self.assertEqual(r.code, 0, r)
         line = r.lines[0]
         self.assertEqual(line["applied"], ["itemType", "conferenceName"])
@@ -132,20 +132,19 @@ class UpdateItem(unittest.TestCase):
         self.assertEqual(self.zot.data(JOURNAL)["proceedingsTitle"], "Old Journal")
 
     def test_type_change_keeps_a_type_field_through_its_base_field(self):
-        r = self.run_("--key", CONF, "--set", "itemType=journalArticle", "--dry-run")
+        r = self.run_(CONF, "--set", "itemType=journalArticle", "--dry-run")
         self.assertEqual(r.code, 0, r)
         self.assertEqual(r.lines[0]["fields_to_extra"], {"conferenceName": "OLDCONF"},
                          "proceedingsTitle goes to journalArticle's publicationTitle")
 
     def test_dry_run_plans_and_writes_nothing(self):
-        r = self.run_("--key", JOURNAL, CONF, "--set", "date=2022", "--set", "publicationTitle=New", "--dry-run")
+        r = self.run_(JOURNAL, CONF, "--set", "date=2022", "--set", "publicationTitle=New", "--dry-run")
         self.assertEqual(r.code, 0, r)
         out = r.lines
         self.assertEqual(out[0], {"key": JOURNAL, "code": "ok", "changes": {"publicationTitle": {"from": "Old Journal", "to": "New"}},
                                   "mapped_fields": {}, "fields_to_extra": {}, "version": 10, "dry_run": True})
         self.assertEqual((out[1]["mapped_fields"], out[1]["dry_run"]), ({"publicationTitle": "proceedingsTitle"}, True))
-        self.assertEqual(out[-1]["summary"], {"total": 2, "ok": 2, "skipped": 0, "failed": 0, "dry_run": True})
-        r = self.run_("--key", JOURNAL, "--set", "date=2022", "--dry-run")
+        r = self.run_(JOURNAL, "--set", "date=2022", "--dry-run")
         self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"], r.lines[0]["version"]), ("skipped", "unchanged", 10))
         self.assertEqual(self.zot.writes(), [])
 
@@ -153,7 +152,7 @@ class UpdateItem(unittest.TestCase):
         patch = self.patch_file({"creators": [{"creatorType": "author", "firstName": " Ada ", "lastName": "Lovelace"},
                                               {"creatorType": "editor", "name": "The Editors"}],
                                  "volume": 13, "date": "2020", "extra": "arXiv: 2205.07680\nTLDR: short"})
-        r = self.run_("--key", JOURNAL, "--patch", patch, "--set", "date=2021")
+        r = self.run_(JOURNAL, "--patch", patch, "--set", "date=2021")
         self.assertEqual(r.code, 0, r)
         creators = [{"creatorType": "author", "firstName": "Ada", "lastName": "Lovelace"},
                     {"creatorType": "editor", "name": "The Editors"}]
@@ -166,14 +165,14 @@ class UpdateItem(unittest.TestCase):
     def test_invalid_creators(self):
         patch = self.patch_file({"creators": [{"creatorType": "translator", "lastName": "X"},
                                               {"creatorType": "author", "first": "Y"}]})
-        r = self.run_("--key", JOURNAL, "--patch", patch)
+        r = self.run_(JOURNAL, "--patch", patch)
         self.assertEqual((r.code, r.lines[0]["code"], len(r.lines[0]["problems"])), (1, "invalid_creators", 2), r)
         self.assertIn("hint", r.lines[0])
-        r = self.run_("--key", JOURNAL, "--patch", self.patch_file({"creators": "Ada Lovelace"}))
+        r = self.run_(JOURNAL, "--patch", self.patch_file({"creators": "Ada Lovelace"}))
         self.assertEqual(r.lines[0]["code"], "invalid_creators")
         self.assertEqual(self.zot.writes(), [])
 
-    def test_bad_input_is_one_line_before_zotero_is_asked(self):
+    def test_bad_input_stops_before_zotero_is_asked(self):
         cases = [(("--set", "tags=a"), "refused_property"),
                  (("--patch", self.patch_file({"collections": ["ABCD1234"]})), "refused_property"),
                  (("--set", "deleted=1"), "refused_property"),
@@ -183,17 +182,17 @@ class UpdateItem(unittest.TestCase):
                  (("--patch", self.patch_file({})), "invalid_patch_file"),
                  (("--patch", self.patch_file({"title": ["a", "b"]})), "invalid_field")]
         for argv, code in cases:
-            r = self.run_("--key", JOURNAL, *argv)
-            self.assertEqual((r.code, len(r.lines), r.lines[0]["code"]), (1, 1, code), (argv, r))
-            self.assertIn("hint", r.lines[0])
-        self.assertEqual(r.lines[0]["field"], "title")
+            r = self.run_(JOURNAL, *argv)
+            self.assertEqual((r.code, r.out, r.last["code"]), (2, "", code), (argv, r))
+            self.assertIn("hint", r.last)
+        self.assertEqual(r.last["field"], "title")
         self.assertEqual(self.zot.requests, [], "nothing was asked of Zotero")
-        self.assertEqual(self.run_("--key", JOURNAL, "--set", "novalue").code, 2, "--set takes FIELD=VALUE")
-        self.assertEqual(self.run_("--key", JOURNAL).code, 2, "--set or --patch is required")
-        self.assertEqual(self.run_("--set", "date=2023").code, 2, "--key or --cite is required")
+        self.assertEqual(self.run_(JOURNAL, "--set", "novalue").last["code"], "usage", "--set takes FIELD=VALUE")
+        self.assertEqual(self.run_(JOURNAL).last["code"], "invalid_changes", "no --set: JOURNAL is read as a change list")
+        self.assertEqual(self.run_("--set", "date=2023").code, 2, "the items are required")
 
     def test_invalid_field_and_item_type_fail_their_own_item(self):
-        r = self.run_("--key", CONF, JOURNAL, "--set", "volume=3")
+        r = self.run_(CONF, JOURNAL, "--set", "volume=3")
         self.assertEqual(r.code, 1)
         self.assertEqual([o["code"] for o in r.lines[:2]], ["invalid_field", "ok"])
         self.assertEqual(r.lines[0]["invalid_fields"], ["volume"])
@@ -203,21 +202,21 @@ class UpdateItem(unittest.TestCase):
 
         for key, argv in ((JOURNAL, ("--set", "itemType=bogus")), (NOTE, ("--set", "title=x")),
                           (ATT, ("--set", "itemType=journalArticle"))):
-            r = self.run_("--key", key, *argv)
+            r = self.run_(key, *argv)
             self.assertEqual((r.code, r.lines[0]["code"]), (1, "invalid_item_type"), (key, r))
-        r = self.run_("--key", ATT, "--set", "title=Accepted manuscript")
+        r = self.run_(ATT, "--set", "title=Accepted manuscript")
         self.assertEqual((r.code, r.lines[0]["applied"]), (0, ["title"]), "an attachment's title is a field like any other")
 
     def test_412_once_retries_twice_conflicts(self):
         self.zot.bump_before_write = 1
-        r = self.run_("--key", JOURNAL, "--set", "date=2023")
+        r = self.run_(JOURNAL, "--set", "date=2023")
         self.assertEqual(r.code, 0, r)
         self.assertEqual((r.lines[0]["code"], r.lines[0]["retried"], r.lines[0]["version_before"]), ("ok", True, 101))
         self.assertEqual(len(self.patches()), 2)
 
         self.setUp()
         self.zot.bump_before_write = 2
-        r = self.run_("--key", JOURNAL, "--set", "date=2023")
+        r = self.run_(JOURNAL, "--set", "date=2023")
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "version_conflict"))
         self.assertIn("hint", r.lines[0])
         self.assertEqual(len(self.patches()), 2)
@@ -225,7 +224,7 @@ class UpdateItem(unittest.TestCase):
     def test_412_plans_again_on_what_changed_meanwhile(self):
         self.zot.bump_before_write = 1
         self.zot.concurrent_edit = lambda it: it["data"].update(date="2023")
-        r = self.run_("--key", JOURNAL, "--set", "date=2023", "--set", "DOI=10.1/x")
+        r = self.run_(JOURNAL, "--set", "date=2023", "--set", "DOI=10.1/x")
         self.assertEqual(r.code, 0, r)
         self.assertEqual(self.patches(), [(JOURNAL, {"date": "2023", "DOI": "10.1/x"}), (JOURNAL, {"DOI": "10.1/x"})])
         self.assertEqual(r.lines[0]["changes"], {"DOI": {"from": "", "to": "10.1/x"}})
@@ -233,21 +232,21 @@ class UpdateItem(unittest.TestCase):
         self.setUp()
         self.zot.bump_before_write = 1
         self.zot.concurrent_edit = lambda it: it["data"].update(date="2023")
-        r = self.run_("--key", JOURNAL, "--set", "date=2023")
+        r = self.run_(JOURNAL, "--set", "date=2023")
         self.assertEqual(r.code, 0, r)
         self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"], r.lines[0]["retried"]), ("skipped", "unchanged", True))
         self.assertEqual(len(self.patches()), 1)
 
     def test_readback_mismatch(self):
         self.zot.ignore_writes = True
-        r = self.run_("--key", JOURNAL, "--set", "date=2023")
+        r = self.run_(JOURNAL, "--set", "date=2023")
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "readback_mismatch"), r)
         self.assertEqual(r.lines[0]["mismatch"], {"date": {"sent": "2023", "now": "2022"}})
         self.assertIn("hint", r.lines[0])
 
     def test_values_zotero_normalized(self):
         self.zot.on_write = moves_pmid_line
-        r = self.run_("--key", JOURNAL, "--patch", self.patch_file({"extra": "TLDR: a summary\nPMID: 38262200"}))
+        r = self.run_(JOURNAL, "--patch", self.patch_file({"extra": "TLDR: a summary\nPMID: 38262200"}))
         self.assertEqual(r.code, 0, r)
         line = r.lines[0]
         self.assertEqual((line["code"], line["applied"]), ("ok", []))
@@ -256,58 +255,58 @@ class UpdateItem(unittest.TestCase):
         self.assertEqual(self.zot.data(JOURNAL)["PMID"], "38262200")
 
         self.zot.on_write = lambda it: it["data"].update(date="2023-01-05")
-        r = self.run_("--key", JOURNAL, "--set", "date=2023-1-5")
+        r = self.run_(JOURNAL, "--set", "date=2023-1-5")
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
         self.assertEqual(r.lines[0]["normalized"], {"date": {"sent": "2023-1-5", "now": "2023-01-05"}})
 
     def test_write_denied_and_write_failed(self):
         self.zot.write_status = (403, "Write access denied")
-        r = self.run_("--key", JOURNAL, "--set", "date=2023")
+        r = self.run_(JOURNAL, "--set", "date=2023")
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["detail"]), (1, "write_denied", "Write access denied"))
         self.zot.write_status = (400, "Invalid field value")
-        r = self.run_("--key", JOURNAL, "--set", "date=2023")
+        r = self.run_(JOURNAL, "--set", "date=2023")
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["status"]), (1, "write_failed", 400))
 
     def test_not_found_and_cite_resolution(self):
-        r = self.run_("--key", "GONE0000", "--cite", "liu2022paper", "nobody", "dupkey", "--set", "date=2023")
+        r = self.run_("GONE0000", "liu2022paper", "nobody", "dupkey", "--set", "date=2023")
         self.assertEqual(r.code, 1)
         out = r.lines
-        self.assertEqual((out[0]["key"], out[0]["code"]), ("GONE0000", "not_found"))
+        self.assertEqual((out[0]["item"], out[0]["code"]), ("GONE0000", "not_found"))
         self.assertIn("hint", out[0])
         self.assertEqual((out[1]["key"], out[1]["cite"], out[1]["code"]), (JOURNAL, "liu2022paper", "ok"))
-        self.assertEqual(out[2], {"cite": "nobody", "code": "cite_not_found", "hint": out[2]["hint"]})
-        self.assertEqual((out[3]["code"], out[3]["keys"]), ("cite_ambiguous", [DUP1, DUP2]))
-        self.assertEqual(out[-1]["summary"], {"total": 4, "ok": 1, "skipped": 0, "failed": 3})
+        self.assertEqual(out[2], {"item": "nobody", "code": "not_found", "hint": out[2]["hint"]})
+        self.assertEqual((out[3]["code"], out[3]["keys"]), ("ambiguous", [DUP1, DUP2]))
+        self.assertEqual(r.last["summary"], {"total": 4, "ok": 1, "skipped": 0, "failed": 3})
         self.assertEqual(self.patches(), [(JOURNAL, {"date": "2023"})])
 
-    def test_batch_entries_run_in_file_order_each_its_own_line(self):
+    def test_changes_run_in_the_lists_order_each_its_own_line(self):
         lines = [{"key": JOURNAL, "set": {"date": "2023", "DOI": " 10.1/x ", "volume": 13}, "from": "a note", "why": "ignored"},
                  {"cite": "chen2021conf", "set": {"publicationTitle": "Proc. New"}},
                  {"cite": "nobody", "set": {"date": "2020"}},
                  {"key": ATT, "set": {"title": "Accepted-arXiv-v2"}, "by": "judge"},
                  {"key": JOURNAL, "set": {"date": "2023"}}]
         batch = self.patch_file("\n".join(map(json.dumps, lines[:2])) + "\n\n" + "\n".join(map(json.dumps, lines[2:])) + "\n")
-        r = self.run_("--batch", batch, "--dry-run")
+        r = self.run_(batch, "-n")
         self.assertEqual(r.code, 1, r)
-        self.assertEqual([(o.get("key"), o.get("cite"), o["code"]) for o in r.lines[:-1]],
-                         [(JOURNAL, None, "ok"), (CONF, "chen2021conf", "ok"), (None, "nobody", "cite_not_found"),
-                          (ATT, None, "ok"), (JOURNAL, None, "ok")], "a dry run plans each entry on the item as it is")
-        self.assertEqual(r.lines[-1]["summary"], {"total": 5, "ok": 4, "skipped": 0, "failed": 1, "dry_run": True})
+        self.assertEqual([(o.get("key") or o.get("item"), o.get("cite"), o["code"]) for o in r.lines],
+                         [(JOURNAL, None, "ok"), (CONF, "chen2021conf", "ok"), ("nobody", None, "not_found"),
+                          (ATT, None, "ok"), (JOURNAL, None, "ok")], "a dry run plans each change on the item as it is")
+        self.assertEqual(r.last["summary"], {"total": 5, "ok": 4, "skipped": 0, "failed": 1})
         self.assertEqual(self.zot.writes(), [])
 
-        r = self.run_("--batch", batch)
+        r = self.run_("-", stdin=batch.read_text(encoding="utf-8"))
         self.assertEqual(r.code, 1, r)
         out = r.lines
-        self.assertEqual([o["code"] for o in out[:-1]], ["ok", "ok", "cite_not_found", "ok", "skipped"])
+        self.assertEqual([o["code"] for o in out], ["ok", "ok", "not_found", "ok", "skipped"])
         self.assertEqual(out[0]["changes"], {"date": {"from": "2022", "to": "2023"}, "DOI": {"from": "", "to": "10.1/x"},
                                              "volume": {"from": "12", "to": "13"}})
         self.assertEqual(out[1]["mapped_fields"], {"publicationTitle": "proceedingsTitle"})
         self.assertEqual(out[4]["reason"], "unchanged", "the second entry for JOURNAL meets the first's write")
         self.assertEqual(self.patches(), [(JOURNAL, {"date": "2023", "DOI": "10.1/x", "volume": "13"}),
                                           (CONF, {"proceedingsTitle": "Proc. New"}), (ATT, {"title": "Accepted-arXiv-v2"})])
-        self.assertEqual(out[-1]["summary"], {"total": 5, "ok": 3, "skipped": 1, "failed": 1})
+        self.assertEqual(r.last["summary"], {"total": 5, "ok": 3, "skipped": 1, "failed": 1})
 
-    def test_a_malformed_batch_is_refused_before_zotero_is_asked(self):
+    def test_a_malformed_change_list_is_refused_before_zotero_is_asked(self):
         good = json.dumps({"key": JOURNAL, "set": {"date": "2023"}})
         for text in ("{not json",
                      "[1, 2]",
@@ -319,36 +318,32 @@ class UpdateItem(unittest.TestCase):
                      json.dumps({"key": JOURNAL, "set": {}}),
                      json.dumps({"key": JOURNAL, "set": {"tags": ["x"]}}),
                      json.dumps({"key": JOURNAL, "set": {"title": ["a", "b"]}})):
-            r = self.run_("--batch", self.patch_file(good + "\n" + text))
-            self.assertEqual((r.code, len(r.lines), r.lines[0]["code"]), (1, 1, "invalid_batch"), (text, r))
-            self.assertTrue(r.lines[0]["hint"] and r.lines[0]["detail"], text)
-        self.assertEqual(self.run_("--batch", self.patch_file("\n")).lines[0]["detail"], ["no entries"])
-        r = self.run_("--batch", self.patch_file("\n".join([good, json.dumps({"cite": 7, "set": {"x": 1}}),
-                                                            json.dumps({"key": CONF, "set": {"collections": []}})])))
-        self.assertEqual([d.split(":")[0] for d in r.lines[0]["detail"]], ["line 2 (cite 7)", "line 3 (key CONFPAP1)"])
-        self.assertIn("refused_property 'collections'", r.lines[0]["detail"][1])
-        self.assertEqual(self.run_("--batch", self.tmp / "missing.jsonl").lines[0]["code"], "invalid_batch")
+            r = self.run_(self.patch_file(good + "\n" + text))
+            self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "invalid_changes"), (text, r))
+            self.assertTrue(r.last["hint"] and r.last["detail"], text)
+        r = self.run_(self.patch_file("\n"))
+        self.assertEqual((r.code, r.out, r.err), (0, "", ""), "an empty change list is nothing to change")
+        r = self.run_(self.patch_file("\n".join([good, json.dumps({"cite": 7, "set": {"x": 1}}),
+                                                 json.dumps({"key": CONF, "set": {"collections": []}})])))
+        self.assertEqual([d.split(":")[0].split(" ", 1)[1] for d in r.last["detail"]],
+                         ["line 2 (cite 7)", "line 3 (key CONFPAP1)"])
+        self.assertIn("refused_property 'collections'", r.last["detail"][1])
+        self.assertEqual(self.run_(self.tmp / "missing.jsonl").last["code"], "invalid_changes")
+        r = self.run_("-", stdin=json.dumps({"key": JOURNAL, "version": 10, "itemType": "journalArticle"}))
+        self.assertEqual((r.code, r.last["code"]), (2, "item_line"))
         self.assertEqual(self.zot.requests, [], "nothing was asked of Zotero")
-        batch = self.patch_file(good)
-        for argv in (("--key", JOURNAL), ("--cite", "liu2022paper"), ("--set", "date=1"), ("--patch", batch)):
-            self.assertEqual(self.run_("--batch", batch, *argv).code, 2, f"--batch excludes {argv[0]}")
 
     def test_cannot_check(self):
-        r = self.run_("--key", JOURNAL, "--set", "date=2023", base_url=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "zotero_unreachable"))
-        r = self.run_("--key", JOURNAL, "--set", "date=2023", config=config_file(key=None))
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "no_key"))
-        r = self.run_("--key", JOURNAL, CONF, "--set", "date=2023", config=config_file(key="wrong"))
-        self.assertEqual(r.code, 2)
-        self.assertEqual([o["code"] for o in r.lines[:2]], ["key_rejected", "not_run"], "the item it stopped on says why")
-        self.assertEqual(r.lines[-1]["summary"]["stopped"], "key_rejected")
+        r = self.run_(JOURNAL, "--set", "date=2023", base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, r.lines, r.last["code"]), (2, [{"item": JOURNAL, "code": "not_run"}], "zotero_unreachable"))
+        r = self.run_(JOURNAL, "--set", "date=2023", config=config_file(key=None))
+        self.assertEqual((r.code, r.last["code"]), (2, "no_key"))
+        r = self.run_(JOURNAL, CONF, "--set", "date=2023", config=config_file(key="wrong"))
+        self.assertEqual((r.code, [o["code"] for o in r.lines], r.last["code"]), (2, ["not_run", "not_run"], "key_rejected"))
 
     def test_smoke(self):
-        r = smoke("update_item", "--key", JOURNAL, "--set", "date=2023", "--dry-run", "--base-url", self.zot.base_url,
-                  config=self.config)
-        self.assertEqual(r.code, 0, r)
-        self.assertEqual(r.lines[0]["code"], "ok")
-        self.assertEqual(r.lines[-1]["summary"]["total"], 1)
+        r = smoke("update", JOURNAL, "--set", "date=2023", "-n", "--base-url", self.zot.base_url, config=self.config)
+        self.assertEqual((r.code, r.err, r.lines[0]["code"]), (0, "", "ok"), r)
 
 
 class MovedToFields(unittest.TestCase):

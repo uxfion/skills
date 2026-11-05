@@ -17,7 +17,7 @@
   --watch                    --scan every few seconds until the directory goes or the process is stopped; run
                              it in the background while the browser is in use (its pid is kept in run.json)
   --sweep                    end of run: what this run left in Downloads (newer than .started), each with its md5 and
-                             size; whether the library holds one is paper-to-zotero's to say (find_in_library --file)
+                             size; whether the library holds one is paper-to-zotero's to say (p2z.py have <files>)
 
 --file consumes only this run's files: one in the directory or one of this run's downloads is moved; any other (a PDF
 in Zotero's storage, the user's own) is copied and left where it was. An agent's answers — accepting a held file,

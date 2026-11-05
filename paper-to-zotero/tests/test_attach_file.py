@@ -171,7 +171,7 @@ class AttachFile(unittest.TestCase):
 
     def test_smoke(self):
         self.settle(status="waiting")
-        r = smoke("attach_file", self.rec, "--base-url", self.zot.base_url, config=self.config)
+        r = smoke("attach", self.rec, "--base-url", self.zot.base_url, config=self.config)
         self.assertEqual((r.code, r.lines[0]["reason"], r.lines[0]["status"]), (0, "no_file_yet", "waiting"), r)
 
 

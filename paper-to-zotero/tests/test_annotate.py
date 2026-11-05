@@ -39,7 +39,7 @@ class Annotate(unittest.TestCase):
         batch = self.dir / "batch.jsonl"
         batch.write_text("\n".join(e if isinstance(e, str) else json.dumps(e, ensure_ascii=False) for e in entries),
                          encoding="utf-8")
-        return call(annotate, pdf, "--batch", batch, *extra, "--base-url", self.zot.base_url, config=self.config)
+        return call(annotate, pdf, batch, *extra, "--base-url", self.zot.base_url, config=self.config)
 
     def stored(self):
         return [it["data"] for it in self.zot.items.values() if it["data"].get("itemType") == "annotation"]
@@ -84,13 +84,13 @@ class Annotate(unittest.TestCase):
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "readback_mismatch"), r)
         self.assertIn("hint", r.lines[0])
 
-    def test_dry_run_and_a_bad_batch_write_nothing(self):
+    def test_dry_run_and_bad_boxes_write_nothing(self):
         r = self.run_(BOX, extra=("--dry-run",))
         self.assertEqual((r.code, r.lines[0]), (0, {"comment": BOX["comment"], "code": "created", "key": None,
                                                     "dry_run": True}))
         r = self.run_(BOX, {**TABLE, "rect": [1, 2, 0, 4]}, "{not json")
-        self.assertEqual((r.code, r.lines[0]["code"]), (1, "invalid_batch"), r)
-        self.assertEqual(len(r.lines[0]["detail"]), 2)
+        self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "invalid_boxes"), r)
+        self.assertEqual(len(r.last["detail"]), 2)
         self.assertEqual(self.zot.writes(), [])
 
     def test_only_on_a_pdf(self):
@@ -101,7 +101,8 @@ class Annotate(unittest.TestCase):
     def test_runs_as_its_own_process(self):
         batch = self.dir / "smoke.jsonl"
         batch.write_text(json.dumps(BOX), encoding="utf-8")
-        r = smoke("annotate", PDF, "--batch", batch, "--dry-run", "--base-url", self.zot.base_url, config=self.config)
+        r = smoke("annotate", "-n", PDF, "-", "--base-url", self.zot.base_url, config=self.config,
+                  stdin=batch.read_text(encoding="utf-8"))
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "created"), r)
 
 

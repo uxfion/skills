@@ -1,55 +1,23 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = ["markdown-it-py==3.0.0", "mdit-py-plugins==0.6.1", "mdit-py-cjk-friendly==0.3.0"]
 # ///
-"""Move notes between Zotero and Markdown files: take a note out, put one back (new or changed), list them.
+"""Move notes between Zotero and Markdown files: take a note out, put one back (new or changed), list or search them.
 
-A note outside Zotero is one Markdown file (note_md.py converts; p2zlib/note_md.py says what stays HTML) whose front
-matter says which note it is and where it belongs:
+A note outside Zotero is one Markdown file (p2z.py convert converts, and says what stays HTML) whose front matter
+says which note it is and where it belongs:
   key          the note's item key; none in a note not yet in Zotero
   version      the note's version when taken; put refuses to write over a note changed since
   parent       the citation key (else the item key) of the item it hangs off; none in a standalone note
-  collections  a standalone note's collections, keys joined by ","
+  collections  a standalone note's collections, keys (or paths, or names) joined by ","
   related      the papers a standalone note is related to, both ways: citation keys (else item keys) joined by ","
+  schema, citation-items   the note's wrapper (convert's)
 Zotero has nowhere to keep any other field, so put refuses a file that holds one (bad_front_matter, `fields`).
-  schema, citation-items: the note's wrapper (note_md's)
 
-  take   The child notes of the item named (--cite, --key), or one note (--note, a standalone one too); --title T keeps
-         those whose first line, the title Zotero shows, is T. One note goes to stdout or -o FILE; several need
-         -o DIR/, one file each, <cite>.<key>.note.md (a standalone note: <key>.note.md). A file there already is
-         written over only when its front matter names the same note: after a version_conflict, take again into the
-         same directory.
-  put    Each INPUT (paths, or stdin): with a key, Zotero's note is updated (its HTML, and parent, collections and
-         related where the front matter names them) unless its version moved since the take, and left alone when it
-         already holds the same note; without one, a note is created under `parent` (unless a child note there has
-         its title already), else as a standalone note in `collections`, related both ways to the papers in
-         `related`. A note without text is refused. Every write is read back and compared in the
-         editor's model, as an editor showing the note saves it again at once in its own HTML. -i writes the new key and version into the
-         file's front matter, so the next put follows on.
-  list   One line per note: the child notes of the item named, the notes in --collection K, or every note; --q TEXT
-         keeps the notes whose text holds it (Zotero's "All Fields & Tags" search).
-
-stdout (take to files, put, list): one line per note, then {"summary"}.
-  take  {key, cite?, title, code ok, file, version, kept_html?: [[block, tag]]}   (to stdout: the Markdown alone)
-  put   {file, code ok, key, version, action: created | updated, kept?: [fields Zotero already held as written]}
-        skipped unchanged: Zotero already holds this note as written
-  list  {key, parent?, title, version, dateModified, collections}
-  no_notes (the item has none, or none with that title), not_a_note, not_a_parent, not_found, cite_not_found,
-  cite_ambiguous, collection_not_found, bad_front_matter, empty_note (no text after the front matter), same_title
-  (a new note whose parent has a child note of that title: `keys`), no_version (a key without a version: take the
-  note first),
-  version_conflict (the note changed after the take: take it again, redo the change there), write_denied,
-  write_failed, readback_mismatch, file_not_found.
-Exit 0 = all ok or skipped; 1 = some not; 2 = cannot go on (Zotero not running, local API off, no key) or usage
-error (several notes taken with no -o DIR/, a file there for another note, -i on stdin).
-
-Examples:
-  uv run scripts/note.py take --cite ronneberger2015unet -o <scratch>/notes/
-  uv run scripts/note.py take --note NOTE1234 > note.md
-  uv run scripts/note.py put <scratch>/notes/*.note.md -i
-  uv run scripts/note.py put --dry-run new.note.md
-  uv run scripts/note.py list --q "flow matching"
+Exit codes, every command: 0 = all ok or skipped; 1 = some not, then stderr's last line is {"summary": {total, ok,
+skipped, failed}}; 2 = cannot go on (Zotero not running, local API off, no key) or a usage error, then stderr's last
+line is {code, hint}.
 """
 import sys
 from pathlib import Path
@@ -97,10 +65,8 @@ class Names:
         return self.cites[key]
 
     def key(self, name):
-        """A front matter's name for an item -> its key: an item key, else a citation key."""
-        if cli.KEY_RE.match(name) and self.zot.item(name) is not None:
-            return name
-        return self.zot.resolve_cite(name)
+        """A front matter's name for an item (a key or a citation key) -> its key."""
+        return self.zot.resolve(cli.Name(name, None))
 
     def uri(self, key, row=None):
         if self.library is None:
@@ -114,7 +80,7 @@ class Names:
 
 
 def meta_of(names, row):
-    """The front matter note.py writes for a note row."""
+    """The front matter p2z.py note writes for a note row."""
     d = zotero.data(row)
     meta = {"key": row["key"], "version": row.get("version")}
     if d.get("parentItem"):
@@ -136,28 +102,22 @@ def notes_of(zot, key):
 # ---- take ---------------------------------------------------------------------------------------------------
 
 def named_notes(zot, args):
-    """The notes take was asked for -> (rows, the item's citation key or None)."""
-    if args.note:
-        row = zot.item(args.note)
-        if row is None:
-            raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND, key=args.note)
-        if not is_note(row):
-            raise cli.Stop("not_a_note", hint="--note takes a note's key; for an item's notes, pass --key or --cite.",
-                           key=args.note, itemType=zotero.data(row).get("itemType"))
-        rows = [row]
+    """The notes take was asked for -> rows: the note named, or the item's child notes."""
+    key = zot.resolve(cli.Name(args.item, None))
+    item = zot.item(key)
+    if item is None:
+        raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND, key=key)
+    if is_note(item):
+        rows = [item]
+    elif not zotero.is_top(item):
+        raise cli.Stop("not_a_parent", hint="Notes hang off regular items; name the item, or the note itself.",
+                       key=key, itemType=zotero.data(item).get("itemType"), parentItem=zotero.data(item).get("parentItem"))
     else:
-        key = args.key or zot.resolve_cite(args.cite)
-        item = zot.item(key)
-        if item is None:
-            raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND, key=key)
-        if not zotero.is_top(item) or is_note(item):
-            raise cli.Stop("not_a_parent", hint="Notes hang off regular items; pass the item's key, or --note for a note.",
-                           key=key, itemType=zotero.data(item).get("itemType"))
         rows = notes_of(zot, key)
     if args.title is not None:
         rows = [r for r in rows if title_of(zotero.data(r).get("note")) == args.title]
     if not rows:
-        raise cli.Stop("no_notes", hint="No note matches; note.py list shows the notes and their titles.",
+        raise cli.Stop("no_notes", hint="No note matches; p2z.py note list shows the notes and their titles.",
                        **({"title": args.title} if args.title is not None else {}))
     return rows
 
@@ -166,12 +126,27 @@ def take_name(meta):
     return (f"{meta['parent']}." if meta.get("parent") else "") + f"{meta['key']}{SUFFIX}"
 
 
-def cmd_take(zot, args, p):
+def take(zot, args, p):
+    """Notes out of Zotero as Markdown: the note named, or the child notes of the item named.
+
+The item or note is named by its key or citation key. --title T keeps the notes whose first line, the title Zotero
+shows, is T. One note goes to stdout (the Markdown alone; a block kept as HTML is named on stderr) or -o FILE;
+several need -o DIR/, one file each, <cite>.<key>.note.md (a standalone note: <key>.note.md), and with none the
+notes are named on stderr. A file there already is written over only when its front matter names the same note:
+after a version_conflict, take again into the same directory.
+
+stdout to files: one line per note {key, cite?, title, code ok, file, version, kept_html?: [[block, tag]]}; no_notes
+(the item has none, or none with that title), not_a_parent, not_found, ambiguous.
+
+Examples:
+  p2z.py note take ronneberger2015unet -o <scratch>/notes/
+  p2z.py note take NOTE1234 > note.md
+"""
     rows, names = named_notes(zot, args), Names(zot)
-    if len(rows) > 1 and args.out is None:
+    if len(rows) > 1 and args.output is None:
         for r in rows:
             cli.log(f"{r['key']}  {title_of(zotero.data(r).get('note'))}")
-    out, into_dir = cli.output(p, args.out, len(rows))
+    out, into_dir = cli.output(p, args.output, len(rows))
     taken = []
     for r in rows:
         meta = meta_of(names, r)
@@ -188,10 +163,10 @@ def cmd_take(zot, args, p):
     for r, meta, target in taken:
         kept = []
         md = note_md.to_md(zotero.data(r).get("note") or "", meta, fallbacks=kept)
-        for n, tag in kept:
-            cli.log(f"{r['key']}: block {n}: <{tag}> kept as HTML")
         if target is None:
-            sys.stdout.write(md)
+            for n, tag in kept:
+                cli.log(f"{r['key']}: block {n}: <{tag}> kept as HTML")
+            cli.write(md)
             return cli.OK
         target.write_text(md, encoding="utf-8", newline="\n")
         lines.append({"key": r["key"], **({"cite": meta["parent"]} if meta.get("parent") else {}),
@@ -213,11 +188,7 @@ def wanted(names, meta):
         out["parentItem"] = names.key(meta["parent"])
     if "collections" in meta:
         known = names.zot.collections()
-        missing = [c for c in split(meta["collections"]) if c not in known]
-        if missing:
-            raise cli.Stop("collection_not_found", hint="No live collection has that key; read_library collections "
-                           "lists them.", collections=missing)
-        out["collections"] = split(meta["collections"])
+        out["collections"] = list(dict.fromkeys(names.zot.collection(c, known) for c in split(meta["collections"])))
     if "related" in meta:
         out["related"] = [names.key(n) for n in split(meta["related"])]
     return out
@@ -311,8 +282,8 @@ def create(zot, names, html, where, rel_want, args):
         same = [n["key"] for n in notes_of(zot, where["parentItem"]) if title_of(zotero.data(n).get("note")) == title]
         if same:
             raise cli.Stop("same_title", title=title, keys=same,
-                           hint="The item has a note of this title already: take it (--note KEY), carry this text into "
-                                "it, and put that file. Nothing was written.")
+                           hint="The item has a note of this title already: take it (p2z.py note take KEY), carry this text "
+                                "into it, and put that file. Nothing was written.")
         obj["parentItem"] = where["parentItem"]
     else:
         obj["collections"] = where.get("collections", [])
@@ -337,46 +308,64 @@ def read_back(zot, key, html, action, retried=False):
     return cli.ok(key=key, version=after.get("version"), action=action, **({"retried": True} if retried else {}))
 
 
-def cmd_put(zot, args, p):
-    inputs = args.inputs or ["-"]
-    if args.in_place and "-" in inputs:
+def put(zot, args, p):
+    """Markdown files into Zotero as notes, new or changed.
+
+Each file (- reads one from stdin): with a key, Zotero's note is updated (its HTML, and parent, collections and
+related where the front matter names them) unless its version moved since the take, and left alone when it already
+holds the same note; without one, a note is created under `parent` (unless a child note there has its title
+already), else as a standalone note in `collections`, related both ways to the papers in `related`. A note without
+text is refused. Every write is read back and compared in the editor's model, as an editor showing the note saves
+it again at once in its own HTML. -i writes the new key and version into the file's front matter, so the next put
+follows on.
+
+stdout: one line per file {file, code ok, key, version, action: created | updated, kept?: [fields Zotero already held
+as written]}; skipped unchanged: Zotero already holds this note as written; not_a_note, not_a_parent, not_found,
+ambiguous, collection_not_found, bad_front_matter, empty_note (no text after the front matter), same_title (a new
+note whose parent has a child note of that title: `keys`), no_version (a key without a version: take the note
+first), version_conflict (the note changed after the take: take it again, redo the change there), write_denied,
+write_failed, readback_mismatch, file_not_found.
+
+Examples:
+  p2z.py note put <scratch>/notes/*.note.md -i
+  p2z.py note put -n new.note.md
+"""
+    if not args.inputs:
+        p.error("name the note files, or - to read one from stdin")
+    if args.in_place and "-" in args.inputs:
         p.error("-i writes back into the files given; stdin has none")
     if not args.dry_run:
         zot.write_headers()
     names, out = Names(zot), cli.Lines()
-    for name in inputs:
+    for name in args.inputs:
         def one(name=name):
-            if name == "-":
-                text = sys.stdin.read()
-            else:
-                path = Path(name).expanduser()
-                if not path.is_file():
-                    raise cli.Stop("file_not_found", hint="Pass the note's Markdown file.")
-                text = path.read_text(encoding="utf-8")
+            if name != "-" and not Path(name).expanduser().is_file():
+                raise cli.Stop("file_not_found", hint="Name the note's Markdown file.")
+            text = cli.document(name)
             line = put_one(zot, names, text, args)
             if args.in_place and line.get("code") == "ok" and not args.dry_run:
-                path.write_text(note_md.set_meta(text, {"key": line["key"], "version": line["version"]}),
-                                encoding="utf-8", newline="\n")
+                Path(name).expanduser().write_text(note_md.set_meta(text, {"key": line["key"], "version": line["version"]}),
+                                                   encoding="utf-8", newline="\n")
             return line
         out.add({"file": "-" if name == "-" else str(Path(name).expanduser())}, one)
-    return out.finish({"dry_run": True} if args.dry_run else None)
+    return out.finish()
 
 
-# ---- list ---------------------------------------------------------------------------------------------------
+# ---- list, search -------------------------------------------------------------------------------------------
 
-def cmd_list(zot, args, p):
-    if args.key or args.cite:
-        key = args.key or zot.resolve_cite(args.cite)
-        rows = notes_of(zot, key)
-    elif args.collection:
-        if args.collection not in zot.collections():
-            raise cli.Stop("collection_not_found", hint="read_library collections lists them.", collection=args.collection)
-        rows = zot.pages(f"{LIB}/collections/{args.collection}/items", {"itemType": "note"})
-    else:
-        rows = zot.pages(f"{LIB}/items", {"itemType": "note"})
-    if args.q:
-        hits = {r["key"] for r in zot.pages(f"{LIB}/items", {"q": args.q, "qmode": "everything", "itemType": "note"})}
-        rows = [r for r in rows if r["key"] in hits]
+def notes_in(zot, args):
+    """The notes list and search look among: the items named's child notes, the notes in --collection, or all."""
+    if args.items:
+        rows = []
+        for name in cli.names(args.items):
+            rows += notes_of(zot, zot.resolve(name))
+        return rows
+    if args.collection:
+        return zot.rows(f"{LIB}/collections/{zot.collection(args.collection)}/items", {"itemType": "note"})
+    return zot.rows(f"{LIB}/items", {"itemType": "note"})
+
+
+def lines_of(zot, rows):
     names, lines = Names(zot), []
     for r in rows:
         if not is_note(r) or zotero.in_trash(r):
@@ -388,43 +377,69 @@ def cmd_list(zot, args, p):
     return cli.finish(lines)
 
 
-def parse_args(argv):
-    p = cli.parser(__doc__)
-    sub = p.add_subparsers(dest="command", required=True, metavar="COMMAND")
-    s = sub.add_parser("take", help="notes out of Zotero as Markdown files")
-    which = s.add_mutually_exclusive_group(required=True)
-    which.add_argument("--cite", help="the item's citation key: its child notes")
-    which.add_argument("--key", help="the item's key: its child notes")
-    which.add_argument("--note", help="one note's key (a standalone note too)")
-    s.add_argument("--title", help="only the notes whose first line is this")
-    s.add_argument("-o", "--out", metavar="OUT", help="a file (one note) or a directory/ (default: stdout)")
-    cli.add_base_url(s)
-    s.set_defaults(func=cmd_take)
-    s = sub.add_parser("put", help="Markdown files into Zotero as notes, new or changed")
-    s.add_argument("inputs", nargs="*", metavar="INPUT", help="note files (none, or -: stdin)")
-    s.add_argument("--dry-run", action="store_true", help="show what would be written; write nothing")
-    s.add_argument("-i", dest="in_place", action="store_true", help="write the new key and version into each file")
-    cli.add_base_url(s)
-    s.set_defaults(func=cmd_put)
-    s = sub.add_parser("list", help="one line per note")
-    which = s.add_mutually_exclusive_group()
-    which.add_argument("--cite", help="the item's citation key: its child notes")
-    which.add_argument("--key", help="the item's key: its child notes")
-    which.add_argument("--collection", metavar="KEY", help="the notes in this collection")
-    s.add_argument("--q", metavar="TEXT", help="only the notes whose text holds this")
-    cli.add_base_url(s)
-    s.set_defaults(func=cmd_list)
-    args = p.parse_args(argv)
-    for name in ("key", "note"):
-        value = getattr(args, name, None)
-        if value and not cli.KEY_RE.match(value):
-            p.error(f"--{name} takes an 8-character key: {value}")
-    return p, args
+def list_(zot, args, p):
+    """One line per note: the child notes of the items named, the notes in --collection, or every note.
+
+The items are named by key or citation key (- reads a list from stdin). Each line: {key, parent?, title, code ok,
+version, dateModified, collections}; not_found, ambiguous, collection_not_found.
+
+Examples:
+  p2z.py note list ronneberger2015unet
+  p2z.py note list --collection 自然图像/Diffusion
+"""
+    return lines_of(zot, notes_in(zot, args))
+
+
+def search(zot, args, p):
+    """The notes whose text holds the query (Zotero's All Fields & Tags search), one line each, as note list's.
+
+The query comes first (quote a phrase: "flow matching"), then any items, whose child notes are the ones searched
+(- reads a list from stdin); --collection searches the notes in it. No note found is exit 1, as grep.
+
+Examples:
+  p2z.py note search "flow matching"
+  p2z.py note search denoising ronneberger2015unet
+"""
+    hits = {r["key"] for r in zot.rows(f"{LIB}/items", {"q": args.query, "qmode": "everything", "itemType": "note"})}
+    rows = [r for r in notes_in(zot, args) if r["key"] in hits]
+    code = lines_of(zot, rows)
+    return code if rows else cli.ACT
+
+
+def configure_take(p):
+    p.add_argument("item", metavar="ITEM|NOTE", help="a note, or the item whose child notes to take: a key or citation key")
+    p.add_argument("--title", help="only the notes whose first line is this")
+    p.add_argument("-o", "--output", metavar="FILE|DIR/", help="a file (one note) or a directory/ (default: stdout)")
+
+
+def configure_put(p):
+    p.add_argument("inputs", nargs="*", metavar="FILE", help="note files; - reads one from stdin")
+    cli.add_dry_run(p)
+    p.add_argument("-i", dest="in_place", action="store_true", help="write the new key and version into each file")
+
+
+def configure_list(p):
+    cli.add_items(p, help="an item whose child notes to list: its key or citation key; - reads a list from stdin")
+    p.add_argument("--collection", metavar="COLL", help="the notes in this collection: its key, path or name")
+
+
+def configure_search(p):
+    p.add_argument("query", metavar="QUERY", help="what the notes' text holds")
+    configure_list(p)
+
+
+COMMANDS = {"take": take, "put": put, "list": list_, "search": search}
+CONFIGURE = {"take": configure_take, "put": configure_put, "list": configure_list, "search": configure_search}
 
 
 def main(argv=None):
-    p, args = parse_args(argv)
-    return cli.run(lambda: args.func(zotero.Zotero(args.base_url), args, p))
+    name, rest = cli.subcommand(__doc__, COMMANDS, argv)
+    func = COMMANDS[name]
+    p = cli.parser(func.__doc__, sub=name)
+    CONFIGURE[name](p)
+    cli.add_base_url(p)
+    args = cli.parse(p, rest)
+    return cli.run(lambda: func(zotero.Zotero(args.base_url), args, p))
 
 
 if __name__ == "__main__":

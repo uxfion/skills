@@ -1,6 +1,6 @@
 # Attachment titles: which version a file is, and where it came from
 
-A file's label is its attachment title: paper-to-zotero attaches the file under it, and every later reader (its `read_library pdf`, its report, the next import) tells the files of one paper apart by it alone. Read this before the first label of a run (SKILL.md, *Get the file*), before labelling files someone already has (SKILL.md, *Label files you already have*), and before briefing a paper agent or a judge.
+A file's label is its attachment title: paper-to-zotero attaches the file under it, and every later reader (its `p2z.py pdf`, its report, the next import) tells the files of one paper apart by it alone. Read this before the first label of a run (SKILL.md, *Get the file*), before labelling files someone already has (SKILL.md, *Label files you already have*), and before briefing a paper agent or a judge.
 
 ## The scheme
 

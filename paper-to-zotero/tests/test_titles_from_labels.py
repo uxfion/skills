@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """Tests for scripts/titles_from_labels.py against the fake Zotero: paper-fetch's own result fixtures, their files
-found by md5, the lines it lists handed to update_item --batch."""
+found by md5, the lines it lists handed to p2z.py update."""
 import json
 import shutil
 import tempfile
@@ -52,25 +52,15 @@ class TitlesFromLabels(unittest.TestCase):
         z.add_item(STUB, itemType="journalArticle", title="Some HTML paper")
         z.add_item(STUB_PDF, parentItem=STUB, title="Full Text PDF", md5=MD5["stub"], **pdf)
 
-    def test_labels_become_titles_through_update_item(self):
-        batch = self.tmp / "titles.jsonl"
-        r = smoke("titles_from_labels", self.fetch, "-o", batch, "--base-url", self.zot.base_url, config=self.config)
-        self.assertEqual(r.code, 0, r)
-        self.assertEqual(r.lines, [
-            {"slug": "109999html", "file": "109999html.pdf", "code": "skipped", "reason": "unlabelled"},
-            {"slug": "liu2022jbhi", "file": "liu2022jbhi.pdf", "code": "retitle", "key": LIU_PDF, "from": "Full Text PDF",
-             "to": "Published-IEEE"},
-            {"slug": "shinn2023reflexion", "file": "shinn2023reflexion.preprint.pdf", "code": "skipped", "reason": "titled",
-             "key": SHINN_PRE, "title": "Accepted-arXiv-v4"},
-            {"slug": "shinn2023reflexion", "file": "shinn2023reflexion.supplement.pdf", "code": "not_in_library",
-             "md5": MD5["shinn_supp"]},
-            {"summary": {"total": 4, "ok": 2, "skipped": 2, "failed": 0, "batch": str(batch), "lines": 1}}])
-        self.assertEqual([json.loads(ln) for ln in batch.read_text(encoding="utf-8").splitlines()],
-                         [{"key": LIU_PDF, "set": {"title": "Published-IEEE"}, "from": "Full Text PDF",
-                           "why": "the volume and issue", "by": "judge", "citationKey": "liu2022jbhi"}])
+    def test_labels_become_titles_through_update(self):
+        r = smoke("retitle", self.fetch, "--base-url", self.zot.base_url, config=self.config)
+        self.assertEqual((r.code, r.err), (0, ""), r)
+        self.assertEqual(r.lines, [{"key": LIU_PDF, "set": {"title": "Published-IEEE"}, "from": "Full Text PDF",
+                                    "why": "the volume and issue", "by": "judge", "citationKey": "liu2022jbhi"}],
+                         "stdout is the change list: unlabelled, titled and not attached files need no line")
         self.assertEqual(self.zot.writes(), [], "listing writes nothing")
 
-        r = call(update_item, "--batch", batch, "--base-url", self.zot.base_url, config=self.config)
+        r = call(update_item, "-", "--base-url", self.zot.base_url, config=self.config, stdin=r.out)
         self.assertEqual(r.code, 0, r)
         self.assertEqual((r.lines[0]["key"], r.lines[0]["changes"]),
                          (LIU_PDF, {"title": {"from": "Full Text PDF", "to": "Published-IEEE"}}))
@@ -81,9 +71,9 @@ class TitlesFromLabels(unittest.TestCase):
                          ("Published-IEEE", "liu2022jbhi.Published-IEEE.zip"), "the package goes along with its PDF")
         self.assertEqual(self.zot.data(STUB_PDF)["title"], "Full Text PDF", "a placeholder label is never written")
 
+        batch = self.tmp / "titles.jsonl"
         r = call(titles_from_labels, self.fetch, "-o", batch, "--base-url", self.zot.base_url)
-        self.assertEqual((r.lines[1]["code"], r.lines[1]["reason"], r.lines[-1]["summary"]["lines"]), ("skipped", "titled", 0))
-        self.assertEqual(batch.read_text(encoding="utf-8"), "")
+        self.assertEqual((r.code, r.out, batch.read_text(encoding="utf-8")), (0, "", ""))
 
     def test_a_file_paper_fetch_gave_no_label_is_listed(self):
         wrong, own = "0123456789abcdef0123456789abcdef", "fedcba9876543210fedcba9876543210"
@@ -93,27 +83,25 @@ class TitlesFromLabels(unittest.TestCase):
             path.write_text(json.dumps({**json.loads(path.read_text(encoding="utf-8")), "set_aside": aside}), encoding="utf-8")
         self.zot.add_item("WRONGPDF", parentItem=LIU, itemType="attachment", linkMode="imported_url",
                           contentType="application/pdf", title="Full Text PDF", md5=wrong)
-        batch = self.tmp / "titles.jsonl"
-        r = call(titles_from_labels, self.fetch, "-o", batch, "--base-url", self.zot.base_url)
+        r = call(titles_from_labels, self.fetch, "--base-url", self.zot.base_url)
         self.assertEqual(r.code, 1, "a file without a label is for the user to look at")
-        aside_lines = [{k: v for k, v in ln.items() if k != "hint"} for ln in r.lines if ln.get("code") == "not_filed"]
+        self.assertEqual(len(r.lines), 1, "the change list is as before")
+        aside_lines = [{k: v for k, v in ln.items() if k != "hint"} for ln in r.err_lines[:-1]]
         self.assertEqual(aside_lines, [
             {"slug": "liu2022jbhi", "file": "liu2022jbhi.file.pdf", "code": "not_filed", "md5": wrong, "why": "refused",
              "check_code": "title_mismatch", "key": "WRONGPDF", "citationKey": "liu2022jbhi"},
             {"slug": "shinn2023reflexion", "file": "shinn2023reflexion.file.pdf", "code": "not_filed", "md5": own,
              "why": "withdrawn"}])
-        self.assertEqual((r.lines[-1]["summary"]["failed"], r.lines[-1]["summary"]["lines"]), (2, 1), "the batch is as before")
+        self.assertEqual(r.last["summary"]["failed"], 2)
 
     def test_a_bad_result_or_none(self):
         (self.fetch / "results" / "broken.json").write_text("{", encoding="utf-8")
-        r = call(titles_from_labels, self.fetch, "-o", self.tmp / "t.jsonl", "--base-url", self.zot.base_url)
+        r = call(titles_from_labels, self.fetch, "--base-url", self.zot.base_url)
         self.assertEqual(r.code, 1, r)
-        self.assertEqual([(ln.get("slug"), ln.get("code")) for ln in r.lines[:2]],
-                         [("109999html", "skipped"), ("broken", "result_invalid")])
-        self.assertEqual(r.lines[-1]["summary"]["failed"], 1)
-        r = call(titles_from_labels, self.tmp / "nothing", "-o", self.tmp / "t.jsonl", "--base-url", self.zot.base_url)
-        self.assertEqual((r.code, r.lines[0]["code"], len(r.lines)), (1, "no_results", 1), r)
-        self.assertEqual(call(titles_from_labels, self.fetch, "--base-url", self.zot.base_url).code, 2, "-o is required")
+        self.assertEqual([(ln.get("slug"), ln.get("code")) for ln in r.err_lines[:-1]], [("broken", "result_invalid")])
+        self.assertEqual(r.last["summary"]["failed"], 1)
+        r = call(titles_from_labels, self.tmp / "nothing", "--base-url", self.zot.base_url)
+        self.assertEqual((r.code, r.out, r.last["code"]), (1, "", "no_results"), r)
 
 
 if __name__ == "__main__":

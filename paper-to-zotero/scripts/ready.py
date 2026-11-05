@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -19,7 +19,12 @@ there are paper-fetch's now: `moved` names those still in the file.
 stdout: one JSON object {code, ...the facts}. Exit 0 = ready; 1 = not ready (no_key: tell the user Zotero will show
 a dialog where they click Always Allow, then rerun with --authorize; authorize_denied, authorize_timeout,
 authorize_single_use, authorize_failed; dir_unwritable); 2 = cannot check (zotero_unreachable, local_api_disabled,
-server_mismatch, config_unreadable).
+server_mismatch, config_unreadable), then stderr's last line is {code, hint}. While --authorize waits for the click,
+stderr says so.
+
+Examples:
+  p2z.py ready --dir <scratch>/paper-to-zotero
+  p2z.py ready --authorize
 """
 import json
 import time
@@ -145,7 +150,7 @@ def main(argv=None):
     p.add_argument("--timeout", type=float, default=AUTHORIZE_WAIT, metavar="SECONDS",
                    help="how long --authorize waits for the click (default: %(default)s)")
     cli.add_base_url(p)
-    args = p.parse_args(argv)
+    args = cli.parse(p, argv)
 
     def go():
         zot = zotero.Zotero(args.base_url)

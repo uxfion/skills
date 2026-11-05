@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -21,13 +21,14 @@ schema is read from Zotero once a run (kept in <scratch>/paper-to-zotero/scratch
 
 Records: the files given. `checks` is computed again only when it is not done (absent, or the item changed since);
 each line says why (`reason`). stdout: one line per record {slug, code, reason?, itemType, mapped?, to_extra?,
-dropped_or_rewritten?, missing_minimum?}, then {"summary"}.
+dropped_or_rewritten?, missing_minimum?}.
   ok                  the item goes in as written
   needs_attention     see the lists; fix the item, or accept the effect and say so in the report
   unknown_item_type   Zotero rejects the item (`suggestions`: the closest types)
-  no_item             the record has no `item` (draft it from its result with draft_item.py)
+  no_item             the record has no `item` (draft it from its result with p2z.py draft)
   skipped             reason done: `checks` is up to date (`checks`: its code)
-Exit 0 = every record ok or done, 1 = some record is not, 2 = cannot check (zotero_unreachable, local_api_disabled).
+Exit 0 = every record ok or done; 1 = some record is not, then stderr's last line is {"summary": {total, ok, skipped, failed}}; 2 = cannot check (zotero_unreachable,
+local_api_disabled), then stderr's last line is {code, hint}.
 
 A minimal item:
 {
@@ -46,7 +47,7 @@ A minimal item:
 }
 
 Example:
-  uv run scripts/check_item.py <scratch>/paper-to-zotero/records/*.json
+  p2z.py check <scratch>/paper-to-zotero/records/*.json
 """
 import difflib
 import re

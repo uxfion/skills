@@ -30,7 +30,7 @@ EXPECTED = [  # by hand
     {"cite": "xiaoTCACE2026", "code": "ok",
      "heading": "## xiaoTCACE2026 · T-CACE: A Time-Conditioned Autoregressive Contrast Enhancement Framework（JBHI 2026）"},
     {"cite": "someNotePreprint", "code": "ok", "heading": "## someNotePreprint · A Note"},
-    {"cite": "notInTheLibrary2020", "code": "cite_not_found"},
+    {"cite": "notInTheLibrary2020", "code": "not_found", "hint": "No item has this key or citation key."},
 ]
 
 

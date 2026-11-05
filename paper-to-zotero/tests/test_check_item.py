@@ -63,7 +63,7 @@ class CheckItem(unittest.TestCase):
         self.assertEqual(r.lines[1]["mapped"], [{"from": "publicationTitle", "to": "proceedingsTitle"}])
         self.assertIn("hint", r.lines[1])
         self.assertEqual(r.lines[2]["suggestions"], ["journalArticle"])
-        self.assertEqual(r.lines[-1], {"summary": {"total": 4, "ok": 1, "skipped": 0, "failed": 3}})
+        self.assertEqual(r.last, {"summary": {"total": 4, "ok": 1, "skipped": 0, "failed": 3}})
         a = run.read(paths[0])
         self.assertEqual((a["note_to_self"], a["checks"]["code"], a["checks"]["missing_minimum"]), ("keep me", "ok", []))
         self.assertIsNone(run.due(a, "checks"))
@@ -103,13 +103,13 @@ class CheckItem(unittest.TestCase):
         self.assertIn('"itemType": "journalArticle"', r.out)
         a = self.record("a", {"item": OK_ITEM})
         r = self.run_(a, self.record("b", {"item": OK_ITEM}), base_url=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, [o["code"] for o in r.lines[:2]]), (2, ["zotero_unreachable", "not_run"]))
+        self.assertEqual((r.code, [o["code"] for o in r.lines], r.last["code"]), (2, ["not_run", "not_run"], "zotero_unreachable"))
         self.zot.disabled = True
-        self.assertEqual(self.run_(a).lines[0]["code"], "local_api_disabled")
-        self.assertEqual(self.run_().lines[0]["code"], "no_records")
+        self.assertEqual(self.run_(a).last["code"], "local_api_disabled")
+        self.assertEqual(self.run_().last["code"], "usage")
 
     def test_smoke(self):
-        r = smoke("check_item", self.record("a", {"item": OK_ITEM}), "--base-url", self.zot.base_url)
+        r = smoke("check", self.record("a", {"item": OK_ITEM}), "--base-url", self.zot.base_url)
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
 

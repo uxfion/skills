@@ -1,15 +1,14 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Answer a handoff: the one way a judge's or the user's conclusion is recorded, in the handoff itself.
 
-  p2z.py answer HANDOFF ANSWER [--key K ...] [--reason R] [--by WHO]
-
-HANDOFF is the handoff's file (<scratch>/paper-to-zotero/handoffs/<id>.json, as prepare, find_in_library and
-create_item print it). A same_paper handoff asks whether library items (its `candidates`, each with its evidence)
-are the paper its record describes (`paper`); candidates with `matched_by` carry the paper's DOI or arXiv id:
+HANDOFF is the handoff's file (<scratch>/paper-to-zotero/handoffs/<id>.json, as p2z.py prepare, have and create
+print it); --key names a candidate the answer is about (repeat it for more). A same_paper handoff asks whether
+library items (its `candidates`, each with its evidence) are the paper its record describes (`paper`); candidates
+with `matched_by` carry the paper's DOI or arXiv id:
   same --key K          K is this paper (of several items carrying its identifier: the one to use, the fuller): the
                         import goes on with that item
   distinct [--key K]    other papers; without --key, every candidate of the handoff still open
@@ -24,11 +23,12 @@ run p2z.py prepare again.
 
 stdout: one line {id, code: ok, answer, keys, record, open: [keys still open]}, or a refusal {id, code, hint}:
 bad_answer, no_such_handoff, not_open (nothing in it is open any more), no_such_key (not one of its candidates),
-one_key (same names exactly one item), no_key (pair and unknown name the items). Exit 0 = recorded; 1 = refused.
+one_key (same names exactly one item), no_key (pair and unknown name the items). Exit 0 = recorded; 1 = refused;
+2 = a usage error, then stderr's last line is {code, hint}.
 
 Examples:
-  uv run scripts/answer.py <scratch>/paper-to-zotero/handoffs/he2020mask.1.json distinct --reason "other papers: another task and venue" --by judge
-  uv run scripts/answer.py <scratch>/paper-to-zotero/handoffs/liu2022jbhi.1.json same --key ABCD1234 --reason "same title, authors and year; the library item lacks the DOI" --by judge
+  p2z.py answer <scratch>/paper-to-zotero/handoffs/he2020mask.1.json distinct --reason "other papers: another task and venue" --by judge
+  p2z.py answer <scratch>/paper-to-zotero/handoffs/liu2022jbhi.1.json same --key ABCD1234 --reason "same title, authors and year; the library item lacks the DOI" --by judge
 """
 import json
 from pathlib import Path
@@ -71,11 +71,11 @@ def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("handoff", metavar="HANDOFF", help="the handoff's file")
     p.add_argument("answer", metavar="ANSWER", help="same | distinct | pair | unknown")
-    p.add_argument("--key", action="append", default=[], metavar="K", help="a candidate's item key (repeatable, or comma-separated)")
+    p.add_argument("--key", action="append", default=[], metavar="K", help="a candidate the answer is about (repeat for more)")
     p.add_argument("--reason", help="what the answer rests on")
     p.add_argument("--by", choices=BY, default="agent", help="who answers (default agent)")
-    args = p.parse_args(argv)
-    keys = [k.strip() for v in args.key for k in v.split(",") if k.strip()]
+    args = cli.parse(p, argv)
+    keys = list(dict.fromkeys(k.strip() for k in args.key if k.strip()))
 
     def go():
         cli.emit(answer(Path(args.handoff), args.answer, keys, args.reason, args.by))

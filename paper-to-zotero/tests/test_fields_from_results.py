@@ -51,12 +51,12 @@ class FieldsFromResults(unittest.TestCase):
                    volume="99", extra="Original: kept", citationKey="liu2022jbhi")
         z.add_item(SHINN, itemType="journalArticle", title="Reflexion", citationKey="shinn2023reflexion")
 
-    def test_empty_fields_filled_through_update_item(self):
-        batch, liu, shinn = self.tmp / "fields.jsonl", self.results / "liu2022jbhi.json", self.results / "shinn2023reflexion.json"
-        r = smoke("fields_from_results", liu, shinn, "-o", batch, "--base-url", self.zot.base_url, config=self.config)
-        self.assertEqual(r.code, 0, r)
+    def test_empty_fields_filled_through_update(self):
+        liu, shinn = self.results / "liu2022jbhi.json", self.results / "shinn2023reflexion.json"
+        r = smoke("fill", liu, shinn, "--base-url", self.zot.base_url, config=self.config)
+        self.assertEqual((r.code, r.err), (0, ""), r)
         # Expected from the fixtures' CSL by Zotero's tables (container-title -> publicationTitle, page -> pages, issued
-        # -> date) and draft_item's url rule (https://doi.org/<DOI>); issue and ISSN have no field in the fake's
+        # -> date) and draft's url rule (https://doi.org/<DOI>); issue and ISSN have no field in the fake's
         # journalArticle. Liu's title, volume, creators and extra are the library's; Shinn's draft is a conferencePaper,
         # whose proceedingsTitle is a journalArticle's publicationTitle through their base field.
         liu_set = {"abstractNote": "Ultrasound.", "publicationTitle": "IEEE Journal of Biomedical and Health Informatics",
@@ -65,18 +65,14 @@ class FieldsFromResults(unittest.TestCase):
         shinn_set = {"abstractNote": "Reflexion.", "publicationTitle": "Advances in Neural Information Processing Systems 36",
                      "pages": "8634-8652", "date": "2023", "DOI": "10.52202/075280-0377",
                      "url": "https://doi.org/10.52202/075280-0377"}
-        self.assertEqual([(ln["slug"], ln["cite"], ln["code"], ln["key"], sorted(ln["fields"])) for ln in r.lines[:2]],
-                         [("liu2022jbhi", "liu2022jbhi", "fill", LIU, sorted(liu_set)),
-                          ("shinn2023reflexion", "shinn2023reflexion", "fill", SHINN, sorted(shinn_set))])
-        self.assertEqual(r.lines[-1]["summary"], {"total": 2, "ok": 2, "skipped": 0, "failed": 0, "batch": str(batch), "lines": 2})
-        self.assertEqual([json.loads(ln) for ln in batch.read_text(encoding="utf-8").splitlines()],
-                         [{"key": LIU, "set": liu_set, "from": str(liu)},
-                          {"key": SHINN, "set": shinn_set, "from": str(shinn)}])
+        self.assertEqual([{k: v for k, v in ln.items() if k != "warnings"} for ln in r.lines],
+                         [{"key": LIU, "set": liu_set, "from": str(liu)}, {"key": SHINN, "set": shinn_set, "from": str(shinn)}],
+                         "stdout is the change list; draft's warnings ride along as a note")
         self.assertEqual(self.zot.writes(), [], "listing writes nothing")
 
-        r = call(update_item, "--batch", batch, "--base-url", self.zot.base_url, config=self.config)
+        r = call(update_item, "-", "--base-url", self.zot.base_url, config=self.config, stdin=r.out)
         self.assertEqual(r.code, 0, r)
-        self.assertEqual([(ln["key"], ln["code"]) for ln in r.lines[:2]], [(LIU, "ok"), (SHINN, "ok")])
+        self.assertEqual([(ln["key"], ln["code"]) for ln in r.lines], [(LIU, "ok"), (SHINN, "ok")])
         liu_now = self.zot.data(LIU)
         self.assertEqual({f: liu_now.get(f) for f in liu_set}, liu_set)
         self.assertEqual((liu_now["title"], liu_now["volume"], liu_now["extra"], liu_now["creators"]),
@@ -84,21 +80,22 @@ class FieldsFromResults(unittest.TestCase):
         self.assertEqual(self.zot.data(SHINN)["publicationTitle"], shinn_set["publicationTitle"])
         self.assertNotIn("extra", self.zot.data(SHINN), "the draft's arXiv line in extra is not listed")
 
-        r = call(fields_from_results, liu, shinn, "-o", batch, "--base-url", self.zot.base_url)
-        self.assertEqual([(ln["code"], ln["reason"]) for ln in r.lines[:2]], [("skipped", "nothing_to_fill")] * 2)
-        self.assertEqual(batch.read_text(encoding="utf-8"), "")
+        batch = self.tmp / "fields.jsonl"
+        r = call(fields_from_results, "-", "-o", batch, "--base-url", self.zot.base_url, stdin=f"{liu}\n{shinn}\n")
+        self.assertEqual((r.code, r.out, r.err, batch.read_text(encoding="utf-8")), (0, "", "", ""),
+                         "nothing left to fill: no line")
 
     def test_results_that_name_no_single_item(self):
         self.zot.data(SHINN)["citationKey"] = "other"
         self.zot.add_item(DUP1, itemType="journalArticle", title="One", citationKey="liu2022jbhi")
-        r = call(fields_from_results, *sorted(self.results.glob("*.json")), "-o", self.tmp / "f.jsonl",
-                 "--base-url", self.zot.base_url)
-        self.assertEqual(r.code, 1, r)
-        self.assertEqual([(ln.get("slug"), ln["code"]) for ln in r.lines[:3]],
-                         [("109999html", "result_invalid"), ("liu2022jbhi", "cite_ambiguous"),
-                          ("shinn2023reflexion", "cite_not_found")])
-        self.assertEqual(sorted(r.lines[1]["keys"]), sorted([LIU, DUP1]))
-        self.assertEqual((r.lines[-1]["summary"]["failed"], r.lines[-1]["summary"]["lines"]), (3, 0))
+        r = call(fields_from_results, *sorted(self.results.glob("*.json")), "--base-url", self.zot.base_url)
+        self.assertEqual((r.code, r.out), (1, ""), r)
+        problems = r.err_lines[:-1]
+        self.assertEqual([(ln.get("slug"), ln["code"]) for ln in problems],
+                         [("109999html", "result_invalid"), ("liu2022jbhi", "ambiguous"),
+                          ("shinn2023reflexion", "not_found")])
+        self.assertEqual(sorted(problems[1]["keys"]), sorted([LIU, DUP1]))
+        self.assertEqual(r.last["summary"], {"total": 3, "failed": 3})
 
 
 if __name__ == "__main__":

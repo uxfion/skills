@@ -113,12 +113,13 @@ class Report(unittest.TestCase):
         md = self.run_().out
         for heading in ("| citationKey |", "liu2022paper (record: liu2022)", "### 无法获取", "not_got | repo.example, pub.example | "
                         "publisher no_access https://pub.example/a", "### 未确认的文件", "### 待清理附件", "### 版本未定",
-                        "### 建议改名", "trash_item.py --dry-run --key ", "Published-IEEE; Accepted-IEEE-in_press"):
+                        "### 建议改名", "p2z.py trash -n ", "Published-IEEE; Accepted-IEEE-in_press"):
             self.assertIn(heading, md)
 
     def test_cannot_read(self):
-        r = call(report)
-        self.assertEqual((r.code, r.err_lines[0]["code"]), (1, "no_records"))
+        self.assertEqual((call(report).code, call(report).last["code"]), (2, "usage"))
+        r = call(report, self.work.root / "nope.json", "--base-url", self.zot.base_url)
+        self.assertEqual((r.code, r.err_lines[0]["code"], r.last["code"]), (1, "file_not_found", "no_records"))
         self.record("x")
         r = self.run_(base_url=f"http://127.0.0.1:{closed_port()}")
         self.assertEqual((r.code, r.err_lines[0]["code"], r.out), (2, "zotero_unreachable", ""))

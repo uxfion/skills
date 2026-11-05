@@ -1,13 +1,12 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Put rectangle annotations on a PDF attachment, once: a rerun finds those already there and makes no second copy.
 
-  uv run scripts/annotate.py <PDF key> --batch <file> [--dry-run]
-
-The --batch file holds one annotation per line, a JSON object (it names no item: they all go on the PDF given):
+What follows the options is the PDF attachment's key, then the boxes: a file (- reads them from stdin) holding one
+annotation per line, a JSON object (it names no item: they all go on the PDF given):
   comment     its text; its first line and the tag tell it apart from every other annotation
   color       "#rrggbb"
   tag         one tag
@@ -21,19 +20,19 @@ carries the tag and whose comment has the same first line is the same annotation
 (the user may have moved it); with several, the oldest. Any other is created as an image annotation (Zotero's
 rectangle) and read back. Nothing here changes or deletes an annotation.
 
-stdout: one line per entry {comment, code, key}, then {"summary"}.
-  created            created and read back; --dry-run: would be created, key null
+stdout: one line per entry {comment, code, key}.
+  created            created and read back; -n: would be created, key null
   kept               already there: key is that annotation's
   readback_mismatch  created, but it reads back without its tag or its comment's first line, so a rerun would not
                      find it: look at it in Zotero
   write_failed, write_denied: Zotero did not take it (status, detail)
-Or one line for the whole run: invalid_batch (detail says which lines and why; nothing was written), not_found (no
-item has that key), not_a_pdf (the item is not a PDF attachment).
-Exit 0 = every entry created or kept; 1 = some not; 2 = cannot check (zotero_unreachable, local_api_disabled, no_key,
-key_rejected, server_mismatch).
+Or one line for the whole run: not_found (no item has that key), not_a_pdf (the item is not a PDF attachment).
+Exit 0 = every entry created or kept; 1 = some not, then stderr's last line is {"summary": {total, ok, skipped,
+failed}}; 2 = nothing was done, and stderr's last line {code, hint} says why: invalid_boxes (`detail` says which lines
+and why), or Zotero cannot be reached (zotero_unreachable, local_api_disabled, no_key, key_rejected, server_mismatch).
 
 Example:
-  uv run scripts/annotate.py 4UVJVU5R --batch <scratch>/boxes.jsonl --dry-run
+  p2z.py annotate -n 4UVJVU5R <scratch>/boxes.jsonl
 """
 import json
 import re
@@ -51,7 +50,7 @@ def first_line(text):
 
 
 def problem(e):
-    """What makes a batch line no annotation, or None."""
+    """What makes a line no annotation, or None."""
     number = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)  # noqa: E731
     if not isinstance(e, dict):
         return "an entry is an object"
@@ -74,11 +73,11 @@ def problem(e):
 
 
 def entries_of(name):
-    """The batch file's annotations -> (entries, problems)."""
+    """The boxes' annotations, from a file or stdin (-) -> (entries, problems)."""
     try:
-        text = Path(name).expanduser().read_text(encoding="utf-8")
-    except OSError as e:
-        return [], [f"{name}: {e.strerror or e}"]
+        text = cli.document(name)
+    except cli.Stop as stop:
+        return [], [f"{name}: {stop.code}"]
     entries, problems = [], []
     for n, raw in enumerate(text.splitlines(), 1):
         if not raw.strip():
@@ -91,8 +90,6 @@ def entries_of(name):
         bad = problem(e)
         problems += [f"line {n}: {bad}"] if bad else []
         entries += [] if bad else [e]
-    if not entries and not problems:
-        problems.append("no entries")
     return entries, problems
 
 
@@ -124,9 +121,12 @@ def zotero_object(pdf_key, e):
 
 
 def annotate(args):
-    entries, problems = entries_of(args.batch)
+    entries, problems = entries_of(args.boxes)
     if problems:
-        raise cli.Stop("invalid_batch", hint="Fix the batch file, then rerun; nothing was written.", detail=problems)
+        raise cli.Stop("invalid_boxes", exit=cli.CANNOT, hint="Fix the boxes, then rerun; nothing was written.",
+                       detail=problems)
+    if not entries:   # no box: nothing to annotate
+        return cli.OK
     zot = zotero.Zotero(args.base_url)
     if not args.dry_run:
         zot.write_headers()
@@ -134,7 +134,7 @@ def annotate(args):
     if item is None:
         raise cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND, key=args.key)
     if not paper.is_pdf(zotero.data(item)):
-        raise cli.Stop("not_a_pdf", hint="Name a PDF attachment by its key: read_library pdf lists them.", key=args.key)
+        raise cli.Stop("not_a_pdf", hint="Name a PDF attachment by its key: p2z.py pdf lists them.", key=args.key)
     found = annotations(zot, args.key)
     new = {}   # identity -> the first entry that creates it; a later entry with the same identity shares its result
     for e in entries:
@@ -163,10 +163,10 @@ def annotate(args):
 def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("key", metavar="PDF_KEY", help="the PDF attachment's key")
-    p.add_argument("--batch", required=True, metavar="FILE", help="the annotations, one JSON object per line")
-    p.add_argument("--dry-run", action="store_true", help="read what is there; create nothing")
+    p.add_argument("boxes", metavar="BOXES", help="the annotations, one JSON object per line; - reads them from stdin")
+    cli.add_dry_run(p, help="read what is there; create nothing")
     cli.add_base_url(p)
-    args = p.parse_args(argv)
+    args = cli.parse(p, argv)
     if not cli.KEY_RE.match(args.key):
         p.error("PDF_KEY is an attachment's 8-character key")
     return cli.run(lambda: annotate(args))

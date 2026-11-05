@@ -1,14 +1,13 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Check Zotero items for problems worth tidying, read-only: duplicates, citation keys, stray webpages, attachment titles, fields.
 
-The whole library is read once (every page of /items: items, attachments and notes; trashed ones dropped), so
+The whole library is read once (all of /items in one listing: items, attachments and notes; trashed ones dropped), so
 duplicates and citation-key clashes are found across the library whatever the scope. The scope only chooses which
-items are reported: --collection KEY (--recursive takes its subcollections too), --key / --cite (several, or
-comma-separated), or nothing for every top-level item. Paths and --collection see only collections outside the trash.
+items are reported (below). Paths and --collection see only collections outside the trash.
 
 Problem codes (each problem is {"code", ...}: a fact and its evidence; what it means is a judge's):
   duplicate_of            other items with the same DOI or arXiv id ({"keys", "by": doi | arxiv}; a doi.org url
@@ -53,23 +52,29 @@ Problem codes (each problem is {"code", ...}: a fact and its evidence; what it m
                           empty. Whether the url is the version of record - the publisher's page, a copy, a library
                           proxy, a venue's own page - is the judge's
 
-stdout: one compact JSON line per reported item with problems {key, citationKey, title, itemType, collections (paths
-from the root, "/" between names), problems}, then {"summary": {items, with_problems, by_code}}. A --key
-or --cite that names no top-level item prints its {key | cite, code, hint} line first (not_found, cite_not_found,
-cite_ambiguous); --collection naming no collection prints one collection_not_found line. "patch" appears only where
-the fix is mechanical (an empty url); it is a fields object for one item: the "set" of an `update_item.py --batch`
-line {"key", "set"}, or a file for `--key KEY --patch FILE`. Every other problem is the agent's to judge and the
+What it checks: the items named (keys or citation keys; - reads a list from stdin, a value a line or our JSON
+lines, their `key`), else the items of --collection (-r: and the collections under it), else the whole library;
+the library is read once in every case, for the duplicates and the citation keys.
+
+stdout: one compact JSON line per item with problems {key, citationKey, title, itemType, collections (paths from the
+root, "/" between names), problems}. A name that is not one top-level item prints its line first: {item, code:
+not_found | ambiguous (keys)}, or {key, code: not_a_parent, parentItem} for an attachment or note; a --collection
+that names no one collection prints its collection_not_found or ambiguous line. "patch" appears only where the fix is
+mechanical (an empty url); it is a fields object for one item: the "set" of a change line {"key", "set"} for
+`p2z.py update -`, or a file for `p2z.py update KEY --patch FILE`. Every other problem is the agent's to judge and the
 user's to confirm. Nothing here goes online.
 
-Exit 0 = no problems; 1 = problems listed, a target or collection that does not resolve, or unexpected_response
-(a page of the library Zotero sent wrong: nothing was checked); 2 = cannot check (zotero_unreachable,
-local_api_disabled).
+Exit 0 = no problems; 1 = problems listed, or a name or collection that does not resolve, or unexpected_response
+(the library Zotero sent wrong: nothing was checked), then stderr's last line is {"summary": {items, with_problems,
+by_code}}; 2 = cannot check (zotero_unreachable, local_api_disabled), then stderr's last line is {code, hint}.
 
 Examples:
-  uv run scripts/lint_items.py --collection 9EYXTC2I --recursive
-  uv run scripts/lint_items.py --cite liu2022progressive,smith2024deep
+  p2z.py lint --collection 自然图像 -r
+  p2z.py lint | jq -c 'select(.problems[].code == "duplicate_of")'
+  p2z.py lint liu2022progressive smith2024deep
 """
 import re
+import sys
 import unicodedata
 from urllib.parse import unquote
 
@@ -89,7 +94,7 @@ class Library:
     and citation-key clashes are found by."""
 
     def __init__(self, zot):
-        rows = [r for r in zot.pages(f"{LIB}/items") if not zotero.data(r).get("deleted")]
+        rows = [r for r in zot.rows(f"{LIB}/items") if not zotero.data(r).get("deleted")]
         self.top = {r["key"]: r for r in rows if zotero.is_top(r)}
         self.children = {}
         for r in rows:
@@ -112,8 +117,8 @@ class Library:
     def paths(self, data):
         return [self.tree[c]["path"] for c in data.get("collections") or [] if c in self.tree]
 
-    def in_collection(self, zot, key, recursive):
-        wanted = set(zot.collection_scope(key, recursive, self.tree))
+    def in_collection(self, zot, value, recursive):
+        wanted = set(zot.collection_scope(value, recursive, self.tree))
         return [r for r in self.top.values() if wanted & set(zotero.data(r).get("collections") or [])]
 
     def title_hits(self, title):
@@ -250,23 +255,30 @@ def problems_of(item, lib):
 
 
 def lint(zot, args):
-    targets = zot.targets(args.key, args.cite) if args.key or args.cite else None
+    named = cli.names(args.items)   # `-` with an empty list: nothing to check
+    if args.items and not named:
+        return cli.OK
     lib = Library(zot)
     scope = lib.in_collection(zot, args.collection, args.recursive) if args.collection else list(lib.top.values())
-    failed = []
-    if targets is not None:
-        named = set()
-        for key, cite, failure in targets:
-            head = {"key": key, **({"cite": cite} if cite else {})} if key else {"cite": cite}
-            if failure is None and key not in lib.top:
-                failure = cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND)
-            if failure is not None:
-                failed.append(failure.line(**head))
-            else:
-                named.add(key)
-        scope = [r for r in scope if r["key"] in named]
-    for line in failed:
-        cli.emit(line)
+    failed = 0
+    if args.items:
+        keys = set()
+        for name in named:
+            try:
+                key = zot.resolve(name)
+                if key not in lib.top:
+                    d = zotero.data(zot.item(key))
+                    raise (cli.Stop("not_a_parent", parentItem=d.get("parentItem"),
+                                    hint="An attachment or note is checked with its parent item (parentItem).")
+                           if d.get("itemType") in ("attachment", "note", "annotation") else
+                           cli.Stop("not_found", hint="The item is in the trash."))
+                keys.add(key)
+            except cli.Stop as stop:
+                if stop.exit == cli.CANNOT:
+                    raise
+                cli.emit(stop.line(**cli.head(name, None if stop.code != "not_a_parent" else key)))
+                failed += 1
+        scope = [r for r in scope if r["key"] in keys]
     counts, reported = {}, 0
     for r in scope:
         found = problems_of(r, lib)
@@ -278,18 +290,20 @@ def lint(zot, args):
         d = zotero.data(r)
         cli.emit({"key": r["key"], "citationKey": d.get("citationKey") or None, "title": d.get("title"),
                   "itemType": d.get("itemType"), "collections": lib.paths(d), "problems": found})
-    summary = {"items": len(scope), "with_problems": reported, "by_code": dict(sorted(counts.items()))}
-    cli.emit({"summary": summary})
-    return cli.ACT if reported or failed else cli.OK
+    if not reported and not failed:
+        return cli.OK
+    cli.emit({"summary": {"items": len(scope), "with_problems": reported, "by_code": dict(sorted(counts.items()))}},
+             sys.stderr)
+    return cli.ACT
 
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("--collection", metavar="KEY", help="report the items of this collection")
-    p.add_argument("--recursive", action="store_true", help="with --collection: its subcollections too")
-    cli.add_targets(p)
+    cli.add_items(p)
+    p.add_argument("--collection", metavar="COLL", help="check the items of this collection: its key, path or name")
+    p.add_argument("-r", "--recursive", action="store_true", help="with --collection: the collections under it too")
     cli.add_base_url(p)
-    args = cli.targets_of(p, p.parse_args(argv), required=False)
+    args = cli.parse(p, argv)
     return cli.run(lambda: lint(zotero.Zotero(args.base_url), args))
 
 

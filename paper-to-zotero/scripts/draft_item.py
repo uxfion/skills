@@ -1,17 +1,14 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Draft a record from each of paper-fetch's result files: its Zotero item, made from the result's CSL.
 
-  uv run scripts/draft_item.py <scratch>/paper-to-zotero/fetch/results/*.json
-  uv run scripts/draft_item.py --redraft <scratch>/paper-to-zotero/fetch/results/<slug>.json
-
-The item is made by Zotero's own CSL tables (its schema) plus the rules below. The results are the arguments, or
-lines on stdin. A record is <records>/<slug>.json, under its result's slug; the records directory is -o, by default
-records/ beside the result's fetch/ (an import's layout: <scratch>/paper-to-zotero/{fetch,records}/). Drafting
-writes:
+The item is made by Zotero's own CSL tables (its schema) plus the rules below. The result files follow the options
+(- reads their paths from stdin). A record is <records>/<slug>.json, under its result's slug; the records directory
+is -o DIR/, by default records/ beside the result's fetch/ (an import's layout:
+<scratch>/paper-to-zotero/{fetch,records}/). Drafting writes:
   fetched      the result file's absolute path
   item         the Zotero item to create; the agent may revise it
   citationKey  the key given (the result's `cite`, verbatim: a .bib key); otherwise Better BibTeX makes the key
@@ -36,14 +33,19 @@ Rules beyond the tables:
     record has none, and "arXiv: <id>" in extra.
   - The CSL's `version` is the metadata record's (DataCite's), not the paper's: not written.
 
-stdout: one line per result {slug, code, itemType?, title?, warnings?}, then {"summary"}.
+stdout: one line per result {slug, code, itemType?, title?, warnings?}.
   ok              drafted
   skipped         reason exists: the record has an item (--redraft drafts it again)
-  already_saved   --redraft on a record whose item is in Zotero: change it there with update_item.py
+  already_saved   --redraft on a record whose item is in Zotero: change it there with p2z.py update
   stub            the result has no metadata (paper-fetch could not identify the paper): the record holds only
-                  `fetched`, and recognize.py takes it from the PDF
+                  `fetched`, and p2z.py recognize takes it from the PDF
   result_invalid  not one of paper-fetch's result files
-Exit 0 = every result drafted or skipped; 1 = some not; 2 = Zotero (asked for its schema once a run) not running.
+Exit 0 = every result drafted or skipped; 1 = some not, then stderr's last line is {"summary": {total, ok, skipped,
+failed}}; 2 = Zotero (asked for its schema once a run) not running, then stderr's last line is {code, hint}.
+
+Examples:
+  p2z.py draft <scratch>/paper-to-zotero/fetch/results/*.json
+  p2z.py draft --redraft <scratch>/paper-to-zotero/fetch/results/<slug>.json
 """
 import argparse
 import json
@@ -251,7 +253,7 @@ def draft(path, out, redraft, schema_of, automatic=False):
         if not target.exists():
             run.Record(target, {"fetched": str(Path(path).absolute())}).save()
         return {"code": "stub", "warnings": [w for w in res.get("warnings") or [] if isinstance(w, str)],
-                "hint": "paper-fetch found no metadata for this paper: once its PDF is in hand, recognize.py has "
+                "hint": "paper-fetch found no metadata for this paper: once its PDF is in hand, p2z.py recognize has "
                         "Zotero's recognizer identify it from the PDF (references/no-doi-record.md)."}
     moved = next((old for old in res.get("renamed_from") or [] if not target.exists() and (records / f"{old}.json").exists()), None)
     if moved:  # the result was renamed after its record was drafted: the record follows it
@@ -264,7 +266,7 @@ def draft(path, out, redraft, schema_of, automatic=False):
         return cli.skipped("exists", **({"renamed_from": moved} if moved else {}))
     if rec.item and (rec.get("saved") or rec.get("attach")):
         return {"code": "already_saved", "hint": "The item is in Zotero already (or being created): change it there "
-                                                 "with update_item.py."}
+                                                 "with p2z.py update."}
     warnings = []
     item, tags = item_of(res, schema_of(records), warnings)
     rec["fetched"] = str(Path(path).absolute())
@@ -284,17 +286,17 @@ def draft(path, out, redraft, schema_of, automatic=False):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("results", nargs="*", metavar="RESULT", help="paper-fetch's result files (default: paths on stdin)")
-    p.add_argument("-o", "--out", metavar="DIR", help="the records directory (default: records/ beside the result's fetch/)")
+    p.add_argument("results", nargs="*", metavar="RESULT", help="paper-fetch's result files; - reads their paths from stdin")
+    p.add_argument("-o", "--output", metavar="DIR/", help="the records directory (default: records/ beside the result's fetch/)")
     p.add_argument("--redraft", action="store_true", help="draft the items of records that have one again")
     p.add_argument("--automatic-tags", action=argparse.BooleanOptionalAction, default=None,
                    help="the source's own keywords as automatic tags, this run (default: the config's automatic_tags, off)")
     cli.add_base_url(p)
-    args = p.parse_args(argv)
+    args = cli.parse(p, argv)
     automatic = config.automatic_tags() if args.automatic_tags is None else args.automatic_tags
-    paths = args.results or [ln.strip() for ln in sys.stdin if ln.strip()]
-    if not paths:
-        p.error("give the result files, or their paths on stdin")
+    if not args.results:
+        p.error("name the result files, or - to read their paths from stdin")
+    paths = cli.paths(args.results)
     zot, schemas = zotero.Zotero(args.base_url), {}
 
     def schema_of(records):  # one read of Zotero a run, kept in the import's scratch/schema.json
@@ -305,7 +307,7 @@ def main(argv=None):
     def loop():
         out = cli.Lines()
         for path in paths:
-            out.add({"slug": Path(path).stem}, lambda: draft(path, args.out, args.redraft, schema_of, automatic))
+            out.add({"slug": Path(path).stem}, lambda: draft(path, args.output, args.redraft, schema_of, automatic))
         return out.finish()
 
     return cli.run(loop)

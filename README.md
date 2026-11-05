@@ -36,7 +36,7 @@ npx skills add uxfion/skills --skill uv-python -g   # -g 全局安装，省略�
 npx skills add uxfion/skills --list                 # 只查看可用 skills
 ```
 
-各 skill 的脚本都能直接执行，如 `paddleocr/scripts/doc.py --help`：首行 shebang 交给 uv，按脚本内声明的依赖运行。skill 文档里怎么调用，见 `docs/design-principles.md` §3 *The Unix/Linux philosophy*。
+各 skill 的脚本都能直接执行，如 `paddleocr/scripts/doc.py --help`：首行 shebang 交给 uv，按脚本内声明的依赖运行。skill 文档里怎么调用，见 `docs/design-principles.md` §3 *The Unix/Linux philosophy*；各 skill 是否照它做，由仓库根目录的约定检查 `uv run tests/check_conventions.py` 查（开发时跑，不随 skill 安装）。
 
 ## 更新 Auto memory
 

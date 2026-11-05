@@ -1,8 +1,8 @@
 """The skill's config file, outside any repository: the Zotero write key.
 
 ~/.config/paper-to-zotero/config.json ($PAPER_TO_ZOTERO_CONFIG points elsewhere, for tests), mode 600:
-{"zotero": {"key", "serverID", "created"}, "automatic_tags"?: true | false}; ready.py --authorize writes the key,
-the user sets automatic_tags (draft_item.py: the source's own keywords as automatic tags; off when absent). Other fields are kept as they are (the
+{"zotero": {"key", "serverID", "created"}, "automatic_tags"?: true | false}; p2z.py ready --authorize writes the key,
+the user sets automatic_tags (p2z.py draft: the source's own keywords as automatic tags; off when absent). Other fields are kept as they are (the
 openalex key and institution an older version kept here are paper-fetch's now, in its own config). No value read
 here is ever printed.
 """
@@ -55,13 +55,13 @@ def automatic_tags():
 
 
 def zotero_key(server_id):
-    """The local API key ready.py --authorize stored, checked against the running instance's server id."""
+    """The local API key p2z.py ready --authorize stored, checked against the running instance's server id."""
     zot = section("zotero", strict=True)
     if not text(zot.get("key")):
-        raise Stop("no_key", exit=CANNOT, hint="No local API key yet; run ready.py --authorize first.", config=str(path()))
+        raise Stop("no_key", exit=CANNOT, hint="No local API key yet; run p2z.py ready --authorize first.", config=str(path()))
     if zot.get("serverID") and zot["serverID"] != server_id:
         raise Stop("server_mismatch", exit=CANNOT,
-                   hint="The stored key was issued by another Zotero instance; run ready.py --authorize again.",
+                   hint="The stored key was issued by another Zotero instance; run p2z.py ready --authorize again.",
                    config=str(path()))
     return zot["key"]
 

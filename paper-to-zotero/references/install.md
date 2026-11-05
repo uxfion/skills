@@ -4,7 +4,7 @@ Read when `p2z.py ready` reports something missing. Each piece below says what n
 
 ## The skill itself
 
-The scripts share one library, `scripts/p2zlib/`, a subdirectory the skill installs with it (`npx skills add` copies the whole folder). After installing or updating, `uv run scripts/p2z.py --help` lists every command; an error naming `p2zlib` means the folder came without it — install the skill again. The sibling skills each operation needs, and what happens without them, are in SKILL.md, *Sibling skills*: install them beside this one the same way.
+The scripts share one library, `scripts/p2zlib/`, a subdirectory the skill installs with it (`npx skills add` copies the whole folder). After installing or updating, `p2z.py -h` (SKILL.md, *Calling*) lists every word; an error naming `p2zlib` means the folder came without it — install the skill again. The sibling skills each operation needs, and what happens without them, are in SKILL.md, *Sibling skills*: install them beside this one the same way.
 
 ## Zotero
 

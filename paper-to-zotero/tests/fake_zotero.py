@@ -6,11 +6,12 @@
     zot.add_collection("COLL0001", "tmp")
 
 What the real local API does that the fake keeps: GETs need no key; writes need Zotero-API-Key and
-Zotero-Server-ID (401, then 412 "Zotero-Server-ID mismatch"); listings page with `start`/`limit` (25 by default,
-at most 100) and send Total-Results and a rel="next" Link; `/items/<unknown>/children` answers with the whole
-library; `/items/<key>/children` leaves a PDF's annotations out unless `itemType=annotation` asks for them;
-`itemKey` also returns the children of the keys asked for; trashed items are left out of listings; an
-attachment's /file redirects to its file:// address; a PATCH or a POSTed update with a stale version fails with 412.
+Zotero-Server-ID (401, then 412 "Zotero-Server-ID mismatch"); a listing comes whole unless `limit` asks for a page
+(`start`, at most 100), with Total-Results and, for a page, a rel="next" Link; `/items/<unknown>/children` is empty;
+`/items/<key>/children` leaves a PDF's annotations out unless `itemType=annotation` asks for them; `itemKey` also
+returns the children of the keys asked for; trashed items are left out of listings; an attachment's /file
+redirects to its file:// address and /file/view/url answers with that address (400 for an item that is not a file
+attachment, 404 for no file); a PATCH or a POSTed update with a stale version fails with 412.
 
 A file reaches a stored-file attachment (imported_url / imported_file) in three steps; the first and the last are
 writes (key, server id and write_status apply), the transfer needs no key:
@@ -30,12 +31,12 @@ dateAdded, collections: [selected_collection]} and 201 {canRecognize: a PDF or E
 `recognizer_free` is set, lets the recognizer work on that session's PDF once, then answers 200 {title, itemType}
 when the attachment has a parent, else 204.
 
-Search (`q`): titleCreatorYear (the default) looks at title, creator names and the year; `fields` and `everything`
-at every string field (`citationKey` only while `search_sees_citekey`).
+Search (`q`), every word in some field: titleCreatorYear (the default) looks at title, creator names, the year and
+citationKey and returns top-level items only; `fields` and `everything` look at every string field and tags. A word
+that is an 8-character key also matches the item of that key.
 
 Hooks, all reset by reset():
   disabled               every local API request answers 403 "Local API is not enabled" (the connector still answers)
-  search_sees_citekey    q matches citationKey (False: only the fallback scan finds it)
   bump_before_write      this many writes find the item one version newer (a concurrent edit), each running
                          `concurrent_edit(item)` when set
   ignore_writes          writes are acknowledged but change nothing
@@ -126,7 +127,6 @@ class FakeZotero:
         self.requests = []
         self.counter = 0
         self.disabled = False
-        self.search_sees_citekey = True
         self.bump_before_write = 0
         self.concurrent_edit = None
         self.ignore_writes = False
@@ -195,12 +195,13 @@ class FakeZotero:
     def matches(self, it, q, mode):
         d = it["data"]
         if mode == "titleCreatorYear":
-            hay = [d.get("title") or "", (d.get("date") or "")[:4]]
+            if d.get("parentItem"):
+                return False
+            hay = [d.get("title") or "", (d.get("date") or "")[:4], d.get("citationKey") or ""]
             hay += [f"{c.get('firstName', '')} {c.get('lastName', '')} {c.get('name', '')}" for c in d.get("creators") or []]
         else:
-            hay = [v for k, v in d.items() if isinstance(v, str) and (k != "citationKey" or self.search_sees_citekey)]
-            hay += [t.get("tag", "") for t in d.get("tags") or []]
-        return all(any(w.casefold() in h.casefold() for h in hay) for w in q.split())  # Zotero: every word, in any field
+            hay = [v for v in d.values() if isinstance(v, str)] + [t.get("tag", "") for t in d.get("tags") or []]
+        return all(w == it["key"] or any(w.casefold() in h.casefold() for h in hay) for w in q.split())
 
     def listing(self, path, query):
         """Rows for an items listing path, before paging; None when the path is not one."""
@@ -223,8 +224,8 @@ class FakeZotero:
             rows = [it for it in rows if it["data"].get("itemType") == query["itemType"]]
         if "since" in query:
             rows = [it for it in rows if it["version"] > int(query["since"])]
-        if "tag" in query:
-            wanted = [t.strip() for t in query["tag"].split("||")]
+        for tag in query["tag"] if isinstance(query.get("tag"), list) else [query["tag"]] if "tag" in query else []:
+            wanted = [t.strip() for t in tag.split("||")]   # a || b: either; tag repeated: each
             rows = [it for it in rows if any(t.get("tag") in wanted for t in it["data"].get("tags") or [])]
         if "q" in query:
             rows = [it for it in rows if self.matches(it, query["q"], query.get("qmode", "titleCreatorYear"))]
@@ -362,14 +363,17 @@ class _Handler(BaseHTTPRequestHandler):
 
     def parse(self):
         url = urllib.parse.urlsplit(self.path)
-        query = {k: v[0] for k, v in urllib.parse.parse_qs(url.query, keep_blank_values=True).items()}
+        # a repeated parameter (tag) keeps every value
+        query = {k: v[0] if len(v) == 1 else v for k, v in urllib.parse.parse_qs(url.query, keep_blank_values=True).items()}
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length) if length else b""
         self.zot.requests.append((self.command, url.path, query, raw))
         return url.path, query, raw
 
     def page(self, rows, query):
-        start, limit = int(query.get("start", 0)), min(int(query.get("limit", 25)), 100)
+        if "limit" not in query:
+            return self.send(200, rows, {"Total-Results": str(len(rows))})
+        start, limit = int(query.get("start", 0)), min(int(query["limit"]), 100)
         headers = {"Total-Results": str(len(rows))}
         if start + limit < len(rows):
             path = urllib.parse.urlsplit(self.path).path
@@ -398,7 +402,7 @@ class _Handler(BaseHTTPRequestHandler):
             rows = z.listing(path, query)
             if rows is not None:
                 if query.get("format") == "bibtex":
-                    start, limit = int(query.get("start", 0)), min(int(query.get("limit", 25)), 100)
+                    start, limit = int(query.get("start", 0)), min(int(query.get("limit", len(rows) or 1)), 100)
                     return self.send(200, "\n".join(bibtex(it) for it in rows[start:start + limit]))
                 return self.page(rows, query)
             parts = path[len(LIB):].strip("/").split("/")
@@ -408,18 +412,21 @@ class _Handler(BaseHTTPRequestHandler):
                     it = z.items.get(key)
                     return self.send(200, it) if it else self.send(404, "Not found")
                 if parts[2:] == ["children"]:
-                    rows = ([it for it in z.items.values() if it["data"].get("parentItem") == key]
-                            if key in z.items else list(z.items.values()))
+                    rows = [it for it in z.items.values() if it["data"].get("parentItem") == key]
                     # a PDF's annotations come only when asked for by type
                     rows = [it for it in rows if (it["data"].get("itemType") == query["itemType"] if "itemType" in query
                                                   else it["data"].get("itemType") != "annotation")]
                     return self.page(rows, query)
-                if parts[2:] == ["file"]:
-                    if key in z.files:  # as Zotero: the storage folder and the attachment's filename
-                        name = z.items[key]["data"].get("filename") if key in z.items else None
-                        path = z.files[key].with_name(name) if name and z.files[key].with_name(name).exists() else z.files[key]
-                        return self.send(302, None, {"Location": "file://" + urllib.parse.quote(str(path))})
-                    return self.send(404, "Not found")
+                if parts[2:] in (["file"], ["file", "view", "url"]):
+                    if key in z.items and z.items[key]["data"].get("itemType") != "attachment":
+                        return self.send(400, f"Not a file attachment: {key}")
+                    if key not in z.files:
+                        return self.send(404, "Not found")
+                    # as Zotero: the storage folder and the attachment's filename
+                    name = z.items[key]["data"].get("filename") if key in z.items else None
+                    path = z.files[key].with_name(name) if name and z.files[key].with_name(name).exists() else z.files[key]
+                    url = "file://" + urllib.parse.quote(str(path))
+                    return self.send(200, url) if parts[2:] == ["file", "view", "url"] else self.send(302, None, {"Location": url})
             return self.send(404, "Not found")
 
     # ---- writes -------------------------------------------------------------------------------------------------

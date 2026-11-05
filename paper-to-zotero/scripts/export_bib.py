@@ -1,38 +1,38 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Export Zotero items as BibTeX keyed by their citationKey, from a collection, item or citation keys, or records.
+"""Export Zotero items as BibTeX keyed by their citationKey, from a collection, items or records.
 
-The items: --collection (its top-level items; --recursive adds its sub-collections, those in the trash left out),
---key / --cite (a citation key is found by a search, then a scan of the top-level items), and record files (the
-item the record created, `saved.key`, else the one it found, `found.key`; a near match names another item, so
-such a record has none). An item named twice is exported once. Each 50 keys are one GET
-/items/top?itemKey=...&format=bibtex (the local API drops unknown keys silently, hence the JSON read that also
-gives each item's citationKey). Entries are written ordered by their BibTeX key, to stdout or --out.
+What it exports: --collection (its top-level items: a key, a path from p2z.py collections or a name; -r adds the
+collections under it, those in the trash left out), and what follows the options: items (keys or citation keys; -
+reads a list from stdin, a value a line or our JSON lines, their `key`) and record files (a value with a "/" or
+ending in .json is a path: the item the record created, `saved.key`, else the one it found, `found.key`; a near match
+names another item, so such a record has none). An item named twice is exported once. Each 50 keys are one GET
+/items/top?itemKey=...&format=bibtex (the local API drops unknown keys silently, hence the JSON read that also gives
+each item's citationKey). Entries are written ordered by their BibTeX key, to stdout or -o.
 
-stdout carries the BibTeX, so every JSON line goes to stderr. Exported: one {"summary": {count, out?,
-collections?, ...}}, each list below only when it is not empty:
+Exit 0 = exported, every item with its own clean citationKey; stderr stays empty. Exit 1 = the BibTeX is written
+all the same, and stderr's last line is {"summary": {count, output?, collections?, ...}} with each list below that
+is not empty:
   missing      items without a citationKey (Zotero makes up their BibTeX key)
   duplicates   [{citationKey, keys}]: one citationKey on several items
   tex          [{key, citationKey, suggested}]: a citationKey with a character TeX treats specially
   not_found    keys that are no top-level item of the library
-  unresolved   [{cite, code: cite_not_found | cite_ambiguous, keys?}]
+  unresolved   [{item, code: not_found | ambiguous, keys?}]: names that are not one item
+  not_a_parent [{key, parentItem}]: attachments and notes named, which go with their parent's entry
   no_item_key  records (by file name) with no library item yet
-  invalid      [{path, code: record_invalid, detail?}]: record paths that are not a file holding one JSON object
-  standalone   [{key, itemType}]: standalone notes and attachments, which have no BibTeX entry
-The BibTeX is written either way; fix the citation keys with update_item.py --key KEY --set citationKey=... on
-the user's word, then rerun. Stopped before exporting, one {code, hint, ...}: collection_not_found, no_records
-(an empty collection).
-
-Exit 0 = exported, every item with its own clean citationKey; 1 = a list above other than standalone is not empty,
-or stopped; 2 = cannot read (zotero_unreachable, local_api_disabled).
+  invalid      [{path, code: file_not_found | record_invalid, detail?}]: record paths that are not a record
+  standalone   [{key, itemType}]: standalone notes and attachments, which have no BibTeX entry (exit 0 alone)
+Fix the citation keys with p2z.py update KEY --set citationKey=... on the user's word, then rerun. Stopped before
+exporting, stderr's last line is {code, hint, ...} with exit 1: collection_not_found or ambiguous (--collection),
+no_records (an empty collection). Exit 2 = cannot read (zotero_unreachable, local_api_disabled).
 
 Examples:
-  uv run scripts/export_bib.py --collection 9EYXTC2I --recursive -o ref.bib
-  uv run scripts/export_bib.py --cite liu2022progressive zhou2021handheld
-  uv run scripts/export_bib.py <scratch>/paper-to-zotero/records/*.json -o ref.bib   # record paths before any --key / --cite
+  p2z.py export --collection 自然图像 -r -o ref.bib
+  p2z.py export liu2022progressive zhou2021handheld
+  p2z.py export <scratch>/paper-to-zotero/records/*.json -o ref.bib
 """
 import re
 import sys
@@ -42,7 +42,7 @@ from p2zlib import cli, paper, run, zotero
 from p2zlib.zotero import LIB
 
 ENTRY_KEY = re.compile(r"^@\w+\s*\{\s*([^,\s]+)\s*,")
-PROBLEMS = ("missing", "duplicates", "tex", "not_found", "unresolved", "no_item_key", "invalid")
+PROBLEMS = ("missing", "duplicates", "tex", "not_found", "unresolved", "not_a_parent", "no_item_key", "invalid")
 
 
 def read_records(paths):
@@ -57,9 +57,9 @@ def read_records(paths):
 
 
 def collection_keys(zot, root, recursive):
-    """(the item keys, the collection keys): the collection's top-level items, --recursive its live sub-collections' too."""
+    """(the item keys, the collection keys): the collection's top-level items, -r its live sub-collections' too."""
     cols = zot.collection_scope(root, recursive)
-    keys = [row["key"] for key in cols for row in zot.pages(f"{LIB}/collections/{key}/items/top")]
+    keys = [row["key"] for key in cols for row in zot.rows(f"{LIB}/collections/{key}/items/top")]
     return keys, sorted(cols)
 
 
@@ -88,16 +88,19 @@ def entries_of(text):
 
 
 def export(zot, args):
-    records, invalid = read_records(args.records)
+    paths = [v for v in args.items if v != "-" and cli.looks_like_path(v)]
+    records, invalid = read_records(paths)
     keys, summary = [], {}
     if args.collection:
         keys, summary["collections"] = collection_keys(zot, args.collection, args.recursive)
     unresolved, no_item_key = [], []
-    for key, cite, failure in zot.targets(args.key, args.cite):
-        if failure is not None:
-            unresolved.append({"cite": cite, "code": failure.code, **failure.extra})
-        else:
-            keys.append(key)
+    for name in cli.names([v for v in args.items if v not in paths]):
+        try:
+            keys.append(zot.resolve(name))
+        except cli.Stop as stop:
+            if stop.exit == cli.CANNOT:
+                raise
+            unresolved.append({**cli.head(name), "code": stop.code, **stop.extra})
     for rec in records:
         key = run.item_key(rec)
         if key:
@@ -106,48 +109,50 @@ def export(zot, args):
             no_item_key.append(rec.slug)
     keys = list(dict.fromkeys(keys))
     if not keys and not unresolved and not no_item_key and not invalid:
+        if not args.collection:   # `-` with an empty list: nothing to export
+            return cli.OK
         raise cli.Stop("no_records", hint="Nothing to export: the collection holds no top-level item.", **summary)
 
-    rows = zot.items(keys, f"{LIB}/items/top")
+    rows = zot.items(keys)
     items = {k: zotero.data(rows[k]) for k in keys if k in rows and zotero.is_top(rows[k])}
     entries = entries_of(bibtex(zot, list(items))) if items else []
     output = "\n\n".join(e for _, e in entries) + ("\n" if entries else "")
-    if args.out:
-        out = Path(args.out).expanduser()
+    if args.output:
+        out = Path(args.output).expanduser()
         out.write_text(output, encoding="utf-8")
-        summary["out"] = str(out)
+        summary["output"] = str(out)
     else:
-        sys.stdout.write(output)
-        sys.stdout.flush()
+        cli.write(output)
 
+    children = {k: zotero.data(rows[k]) for k in keys if k in rows and zotero.data(rows[k]).get("parentItem")}
     lists = {**paper.cite_problems(items), "not_found": [k for k in keys if k not in rows], "unresolved": unresolved,
+             "not_a_parent": [{"key": k, "parentItem": d["parentItem"]} for k, d in children.items()],
              "no_item_key": no_item_key, "invalid": invalid,
-             "standalone": [{"key": k, "itemType": zotero.data(rows[k]).get("itemType")} for k in keys if k in rows and k not in items]}
-    summary = {"count": len(entries), **summary, **{name: v for name, v in lists.items() if v}}
-    failed = any(lists[name] for name in PROBLEMS)
-    if failed:
-        summary["hint"] = ("The BibTeX was written as the library has it: give each item listed its own citationKey free of TeX "
-                           "specials (update_item.py --key KEY --set citationKey=..., on the user's word), check the keys, "
-                           "cites and records listed, then rerun.")
+             "standalone": [{"key": k, "itemType": zotero.data(rows[k]).get("itemType")} for k in keys
+                            if k in rows and k not in items and k not in children]}
+    if not any(lists[name] for name in PROBLEMS):
+        return cli.OK
+    summary = {"count": len(entries), **summary, **{name: v for name, v in lists.items() if v},
+               "hint": "The BibTeX was written as the library has it: give each item listed its own citationKey free of "
+                       "TeX specials (p2z.py update KEY --set citationKey=..., on the user's word), check the names and "
+                       "records listed, then rerun."}
     cli.emit({"summary": summary}, sys.stderr)
-    return cli.ACT if failed else cli.OK
+    return cli.ACT
 
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("records", nargs="*", metavar="RECORD", help="record files (the shell expands a glob)")
-    p.add_argument("--collection", metavar="KEY", help="the collection's top-level items")
-    p.add_argument("--recursive", action="store_true", help="with --collection: its sub-collections too")
-    cli.add_targets(p)
-    p.add_argument("-o", "--out", metavar="FILE", help="write the BibTeX here instead of stdout")
+    p.add_argument("items", nargs="*", metavar="ITEM|RECORD",
+                   help="items (keys or citation keys; - reads a list) or record files")
+    p.add_argument("--collection", metavar="COLL", help="the collection's top-level items: its key, path or name")
+    p.add_argument("-r", "--recursive", action="store_true", help="with --collection: the collections under it too")
+    p.add_argument("-o", "--output", metavar="FILE", help="write the BibTeX here instead of stdout")
     cli.add_base_url(p)
-    args = cli.targets_of(p, p.parse_args(argv), required=False)
-    if args.collection and not cli.KEY_RE.match(args.collection):
-        p.error("--collection takes an 8-character collection key")
+    args = cli.parse(p, argv)
     if args.recursive and not args.collection:
-        p.error("--recursive needs --collection")
-    if not (args.collection or args.key or args.cite or args.records):
-        p.error("name what to export: --collection, --key / --cite, or record paths")
+        p.error("-r needs --collection")
+    if not (args.collection or args.items):
+        p.error("name what to export: --collection, items, or record files")
     return cli.run(lambda: export(zotero.Zotero(args.base_url), args), sys.stderr)
 
 

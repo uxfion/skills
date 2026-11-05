@@ -1,59 +1,60 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Set the collections and tags of existing Zotero items, or add to and take from them; re-running is a no-op.
+"""Change the tags and collections of existing Zotero items: set them, or add to and take from them; re-running is a no-op.
 
-A change says, for one item:
-  collection         its collections become exactly these: a key or a list of keys; null, "none" or [] clears
-  add_collection     add it to these (a key or a list), keeping its others
-  remove_collection  take it out of these, keeping its others; one it is not in is a no-op, so it is not looked up
-  tags               its COMPLETE tag set: a list of "name" (type 0) or {"tag": "name", "type": 0|1} (0 manual,
-                     1 automatic); a tag given twice keeps its last occurrence, with a warning on stderr
+With change options, what follows them is the items: keys or citation keys (- reads a list from stdin: a value a
+line, or our JSON lines, their `key`), all given the same change:
+  --add-tag TAG, --remove-tag TAG            a tag added (type 0, manual) or taken off, whatever its type
+  --add-tags-file FILE, --set-tags-file FILE  a JSON list of tags, "name" or {"tag": "name", "type": 0|1} (1
+                                              automatic): added to the item's tags, or its complete tag set
+  --add-collection COLL, --remove-collection COLL, --set-collection COLL
+                                              a collection the item joins or leaves, or exactly these (--set-collection
+                                              none: in none); COLL is a key, a path from p2z.py collections, or a name
+                                              one collection has
+Each option takes one value; repeat it for more. Without change options, what follows is change lists: files of JSON
+lines (- reads one from stdin), a change per line naming its item by "key" or "cite", with any of
+  collection         its collections become exactly these: a collection or a list; null, "none" or [] clears
+  add_collection     add it to these (a collection or a list), keeping its others
+  remove_collection  take it out of these, keeping its others; one it is not in is a no-op
+  tags               its complete tag set, a list as in a tags file; a tag given twice keeps its last occurrence
   add_tags           tags to add to the ones it has, in the same form
-  remove_tags        take these off (a tag name or a list of names, whatever their type), keeping its others; one
-                     it does not have is a no-op
+  remove_tags        take these off (a tag name or a list of names, whatever their type)
+  {"cite": "liu2022progressive", "add_collection": "自然图像/Diffusion", "remove_tags": "to read"}
 collection excludes add_collection and remove_collection, which combine (a move that keeps the others); tags
-excludes add_tags and remove_tags, which combine the same way.
+excludes add_tags and remove_tags, which combine the same way. An item named twice is handled once when both ask
+the same; two different changes for one item are invalid_changes. A field outside these is ignored, with a warning
+on stderr.
 
---batch FILE holds JSON lines, a change per line, each naming its item by "key" or by "cite" (its citationKey) —
-the batch format update_item.py reads too:
-  {"cite": "liu2022progressive", "add_collection": "NEWCOLL1", "remove_collection": ["OLDCOLL1"]}
-  {"key": "ABCD1234", "tags": ["CVPR", {"tag": "Deep learning", "type": 1}]}
---key / --cite with --collection, --add-collection, --remove-collection, --tags-file, --add-tags-file (a file
-holding a tag list as above), --remove-tags (tag names) give every item they name the same change. An item named
-twice is handled once when both ask the same; two different changes for one item are invalid_changes.
+Nothing is written unless every change passes its checks: each name is one item, only top-level items change
+collections (tags go on attachments and notes too), each collection named is one outside the trash (this command
+never creates one: p2z.py mkcol does). Then one POST per 50 items, each sent with its version (an item that changed
+meanwhile is read again, planned again and sent once more), and each item is checked in Zotero's reply.
 
-Nothing is written unless every change passes its checks: each cite names one top-level item, each item exists,
-only top-level items change collections, each destination collection is in the collection tree and not in the
-trash (this script never creates one). Then one POST per 50 items, each sent with its version (an item that
-changed meanwhile is read again, planned again and sent once more), and each item is checked in Zotero's reply.
-
-stdout: one line per item {key, cite?, code, title, collection?: {from, to}, tags_added?, tags_removed?, version},
-then {"summary": {total, ok, skipped, failed[, dry_run]}}.
-  ok                    written, and Zotero's reply shows it (--dry-run: would be written)
+stdout: one line per item {key, cite?, code, title, collection?: {from, to}, tags_added?, tags_removed?, version}:
+  ok                    written, and Zotero's reply shows it (-n: would be written)
   skipped               reason unchanged: the item already is as asked
-  cite_not_found        no top-level item carries the citationKey; cite_ambiguous: several do (`keys`), give the key
-  not_found             no item with that key
-  not_a_parent          an attachment or note is in no collection: name its parent item (`parent`)
-  collection_not_found  a destination is not in the collection tree, or is in the trash (`collections`)
+  not_found             {item, code}: no item has this key or citation key; ambiguous: several do (`keys`)
+  not_a_parent          an attachment or note is in no collection: name its parent item (`parentItem`)
+  collection_not_found  a collection named is not one outside the trash (`collection`); ambiguous: several
+                        collections answer to it (`candidates`)
   not_run               another item failed a check, so nothing was written; fix that one and rerun
   version_conflict      the item changed meanwhile, and again after it was read anew; rerun
   write_failed          Zotero did not take this item (`status`, `detail`); rerun
   write_denied          the library is not editable
   readback_mismatch     Zotero took the write, but the item does not show it (`now`)
-invalid_changes is one line instead: the changes are malformed (`detail` names each entry and what is wrong with
-it), and nothing is written.
-Exit 0 = every item ok or skipped, 1 = not (or invalid_changes), 2 = cannot check (zotero_unreachable,
-local_api_disabled, no_key, key_rejected, server_mismatch).
+Exit 0 = every item ok or skipped; 1 = not, then stderr's last line is {"summary": {total, ok, skipped, failed}};
+2 = nothing was done: the changes are malformed (invalid_changes, `detail` names each entry and what is wrong;
+item_line: an item line where a change belongs) or Zotero cannot be reached (zotero_unreachable, local_api_disabled,
+no_key, key_rejected, server_mismatch), then stderr's last line is {code, hint, ...}.
 
 Examples:
-  uv run scripts/file_and_tag.py --batch changes.jsonl --dry-run    # show the change list to the user first
-  uv run scripts/file_and_tag.py --batch changes.jsonl              # after the user confirmed it
-  uv run scripts/file_and_tag.py --cite liu2022progressive --add-collection NEWCOLL1 --remove-collection OLDCOLL1
-  uv run scripts/file_and_tag.py --key ABCD1234 EFGH5678 --add-tags-file tags.json
-  uv run scripts/file_and_tag.py --cite liu2022progressive --remove-tags "to read" "Deep learning, theory"
+  p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusive2026
+  p2z.py search POCUS | p2z.py tag -n --add-collection 超声 -
+  p2z.py tag liu2022progressive --add-collection 自然图像/Diffusion --remove-collection 待读
+  p2z.py tag -n changes.jsonl                  # show the change list to the user first, then without -n
 """
 import json
 from pathlib import Path
@@ -64,7 +65,8 @@ FIELDS = ("collection", "add_collection", "remove_collection", "tags", "add_tags
 
 
 def invalid(problems):
-    return cli.Stop("invalid_changes", hint="Fix the changes, then rerun; nothing was written.", detail=problems)
+    return cli.Stop("invalid_changes", exit=cli.CANNOT, hint="Fix the changes, then rerun; nothing was written.",
+                    detail=problems)
 
 
 def read_json(path, what):
@@ -77,13 +79,15 @@ def read_json(path, what):
         return None, f"{what} {path}: {e}"
 
 
-def collection_keys(field, value):
-    """A collection field as a list of keys -> (keys, problem or None); for collection, null, "none" or "" clears."""
-    if field == "collection" and (value is None or isinstance(value, str) and value.strip().lower() in ("", "none")):
+def collection_values(field, value):
+    """A collection field as a list of collections (keys, paths or names) -> (values, problem or None); for
+    collection, null, "none", "" or [] clears."""
+    values = value if isinstance(value, list) else [value]
+    if field == "collection" and (value is None or [v.strip().lower() if isinstance(v, str) else v for v in values]
+                                  in ([], [""], ["none"])):
         return [], None
-    values = [value] if isinstance(value, str) else value
-    if not isinstance(values, list) or not all(isinstance(v, str) and cli.KEY_RE.match(v.strip()) for v in values):
-        return [], f"{field}: an 8-character collection key or a list of them, not {json.dumps(value, ensure_ascii=False)}"
+    if not isinstance(values, list) or not values or not all(isinstance(v, str) and v.strip() for v in values):
+        return [], f"{field}: a collection or a list of them, not {json.dumps(value, ensure_ascii=False)}"
     return list(dict.fromkeys(v.strip() for v in values)), None
 
 
@@ -96,7 +100,7 @@ def tag_names(value):
 
 
 def parse_change(raw, where=""):
-    """A change's fields, checked -> (change, problems): the collection fields as key lists, the tag fields normalized."""
+    """A change's fields, checked -> (change, problems): the collection fields as lists, the tag fields normalized."""
     change, problems = {}, []
     for field in raw:
         if field not in FIELDS + ("key", "cite"):
@@ -111,7 +115,7 @@ def parse_change(raw, where=""):
                 cli.log(f"{where}{field}: {w}")
             problems += [f"{field}: {b}" for b in bad]
         else:
-            change[field], bad = collection_keys(field, raw[field])
+            change[field], bad = collection_values(field, raw[field])
             problems += [bad] if bad else []
     if not change:
         problems.append("no change: give collection, add_collection, remove_collection, tags, add_tags or remove_tags")
@@ -126,79 +130,88 @@ def parse_change(raw, where=""):
     return change, [where + p for p in problems]
 
 
-def from_batch(path):
-    """The --batch file -> entries {key | cite, change, name}; invalid_changes when any of it is malformed."""
-    found, problems = cli.batch_entries(path)
-    problems = [f"--batch {p}" if p.startswith(str(path)) else p for p in problems]
+def from_changes(sources):
+    """Change lists -> entries {name, change, where}; invalid_changes when any of it is malformed."""
+    found, problems = cli.changes(sources)
     entries = []
     for b in found:
         change, bad = parse_change(b["entry"], f"{b['where']}: ")
         problems += bad
-        entries.append({"key": b["key"], "cite": b["cite"], "change": change, "name": b["where"]})
+        name = cli.Name(b["key"], "key") if b["key"] else cli.Name(b["cite"], "cite")
+        entries.append({"name": name, "change": change, "where": b["where"]})
     if problems:
         raise invalid(problems)
     return entries
 
 
-def from_flags(args):
-    """--key / --cite and the change flags -> one entry per item named, all with the same change."""
+def from_options(p, args):
+    """The items named and the change options -> one entry per item, all with the same change."""
     raw, problems = {}, []
-    if args.collection is not None:
-        raw["collection"] = args.collection
-    for field, values in (("add_collection", args.add_collection), ("remove_collection", args.remove_collection)):
+    if args.set_collection:
+        raw["collection"] = args.set_collection
+    for field, values in (("add_collection", args.add_collection), ("remove_collection", args.remove_collection),
+                          ("remove_tags", args.remove_tag)):
         if values:
-            raw[field] = cli.split(values)
-    for field, flag, path in (("tags", "--tags-file", args.tags_file), ("add_tags", "--add-tags-file", args.add_tags_file)):
+            raw[field] = values
+    for field, flag, path in (("tags", "--set-tags-file", args.set_tags_file),
+                              ("add_tags", "--add-tags-file", args.add_tags_file)):
         if path:
             raw[field], problem = read_json(path, flag)
             problems += [problem] if problem else []
-    if args.remove_tags:
-        raw["remove_tags"] = args.remove_tags
+    if args.add_tag:
+        if not isinstance(raw.get("add_tags", []), list):
+            problems.append("--add-tags-file: a JSON list of tags")
+        else:
+            raw["add_tags"] = raw.get("add_tags", []) + args.add_tag
     if problems:
         raise invalid(problems)
     change, problems = parse_change(raw)
     if problems:
         raise invalid(problems)
-    return ([{"key": k, "cite": None, "change": change, "name": f"key {k}"} for k in args.key]
-            + [{"key": None, "cite": c, "change": change, "name": f"cite {c}"} for c in args.cite])
+    named = cli.names(args.items)   # main() made sure something follows the options
+    return [{"name": n, "change": change, "where": n.value} for n in named]
 
 
 def head(e):
-    return cli.head(e["key"], e["cite"])
+    return cli.head(e["name"], e.get("key"))
 
 
 def once(entries):
     """An item several entries name: handled once when they ask the same, invalid_changes when not."""
     first, out, problems = {}, [], []
     for e in entries:
-        twin = first.setdefault(e["key"], e) if e["key"] else e
+        twin = first.setdefault(e["key"], e) if e.get("key") else e
         if twin is e:
             out.append(e)
-        elif twin["change"] == e["change"]:
-            cli.log(f"{e['name']} names {e['key']} again; handled once")
-        else:
-            problems.append(f"{twin['name']} and {e['name']} both name item {e['key']}: merge them into one change")
+        elif twin["change"] != e["change"]:
+            problems.append(f"{twin['where']} and {e['where']} both name item {e['key']}: merge them into one change")
     if problems:
         raise invalid(problems)
     return out
 
 
-def destinations(change):
-    return change.get("collection", []) + change.get("add_collection", [])
+COLLECTION_FIELDS = ("collection", "add_collection", "remove_collection")
 
 
-def refusal(item, change, tree):
+def place(zot, change, tree):
+    """The change with its collections as keys (zot.collection) -> (change, a Stop or None)."""
+    out = dict(change)
+    for field in (f for f in COLLECTION_FIELDS if f in change):
+        try:
+            out[field] = list(dict.fromkeys(zot.collection(v, tree) for v in change[field]))
+        except cli.Stop as stop:
+            return change, stop
+    return out, None
+
+
+def refusal(item, change):
     """Why this item cannot take the change (a Stop), or None."""
     if item is None:
         return cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND)
     parent = zotero.data(item).get("parentItem")
-    if parent and any(f in change for f in ("collection", "add_collection", "remove_collection")):
-        return cli.Stop("not_a_parent", hint="Only top-level items are in collections; name the parent item.", parent=parent)
-    missing = [k for k in destinations(change) if k not in tree]
-    if missing:
-        return cli.Stop("collection_not_found", collections=missing,
-                        hint="Pick the key from read_library.py collections --tree (one in the trash is not a destination); "
-                             "make_collection.py creates a new one.")
+    if parent and any(f in change for f in COLLECTION_FIELDS):
+        return cli.Stop("not_a_parent", hint="Only top-level items are in collections; name the parent item (parentItem).",
+                        parentItem=parent)
     return None
 
 
@@ -261,19 +274,20 @@ def settle(zot, e, result):
 
 def apply(zot, entries, dry_run):
     """Every check for every entry first; any failure and nothing is written. -> the lines."""
-    cites = [e["cite"] for e in entries if e["cite"]]
-    hits = zot.resolve_cites(cites) if cites else {}
     for e in entries:
-        if e["cite"] and len(hits[e["cite"]]) != 1:
-            e["line"] = zot.cite_failure(e["cite"], hits[e["cite"]]).line(**head(e))
-        elif e["cite"]:
-            e["key"] = hits[e["cite"]][0]
+        try:
+            e["key"] = zot.resolve(e["name"])
+        except cli.Stop as stop:
+            if stop.exit == cli.CANNOT:
+                raise
+            e["line"] = stop.line(**head(e))
     entries = once(entries)
     named = [e for e in entries if "line" not in e]
     items = zot.items([e["key"] for e in named])
-    tree = zot.collections() if any(destinations(e["change"]) for e in named) else {}
+    tree = zot.collections() if any(f in e["change"] for e in named for f in COLLECTION_FIELDS) else {}
     for e in named:
-        stop = refusal(items.get(e["key"]), e["change"], tree)
+        e["change"], stop = place(zot, e["change"], tree)
+        stop = stop or refusal(items.get(e["key"]), e["change"])
         if stop:
             e["line"] = stop.line(**head(e))
     if any("line" in e for e in entries):
@@ -299,37 +313,45 @@ def apply(zot, entries, dry_run):
     return [e["line"] for e in entries]
 
 
-def run(args):
-    entries = from_batch(args.batch) if args.batch else from_flags(args)
+def run(p, args, options):
+    entries = from_options(p, args) if options else from_changes(args.items)
+    if not entries:   # an empty list: nothing to change
+        return cli.OK
     zot = zotero.Zotero(args.base_url)
-    if not args.dry_run:
-        zot.write_headers()
-    return cli.finish(apply(zot, entries, args.dry_run), extra={"dry_run": True} if args.dry_run else None)
+    try:
+        if not args.dry_run:
+            zot.write_headers()
+        return cli.finish(apply(zot, entries, args.dry_run))
+    except cli.Stop as stop:
+        if stop.exit != cli.CANNOT:
+            raise
+        out = cli.Lines()
+        out.stop(stop)
+        for e in entries:
+            out.put({**head(e), "code": "not_run"})
+        return out.finish()
 
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    cli.add_targets(p)
-    p.add_argument("--batch", metavar="CHANGES.jsonl", help='JSON lines, a change per line, each naming its item by "key" or "cite"')
-    p.add_argument("--collection", metavar="KEY", help="the items' collections become exactly this one; 'none' clears them")
-    p.add_argument("--add-collection", nargs="+", action="extend", default=[], metavar="KEY", help="add the items to these")
-    p.add_argument("--remove-collection", nargs="+", action="extend", default=[], metavar="KEY",
-                   help="take the items out of these")
-    p.add_argument("--tags-file", metavar="TAGS.json", help="the items' complete tag set")
-    p.add_argument("--add-tags-file", metavar="TAGS.json", help="tags to add to the ones each item has")
-    p.add_argument("--remove-tags", nargs="+", action="extend", default=[], metavar="NAME",
-                   help="take these tags off the items, keeping their others (each value one name, commas and all)")
-    p.add_argument("--dry-run", action="store_true", help="show what would be written; write nothing")
+    p.add_argument("items", nargs="*", metavar="ITEM|CHANGES",
+                   help="with change options, the items (- reads a list); without, change list files (- reads one)")
+    p.add_argument("--add-tag", action="append", default=[], metavar="TAG", help="add this tag (repeat for more)")
+    p.add_argument("--remove-tag", action="append", default=[], metavar="TAG", help="take this tag off (repeat for more)")
+    p.add_argument("--add-tags-file", metavar="FILE", help="a JSON list of tags to add")
+    p.add_argument("--set-tags-file", metavar="FILE", help="a JSON list of tags: the items' complete tag set")
+    p.add_argument("--add-collection", action="append", default=[], metavar="COLL", help="add the items to this collection")
+    p.add_argument("--remove-collection", action="append", default=[], metavar="COLL", help="take the items out of this one")
+    p.add_argument("--set-collection", action="append", default=[], metavar="COLL",
+                   help="the items' collections become exactly these ('none': in none)")
+    cli.add_dry_run(p)
     cli.add_base_url(p)
-    args = cli.targets_of(p, p.parse_args(argv), required=False)
-    named = args.key or args.cite
-    flags = (args.collection is not None or args.add_collection or args.remove_collection or args.tags_file
-             or args.add_tags_file or args.remove_tags)
-    if args.batch and (named or flags):
-        p.error("--batch names the items and their changes in the file: leave out --key, --cite and the change flags")
-    if not args.batch and not named:
-        p.error("name the items with --key / --cite, or pass --batch")
-    return cli.run(lambda: run(args))
+    args = cli.parse(p, argv)
+    options = bool(args.add_tag or args.remove_tag or args.add_tags_file or args.set_tags_file or args.add_collection
+                   or args.remove_collection or args.set_collection)
+    if not args.items:
+        p.error("name the items with a change option, or the change list files (- reads one from stdin)")
+    return cli.run(lambda: run(p, args, options))
 
 
 if __name__ == "__main__":

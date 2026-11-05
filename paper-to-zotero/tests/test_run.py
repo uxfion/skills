@@ -45,10 +45,10 @@ class Records(unittest.TestCase):
         work = work_dir()
         bad = work.records / "bad.json"
         bad.write_text("[1, 2]", encoding="utf-8")
-        for path in (bad, work.records / "missing.json"):
+        for path, code in ((bad, "record_invalid"), (work.records / "missing.json", "file_not_found")):
             with self.assertRaises(cli.Stop) as caught:
                 run.read(path)
-            self.assertEqual(caught.exception.code, "record_invalid")
+            self.assertEqual(caught.exception.code, code)
 
     def test_slug_is_the_file_name_and_lists_are_lists(self):
         work = work_dir()
@@ -190,11 +190,11 @@ class MainRecords(unittest.TestCase):
         a, boom, c = (record(work, s, {"item": {**ITEM, "title": t}}) for s, t in (("a", "x"), ("b", "boom"), ("c", "y")))
         r = call(_Records(), a, "--dry-run")
         self.assertNotIn("checks", json.loads(a.read_text()))
-        self.assertTrue(r.lines[-1]["summary"]["dry_run"])
+        self.assertEqual((r.code, r.err), (cli.OK, ""))
         r = call(_Records(), a, boom, c)
         self.assertEqual(r.code, cli.CANNOT)
-        self.assertEqual([o["code"] for o in r.lines[:3]], ["ok", "zotero_unreachable", "not_run"])
-        self.assertEqual(r.lines[-1]["summary"]["stopped"], "zotero_unreachable")
+        self.assertEqual([o["code"] for o in r.lines], ["ok", "not_run", "not_run"])
+        self.assertEqual(r.last["code"], "zotero_unreachable")
         self.assertNotIn("checks", json.loads(c.read_text()))
 
     def test_a_library_writer_does_nothing_when_a_file_is_bad(self):
@@ -204,9 +204,9 @@ class MainRecords(unittest.TestCase):
         bad.write_text("{", encoding="utf-8")
         r = call(_Writer(), a, bad)
         self.assertEqual(r.code, cli.ACT)
-        self.assertEqual([o.get("slug") for o in r.lines[:-1]], ["bad"])
-        self.assertEqual(r.lines[-1]["summary"]["not_run"], 1)
-        self.assertEqual(call(_Writer()).lines[0]["code"], "no_records")
+        self.assertEqual([(o["slug"], o["code"]) for o in r.lines], [("a", "not_run"), ("bad", "record_invalid")])
+        self.assertEqual(r.last["summary"]["failed"], 2)
+        self.assertEqual(call(_Writer()).last["code"], "usage")
 
 
 if __name__ == "__main__":

@@ -68,17 +68,15 @@ class ExportBib(unittest.TestCase):
         self.assertEqual(entries(r.out), ["liu2022progressive", "zhou2021handheld"])
         self.assertTrue(r.out.endswith("}\n"))
         self.assertNotIn("\n\n\n", r.out)
-        self.assertEqual(len(r.err_lines), 1)
-        self.assertEqual(self.summary(r), {"count": 2, "collections": ["COLLROOT"]})
+        self.assertEqual(r.err, "", "exported cleanly: nothing to say")
 
     def test_a_standalone_note_is_skipped_not_a_problem(self):
         r = self.run_("--collection", "COLLELSE")
         self.assertEqual(r.code, 0, r)
-        self.assertEqual(entries(r.out), [])
-        self.assertEqual(self.summary(r)["standalone"], [{"key": "NOTE0001", "itemType": "note"}])
+        self.assertEqual((entries(r.out), r.err), ([], ""))
 
     def test_recursive_walks_live_subcollections_and_reports_cite_trouble(self):
-        r = self.run_("--collection", "COLLROOT", "--recursive")
+        r = self.run_("--collection", "COLLROOT", "-r")
         self.assertEqual(r.code, 1, r)
         # ordered case-insensitively by BibTeX key; KEY00002 appears once although it sits in two collections;
         # KEY00009 sits only in a trashed collection and one under it
@@ -100,23 +98,20 @@ class ExportBib(unittest.TestCase):
             self.assertIn("hint", line)
 
     def test_keys_cites_and_not_found(self):
-        r = self.run_("--key", "KEY00007,ZZZZZZZZ", "--key", "KEY00001", "--cite", "liu2022progressive", "--key", "KEY00007")
+        r = self.run_("KEY00007", "ZZZZZZZZ", "KEY00001", "-", "KEY00007", stdin='{"key": "KEY00003"}\nliu2022progressive\n')
         self.assertEqual(r.code, 1, r)
-        self.assertEqual(entries(r.out), ["liu2022progressive", "lonely2018", "zhou2021handheld"])
+        self.assertEqual(entries(r.out), ["Abel2019first", "liu2022progressive", "lonely2018", "zhou2021handheld"])
         s = self.summary(r)
-        self.assertEqual((s["count"], s["not_found"]), (3, ["ZZZZZZZZ"]))
+        self.assertEqual((s["count"], [(u["item"], u["code"]) for u in s["unresolved"]]), (4, [("ZZZZZZZZ", "not_found")]))
         self.assertNotIn("missing", s)
 
     def test_cite_unresolved_is_listed_not_fatal(self):
-        self.zot.search_sees_citekey = False
-        r = self.run_("--cite", "nobody2099", "--cite", "dup2020twice,lonely2018")
+        r = self.run_("nobody2099", "dup2020twice", "lonely2018")
         self.assertEqual(r.code, 1)
-        self.assertEqual(entries(r.out), ["lonely2018"], "found by the fallback scan")
-        scans = [q for _, _, q, _ in self.zot.requested("GET", f"{LIB}/items/top") if "itemKey" not in q]
-        self.assertEqual(len(scans), 1, "one shared scan for both missed cites")
+        self.assertEqual(entries(r.out), ["lonely2018"])
         unresolved = self.summary(r)["unresolved"]
-        self.assertEqual([(u["cite"], u["code"]) for u in unresolved],
-                         [("nobody2099", "cite_not_found"), ("dup2020twice", "cite_ambiguous")])
+        self.assertEqual([(u["item"], u["code"]) for u in unresolved],
+                         [("nobody2099", "not_found"), ("dup2020twice", "ambiguous")])
         self.assertEqual(unresolved[1]["keys"], ["KEY00005", "KEY00006"])
 
     def test_chunks_of_50(self):
@@ -124,8 +119,7 @@ class ExportBib(unittest.TestCase):
             self.zot.add_item(f"BULK{i:04d}", itemType="journalArticle", title=f"Bulk {i}", citationKey=f"bulk{i:04d}",
                               collections=["COLLELSE"])
         r = self.run_("--collection", "COLLELSE")
-        self.assertEqual(r.code, 0, r)
-        self.assertEqual(self.summary(r)["count"], 120)
+        self.assertEqual((r.code, r.err), (0, ""), r)
         calls = [q for _, _, q, _ in self.zot.requested("GET", f"{LIB}/items/top") if q.get("format") == "bibtex"]
         self.assertEqual([len(q["itemKey"].split(",")) for q in calls], [50, 50, 20])
         self.assertTrue(all(q["limit"] == "100" for q in calls))
@@ -140,13 +134,13 @@ class ExportBib(unittest.TestCase):
                  self.record("d", {"saved": {"pending": True}, "found": found("KEY00007")}),
                  self.record("e", {"found": {"key": "KEY00005", "code": "found"}})]
         out_file = self.tmp / "ref.bib"
-        r = self.run_(*paths, "--out", out_file)
+        r = self.run_(*paths, "-o", out_file)
         self.assertEqual(r.code, 1, r)
         self.assertEqual(r.out, "")
         self.assertEqual(entries(out_file.read_text(encoding="utf-8")), ["Abel2019first", "lonely2018", "zhou2021handheld"])
         s = self.summary(r)
         self.assertEqual(s["no_item_key"], ["c", "e"], "a found an older run left, without `from`, is not trusted")
-        self.assertEqual((s["count"], s["out"]), (3, str(out_file)))
+        self.assertEqual((s["count"], s["output"]), (3, str(out_file)))
 
         r = self.run_(paths[0], paths[1])
         self.assertEqual(r.code, 0, r)
@@ -154,11 +148,12 @@ class ExportBib(unittest.TestCase):
 
     def test_a_bad_record_is_listed_and_the_rest_exported(self):
         good = self.record("good", {"saved": {"key": "KEY00001"}})
-        for bad in (self.record("broken", "{not json"), self.record("list", [{"saved": {"key": "KEY00001"}}]),
-                    self.tmp / "missing.json"):
+        for bad, code in ((self.record("broken", "{not json"), "record_invalid"),
+                          (self.record("list", [{"saved": {"key": "KEY00001"}}]), "record_invalid"),
+                          (self.tmp / "missing.json", "file_not_found")):
             r = self.run_(good, bad)
             self.assertEqual((r.code, entries(r.out)), (1, ["zhou2021handheld"]), bad)
-            self.assertEqual([(i["path"], i["code"]) for i in self.summary(r)["invalid"]], [(str(bad), "record_invalid")])
+            self.assertEqual([(i["path"], i["code"]) for i in self.summary(r)["invalid"]], [(str(bad), code)])
 
     def test_empty_collection_is_no_records(self):
         self.zot.add_collection("COLLNONE", "empty")
@@ -166,23 +161,20 @@ class ExportBib(unittest.TestCase):
         self.assertEqual((r.code, r.out, r.err_lines[-1]["code"]), (1, "", "no_records"))
 
     def test_arguments(self):
-        self.assertEqual(self.run_(stdin='{"saved": {"key": "KEY00001"}}').code, 2, "records come as paths, not on stdin")
-        self.assertEqual(self.run_("--recursive").code, 2)
-        self.assertEqual(self.run_("--collection", "short").code, 2)
-        self.assertEqual(self.run_("--key", "short").code, 2)
+        self.assertEqual(self.run_(stdin='{"saved": {"key": "KEY00001"}}').code, 2, "stdin only with -")
+        self.assertEqual(self.run_("-r").code, 2)
 
     def test_cannot_check(self):
-        r = self.run_("--key", "KEY00001", base_url=f"http://127.0.0.1:{closed_port()}")
+        r = self.run_("KEY00001", base_url=f"http://127.0.0.1:{closed_port()}")
         self.assertEqual((r.code, r.out, r.err_lines[-1]["code"]), (2, "", "zotero_unreachable"))
         self.zot.disabled = True
         r = self.run_("--collection", "COLLROOT")
         self.assertEqual((r.code, r.err_lines[-1]["code"]), (2, "local_api_disabled"))
 
     def test_smoke(self):
-        r = smoke("export_bib", "--collection", "COLLROOT", "--base-url", self.zot.base_url)
-        self.assertEqual(r.code, 0, r)
+        r = smoke("export", "--collection", "COLLROOT", "--base-url", self.zot.base_url)
+        self.assertEqual((r.code, r.err), (0, ""), r)
         self.assertEqual(entries(r.out), ["liu2022progressive", "zhou2021handheld"])
-        self.assertEqual(r.err_lines[-1]["summary"]["count"], 2)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -12,7 +12,7 @@ paper and any supplement, each under its label's title (Preprint-arXiv-v7, Accep
 paper-fetch settled. An
 unconfirmed file (its agent could not tell it is the paper's) is attached all the same and named on the line: the
 report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A stub's file (check
-cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead (recognize.py), whose
+cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead (p2z.py recognize), whose
 block in the record names it by md5: the item made from it, by the recognizer or, when the recognizer found nothing,
 by hand from its first page, has it as its file.
 
@@ -26,8 +26,8 @@ DOI link. `attach` is a list, an entry per file: {attachment, md5, title, filena
 file later (another md5) is attached afresh.
 
 stdout: one line per record {slug, code, reason?, status?, key?, files?: [{name, code, attachment?, title?,
-renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [names]}, then {"summary"}.
-  ok            a file attached, or renamed after its label (with --dry-run: would be; nothing written)
+renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [names]}.
+  ok            a file attached, or renamed after its label (with -n: would be; nothing written)
   skipped       reason no_file_yet (the result has no file to attach; `status` is its outcome's: got, waiting,
                 not_got. Not a failure, so save can run after every pass) | attached (every file is in `attach` under
                 its title, or the item had it: suggested_title when its title differs from the label's) |
@@ -36,15 +36,15 @@ renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [na
                 PDF (references/no-doi-record.md)
   unsettled     the result has no outcome: settle it (paper-fetch's pf.py settle), then rerun
   file_changed  a file's md5 is not the one in the result: settle the result again, then rerun
-  no_result     the record names no result file (`fetched`), or it cannot be read: draft_item.py writes it
-  no_item_key   the record has no item in Zotero yet (create_item; library candidates: their same_paper handoff)
+  no_result     the record names no result file (`fetched`), or it cannot be read: p2z.py draft writes it
+  no_item_key   the record has no item in Zotero yet (p2z.py create; library candidates: their same_paper handoff)
   not_found | not_a_parent | unsupported_file | readback_mismatch | unexpected_response | write_denied |
   write_failed    see the hint
-Exit 0 = every record attached or skipped; 1 = not; 2 = cannot go on (Zotero not running, local API off, no key, the
-key rejected, another Zotero than the key's).
+Exit 0 = every record attached or skipped; 1 = not, then stderr's last line is {"summary": {total, ok, skipped, failed}}; 2 = cannot go on (Zotero not running, local API
+off, no key, the key rejected, another Zotero than the key's), then stderr's last line is {code, hint}.
 
 Example:
-  uv run scripts/attach_file.py <scratch>/paper-to-zotero/records/*.json
+  p2z.py attach <scratch>/paper-to-zotero/records/*.json
 """
 from pathlib import Path
 
@@ -52,7 +52,7 @@ from p2zlib import cli, paper, run, zotero
 
 ATTACHABLE = ("ok", "accepted", "unconfirmed")
 HINT_UNCHECKED = ("A stub's files: paper-fetch had no metadata to check them against. Zotero's recognizer identifies the "
-                  "paper from its PDF: recognize.py (references/no-doi-record.md).")
+                  "paper from its PDF: p2z.py recognize (references/no-doi-record.md).")
 
 
 def setup(args, records):
@@ -129,7 +129,7 @@ def process(rec, ctx):
             continue
         key = key or run.item_key(rec)
         if key is None:
-            raise cli.Stop("no_item_key", hint="The record has no item in Zotero yet: create_item.py (p2z.py save) makes "
+            raise cli.Stop("no_item_key", hint="The record has no item in Zotero yet: p2z.py create (p2z.py save) makes "
                                                "it; library candidates are settled first, in their same_paper handoff.")
         done = zot.attach(key, file, title=title, url=url, dry_run=dry_run)
         existing = done["code"] == "skipped"

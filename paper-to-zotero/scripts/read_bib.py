@@ -1,22 +1,23 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Read .bib files into the lines paper-fetch's identify takes: one per entry, `<identifier><TAB><citation key>`.
 
-  uv run scripts/read_bib.py refs.bib | uv run ../paper-fetch/scripts/pf.py identify -o <scratch>/paper-to-zotero/fetch
-
-The files are the arguments, or the text on stdin. An entry's identifier is its doi, else its arXiv id (eprint with
+The .bib files follow the options (- reads one from stdin). An entry's identifier is its doi, else its arXiv id (eprint with
 archivePrefix arXiv, or an arXiv url or "arXiv:" mention in url, journal, howpublished, note); an entry with neither
 gives `title:<its title>`, which identify answers with needs_pinning: find the paper's DOI or arXiv id, then identify
 it with the key. @comment, @string and @preamble are skipped; no LaTeX is decoded (braces dropped).
 
-stdout: the lines, nothing else. stderr: how many entries, and how many have no identifier.
-Exit 0 = read (title: lines included); 1 = a file could not be read or holds no entry; 2 = usage.
+stdout: the lines, nothing else (`grep -c ^title:` counts the entries without an identifier). Exit 0 = read
+(title: lines included); 1 = a file could not be read or holds no entry: a JSON line on stderr for each, {file, code:
+file_not_found | file_unreadable | no_entry}, then {"summary": {total, failed}} last; 2 = usage.
+
+Example:
+  p2z.py ids refs.bib | pf.py identify -o <scratch>/paper-to-zotero/fetch
 """
 import re
-import sys
 from pathlib import Path
 
 from p2zlib import cli, paper
@@ -127,25 +128,22 @@ def lines_of(text):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("bibs", nargs="*", metavar="BIB", help=".bib files (default: the text on stdin)")
-    args = p.parse_args(argv)
-    code, lines = cli.OK, []
-    for name, read in [(b, lambda b=b: Path(b).read_text(encoding="utf-8")) for b in args.bibs] or [("stdin", sys.stdin.read)]:
+    p.add_argument("bibs", nargs="*", metavar="BIB", help=".bib files; - reads one from stdin")
+    args = cli.parse(p, argv)
+    if not args.bibs:
+        p.error("name the .bib files, or - to read one from stdin")
+    lines, problems = [], []
+    for name in args.bibs:
         try:
-            got = lines_of(read())
-        except (OSError, UnicodeDecodeError) as e:
-            cli.log(f"{name}: cannot read: {e}")
-            code = cli.ACT
+            got = lines_of(cli.document(name))
+        except cli.Stop as stop:
+            problems.append(stop.line(file=name))
             continue
         if not got:
-            cli.log(f"{name}: no entry")
-            code = cli.ACT
+            problems.append({"file": name, "code": "no_entry", "hint": "No BibTeX entry in it."})
         lines += got
-    for line in lines:
-        print(line)
-    pinned = sum(ln.startswith("title:") for ln in lines)
-    cli.log(f"{len(lines)} entries" + (f", {pinned} without a DOI or arXiv id (title: lines)" if pinned else ""))
-    return code
+    cli.write("".join(line + "\n" for line in lines))
+    return cli.summarize(len(args.bibs), len(problems), problems=problems)
 
 
 if __name__ == "__main__":

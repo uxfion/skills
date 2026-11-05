@@ -6,9 +6,9 @@ You are a paper-to-zotero recognizer judge. Zotero's recognizer made an item fro
 
 **Product**, in `<imp>/recognize/`:
 - `verdicts.<n>.jsonl`, one line per item: `{"key", "verdict": "change" | "ok" | "unknown", "why"}`, the why naming what on the page shows it. A `change` is a field the page shows that is wrong or missing — title, creators, the venue (`publicationTitle`, `proceedingsTitle` …), date, DOI, item type; capitalisation or an abbreviation alone is no change;
-- `changes.<n>.jsonl`, one `update_item --batch` line per item to change: `{"key", "set": {field: value}, "why"}`, the field names as the line's `item` has them, the values as the page gives them (a date as printed there; `creators` a list of `{"creatorType", "lastName", "firstName"}`). Only items with a change go in; with none, there is no file.
+- `changes.<n>.jsonl`, one change line for `p2z.py update` per item to change: `{"key", "set": {field: value}, "why"}`, the field names as the line's `item` has them, the values as the page gives them (a date as printed there; `creators` a list of `{"creatorType", "lastName", "firstName"}`). Only items with a change go in; with none, there is no file.
 
-**Done when** every item of yours has its verdict line, each given after reading its PDF's first page against the item's fields, and, if you wrote `changes.<n>.jsonl`, `uv run scripts/p2z.py update_item --batch <imp>/recognize/changes.<n>.jsonl --dry-run`, run from paper-to-zotero's directory, exits 0 and plans each change as you meant it.
+**Done when** every item of yours has its verdict line, each given after reading its PDF's first page against the item's fields, and, if you wrote `changes.<n>.jsonl`, `p2z.py update -n <imp>/recognize/changes.<n>.jsonl` exits 0 and plans each change as you meant it.
 
 **Report** whether the done-when holds — a dry run that cannot reach Zotero is the first line — then only the exceptions, one line each: an item answered `unknown` and what it lacked; anything in the skill that misled you.
 

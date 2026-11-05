@@ -46,20 +46,22 @@ class ReadBib(unittest.TestCase):
         bib = Path(tempfile.mkdtemp(prefix="p2z-bib-")) / "refs.bib"
         bib.write_text(BIB, encoding="utf-8")
         r = call(read_bib, bib)
-        self.assertEqual((r.code, r.out.splitlines()), (0, LINES), r)
-        self.assertIn("4 entries, 1 without a DOI or arXiv id", r.err)
-        self.assertEqual(call(read_bib, stdin=BIB).out.splitlines(), LINES, "stdin when no file is named")
+        self.assertEqual((r.code, r.out.splitlines(), r.err), (0, LINES, ""), r)
+        self.assertEqual(call(read_bib, "-", stdin=BIB).out.splitlines(), LINES, "- reads the .bib from stdin")
+        self.assertEqual(call(read_bib, stdin=BIB).last["code"], "usage", "stdin only with -")
 
     def test_unreadable_or_empty(self):
-        r = call(read_bib, "/no/such.bib", stdin="")
+        r = call(read_bib, "/no/such.bib", "-", stdin="no entries here")
         self.assertEqual((r.code, r.out), (1, ""), r)
-        self.assertEqual(call(read_bib, stdin="no entries here").code, 1)
+        self.assertEqual([(ln["file"], ln["code"]) for ln in r.err_lines[:-1]],
+                         [("/no/such.bib", "file_not_found"), ("-", "no_entry")])
+        self.assertEqual(r.last, {"summary": {"total": 2, "failed": 2}})
 
-    def test_smoke(self):
+    def test_through_the_entry(self):
         bib = Path(tempfile.mkdtemp(prefix="p2z-bib-")) / "refs.bib"
         bib.write_text(BIB, encoding="utf-8")
-        r = smoke("read_bib", bib)
-        self.assertEqual((r.code, r.out.splitlines()), (0, LINES), r)
+        r = smoke("ids", bib)
+        self.assertEqual((r.code, r.out.splitlines(), r.err), (0, LINES, ""), r)
 
 
 if __name__ == "__main__":

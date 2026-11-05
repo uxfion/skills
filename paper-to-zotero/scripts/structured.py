@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -7,46 +7,14 @@
 
 Every PDF of a paper has a structured package beside it: a zip attachment of the same item under the PDF's title
 (Published-IEEE). Outside Zotero no item tells which paper a file is, so the package is named <cite>.<title>
-(zotero.package_stem: zhuUnpairedImagetoImageTranslation2017.Published-CVF): its file <cite>.<title>.zip holds the
-paddleocr skill's folder for that PDF, <cite>.<title>/ with <cite>.<title>.md, .json and imgs/. The PDF stays the
-authority; the package is what agents read. Everything unpacked or parsed lives in DIR, a scratch directory, never
-in a project.
+(zhuUnpairedImagetoImageTranslation2017.Published-CVF): its file <cite>.<title>.zip holds the paddleocr skill's
+folder for that PDF, <cite>.<title>/ with <cite>.<title>.md, .json and imgs/. The PDF stays the authority; the
+package is what agents read. Everything unpacked or parsed lives in DIR, a scratch directory, never in a project.
+p2z.py trash, merge and update keep packages in step with their PDFs by themselves.
 
-  take   For each PDF named, into DIR: <cite>.<title>.pdf, a link to the PDF in Zotero's storage (paddleocr's input:
-         it names its output after it), <cite>.<title>.zotero.json, where it came from (put reads it), and, when the
-         PDF has a package, <cite>.<title>/ unzipped from it (under today's name, should the key or title have
-         changed since): read it. No
-         package (`package: null`): run the paddleocr skill's parse on the link with -o DIR, which writes that same
-         folder, then put. The PDFs of the items named: by default the best (read_library pdf's first row); --title
-         the one with that attachment title; --every all of them; --missing those without a package. With no item
-         named, --missing and --every cover the whole library: the PDFs without a package (links only), for a
-         batch parse; every PDF, for reprocessing them all after the paddleocr skill changed.
-  put    Each FOLDER take prepared, zipped back onto its item as that PDF's package: after a parse, after edits
-         (settling a parse), after a new paddleocr processed it again. The zip is built the same way every time, so
-         an unchanged folder gives the bytes the item already holds: skipped. A package the PDF has is replaced only
-         when it is the one take unzipped: the new zip is attached and read back, then the old one goes to the trash
-         (a derived copy, undoable for 30 days; no confirmation asked).
-  names  Each package of the items named (no item named: the library's) renamed in place to <cite>.<title>.zip, as
-         Zotero renames a file (no upload). trash_item, merge_items and update_item keep packages in step with their
-         PDFs by themselves; this is for a citation key changed in Zotero itself.
-
-stdout: one line per PDF (take) or folder (put), then {"summary"}.
-  take  {cite, key, title, code ok, pdf, input, folder, package: its key | null}
-        skipped already_taken: DIR already holds that folder (read it, or delete it and take again)
-  put   {folder, cite, key, title, code ok, package, md5, replaced?: [old package keys]}
-        skipped already_current: the item holds this very zip
-  names {key, code ok, renamed: [{key, from, to}]} | skipped all_named
-  no_pdf (take: the item has none), no_such_title, not_on_disk (the file is not on this machine: sync Zotero),
-  not_taken (no <folder>.zotero.json beside the folder), not_parsed (no <stem>.json and .md in the folder),
-  pdf_gone (the PDF left the library), source_mismatch (the folder was parsed from another file),
-  changed_since_take (another run put a package meanwhile: take again into a new DIR, redo the changes there,
-  put that), bad_package (a zip entry outside its folder), + attach's codes.
-Exit 0 = all ok or skipped; 1 = not; 2 = cannot go on (Zotero not running, local API off, no key).
-
-Examples:
-  uv run scripts/structured.py take --cite savageLargeLanguageModel2024 -o <scratch>/papers
-  uv run scripts/structured.py take --key ABCD1234 --missing -o <scratch>/structured
-  uv run scripts/structured.py put <scratch>/structured/*/
+Exit codes, every command: 0 = all ok or skipped; 1 = not, then stderr's last line is {"summary": {total, ok,
+skipped, failed}}; 2 = cannot go on (Zotero not running, local API off, no key) or a usage error, then stderr's last
+line is {code, hint}.
 """
 import hashlib
 import io
@@ -155,7 +123,7 @@ def take_one(zot, item, pdf, packages, to):
 
 def library(zot):
     """Every top-level item outside the trash, with its children: one listing of the whole library."""
-    rows = zot.pages(f"{LIB}/items")
+    rows = zot.rows(f"{LIB}/items")
     kids = {}
     for r in rows:
         parent = zotero.data(r).get("parentItem")
@@ -164,42 +132,58 @@ def library(zot):
     return [(r, kids.get(r["key"], [])) for r in rows if zotero.is_top(r) and not zotero.in_trash(r)]
 
 
-def cmd_take(zot, args):
-    to = Path(args.out).expanduser().resolve()
+def take(zot, args, p):
+    """PDFs' packages out of Zotero into DIR to read, or the PDFs linked there for a parse.
+
+For each PDF picked, into -o DIR/: <cite>.<title>.pdf, a link to the PDF in Zotero's storage (paddleocr's input: it
+names its output after it), <cite>.<title>.zotero.json, where it came from (put reads it), and, when the PDF has a
+package, <cite>.<title>/ unzipped from it (under today's name, should the key or title have changed since): read it.
+No package (`package: null`): run the paddleocr skill's parse on the link with -o DIR, which writes that same folder,
+then put. The PDFs of the items named (keys or citation keys; - reads a list from stdin): by default the best
+(p2z.py pdf's first row); --title the one with that attachment title; --every all of them; --missing those without a
+package. With no item named, --missing and --every cover the whole library: the PDFs without a package (links only),
+for a batch parse; every PDF, for reprocessing them all after the paddleocr skill changed.
+
+stdout: one line per PDF {cite, key, title, code ok, pdf, input, folder, package: its key | null}; skipped
+already_taken: DIR already holds that folder (read it, or delete it and take again); no_pdf (the item has none),
+no_such_title, not_on_disk (the file is not on this machine: sync Zotero), not_a_parent (an attachment or note
+named: name its parent, parentItem), not_found, ambiguous.
+
+Examples:
+  p2z.py package take savageLargeLanguageModel2024 -o <scratch>/papers/
+  p2z.py package take ABCD1234 --missing -o <scratch>/structured/
+"""
+    if not args.items and not (args.missing or args.every):
+        p.error("name the items (- reads a list from stdin), or give --missing or --every for the whole library")
+    named = cli.names(args.items)
+    to = Path(args.output).expanduser().resolve()
     to.mkdir(parents=True, exist_ok=True)
     out = cli.Lines()
-    if args.key or args.cite:
-        named = []
-        for key, cite, failure in zot.targets(args.key, args.cite):
-            if failure is not None:
-                out.lines.append(failure.line(**cli.head(key, cite)))
-            else:
-                named.append((key, cite))
-        found = zot.items([k for k, _ in named])
+    if args.items:
         groups = []
-        for key, cite in named:
-            if key not in found:
-                out.lines.append(cli.Stop("not_found", hint=zotero.HINT_NOT_FOUND).line(**cli.head(key, cite)))
+        for _, name, key in cli.resolved(zot, named, out):
+            item = zot.item(key)
+            d = zotero.data(item)
+            if not zotero.is_top(item):
+                out.put(cli.Stop("not_a_parent", parentItem=d.get("parentItem"),
+                                 hint="An attachment or note has no PDFs of its own; name its parent item (parentItem).")
+                        .line(**cli.head(name, key)))
             else:
-                groups.append((found[key], zot.children(key)))
+                groups.append((item, zot.children(key)))
     else:
         groups = library(zot)
     for item, children in groups:
         head = {"cite": zotero.data(item).get("citationKey"), "key": item["key"]}
         pdfs, packages = files_of(children)
         picked = chosen(pdfs, packages, args)
-        if not pdfs and (args.key or args.cite):
-            out.lines.append(cli.Stop("no_pdf", hint="The item has no PDF; paper-to-zotero's import steps can fetch one.")
-                             .line(**head))
+        if not pdfs and named:
+            out.put(cli.Stop("no_pdf", hint="The item has no PDF; paper-to-zotero's import can fetch one.").line(**head))
         elif args.title and not picked:
-            out.lines.append(cli.Stop("no_such_title", hint="No PDF of the item has that title; read_library pdf lists "
-                                      "them.", titles=[p["title"] for p in pdfs]).line(**head))
+            out.put(cli.Stop("no_such_title", hint="No PDF of the item has that title; p2z.py pdf lists them.",
+                             titles=[p["title"] for p in pdfs]).line(**head))
         for pdf in picked:
             out.add({**head, "title": pdf["title"]}, lambda: take_one(zot, item, pdf, packages, to))
     return out.finish()
-
-
-# ---- put --------------------------------------------------------------------------------------------------------
 
 def put_one(zot, folder, args):
     side_path = folder.with_name(folder.name + SIDE)
@@ -252,67 +236,94 @@ def put_one(zot, folder, args):
     return cli.ok(package=res["attachment"], md5=md5, **head, **({"replaced": replaced} if replaced else {}))
 
 
-def cmd_put(zot, args):
+def put(zot, args, p):
+    """Folders take prepared, zipped back onto their items as their PDFs' packages.
+
+After a parse, after edits (settling a parse), after a new paddleocr processed it again. The folders follow the
+options (DIR/<cite>.<title>/; - reads their paths from stdin). The zip is built the same way every time, so an
+unchanged folder gives the bytes the item already holds: skipped. A package the PDF has is replaced only when it is
+the one take unzipped: the new zip is attached and read back, then the old one goes to the trash (a derived copy,
+undoable for 30 days; no confirmation asked).
+
+stdout: one line per folder {folder, cite, key, title, code ok, package, md5, replaced?: [old package keys]};
+skipped already_current: the item holds this very zip; not_taken (no <folder>.zotero.json beside the folder),
+not_parsed (no <stem>.json and .md in the folder), pdf_gone (the PDF left the library), source_mismatch (the folder
+was parsed from another file), changed_since_take (another run put a package meanwhile: take again into a new DIR,
+redo the changes there, put that), bad_package (a zip entry outside its folder), and attach's codes.
+
+Examples:
+  p2z.py package put <scratch>/structured/*/
+  p2z.py package put -n <scratch>/papers/savageLargeLanguageModel2024.Published-Nature/
+"""
+    if not args.folders:
+        p.error("name the folders take prepared, or - to read their paths from stdin")
+    folders = cli.paths(args.folders)
     if not args.dry_run:
         zot.write_headers()
     out = cli.Lines()
-    for f in args.folders:
+    for f in folders:
         folder = Path(f).expanduser().resolve()
         out.add({"folder": str(folder)}, lambda: put_one(zot, folder, args))
-    return out.finish({"dry_run": True} if args.dry_run else None)
+    return out.finish()
 
 
 # ---- names ------------------------------------------------------------------------------------------------------
 
-def cmd_names(zot, args):
-    zot.write_headers()
+def names(zot, args, p):
+    """Each package of the items named (none named: the library's) renamed in place to <cite>.<title>.zip.
+
+As Zotero renames a file (no upload): for a citation key changed in Zotero itself. The items are keys or citation
+keys (- reads a list from stdin). stdout: one line per item {key, code ok, renamed: [{key, from, to}]} | skipped
+all_named; not_found, ambiguous.
+
+Examples:
+  p2z.py package names zhuUnpairedImagetoImageTranslation2017
+"""
     out = cli.Lines()
-    if args.key or args.cite:
-        keys = []
-        for key, cite, failure in zot.targets(args.key, args.cite):
-            if failure is not None:
-                out.lines.append(failure.line(**cli.head(key, cite)))
-            else:
-                keys.append(key)
+    if args.items:
+        keys = [key for _, _, key in cli.resolved(zot, cli.names(args.items), out)]
     else:
-        keys = sorted({zotero.data(r).get("parentItem") for r in zot.pages(f"{LIB}/items")
+        keys = sorted({zotero.data(r).get("parentItem") for r in zot.rows(f"{LIB}/items")
                        if zotero.data(r).get("contentType") == paper.PACKAGE and not zotero.in_trash(r)} - {None})
+    if keys and out.stopped is None:
+        try:
+            zot.write_headers()
+        except cli.Stop as stop:
+            if stop.exit != cli.CANNOT:
+                raise
+            out.stop(stop)
     for key in keys:
         out.add({"key": key}, lambda: (cli.ok(renamed=r) if (r := zot.name_packages(key)) else cli.skipped("all_named")))
     return out.finish()
 
 
-def parse_args(argv):
-    p = cli.parser(__doc__)
-    cli.add_base_url(p)
-    sub = p.add_subparsers(dest="command", required=True, metavar="COMMAND")
-    s = sub.add_parser("take", help="unzip PDFs' packages (or link the PDFs for a parse) into a scratch directory")
-    cli.add_targets(s)
-    which = s.add_mutually_exclusive_group()
+def configure_take(p):
+    cli.add_items(p)
+    which = p.add_mutually_exclusive_group()
     which.add_argument("--title", help="the PDF with this attachment title (Preprint-arXiv-v7)")
     which.add_argument("--every", action="store_true", help="every PDF of the items (no item named: the library's)")
     which.add_argument("--missing", action="store_true", help="the PDFs without a package (no item named: the library's)")
-    s.add_argument("-o", "--out", required=True, metavar="DIR",
+    p.add_argument("-o", "--output", required=True, metavar="DIR/",
                    help="where the packages go: a folder in the scratch directory (made if absent)")
-    s.set_defaults(func=cmd_take)
-    s = sub.add_parser("put", help="zip folders back onto their items as their PDFs' packages")
-    s.add_argument("folders", nargs="+", metavar="FOLDER", help="folders take prepared: DIR/<cite>.<title>/")
-    s.add_argument("--dry-run", action="store_true", help="show what would be written; write nothing")
-    s.set_defaults(func=cmd_put)
-    s = sub.add_parser("names", help="rename packages in place to <cite>.<title>.zip")
-    cli.add_targets(s)
-    s.set_defaults(func=cmd_names)
-    args = p.parse_args(argv)
-    if args.command == "take":
-        cli.targets_of(p, args, required=not (args.missing or args.every))
-    elif args.command == "names":
-        cli.targets_of(p, args, required=False)
-    return args
+
+
+def configure_put(p):
+    p.add_argument("folders", nargs="*", metavar="FOLDER", help="folders take prepared: DIR/<cite>.<title>/; - reads a list")
+    cli.add_dry_run(p)
+
+
+COMMANDS = {"take": take, "put": put, "names": names}
+CONFIGURE = {"take": configure_take, "put": configure_put, "names": cli.add_items}
 
 
 def main(argv=None):
-    args = parse_args(argv)
-    return cli.run(lambda: args.func(zotero.Zotero(args.base_url), args))
+    name, rest = cli.subcommand(__doc__, COMMANDS, argv)
+    func = COMMANDS[name]
+    p = cli.parser(func.__doc__, sub=name)
+    CONFIGURE[name](p)
+    cli.add_base_url(p)
+    args = cli.parse(p, rest)
+    return cli.run(lambda: func(zotero.Zotero(args.base_url), args, p))
 
 
 if __name__ == "__main__":

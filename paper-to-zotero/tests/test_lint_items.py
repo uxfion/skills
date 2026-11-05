@@ -76,8 +76,8 @@ class LintItems(unittest.TestCase):
         z.add_collection("COLL0002", "Sub", "COLL0001")
         z.add_collection("COLL0009", "Old", deleted=True)
 
-    def run_(self, *argv, base_url=None):
-        return call(lint, *argv, "--base-url", base_url or self.zot.base_url, config=self.config)
+    def run_(self, *argv, base_url=None, stdin=""):
+        return call(lint, *argv, "--base-url", base_url or self.zot.base_url, config=self.config, stdin=stdin)
 
     def test_attachment_titles(self):
         z, T = self.zot, "TTTTTTT2"
@@ -97,7 +97,7 @@ class LintItems(unittest.TestCase):
         att("FINAL002", "Published-IEEE", md5="f1", dateAdded="2024-06-01")
         att("ACCEPT01", "Accepted-IEEE", md5="c1")
         att("ACCEPT02", "Accepted-IEEE", md5="c2")
-        r = self.run_("--key", T)
+        r = self.run_(T)
         got = [p for p in reported(r)[T]["problems"] if p["code"] in ("nonstandard_title", "label_clash", "superseded")]
         self.assertEqual(got, [
             {"code": "nonstandard_title", "why": "outside_scheme", "attachment": "OLDPDF01", "title": "Full Text PDF",
@@ -116,7 +116,7 @@ class LintItems(unittest.TestCase):
     def test_the_whole_library(self):
         r = self.run_()
         self.assertEqual(r.code, 1, r)
-        found, lines, summary = problems(r), reported(r), r.lines[-1]["summary"]
+        found, lines, summary = problems(r), reported(r), r.last["summary"]
         self.assertEqual(found[A]["duplicate_of"], {"code": "duplicate_of", "by": "doi", "keys": [B]},
                          "a trashed copy is not a duplicate")
         self.assertEqual(by_title(r), {}, "P and Q share every title word, but their arXiv id found them; A's namesake is trashed")
@@ -127,7 +127,7 @@ class LintItems(unittest.TestCase):
                                          "untagged"}, "an automatic tag alone is no curated tag")
         self.assertEqual(set(found["WWWWWWWW"]), {"unfiled_webpage"})
         self.zot.data("WWWWWWWW")["tags"] = []
-        self.assertEqual(set(problems(self.run_("--key", "WWWWWWWW"))["WWWWWWWW"]), {"unfiled_webpage"},
+        self.assertEqual(set(problems(self.run_("WWWWWWWW"))["WWWWWWWW"]), {"unfiled_webpage"},
                          "a webpage without tags is no untagged paper")
         self.assertEqual(found[J]["abbreviation_misplaced"], {"code": "abbreviation_misplaced", "publicationTitle":
                          "Comput Biol Med", "journalAbbreviation": "Computers in Biology and Medicine"}, "no patch")
@@ -184,7 +184,7 @@ class LintItems(unittest.TestCase):
     def test_candidates_beyond_ten_are_counted(self):
         for i in range(12):
             add(self.zot, f"ATTN{i:04d}", itemType="conferencePaper", title="Attention is all you need", date="2017")
-        p = by_title(self.run_("--key", "ATTN0000"))["ATTN0000"]
+        p = by_title(self.run_("ATTN0000"))["ATTN0000"]
         self.assertEqual((len(p["candidates"]), p["more"]), (10, 1), "11 others: 10 shown, the rest counted")
         self.assertNotIn("ATTN0000", [c["key"] for c in p["candidates"]])
 
@@ -192,36 +192,36 @@ class LintItems(unittest.TestCase):
         found = problems(self.run_("--collection", "COLL0001"))
         self.assertEqual(set(found), {A, D})
         self.assertEqual(found[A]["duplicate_of"]["keys"], [B], "found outside the collection")
-        found = problems(self.run_("--collection", "COLL0001", "--recursive"))
+        found = problems(self.run_("--collection", "COLL0001", "-r"))
         self.assertEqual(set(found), {A, B, D})
         self.assertEqual(found[B]["duplicate_of"]["keys"], [A])
-        r = self.run_("--key", K)
-        self.assertEqual((r.code, reported(r), r.lines[-1]["summary"]),
-                         (0, {}, {"items": 1, "with_problems": 0, "by_code": {}}))
+        r = self.run_(K)
+        self.assertEqual((r.code, r.out, r.err), (0, "", ""), "nothing to tidy: nothing said")
 
     def test_key_and_cite_targets(self):
-        r = self.run_("--key", f"{J},CCCCCCCC", "--cite", "aaaaaaaa")
+        r = self.run_(J, "-", stdin='{"key": "CCCCCCCC"}\naaaaaaaa\n')
         self.assertEqual(set(problems(r)), {J, "CCCCCCCC", A})
-        self.assertEqual(r.lines[-1]["summary"]["items"], 3)
-        r = self.run_("--key", "NOPE1234", K, "--cite", "nobody")
-        self.assertEqual(r.code, 1, "a target that names no item is the agent's to fix")
-        self.assertEqual([(ln.get("key"), ln.get("cite"), ln.get("code")) for ln in r.lines[:2]],
-                         [("NOPE1234", None, "not_found"), (None, "nobody", "cite_not_found")])
-        self.assertTrue(all("hint" in ln for ln in r.lines[:2]))
-        self.assertEqual(r.lines[-1]["summary"], {"items": 1, "with_problems": 0, "by_code": {}})
+        self.assertEqual(r.last["summary"]["items"], 3)
+        r = self.run_("NOPE1234", K, "nobody", "PDF00001")
+        self.assertEqual(r.code, 1, "a name that is not one item is the agent's to fix")
+        self.assertEqual([(ln.get("key") or ln.get("item"), ln.get("code")) for ln in r.lines],
+                         [("NOPE1234", "not_found"), ("nobody", "not_found"), ("PDF00001", "not_a_parent")])
+        self.assertEqual(r.lines[2]["parentItem"], A)
+        self.assertTrue(all("hint" in ln for ln in r.lines))
+        self.assertEqual(r.last["summary"], {"items": 1, "with_problems": 0, "by_code": {}})
         self.assertEqual(self.run_("--only", "missing_doi").code, 2, "--only is gone")
-        self.assertEqual(self.run_("--key", "short").code, 2)
 
     def test_collections_in_the_trash_do_not_count(self):
         add(self.zot, "INTRASH1", itemType="journalArticle", title="Filed only in a trashed collection",
             DOI="10.1000/t1", url="https://pub.example/t1", collections=["COLL0009"])
-        r = self.run_("--key", "INTRASH1")
+        r = self.run_("INTRASH1")
         self.assertEqual(reported(r)["INTRASH1"]["collections"], [])
-        for key in ("COLL0009", "NOPE0000"):
+        for key in ("COLL0009", "NOPE0000", "Old"):
             r = self.run_("--collection", key)
             self.assertEqual((r.code, len(r.lines), r.lines[0]["code"], r.lines[0]["collection"]),
                              (1, 1, "collection_not_found", key))
             self.assertIn("hint", r.lines[0])
+        self.assertEqual(set(problems(self.run_("--collection", "Medical/Sub"))), {B}, "a collection by its path")
 
     def test_a_doi_org_url_counts_for_duplicates_not_for_the_doi_field(self):
         add(self.zot, "UUUUUUUU", itemType="journalArticle", title="The same paper, found by its url",
@@ -253,34 +253,34 @@ class LintItems(unittest.TestCase):
                          "the other key is outside the scope, still found")
         self.assertEqual(cites["TEXCITE1"], [{"code": "citation_key", "problem": "tex_special", "suggested": "smith2020"}])
         self.assertNotIn("DUPCITE2", cites)
-        self.assertEqual(r.lines[-1]["summary"]["by_code"]["citation_key"], 3)
-        r = self.run_("--cite", "dupkey")
-        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["keys"]), (1, "cite_ambiguous", ["DUPCITE1", "DUPCITE2"]))
+        self.assertEqual(r.last["summary"]["by_code"]["citation_key"], 3)
+        r = self.run_("dupkey")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["keys"]), (1, "ambiguous", ["DUPCITE1", "DUPCITE2"]))
 
-    def test_the_whole_library_is_read_page_by_page(self):
+    def test_the_whole_library_is_read_in_one_request(self):
         for i in range(130):
             add(self.zot, f"FILL{i:04d}", itemType="webpage", title=f"Filler page number {i}", url=f"https://x/{i}",
                 collections=["COLL0002"])
         add(self.zot, "LATEDUP1", itemType="journalArticle", title="The last record in the library", DOI="10.1000/A",
             abstractNote="x", url="https://pub.example/l")
-        found = problems(self.run_("--key", A))
+        found = problems(self.run_(A))
         self.assertEqual(found[A]["duplicate_of"]["keys"], [B, "LATEDUP1"])
-        self.assertEqual([(q["start"], q["limit"]) for _, _, q, _ in self.zot.requested("GET", f"{LIB}/items")],
-                         [("0", "100"), ("100", "100")])
+        self.assertEqual([q for _, _, q, _ in self.zot.requested("GET", f"{LIB}/items")
+                          if "q" not in q], [{}], "one listing, unpaged (the other requests resolve the name)")
 
     def test_cannot_check(self):
         r = self.run_(base_url=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, len(r.lines), r.lines[0]["code"]), (2, 1, "zotero_unreachable"))
+        self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "zotero_unreachable"))
         self.zot.disabled = True
         r = self.run_()
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "local_api_disabled"))
+        self.assertEqual((r.code, r.last["code"]), (2, "local_api_disabled"))
 
     def test_smoke(self):
-        r = smoke("lint_items", "--base-url", self.zot.base_url, config=self.config)
+        r = smoke("lint", "--base-url", self.zot.base_url, config=self.config)
         self.assertEqual(r.code, 1, r)
-        self.assertEqual(r.lines[-1]["summary"]["items"], 10)
+        self.assertEqual(r.last["summary"]["items"], 10)
         self.assertTrue(all(set(line) == {"key", "citationKey", "title", "itemType", "collections", "problems"}
-                            for line in r.lines[:-1]))
+                            for line in r.lines))
 
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ PACKAGE = "application/zip"
 
 
 def is_package(data, pdf_titles):
-    """A PDF's structured package (structured.py): a zip attachment under the title of one of the item's PDFs. A zip
+    """A PDF's structured package (p2z.py package): a zip attachment under the title of one of the item's PDFs. A zip
     under a title of its own is an ordinary file, such as a supplement's source data."""
     return (data.get("itemType") == "attachment" and data.get("contentType") == PACKAGE
             and data.get("title") in pdf_titles)
@@ -124,7 +124,7 @@ def title_similarity(a, b):
 
 # ---- candidates: library items that may be the paper --------------------------------------------------------
 # One ranking for both feeders: the import's lookup (Zotero's quick search, zotero.Zotero.lookup) and lint's
-# duplicates (the library read once, lint_items.py). Only an identifier confirms; a candidate goes to a judge.
+# duplicates (the library read once, p2z.py lint). Only an identifier confirms; a candidate goes to a judge.
 
 SUBTITLE_SEPARATORS = (": ", " - ", " – ", " — ")
 CANDIDATES = 10  # candidates a judge is shown, most like the paper first (my number); the rest are counted

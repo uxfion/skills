@@ -158,27 +158,28 @@ class Cli(unittest.TestCase):
         (self.dir / "b.html").write_text('<p style="text-align: center">c</p>', encoding="utf-8")
 
     def test_files_into_a_directory_and_back(self):
-        r = smoke("note_md", "-t", "md", self.dir / "a.html", self.dir / "b.html", "-o", f"{self.dir}/md/")
+        r = smoke("convert", "-t", "md", self.dir / "a.html", self.dir / "b.html", "-o", f"{self.dir}/md/")
         self.assertEqual(r.code, 0, r)
         self.assertEqual((self.dir / "md/a.md").read_text(encoding="utf-8"), "---\nschema: 9\n---\na **b**\n")
         self.assertIn("b.html: block 1: <p> kept as HTML", r.err)
-        r = smoke("note_md", "-t", "note", self.dir / "md/a.md")
+        r = smoke("convert", "-t", "note", self.dir / "md/a.md")
         self.assertEqual((r.code, r.out), (0, '<div data-schema-version="9"><p>a <strong>b</strong></p>\n</div>\n'))
 
     def test_usage_errors(self):
         (self.dir / "taken.md").write_text("x", encoding="utf-8")
         for argv in (["-t", "md", self.dir / "a.html", self.dir / "b.html"],          # two inputs, stdout
                      ["-t", "md", self.dir / "a.html", "-o", self.dir / "taken.md"],  # over an existing file
-                     ["-t", "md", "-o", f"{self.dir}/out/"],                            # stdin into a directory
+                     ["-t", "md", "-", "-o", f"{self.dir}/out/"],                       # stdin into a directory
+                     ["-t", "md"],                                                      # nothing named
                      ["-t", "html", self.dir / "a.html"]):
             with self.subTest(argv=argv):
-                self.assertEqual(smoke("note_md", *argv).code, 2)
+                self.assertEqual(smoke("convert", *argv).code, 2)
 
     def test_an_input_that_fails_is_exit_1(self):
         (self.dir / "bad.md").write_text("---\nnot a key line\n---\nx\n", encoding="utf-8")
-        r = smoke("note_md", "-t", "note", self.dir / "bad.md")
-        self.assertEqual(r.code, 1)
-        self.assertIn("front matter line 2", r.err)
+        r = smoke("convert", "-t", "note", self.dir / "bad.md")
+        self.assertEqual((r.code, r.last), (1, {"summary": {"total": 1, "failed": 1}}))
+        self.assertIn("front matter line 2", r.err_lines[0]["detail"])
 
 
 if __name__ == "__main__":
