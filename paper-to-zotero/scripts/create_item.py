@@ -17,7 +17,8 @@ cut off between the two leaves the pending mark: the next run's lookup finds the
 it, or creates it when there is none, so a rerun is always safe. What comes back is compared with what was sent
 (collections, tags, citation key).
 
-stdout: one line per record {slug, code, key?, version?, citationKey?, collection?, citation_key_hint?}.
+stdout: one line per record {slug, code, key?, version?, citationKey?, collection?, citation_key_hint?}; collection
+lists the item's collections, each {key, path}.
   ok                   created (with -n: would be, with the `tags` it would carry; nothing written)
   skipped              reason saved (this run created it) | exists (the library has it: `found`, matched_by)
   possible_duplicate   the library may hold it (`near_matches`, the same_paper `handoff` a judge answers with
@@ -96,11 +97,11 @@ def curated_tags(rec):
     return tags
 
 
-def saved_line(saved, collections):
+def saved_line(saved, refs):
     cite = saved.get("citationKey")
     hint = paper.suggested_cite(cite)
     return {"key": saved["key"], "version": saved.get("version"), **({"citationKey": cite} if cite else {}),
-            "collection": collections[0] if len(collections) == 1 else collections,
+            "collection": refs,
             **({"citation_key_hint": {"suggested": hint, "why": "TeX treats ^ _ & % $ # { } ~ \\ specially: ask the user, "
                                       "then p2z.py update KEY --set citationKey=<suggested>"}} if hint else {})}
 
@@ -110,13 +111,13 @@ def process(rec, ctx):
     if saved.get("key"):
         return cli.skipped("saved", key=saved["key"])
     obj, collections = payload_of(rec, ctx)
-    zot, args = ctx["zot"], ctx["args"]
+    zot, args, refs = ctx["zot"], ctx["args"], zotero.collection_refs(collections, ctx["tree"])
     found, near = run.look_up(rec, zot)
     if found["code"] == "found":
         if saved.get("pending"):  # the POST of a run cut off did create it
             rec["saved"] = {"key": found["key"], "version": found["version"], "citationKey": found["citationKey"] or None,
                             "created_at": saved.get("at")}
-            return {"code": "ok", "recovered": True, **saved_line(rec["saved"], collections)}
+            return {"code": "ok", "recovered": True, **saved_line(rec["saved"], refs)}
         return cli.skipped("exists", key=found["key"], matched_by=found["matched_by"])
     if run.unsettled(rec):
         return {"code": "possible_duplicate", "near_matches": run.near_lines(near), "handoff": run.ask_same_paper(rec),
@@ -126,7 +127,7 @@ def process(rec, ctx):
                 "hint": "The paper has no tags file yet: its tagger writes it (references/tagging.md); then run this "
                         "again. Nothing was created."}
     if args.dry_run:
-        return {"code": "ok", "title": obj["title"][:80], "collection": collections, "tags": [t["tag"] for t in obj["tags"]]}
+        return {"code": "ok", "title": obj["title"][:80], "collection": refs, "tags": [t["tag"] for t in obj["tags"]]}
     rec["saved"] = {"pending": True, "at": run.now_iso()}
     rec.save()
     try:
@@ -140,7 +141,7 @@ def process(rec, ctx):
         got = zotero.data(zot.item(created["key"])) or got
     rec["saved"] = {"key": created["key"], "version": created.get("version"), "citationKey": got.get("citationKey") or None,
                     "created_at": run.now_iso()}
-    line = saved_line(rec["saved"], collections)
+    line = saved_line(rec["saved"], refs)
     sent_tags = {(t["tag"], t["type"]) for t in obj["tags"]}
     wrong = {"collections": [c for c in collections if c not in (got.get("collections") or [])],
              "tags": sent_tags != {(t.get("tag"), t.get("type", 0)) for t in got.get("tags") or []},

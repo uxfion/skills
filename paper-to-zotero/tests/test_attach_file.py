@@ -168,6 +168,9 @@ class AttachFile(unittest.TestCase):
         rec.save()
         r = self.run_(self.rec)
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "no_item_key"))
+        r = self.run_(self.rec, "-n")
+        self.assertEqual((r.code, r.lines[0]["files"]), (0, [{"name": "liu.pdf", "code": "ok", "title": "Published-IEEE"}]),
+                         "-n: the files as they would go on the item create makes first")
 
     def test_smoke(self):
         self.settle(status="waiting")

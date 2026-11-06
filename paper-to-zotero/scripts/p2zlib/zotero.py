@@ -83,6 +83,12 @@ def own_field(t, field):
     return field if field in t["fields"] else t["by_base"].get(field)
 
 
+def collection_refs(keys, tree):
+    """Collections as a line names them for the reader: [{key, path}] (tree: Zotero.collections()); path null for
+    one in the trash."""
+    return [{"key": k, "path": (tree.get(k) or {}).get("path")} for k in keys]
+
+
 class Zotero:
     """A client for one Zotero instance; proxies from the environment are bypassed (the API listens on loopback)."""
 

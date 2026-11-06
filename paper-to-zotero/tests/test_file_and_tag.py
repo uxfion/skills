@@ -73,7 +73,10 @@ class FileAndTag(unittest.TestCase):
         r = self.run_(I1, "--remove-collection", CA)
         self.assertEqual((r.code, r.err), (0, ""), r)
         self.assertEqual(r.lines, [{"key": I1, "code": "ok", "title": "CycleGAN",
-                                    "collection": {"from": [CA, CB, CC], "to": [CB, CC]}, "version": r.lines[0]["version"]}])
+                                    "collection": {"from": [{"key": CA, "path": "CC作业"}, {"key": CB, "path": "自然图像"},
+                                                            {"key": CC, "path": "tmp"}],
+                                                   "to": [{"key": CB, "path": "自然图像"}, {"key": CC, "path": "tmp"}]},
+                                    "version": r.lines[0]["version"]}], "each collection with its path, for the reader")
         self.assertGreater(r.lines[0]["version"], 10)
         self.assertEqual(self.colls(I1), [CB, CC])
         self.assertEqual(self.posts(), [[{"key": I1, "version": 10, "collections": [CB, CC]}]])
@@ -202,7 +205,10 @@ class FileAndTag(unittest.TestCase):
                                  {"key": I3, "add_collection": CB}]), "-n")
         self.assertEqual((r.code, r.err), (0, ""), r)
         self.assertEqual(r.lines[0], {"key": I1, "cite": "zhu2017unpaired", "code": "ok", "title": "CycleGAN",
-                                      "collection": {"from": [CA, CB, CC], "to": [CB, CC]}, "version": 10, "dry_run": True})
+                                      "collection": {"from": [{"key": CA, "path": "CC作业"}, {"key": CB, "path": "自然图像"},
+                                                              {"key": CC, "path": "tmp"}],
+                                                     "to": [{"key": CB, "path": "自然图像"}, {"key": CC, "path": "tmp"}]},
+                                      "version": 10, "dry_run": True}, "the preview names collections as the write does")
         self.assertEqual([(line["key"], line.get("cite")) for line in r.lines[1:]], [(I2, "karras2019style"), (I3, None)])
         self.assertEqual(self.zot.writes(), [])
 

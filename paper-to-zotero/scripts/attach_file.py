@@ -27,7 +27,8 @@ file later (another md5) is attached afresh.
 
 stdout: one line per record {slug, code, reason?, status?, key?, files?: [{name, code, attachment?, title?,
 renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [names]}.
-  ok            a file attached, or renamed after its label (with -n: would be; nothing written)
+  ok            a file attached, or renamed after its label (with -n: would be; nothing written. A record with no
+                item yet takes create's, which save runs first: its files are listed as they would go on it)
   skipped       reason no_file_yet (the result has no file to attach; `status` is its outcome's: got, waiting,
                 not_got. Not a failure, so save can run after every pass) | attached (every file is in `attach` under
                 its title, or the item had it: suggested_title when its title differs from the label's) |
@@ -128,6 +129,9 @@ def process(rec, ctx):
                           "renamed": {"from": old, "to": title}})
             continue
         key = key or run.item_key(rec)
+        if key is None and dry_run:   # save -n: create, run first, makes the item
+            lines.append({"name": f["name"], "code": "ok", "title": title})
+            continue
         if key is None:
             raise cli.Stop("no_item_key", hint="The record has no item in Zotero yet: p2z.py create (p2z.py save) makes "
                                                "it; library candidates are settled first, in their same_paper handoff.")

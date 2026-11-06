@@ -1,5 +1,7 @@
 # paper-to-zotero：`tag -n` 的预览里集合只写 key，不写路径
 
+> **已解决（2026-11-06）**：`tag` 行里的 `collection.from`、`to` 和 `create` 行里的 `collection`，每个集合都是 `{key, path}`（在回收站里的集合 `path` 为 null），空跑和真写一样。`create` 一并改了：`save -n` 的预览同样是给用户确认的。`update` 不碰集合，不用改。读的是解析集合时已经读过的那棵树，不多请求。
+
 - 来源：主 agent，2026-11-05，p2z Unix 约定样板的真写入验收（spec `20261104-skills-unix-conventions-spec.md` 第 9 节）。用户没有提，是给用户看预览时碰到的。
 - 状态：open。
 

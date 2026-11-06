@@ -61,7 +61,7 @@ class CreateItem(unittest.TestCase):
         self.assertEqual(r.code, 0, r)
         line = r.lines[0]
         self.assertEqual((line["code"], line["collection"], line["citationKey"], line["citation_key_hint"]["suggested"]),
-                         ("ok", [COLL, COLL2], "liu_2022", "liu2022"))
+                         ("ok", [{"key": COLL, "path": "Inbox"}, {"key": COLL2, "path": "Methods"}], "liu_2022", "liu2022"))
         rec = run.read(a)
         data = self.zot.data(rec["saved"]["key"])
         self.assertEqual((data["collections"], data["tags"], data["citationKey"]), ([COLL, COLL2], [{"tag": "method/diffusion", "type": 0}], "liu_2022"))

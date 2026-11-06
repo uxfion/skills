@@ -33,7 +33,8 @@ collections (tags go on attachments and notes too), each collection named is one
 never creates one: p2z.py mkcol does). Then one POST per 50 items, each sent with its version (an item that changed
 meanwhile is read again, planned again and sent once more), and each item is checked in Zotero's reply.
 
-stdout: one line per item {key, cite?, code, title, collection?: {from, to}, tags_added?, tags_removed?, version}:
+stdout: one line per item {key, cite?, code, title, collection?: {from, to}, tags_added?, tags_removed?, version}
+(from, to: the item's collections before and after, each {key, path}):
   ok                    written, and Zotero's reply shows it (-n: would be written)
   skipped               reason unchanged: the item already is as asked
   not_found             {item, code}: no item has this key or citation key; ambiguous: several do (`keys`)
@@ -223,7 +224,7 @@ def tag_list(mapping):
     return [{"tag": t, "type": k} for t, k in mapping.items()]
 
 
-def plan(data, change):
+def plan(data, change, tree):
     """-> (what to send: {collections?, tags?}, the line's fields: {collection?: {from, to}, tags_added?, tags_removed?})."""
     body, fields = {}, {}
     has = list(data.get("collections") or [])
@@ -232,7 +233,8 @@ def plan(data, change):
         grown = has + [k for k in change.get("add_collection", []) if k not in has]
         want = [k for k in grown if k not in change.get("remove_collection", [])]
     if want is not None and set(want) != set(has):
-        body["collections"], fields["collection"] = want, {"from": has, "to": want}
+        body["collections"] = want
+        fields["collection"] = {"from": zotero.collection_refs(has, tree), "to": zotero.collection_refs(want, tree)}
     tags = change.get("tags")
     if "add_tags" in change or "remove_tags" in change:
         kept = {**tag_map(data.get("tags")), **tag_map(change.get("add_tags", []))}
@@ -295,7 +297,7 @@ def apply(zot, entries, dry_run):
 
     def planned(e, item):
         """Plan the entry on the item as it is -> the object to send, or None; the line follows the plan."""
-        e["body"], fields = plan(zotero.data(item), e["change"])
+        e["body"], fields = plan(zotero.data(item), e["change"], tree)
         title, version = zotero.data(item).get("title"), item.get("version")
         e["line"] = ({**head(e), "code": "ok", "title": title, **fields, "version": version} if e["body"]
                      else {**head(e), **cli.skipped("unchanged"), "title": title, "version": version})

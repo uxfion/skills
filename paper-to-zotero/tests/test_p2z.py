@@ -165,6 +165,10 @@ class PrepareAndSave(unittest.TestCase):
         work.tags.mkdir()
         for slug in ("new", "pre"):
             (work.tags / f"{slug}.json").write_text(json.dumps(["method/x", "venue/Example"]))
+        writes = len(zot.writes())
+        code, lines = p2z("save", "-n")
+        self.assertEqual(({line["slug"]: line for line in lines}["new"]["steps"], len(zot.writes())),
+                         ({"create": "ok", "attach": "ok"}, writes), "save -n on a new record: both steps would go, nothing written")
         code, lines = p2z("save")
         by = {line["slug"]: line for line in lines}
         self.assertEqual(by["new"]["steps"], {"create": "ok", "attach": "ok"}, lines)
