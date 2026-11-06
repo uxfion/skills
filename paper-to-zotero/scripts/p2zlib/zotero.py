@@ -118,7 +118,8 @@ class Zotero:
             with self.opener.open(req, timeout=timeout or self.timeout) as resp:
                 return resp.status, resp.headers, resp.read()
         except urllib.error.HTTPError as e:
-            return e.code, e.headers, e.read()
+            with e:   # closed once read: Python 3.14 warns on stderr about an error reply left open
+                return e.code, e.headers, e.read()
         except (urllib.error.URLError, OSError) as e:
             raise Stop("zotero_unreachable", exit=CANNOT, hint=HINT_UNREACHABLE, base_url=self.base,
                        detail=str(getattr(e, "reason", None) or e)) from None
@@ -740,7 +741,8 @@ class Zotero:
             with self.opener.open(req, timeout=timeout) as resp:
                 status, body = resp.status, resp.read()
         except urllib.error.HTTPError as e:
-            status, body = e.code, e.read()
+            with e:
+                status, body = e.code, e.read()
         except TimeoutError:  # connected, no answer yet; a failed connection comes as a URLError
             return False
         except (urllib.error.URLError, OSError) as e:
