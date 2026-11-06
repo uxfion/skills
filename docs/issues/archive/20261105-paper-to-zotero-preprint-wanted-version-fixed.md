@@ -1,5 +1,7 @@
 # paper-to-zotero：保留预印本时，import.md 没让 paper-fetch 改成"要预印本"
 
+> **已解决（2026-11-06）**：import.md 第 2 步写明，决定保留预印本时先 `pf.py identify --wanted preprint <arXiv id> -o <imp>/fetch/`，再写 `keep_preprint`；完成条件改成"redrafted, or has `wanted: preprint` and its reason to stay"。核实了 `identify` 改了 `wanted` 却报 `skipped: exists`：改成一条规矩，结果文件写过就是 `ok`，并写出改了的 `cite`、`wanted`；`skipped: exists` 只表示文件没变。
+
 - 来源：2026-11-05 全流程试用。导入 agent 报告：保留预印本要用 `pf.py identify --wanted preprint` 重新认一遍，这一步只写在 paper-fetch 的 batch.md 里，import.md 没有。主 agent 对照文件核实。用户没有提。
 - 状态：open。
 

@@ -25,6 +25,11 @@ WANTED = ("published", "accepted", "preprint")
 SALES_PAGE_DOI = re.compile(r"^10\.52202/", re.I)
 NO_ABSTRACT = "record has no abstract"
 PREPRINT_ABSTRACT = "the published record has no abstract; the preprint's is in versions.preprint"
+YEAR_ONLY = "date is year-only"
+V1_DATE = "date taken from arXiv's 'published', the day v1 was submitted (the record's 'issued' is year-only)"
+# The escapes of TeX's special characters that can only mean the character: \% \& \_ \#. The rest of an author's
+# LaTeX ($...$, \emph{...}, --) is left as written.
+TEX_ESCAPE = re.compile(r"\\([%&_#])")
 MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
           "november", "december")
 
@@ -304,7 +309,7 @@ def normalize(record, doi, agency, warnings, proceedings=None):
             warnings.append("record has no date")
     parts = ((csl.get("issued") or {}).get("date-parts") or [[]])[0] or []
     if len([p for p in parts if p not in (None, "")]) == 1:
-        warnings.append("date is year-only")
+        warnings.append(YEAR_ONLY)
     if not any(isinstance(p, dict) for p in csl.get("author") or []):
         warnings.append("record has no creators")
     if proceedings and proceedings.get("series"):
@@ -335,7 +340,10 @@ def from_doi(s, doi, aid, warnings):
         doi = record_doi
     proceedings = (proceedings_from_crossref(s, doi)
                    if first_str(record.get("type")) == "book-chapter" and record.get("ISSN") else None)
-    return normalize(record, doi, agency, warnings, proceedings), doi
+    csl = normalize(record, doi, agency, warnings, proceedings)
+    if aid and csl.get("abstract"):    # an arXiv DOI's record holds the abstract as the author wrote it, in LaTeX
+        csl["abstract"] = TEX_ESCAPE.sub(r"\1", csl["abstract"])
+    return csl, doi
 
 
 def date_parts(text, warnings):
@@ -578,8 +586,8 @@ def merge_candidates(found, titles):
 
 
 def versions_of_preprint(s, aid, csl, alt_titles, old=None):
-    """A preprint's versions: itself (arXiv's latest vN and comment) and its published versions. `old`: the versions
-    an earlier identify found; a source that does not answer now keeps what it gave then."""
+    """A preprint's versions: itself (arXiv's latest vN, the day v1 was submitted, and comment) and its published
+    versions. `old`: the versions an earlier identify found; a source that does not answer now keeps what it gave then."""
     titles = [t for t in [csl.get("title"), *alt_titles] if isinstance(t, str) and t.strip()]
     entry, arxiv_code = s.arxiv_entry(aid)
     answers, codes = {"arxiv": from_arxiv(entry), "crossref": []}, {"arxiv": arxiv_code, "crossref": "no_title"}
@@ -597,7 +605,8 @@ def versions_of_preprint(s, aid, csl, alt_titles, old=None):
                            for c in old.get("published") or [] if isinstance(c, dict) and source in (c.get("sources") or [])]
     said = (old.get("preprint") or {}) if "arxiv" in silent else entry
     preprint = {"ids": {"arxiv": aid, "doi": f"10.48550/arXiv.{aid}"}, "latest": said.get("latest", said.get("version")),
-                "comment": said.get("comment"), "title": csl.get("title"), "abstract": csl.get("abstract"),
+                "submitted": said.get("submitted"), "comment": said.get("comment"), "title": csl.get("title"),
+                "abstract": csl.get("abstract"),
                 "author": csl.get("author") or [], **({"categories": csl["categories"]} if csl.get("categories") else {})}
     return {"preprint": preprint, "published": merge_candidates(answers["arxiv"] + answers["crossref"], titles),
             "incomplete": silent}
@@ -675,12 +684,10 @@ def identify(s, work, ident, cite, wanted, seen):
             res, there = moved or res, slug if moved else there
         if for_good(res):                             # its version is chosen, or complete: kept, never the preprint again
             seen["this_run"][key] = there
-            silent = touch(s, res, cite, wanted)
-            if renamed:
-                return {"slug": there, "path": str(res.path), "renamed_from": renamed,
-                        **({"incomplete": silent} if silent else {})}
-            return cli.skipped("exists", slug=there, path=str(res.path), **({"slug_not_applied": refused} if refused else {}),
-                               **({"incomplete": silent} if silent else {}))
+            taken, written = touch(s, res, cite, wanted)
+            line = {"slug": there, "path": str(res.path), **({"renamed_from": renamed} if renamed else {}),
+                    **({"slug_not_applied": refused} if refused else {}), **taken}
+            return line if renamed or written else cli.skipped("exists", **line)
         slug = there                                  # a stub, or versions to complete: written again in place
     if slug and slug != there and (work.results / f"{slug}.json").exists():
         other = run.read(work.results / f"{slug}.json")
@@ -711,6 +718,10 @@ def identify(s, work, ident, cite, wanted, seen):
     alt = [t for t in (old or {}).get("alt_titles") or [] if isinstance(t, str)]
     versions = (versions_of_preprint(s, aid.lower(), csl, alt, old.get("versions") if old else None)
                 if record_of == "preprint" and aid else {"published": [], "incomplete": []})
+    v1 = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", (versions.get("preprint") or {}).get("submitted") or "")
+    if v1 and YEAR_ONLY in warnings:            # an arXiv DOI's record gives v1's year; arXiv's API gives its day
+        csl["issued"] = {"date-parts": [[int(g) for g in v1.groups()]]}
+        warnings[warnings.index(YEAR_ONLY)] = V1_DATE
     enrichment = enrich(s, ids["doi"], csl, warnings, old)
     silent = enrichment["incomplete"]
     result = {**head(slug, cite, wanted, old), "request": {"given": raw}, "record_of": record_of,
@@ -744,19 +755,22 @@ def head(slug, cite, wanted, old):
 
 
 def touch(s, res, cite, wanted):
-    """A result kept as it is: the key and the version given now written into it, its lookups made when due -> the
-    sources that still did not answer."""
+    """A result kept as it is: the key and the version given now written into it, its lookups made when due -> (its
+    line's fields: cite and wanted where they changed, incomplete: the sources that still did not answer; whether the
+    result was written)."""
     before = json.dumps(res, sort_keys=True)
-    res.update({k: v for k, v in (("cite", cite), ("wanted", wanted)) if v})
+    taken = {k: v for k, v in (("cite", cite), ("wanted", wanted)) if v and res.get(k) != v}
+    res.update(taken)
     silent = []
     if lookups_due(res):
         warnings = [w for w in res.get("warnings") or [] if isinstance(w, str)]
         enrichment = enrich(s, res.ids.get("doi"), res.csl, warnings, res)
         silent = enrichment["incomplete"]
         res.update(ids=ids_of_csl(dict(res.ids), res.csl), enrichment=enrichment, warnings=warnings)
-    if json.dumps(res, sort_keys=True) != before:
+    written = json.dumps(res, sort_keys=True) != before
+    if written:
         res.save()
-    return silent
+    return {**taken, **({"incomplete": silent} if silent else {})}, written
 
 
 def reslug(work, res, slug, seen):
@@ -927,13 +941,15 @@ chapter, posted-content -> article, ...), keys (event -> event-title, an event o
 -> publisher-place, short-container-title -> container-title-short), a missing `issued` from published /
 published-online / published-print / created (with a warning), the subtitle joined to the title, markup stripped
 from title and abstract. A record whose DOI differs from the one asked for (an alias) gives its own, with a warning.
-`source` is where the metadata came from, as Zotero's libraryCatalog says it: DOI.org (Crossref), DOI.org
-(Datacite), or the page's host. What CSL has no variable for stays under its own name (arXiv's `categories`). A
-chapter of a known proceedings series (LNCS and co., asked of Crossref once) becomes a paper-conference: the volume as
-container-title, the series as collection-title. A paper's page is read over plain HTTP: its citation_* tags give
-the CSL (paper-conference, article-journal or chapter by the venue tag; the abstract from citation_abstract, else a
-description tag; a date as 2023-12-10, "10 December 2023" or "Dec 10, 2023", only its year when the rest is
-ambiguous, as in 10/12/2023, with a warning).
+An arXiv DOI's record (DataCite's) holds the abstract in the author's LaTeX: the escapes \\% \\& \\_ \\# become the
+characters, and the rest ($...$, \\emph{...}, --) stays as written; its date, a year alone, becomes the day v1 was
+submitted (arXiv's `published`, under Versions), with a warning saying so. `source` is where the metadata came from,
+as Zotero's libraryCatalog says it: DOI.org (Crossref), DOI.org (Datacite), or the page's host. What CSL has no
+variable for stays under its own name (arXiv's `categories`). A chapter of a known proceedings series (LNCS and co.,
+asked of Crossref once) becomes a paper-conference: the volume as container-title, the series as collection-title. A
+paper's page is read over plain HTTP: its citation_* tags give the CSL (paper-conference, article-journal or chapter
+by the venue tag; the abstract from citation_abstract, else a description tag; a date as 2023-12-10, "10 December
+2023" or "Dec 10, 2023", only its year when the rest is ambiguous, as in 10/12/2023, with a warning).
 
 Lookups. Every result with a DOI asks OpenAlex (filter doi:a|b|..., the config's openalex_key as api_key) and Europe
 PMC (DOI:"a" OR ..., resultType core), 50 DOIs a request for all of a run's papers, for what its CSL lacks: the
@@ -944,19 +960,22 @@ from title and abstract, go to enrichment.openalex_keywords: a hint for whoever 
 source that does not answer (a network error, a 5xx, a 429) is in enrichment.incomplete and does not fail the line;
 identifying the paper again asks it again, and what it gave before stays meanwhile.
 
-Versions. An arXiv preprint gets versions.preprint (its ids, arXiv's latest vN and comment, title, abstract, authors,
-arXiv's categories) and versions.published: the published versions the authors declared to arXiv, and Crossref works
-whose title matches (90%), each {ids: {doi}, venue, year, title, title_differs, type, sources, first_author?}. arXiv
-is asked once per 100 ids for all of a run's preprints. Sources that did not answer are in versions.incomplete, and
-identifying the same id again asks them again (not once it is redrafted); a source still silent keeps what it gave
-the last time (its published versions, arXiv's latest and comment). Choosing one is the caller's: then pf.py redraft.
-A published paper's versions are empty.
+Versions. An arXiv preprint gets versions.preprint (its ids, arXiv's latest vN, `submitted`: the day v1 was submitted,
+YYYY-MM-DD, and comment, title, abstract, authors, arXiv's categories) and versions.published: the published versions
+the authors declared to arXiv, and Crossref works whose title matches (90%), each {ids: {doi}, venue, year, title,
+title_differs, type, sources, first_author?}. arXiv is asked once per 100 ids for all of a run's preprints. Sources
+that did not answer are in versions.incomplete, and identifying the same id again asks them again (not once it is
+redrafted); a source still silent keeps what it gave the last time (its published versions, arXiv's latest,
+submitted and comment). Choosing one is the caller's: then pf.py redraft. A published paper's versions are empty.
 
-One line per ID as it is done: {id, code, slug?, path?, record_of?, title?, versions?, incomplete?, warnings?}.
-  ok                written; renamed_from: a key given for a paper whose result had a derived slug, now its name
-  skipped           reason exists: a result for this paper is there; slug_not_applied: the key's slug, when
-                    fetching had begun under the old one (the key is in cite); reason duplicate: the same paper
-                    earlier in this run's input
+One line per ID as it is done: {id, code, slug?, path?, record_of?, title?, versions?, incomplete?, warnings?,
+slug_not_applied?: the slug of a key given for a result whose fetching began under its old name (the key is in cite)}.
+  ok                written: a new result; the result there identified again in place (a stub, versions to
+                    complete); or the result there kept (complete, or redrafted) and updated, its line naming what it
+                    took: renamed_from (a key given for a paper whose result had a derived slug, now its name), cite
+                    and wanted (given now, in place of what it had), else what its lookups found
+  skipped           reason exists: a result for this paper is there, and nothing in it changed; reason duplicate:
+                    the same paper earlier in this run's input
   slug_taken        the key's slug names another paper's result: nothing written
   needs_pinning     a title, not an identifier (a `title:` line): find the paper's DOI or arXiv id first
   no_identifier     neither a DOI, an arXiv id nor a page url

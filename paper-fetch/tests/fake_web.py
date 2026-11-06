@@ -276,12 +276,14 @@ class FakeWeb:
     # ---- arXiv ------------------------------------------------------------------------------------------------------
 
     def arxiv(self, aid, title, *, version=1, authors=(), summary="", category="cs.LG", journal_ref=None, doi=None,
-              comment=None):
-        """A paper in arXiv's API: `aid` without a version, `version` its latest."""
-        published = f"20{aid[:2]}-{aid[2:4]}-01T00:00:00Z" if re.match(r"\d{4}\.", aid) else "2000-01-01T00:00:00Z"
+              comment=None, published=None, updated=None):
+        """A paper in arXiv's API: `aid` without a version, `version` its latest; `published` when v1 was submitted
+        (default: the first of the id's month), `updated` when the latest was (default: `published`)."""
+        if not published:
+            published = f"20{aid[:2]}-{aid[2:4]}-01T00:00:00Z" if re.match(r"\d{4}\.", aid) else "2000-01-01T00:00:00Z"
         self.entries[aid] = {"title": title, "version": version, "authors": list(authors), "summary": summary,
-                             "category": category, "published": published, "journal_ref": journal_ref, "doi": doi,
-                             "comment": comment}
+                             "category": category, "published": published, "updated": updated or published,
+                             "journal_ref": journal_ref, "doi": doi, "comment": comment}
         return self.url("/arxiv/api/query?id_list=" + aid)
 
     def _arxiv(self, req):
@@ -308,7 +310,7 @@ class FakeWeb:
         e, x = self.entries[aid], lambda s: html.escape(str(s), quote=False)
         vid = aid + (version or f"v{e['version']}")
         scheme = 'scheme="http://arxiv.org/schemas/atom"'
-        return (f"<entry><id>http://arxiv.org/abs/{vid}</id><updated>{e['published']}</updated>"
+        return (f"<entry><id>http://arxiv.org/abs/{vid}</id><updated>{e['updated']}</updated>"
                 f"<published>{e['published']}</published><title>{x(e['title'])}</title>"
                 f"<summary>{x(e['summary'])}</summary>"
                 + "".join(f"<author><name>{x(n)}</name></author>" for n in e["authors"])

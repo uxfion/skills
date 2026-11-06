@@ -198,8 +198,9 @@ class Identifying(Base):
                          "the result says its old name, so a record drafted under it follows")
         self.work.append({"event": "pass", "pass": 1, "slug": "he2016resnet"})
         r = self.ident(stdin=f"{CVPR}\thekaiming2016\n")
-        self.assertEqual((r.lines[0]["reason"], r.lines[0]["slug"], r.lines[0]["slug_not_applied"]),
-                         ("exists", "he2016resnet", "hekaiming2016"), "the result has its key already: the other one is reported, not applied")
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["slug"], r.lines[0]["slug_not_applied"], r.lines[0]["cite"]),
+                         ("ok", "he2016resnet", "hekaiming2016", "hekaiming2016"),
+                         "the result has its name already: the key goes into cite, its slug is reported, not applied")
         self.work.append({"event": "pass", "pass": 1, "slug": "liu2022progressive"})  # 10.9999/twin, fetched for
         r = self.ident(stdin="10.9999/twin\tliutwin\n")
         self.assertEqual((r.lines[0]["slug"], r.lines[0]["slug_not_applied"]), ("liu2022progressive", "liutwin"),
@@ -228,9 +229,10 @@ class Identifying(Base):
         self.work.append({"event": "pass", "pass": 1, "slug": "liu2022progressive"})
         r = self.run_("identify", JBHI, "--slug", "Liu:2022", "--wanted", "accepted", "-o", self.work.root)
         res = self.res("liu2022progressive")
-        self.assertEqual((r.lines[0]["reason"], r.lines[0]["slug_not_applied"], res["cite"], res["wanted"], res["slug_given"]),
-                         ("exists", "Liu_2022", "Liu:2022", "accepted", False),
-                         "a result kept as it is takes the key and the version given")
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["slug_not_applied"], r.lines[0]["cite"], r.lines[0]["wanted"],
+                          res["cite"], res["wanted"], res["slug_given"]),
+                         ("ok", "Liu_2022", "Liu:2022", "accepted", "Liu:2022", "accepted", False),
+                         "a result kept as it is takes the key and the version given, and its line names them")
         r = self.ident(stdin="10.9999/html\tStub:Key\n")
         self.assertEqual({k: self.res("Stub_Key").get(k) for k in ("cite", "slug_given", "wanted")},
                          {"cite": "Stub:Key", "slug_given": True, "wanted": "published"}, "a stub keeps them too")
@@ -238,6 +240,16 @@ class Identifying(Base):
         self.ident("10.9999/html")
         self.assertEqual({k: self.res("Stub_Key").get(k) for k in ("cite", "slug_given")}, {"cite": "Stub:Key", "slug_given": True},
                          "a stub identified again by its bare id keeps its key")
+
+    def test_keeping_the_preprint_is_said(self):
+        """An import keeps a preprint identified for good (paper-to-zotero's import.md, step 2): the version given is
+        written, and the line says so; given again, nothing changes and the line is a skip."""
+        self.assertEqual(self.ident(REFLEXION).lines[0]["code"], "ok")
+        r = self.run_("identify", "--wanted", "preprint", REFLEXION, "-o", f"{self.work.root}/")
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0].get("wanted"), self.res("shinn2023reflexion")["wanted"]),
+                         (0, "ok", "preprint", "preprint"))
+        r = self.run_("identify", "--wanted", "preprint", REFLEXION, "-o", f"{self.work.root}/")
+        self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"], r.lines[0].get("wanted")), ("skipped", "exists", None))
 
     def test_failures_stubs_and_titles(self):
         self.web.route("/doi/10.9999/broken", "upstream", status=503)
@@ -404,6 +416,47 @@ class Versions(Base):
         self.assertEqual(self.res("shinn2023reflexion")["versions"]["incomplete"], ["arxiv"])
         self.assertEqual(self.ident(REFLEXION).lines[0]["reason"], "exists", "its version is chosen: not asked again")
         self.assertEqual(self.res("shinn2023reflexion")["record_of"], "published")
+
+
+class ArxivRecords(Base):
+    """An arXiv DOI's record (DataCite's): the abstract in the author's LaTeX, the date a year alone. The cases are
+    the 2026-11-05 import's: FSCG (2607.11655) and UltraDiff (2611.05206, v1 2026-11-03, v2 2026-11-04)."""
+    FSCG, ULTRADIFF = "2607.11655", "2611.05206"
+
+    def record(self, aid, title, family, abstract="x"):
+        self.web.doi(f"10.48550/arXiv.{aid}", {"type": "article", "title": title, "author": [{"family": family}],
+                                               "issued": {"date-parts": [[2026]]}, "DOI": f"10.48550/ARXIV.{aid}",
+                                               "publisher": "arXiv", "abstract": abstract})
+
+    def test_the_abstracts_tex_escapes_become_characters(self):
+        self.record(self.FSCG, "Feature-Space Guided Diffusion for Realistic Ultrasound Image Synthesis", "Dominguez",
+                    r"FSCG reduces average FID64 by 56\%, FID192 by 57\%, and nearest-neighbour feature distance by 47\% "
+                    r"over standard conditional diffusion sampling; local $k$-NN, \emph{R\&D}, GPT\_4, \#1 -- as written.")
+        self.web.doi("10.9999/percent", {**CSL["10.9999/twin"], "title": "A Percent in a Journal", "DOI": "10.9999/percent",
+                                         "abstract": r"Crossref's 5\% stays."})
+        r = self.ident(self.FSCG, "10.9999/percent")
+        fscg, journal = (self.res(o["slug"]) for o in r.lines)
+        clean = ("FSCG reduces average FID64 by 56%, FID192 by 57%, and nearest-neighbour feature distance by 47% over "
+                 r"standard conditional diffusion sampling; local $k$-NN, \emph{R&D}, GPT_4, #1 -- as written.")
+        self.assertEqual((fscg["csl"]["abstract"], fscg["versions"]["preprint"]["abstract"]), (clean, clean))
+        self.assertEqual(journal["csl"]["abstract"], r"Crossref's 5\% stays.", "only an arXiv DOI's record is LaTeX")
+
+    def test_a_year_alone_becomes_the_day_v1_was_submitted(self):
+        self.record(self.ULTRADIFF, "Diffusion Plug-in Priors for Self-Supervised Ultrasound Video Restoration", "Chen")
+        self.web.arxiv(self.ULTRADIFF, "Diffusion Plug-in Priors for Self-Supervised Ultrasound Video Restoration",
+                       version=2, published="2026-11-03T16:55:01Z", updated="2026-11-04T10:02:13Z")
+        self.web.route("/crossref/works", "busy", status=503, times=1)    # versions to complete: identified again
+        r = self.ident(self.ULTRADIFF, "10.9999/twin")
+        ultradiff, twin = (self.res(o["slug"]) for o in r.lines)
+        self.assertEqual((ultradiff["csl"]["issued"], ultradiff["versions"]["preprint"].get("submitted")),
+                         ({"date-parts": [[2026, 11, 3]]}, "2026-11-03"), "v1's day, not the latest version's")
+        self.assertEqual([w for w in ultradiff["warnings"] if "date" in w],
+                         ["date taken from arXiv's 'published', the day v1 was submitted (the record's 'issued' is year-only)"])
+        self.assertIn("date is year-only", twin["warnings"], "another record's year alone stays a year")
+        self.web.route("/arxiv/api/query", "busy", status=503, times=1)
+        r = self.ident(self.ULTRADIFF)
+        self.assertEqual((r.lines[0]["incomplete"], self.res(r.lines[0]["slug"])["csl"]["issued"]),
+                         (["arxiv"], {"date-parts": [[2026, 11, 3]]}), "arXiv silent: the day it gave before stays")
 
 
 class Redraft(Base):
@@ -610,7 +663,7 @@ class Lookups(Base):
         self.web.routes.pop()
         r = self.ident("10.9999/med1")
         res = self.res(r.lines[0]["slug"])
-        self.assertEqual((r.lines[0]["reason"], r.lines[0].get("incomplete")), ("exists", None))
+        self.assertEqual((r.lines[0]["code"], r.lines[0].get("incomplete")), ("ok", None), "what the lookups found is written")
         self.assertEqual((res["csl"]["abstract"], res["ids"]["pmid"], res["enrichment"]), ("Asked again.", "222", {"incomplete": []}))
         # A preprint identified again in place (arXiv did not answer): a lookup silent now keeps what it gave before.
         self.web.europepmc("10.48550/arXiv." + REFLEXION, pmid="777")

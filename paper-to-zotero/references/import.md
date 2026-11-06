@@ -37,9 +37,9 @@ Done when every paper has a result with metadata, or is a stub — a DOI without
 
 ## 2. Choose the version
 
-The rule is this skill's: **the published version comes first**, unless the user asked for the preprint. It is chosen now, before any record is drafted, so the item is drafted once. A conference paper later extended into a journal article is two papers, two items: the version chosen is this paper's. Confirming a candidate from a preprint's `versions.published` and redrafting the result to it is paper-fetch's *Identify a paper* (`pf.py redraft <DOI | paper page> <result>`); the preprint stays in the result's `versions.preprint`, and drafting takes from it what the published record lacks. No published version, or the user wants the preprint → the preprint it is, and its record gets `keep_preprint` with the reason in step 3.
+The rule is this skill's: **the published version comes first**, unless the user asked for the preprint. It is chosen now, before any record is drafted, so the item is drafted once. A conference paper later extended into a journal article is two papers, two items: the version chosen is this paper's. Confirming a candidate from a preprint's `versions.published` and redrafting the result to it is paper-fetch's *Identify a paper* (`pf.py redraft <DOI | paper page> <result>`); the preprint stays in the result's `versions.preprint`, and drafting takes from it what the published record lacks. No published version, or the user wants the preprint → the preprint it is: tell paper-fetch first, `pf.py identify --wanted preprint <its arXiv id> -o <imp>/fetch/`, since a preprint file does not satisfy a result that still wants the published version, and every later pass looks for that version again, through the publisher and the library (paper-fetch's *Get the file: the chain*); then its record gets `keep_preprint` with the reason in step 3. The same goes for a preprint kept after drafting (step 3's `published_versions`).
 
-Done when every preprint result is redrafted or has its reason to stay.
+Done when every preprint result is redrafted, or has `wanted: preprint` and its reason to stay.
 
 ## 3. Draft the record
 

@@ -27,8 +27,9 @@ A result file, results/<slug>.json, one JSON object:
                         that gave it and, by name, what CSL has no variable for (arXiv's `categories`); `keyword` is
                         the authors' keywords as a list
   alt_titles            [str]: other titles the paper went by
-  versions              {preprint?: {ids, latest, comment, title, abstract, author, categories?}, published: [{ids, venue,
-                        year, title, title_differs, type, sources}], incomplete: [sources that did not answer]}
+  versions              {preprint?: {ids, latest, submitted (the day v1 was submitted, YYYY-MM-DD), comment, title,
+                        abstract, author, categories?}, published: [{ids, venue, year, title, title_differs, type,
+                        sources}], incomplete: [sources that did not answer]}
   files                 [{name, md5, kind, label: {title, version, source, detail, by, why} (by: settle on a file
                         nobody has labelled yet, titled Unknown-<Source>, a page Snapshot-<Source>), check: ok |
                         accepted | unconfirmed | cannot_judge, accepted_reason?, url, evidence}]: every file of the

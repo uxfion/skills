@@ -265,8 +265,9 @@ def get(url, *, params=None, headers=None, host=None, timeout=30, pacer=None, ma
                 status, rheaders, final = resp.status, resp.headers, resp.geturl()
                 body = resp.read() if max_bytes is None else resp.read(max_bytes)
         except urllib.error.HTTPError as e:
-            status, rheaders, final = e.code, e.headers, e.filename or full
-            body = e.read() if max_bytes is None else e.read(max_bytes)
+            with e:   # the error reply closed once read: else Python warns on stderr when it is collected
+                status, rheaders, final = e.code, e.headers, e.filename or full
+                body = e.read() if max_bytes is None else e.read(max_bytes)
     except http.client.HTTPException as e:  # a broken reply: a network failure to the caller
         raise ConnectionError(f"{type(e).__name__}: {e}") from e
     if status == 429:
@@ -313,9 +314,9 @@ ATOM = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/a
 
 
 def arxiv_entries(ids, pacer=None):
-    """{arXiv id: ({journal_ref, doi, comment, version: the latest vN}, the source's code)}, one request per 100 ids
-    (env ARXIV_API_URL points it elsewhere); an id arXiv does not know gets ({}, "ok"), every id of a request that
-    failed ({}, NoData's code)."""
+    """{arXiv id: ({journal_ref, doi, comment, version: the latest vN, submitted: the day v1 was submitted, YYYY-MM-DD
+    (the feed's <published>)}, the source's code)}, one request per 100 ids (env ARXIV_API_URL points it elsewhere); an
+    id arXiv does not know gets ({}, "ok"), every id of a request that failed ({}, NoData's code)."""
     out = {}
     for start in range(0, len(ids), 100):
         chunk = ids[start:start + 100]
@@ -328,7 +329,8 @@ def arxiv_entries(ids, pacer=None):
                 m = re.search(rf"arxiv\.org/abs/({paper.ARXIV_ID})(v\d+)?$", (entry.findtext("a:id", "", ATOM) or "").strip(), re.I)
                 if m:
                     got[m.group(1)] = {**{tag: clean(entry.findtext(f"arxiv:{tag}", None, ATOM)) for tag in ("journal_ref", "doi", "comment")},
-                                       "version": (m.group(2) or "").lower() or None}
+                                       "version": (m.group(2) or "").lower() or None,
+                                       "submitted": (clean(entry.findtext("a:published", None, ATOM)) or "")[:10] or None}
         except NoData as e:
             out.update({aid: ({}, e.code) for aid in chunk})
             continue

@@ -1,5 +1,7 @@
 # paper-fetch：arXiv 论文的日期只有年份，arXiv 接口里的完整日期没用上
 
+> **已解决（2026-11-06）**：DOI 记录的日期只有年份时，`identify` 用 arXiv 接口里 v1 的提交日（`published`，同一个请求，不多发）补全 `issued`，警告改成写明日期从哪来；不用 `updated`（v1 的日子和 DOI 记录的年份一致，arXiv 自己导出的 BibTeX 也用它；读的是第几版由 PDF 的标签记着）。提交日另存在 `versions.preprint.submitted`，arXiv 下次没应答时结果不会退回只有年份。实测 FSCG（2607.11655）得 2026-07-13。
+
 - 来源：主 agent，2026-11-05，p2z Unix 约定样板的真写入验收（spec `20261104-skills-unix-conventions-spec.md` 第 9 节）。用户没有提，是导入时碰到的。
 - 状态：open。
 
