@@ -362,9 +362,21 @@ def layout_rows(model, image) -> list | None:
         return None
 
 
+def quiet_paddlex() -> None:
+    """PaddleX's logger at WARNING: what it says at INFO as models load (which model it creates, that cached files are
+    used) is neither progress nor a warning; its warnings and errors still reach stderr. Its import sets INFO, so this
+    comes after it; the level holds for the process, the layout model loaded later included. PADDLE_PDX_DEBUG, PaddleX's
+    own switch, keeps it talking."""
+    from paddlex.utils import flags
+    from paddlex.utils.logging import setup_logging
+    if not flags.DEBUG:
+        setup_logging("WARNING")
+
+
 def make_pipeline(args, server_url: str | None, model: str | None = None):
     """The pipeline; with server_url its VL step goes to that vLLM server, asking for `model`."""
     from paddleocr import PaddleOCRVL
+    quiet_paddlex()
     server = {"vl_rec_backend": "vllm-server", "vl_rec_server_url": server_url} if server_url else {}
     if server_url and model:
         server["vl_rec_api_model_name"] = model

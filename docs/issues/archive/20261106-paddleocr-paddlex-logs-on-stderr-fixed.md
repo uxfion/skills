@@ -1,5 +1,7 @@
 # paddleocr：解析成功时，PaddleX 的例行日志落在标准错误上
 
+> **已解决（2026-11-06）**：`parse.py` 在 `from paddleocr import PaddleOCRVL` 之后、建管线之前调 PaddleX 自己的 `paddlex.utils.logging.setup_logging("WARNING")`（它在 import 时把级别设成 INFO，所以要在那之后；级别对整个进程有效，后加载的第二个版面模型也安静了）；设了 PaddleX 自己的 `PADDLE_PDX_DEBUG` 时不动。警告和错误照旧出来。实测：退出 0 时标准错误只剩 `[paddleocr]` 开头的行，解析结果和改前一样。更正下面一处事实：那四行是两个模型的 `Creating model`，加上版面模型和第二个版面模型（PP-DocLayout_plus-L）各一行 `Model files already exist`。
+
 - 来源：主 agent，2026-11-06，paddleocr 改 Unix 约定后的 GPU 实测（spec `20261106-paddleocr-unix-conventions-spec.md` 第 11 节）。用户没有提。
 - 状态：open。
 

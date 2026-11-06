@@ -190,6 +190,19 @@ class Backend(unittest.TestCase):
                     self.assertIn("[vllm-serve] starting paddleocr-vl", err.getvalue())   # the progress, passed on
                     self.assertEqual("libcublas.so.12" in err.getvalue(), code == 0)        # foreign_cuda, said on stderr
 
+    def test_paddlex_says_only_warnings_once_the_models_load(self):
+        # 2026-11: PaddleX's import leaves its logger at INFO, and loading the models put its routine lines (Creating
+        # model, Model files already exist) on stderr between ours; PADDLE_PDX_DEBUG leaves it as it set itself
+        said = []
+        stubs = {"paddleocr": SimpleNamespace(PaddleOCRVL=lambda **kw: said.append("pipeline")),
+                 "paddlex": SimpleNamespace(), "paddlex.utils": SimpleNamespace(flags=SimpleNamespace(DEBUG=False)),
+                 "paddlex.utils.logging": SimpleNamespace(setup_logging=lambda verbosity=None: said.append(verbosity))}
+        with mock.patch.dict(sys.modules, stubs):
+            P.make_pipeline(SimpleNamespace(photo=False), "http://127.0.0.1:8118/v1", "M")
+            stubs["paddlex.utils"].flags.DEBUG = True
+            P.make_pipeline(SimpleNamespace(photo=False), None)
+        self.assertEqual(said, ["WARNING", "pipeline", "pipeline"])
+
 
 class StartUp(unittest.TestCase):
     def test_missing_tool_environment(self):
