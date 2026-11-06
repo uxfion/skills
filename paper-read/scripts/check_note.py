@@ -1,11 +1,9 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Check a paper note's structure before it goes into Zotero: step 3 of every change to a note, with check_quotes.py.
-
-  uv run scripts/check_note.py <scratch>/<package folder name>.note.md [--taken FILE] [--full]
+"""Check a paper note's structure before it goes into Zotero: step 3 of every change to a note, with pr.py quotes.
 
 The note's headings are its question tree (references/note-format.md): a question heading (## to ####) starts with
 its number (Q3, Q3.1) and ends in its state in brackets, [已答], [论文没有说明], [要看别处], [待答], [进行中] or [等 Qn]
@@ -18,7 +16,7 @@ Every change (default):
   - no question heading holds TeX ($…$): Zotero shows a heading as plain text, and TeX there does not come back
     from Zotero as a heading; a symbol goes in Unicode (ŷᵢ, fθ), the formula in the answer;
   - the 读的版本 paragraph is there; a summary paragraph before it, if any, is not [待答];
-  - every question number in the note as taken (--taken, default <note>.taken when it exists) is still there.
+  - every question number in the note as taken (<note>.taken beside it, which pr.py take wrote) is still there.
 A read-through (--full) also needs:
   - Q1 to Q8 all there;
   - the one-sentence summary written;
@@ -26,15 +24,20 @@ A read-through (--full) also needs:
 
 stdout: one JSON object {code, questions, open, no_state, math_in_heading, missing_numbers, version, summary_written,
 missing_trunk?, missing_items?}; questions counts the question headings.
-  complete   the note may be put into Zotero
-  open       something above failed: go on
-Exit 0 = complete; 1 = open; 2 = the file cannot be read.
+  complete        the note may be put into Zotero
+  open            something above failed: go on
+  file_not_found, file_unreadable    {file, code, path?, hint}: the note cannot be read, or its .taken (path)
+Exit 0 = complete; 1 = anything else; 2 = a usage error.
+
+Examples:
+  pr.py check <scratch>/xiaoTCACE2026.Published-IEEE.note.md
+  pr.py check --full <scratch>/xiaoTCACE2026.Published-IEEE.note.md
 """
-import argparse
-import json
 import re
 import sys
 from pathlib import Path
+
+from prlib import cli
 
 CLOSED = ("已答", "论文没有说明", "要看别处")
 OPEN = ("待答", "进行中")
@@ -121,22 +124,20 @@ def check(text, taken=None, full=False):
 
 
 def main(argv=None):
-    first, _, rest = __doc__.strip().partition("\n")
-    p = argparse.ArgumentParser(description=first, epilog=rest.strip(), formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("note", metavar="NOTE", help="the note file: <scratch>/<package folder name>.note.md")
-    p.add_argument("--taken", metavar="FILE", help="the note as taken (default: NOTE.taken when it exists)")
+    p = cli.parser(__doc__)
+    p.add_argument("note", metavar="NOTE", help="the note file, <name>.note.md as pr.py take wrote it")
     p.add_argument("--full", action="store_true", help="a read-through: the eight questions, the summary, the fixed items")
-    args = p.parse_args(argv)
-    try:
-        text = Path(args.note).read_text(encoding="utf-8")
-        taken_path = Path(args.taken) if args.taken else Path(f"{args.note}.taken")
-        taken = taken_path.read_text(encoding="utf-8") if (args.taken or taken_path.exists()) else None
-    except (OSError, UnicodeDecodeError) as e:
-        print(json.dumps({"code": "unreadable", "path": args.note, "detail": str(e)}, ensure_ascii=False))
-        return 2
-    out = check(text, taken, args.full)
-    print(json.dumps(out, ensure_ascii=False))
-    return 0 if out["code"] == "complete" else 1
+    args = cli.parse(p, argv)
+
+    def run():
+        missing = "No such note file: name the <name>.note.md pr.py take wrote."
+        text = cli.document(args.note, missing)
+        taken = Path(f"{args.note}.taken")
+        out = check(text, cli.document(taken, path=str(taken)) if taken.exists() else None, args.full)
+        cli.emit(out)
+        return cli.OK if out["code"] == "complete" else cli.ACT
+
+    return cli.run(run, file=args.note)
 
 
 if __name__ == "__main__":

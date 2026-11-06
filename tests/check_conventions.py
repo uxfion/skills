@@ -46,7 +46,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NOT_YET = {"paper-read", "paddleocr"}
+NOT_YET = {"paddleocr"}
 SKILLS = sorted(p.parent.name for p in ROOT.glob("*/SKILL.md") if (p.parent / "scripts").is_dir()
                 and p.parent.name not in NOT_YET)
 SHEBANG = "#!/usr/bin/env -S uv run --quiet --script"

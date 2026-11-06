@@ -1,53 +1,56 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Take a paper's note, structured package and PDF out of Zotero into a scratch directory: step 1 of every change to a note.
+"""Take a paper's note, PDF and structured package out of Zotero into a scratch directory: step 1 of every change to a note.
 
-  uv run scripts/prepare_note.py --cite <citation key> -o <scratch dir> [--bare] [--title <PDF title>]
-
-Through paper-to-zotero's own commands (`p2z.py package take`, `note take`, `items` and `pdf`):
-  - the package and the PDF of the version the note was read in (its "读的版本：" line), or the best PDF for a new note
-    (best by the order `p2z.py pdf -h` gives); --title takes another PDF of the paper, and for a note
-    read in another one, that one's PDF and package too, to compare the two versions;
-  - the note titled 论文笔记 as <dir>/<package folder name>.note.md, without the links put_note.py added to its
-    figures and tables (sources.py says which), or, when the paper has none, a new note from the skeleton in
-    references/note-format.md, its version in the 读的版本 paragraph; --bare leaves the eight questions out, for a
-    note that starts with one looked-up answer;
-  - beside it <note>.taken, the note as taken, which check_note.py compares question numbers against;
-  - the paper's other child notes, left in <dir>/notes/ as leads.
-A rerun into the same directory, after a parse for instance, picks up what is already there.
+The paper is its citation key or item key, resolved first by p2z.py items; - reads it from stdin, as a list that
+names one paper (a value a line, or paper-to-zotero's JSON lines by `key`, else `cite`): several are `ambiguous` and
+nothing is taken, a line reporting a skip or a failure upstream is passed on as it is, an empty list does nothing.
+Into DIR, through paper-to-zotero's own commands, where <name> is <citation key>.<PDF title>:
+  - <name>.pdf, the PDF the note was read in (its "读的版本：" line), or the best one for a new note (by the order
+    `p2z.py pdf -h` gives); --title takes another PDF of the paper, and for a note read in another one, that one's
+    PDF and package too, to compare the two versions;
+  - <name>/, the PDF's structured package, and <name>.zotero.json, which PDF it is;
+  - <name>.note.md, the note titled 论文笔记 without the links pr.py put added to its figures and tables, or, when
+    the paper has none, a new note from the skeleton in references/note-format.md, its version in the 读的版本
+    paragraph; --bare leaves the eight questions out, for a note that starts with one looked-up answer;
+  - <name>.note.md.taken, the note as taken, which pr.py check compares question numbers against;
+  - notes/, the paper's other child notes, left as leads.
+pr.py check, quotes and put find these beside the note. A rerun into the same directory, after a parse for instance,
+picks up what is already there.
 
 stdout: one JSON object.
-  ok          {note, taken, created, pdf, pdf_title, package, better_pdf, previous, old_notes, open_findings, paper}:
-              better_pdf, the title of the library's best PDF when the note was read in a lesser one, else null;
-              previous {pdf_title, pdf, package, code}, the version the note was read in when --title took another,
-              else null; its pdf and package are null when package take could not take it, and code says why
-              (no_such_title: no PDF of that title is left, as after a rename; anything else, p2z's own code); open_findings counts the package's open
-              findings by code; paper holds title, first_author, year, venue, doi and aka (the aka/ names) for the
-              reader's identity check
-  no_package  the same fields, package null: the PDF has no structured package yet. Parse pdf with the paddleocr skill,
-              p2z.py package put, run again; the note file is ready either way, for reading the PDF alone
-  two_notes   two notes titled 论文笔记 (keys): which to keep is the user's decision
-  failed      a paper-to-zotero command failed: its lines are in detail, its stderr in stderr. no_such_title among them:
-              the PDF the note names in 读的版本 is not in the library under that title; its titles lists those there,
-              and --title takes one of them
-Exit 0 = ok; 1 = no_package, two_notes or failed.
+  ok          {note, taken, created, input, pdf_title, package, better_pdf, previous, old_notes, open_findings, paper}:
+              input is <name>.pdf; better_pdf, the title of the library's best PDF when the note was read in a lesser
+              one, else null; previous {pdf_title, input, package, code}, the version the note was read in when
+              --title took another, else null (input and package null when it could not be taken, code saying why);
+              open_findings counts the package's open findings by code; paper holds title, first_author, year,
+              venue, doi and aka (the aka/ names) for the reader's identity check
+  no_package  the same fields, package null: the PDF has no structured package yet (hint: how to make it). The note
+              file is ready either way, for reading the PDF alone
+  two_notes   two notes titled 论文笔记 (keys)
+  any other   paper-to-zotero's own line about the paper, with step (its command) and, once the note is read,
+              version (the PDF title it names): not_found, ambiguous (keys), no_pdf, not_on_disk, no_such_title
+              (titles: the PDFs there; --title takes one), ...
+Exit 0 = ok; 1 = any other code, or a line passed on reports a failure upstream; 2 = cannot go on (Zotero not
+running, a usage error): stderr's last line is {code, hint}, with step when a paper-to-zotero command could not.
+
+Examples:
+  pr.py take xiaoTCACE2026 -o <scratch>/
+  pr.py take --bare 9ZFX6QP6 -o <scratch>/
+  pr.py take xiaoTCACE2026 --title Published-IEEE -o <scratch>/moved/
 """
-import argparse
 import json
-import os
 import re
+import shlex
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import sources  # noqa: E402
+from prlib import cli, sources
 
-SKILL = Path(__file__).resolve().parent.parent
 TITLE = "论文笔记"
 VERSION = re.compile(r"^读的版本：\s*(\S.*?)\s*$", re.M)
 YEAR = re.compile(r"\b(?:19|20)\d{2}\b")  # Zotero holds the date as typed: "2026-03", "6/2016"
@@ -63,23 +66,9 @@ TRUNK = [
 ]
 
 
-def p2z(*args):
-    """Run a paper-to-zotero command; its JSON lines and exit code. PAPER_READ_P2Z points elsewhere (tests)."""
-    script = os.environ.get("PAPER_READ_P2Z") or str(SKILL.parent / "paper-to-zotero" / "scripts" / "p2z.py")
-    done = subprocess.run(["uv", "run", "--quiet", script, *args], capture_output=True, text=True)
-    lines = []
-    for line in done.stdout.splitlines():
-        try:
-            lines.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    if done.returncode >= 2:  # it could not go on: why is stderr's last line, {code, hint}
-        last = (done.stderr.strip().splitlines() or [""])[-1]
-        try:
-            lines.append(json.loads(last))
-        except json.JSONDecodeError:
-            lines.append({"code": "failed", "detail": last})
-    return lines, done.returncode, done.stderr
+def p2z(step, *args):
+    """A paper-to-zotero command's JSON lines. Each gets the one resolved item key, so its first line is about it."""
+    return cli.sibling(cli.P2Z, *step.split(), *args, step=step)[0]
 
 
 def skeleton(cite, pdf_title, bare=False):
@@ -90,11 +79,7 @@ def skeleton(cite, pdf_title, bare=False):
     return f"{head}[待答]\n\n读的版本：{pdf_title}\n\n{trunk}\n"
 
 
-def paper_of(cite):
-    items, _, _ = p2z("items", cite)
-    item = next((i for i in items if i.get("citationKey") == cite), None)
-    if not item:
-        return None
+def paper_of(item):
     first = (item.get("creators") or [{}])[0]
     year = YEAR.search(item.get("date") or "")
     venue = (item.get("publicationTitle") or item.get("proceedingsTitle") or item.get("conferenceName")
@@ -119,68 +104,47 @@ def open_findings(folder):
     return counts
 
 
-def best_pdf(cite):
-    """The title of the paper's best PDF, by paper-to-zotero's order."""
-    lines, _, _ = p2z("pdf", cite)
-    return next((l.get("attachment_title") for l in lines if l.get("citationKey") == cite and l.get("attachment_title")),
-                None)
+def package_take(key, out, title=None):
+    return p2z("package take", key, "-o", f"{out}/", *(["--title", title] if title else []))[0]
 
 
-def previous_version(cite, out, title):
+def previous_version(key, out, title):
     """The PDF and package of the version the note was read in, taken beside the new one."""
-    lines, _, _ = p2z("package", "take", cite, "-o", f"{out}/", "--title", title)
-    line = next((l for l in lines if l.get("cite") == cite), {})
-    if line.get("code") not in ("ok", "skipped"):
-        return {"pdf_title": title, "pdf": None, "package": None, "code": line.get("code") or "failed"}
-    folder = Path(line["folder"])
-    return {"pdf_title": title, "pdf": str(out / f"{folder.name}.pdf"), "package": str(folder) if folder.is_dir() else None,
-            "code": line["code"]}
+    got = package_take(key, out, title)
+    if got.get("code") not in ("ok", "skipped"):
+        return {"pdf_title": title, "input": None, "package": None, "code": got.get("code")}
+    folder = Path(got["folder"])
+    return {"pdf_title": title, "input": str(out / f"{folder.name}.pdf"),
+            "package": str(folder) if folder.is_dir() else None, "code": got["code"]}
 
 
-def take_notes(cite, notes_dir):
-    """The paper's child notes taken into notes_dir; exit 1 with no_notes is a paper without notes, 2 a failure."""
-    lines, code, err = p2z("note", "take", cite, "-o", f"{notes_dir}/")
-    if code >= 2 or (code == 1 and not any(l.get("code") in ("ok", "no_notes") for l in lines)):
-        return None, {"code": "failed", "step": "note take", "detail": lines, "stderr": err.strip()}
-    return [l for l in lines if l.get("code") == "ok" and l.get("file")], None
-
-
-def main(argv=None):
-    first, _, rest = __doc__.strip().partition("\n")
-    ap = argparse.ArgumentParser(description=first, epilog=rest.strip(), formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--cite", required=True, help="the paper's citation key")
-    ap.add_argument("-o", "--out", required=True, help="the scratch directory for this change (made if absent)")
-    ap.add_argument("--bare", action="store_true", help="a new note without the eight questions (a looked-up answer)")
-    ap.add_argument("--title", metavar="PDF_TITLE", help="this PDF of the paper, not the one the note names or the best")
-    args = ap.parse_args(argv)
-    out = Path(args.out)
+def take(value, out, args):
+    """The one paper's line."""
+    item = p2z("items", value)[0]
+    if "itemType" not in item:   # not_found, ambiguous
+        return {**item, "step": "items"}
+    key = item["key"]
+    cite = item.get("citationKey") or key
     out.mkdir(parents=True, exist_ok=True)
-    cite = args.cite
-
-    notes, failed = take_notes(cite, out / "notes")
+    notes = p2z("note take", key, "-o", f"{out / 'notes'}/")
+    failed = next((l for l in notes if l.get("code") not in ("ok", "no_notes")), None)
     if failed:
-        print(json.dumps(failed, ensure_ascii=False))
-        return 1
-    mine = [n for n in notes if n.get("title") == TITLE]
+        return {**failed, "step": "note take"}
+    mine = [n for n in notes if n.get("code") == "ok" and n.get("title") == TITLE]
     if len(mine) > 1:
-        print(json.dumps({"code": "two_notes", "keys": [n["key"] for n in mine]}, ensure_ascii=False))
-        return 1
+        return {"code": "two_notes", "keys": [n["key"] for n in mine],
+                "hint": f"The paper has two notes titled {TITLE}: which to keep is the user's decision. Take the note "
+                        "again once one is left."}
     text = Path(mine[0]["file"]).read_text(encoding="utf-8") if mine else None
     version = VERSION.search(text).group(1) if text and VERSION.search(text) else None
 
-    wanted = args.title or version
-    take = ["package", "take", cite, "-o", f"{out}/"] + (["--title", wanted] if wanted else [])
-    lines, code, err = p2z(*take)
-    got = next((l for l in lines if l.get("cite") == cite), None)
-    if not got or got.get("code") not in ("ok", "skipped"):
-        print(json.dumps({"code": "failed", "step": "package take", "version": version, "detail": lines,
-                          "stderr": err.strip()}, ensure_ascii=False))
-        return 1
+    got = package_take(key, out, args.title or version)
+    if got.get("code") not in ("ok", "skipped"):
+        return {**got, "step": "package take", "version": version}
     pdf_title = got.get("title")
     folder = Path(got["folder"])  # <cite>.<PDF title, made safe as a file name>, as package take names it
-    stem = folder.name
-    pdf = out / f"{stem}.pdf"
-    note = out / f"{stem}.note.md"
+    pdf = out / f"{folder.name}.pdf"
+    note = out / f"{folder.name}.note.md"
     taken = Path(f"{note}.taken")
     created = False
     if note.exists():
@@ -197,17 +161,51 @@ def main(argv=None):
         shutil.copyfile(note, taken)
 
     package = folder.is_dir()
-    best = best_pdf(cite)
+    best = p2z("pdf", key)[0].get("attachment_title")
     moved = bool(args.title and version and args.title != version)
-    print(json.dumps({
+    line = {
         "code": "ok" if package else "no_package", "note": str(note), "taken": str(taken), "created": created,
-        "pdf": str(pdf), "pdf_title": pdf_title, "package": str(folder) if package else None,
+        "input": str(pdf), "pdf_title": pdf_title, "package": str(folder) if package else None,
         "better_pdf": best if best and best != pdf_title else None,
-        "previous": previous_version(cite, out, version) if moved else None,
+        "previous": previous_version(key, out, version) if moved else None,
         "old_notes": sorted(str(p) for p in (out / "notes").glob("*.note.md")),
-        "open_findings": open_findings(folder) if package else {}, "paper": paper_of(cite),
-    }, ensure_ascii=False))
-    return 0 if package else 1
+        "open_findings": open_findings(folder) if package else {}, "paper": paper_of(item),
+    }
+    if not package:
+        q = shlex.quote
+        line["hint"] = (f"Parse the PDF: ocr.py parse {q(str(pdf))} -o {q(str(out))}/, then p2z.py package put "
+                        f"{q(str(folder))}, then run this take again. Without paddleocr, read the PDF alone.")
+    return line
+
+
+def main(argv=None):
+    p = cli.parser(__doc__)
+    p.add_argument("paper", metavar="PAPER", help="its citation key or item key; - reads it from stdin")
+    p.add_argument("-o", "--output", required=True, metavar="DIR/",
+                   help="the scratch directory of this change, made if absent")
+    p.add_argument("--bare", action="store_true", help="a new note without the eight questions (a looked-up answer)")
+    p.add_argument("--title", metavar="PDF_TITLE", help="this PDF of the paper, not the one the note names or the best")
+    args = cli.parse(p, argv)
+    out = Path(args.output).expanduser().resolve()
+
+    def run():
+        named = cli.names([args.paper])
+        passed = [n.line for n in named if n.line is not None]
+        papers = [n.value for n in named if n.line is None]
+        for line in passed:
+            cli.emit(line)
+        status = cli.ACT if any(line.get("code") != "skipped" for line in passed) else cli.OK
+        if len(papers) > 1:
+            cli.emit({"code": "ambiguous", "items": papers,
+                      "hint": "The list names several papers; take one at a time. Nothing was taken."})
+            return cli.ACT
+        if papers:
+            line = take(papers[0], out, args)
+            cli.emit(line)
+            status = max(status, cli.OK if line["code"] == "ok" else cli.ACT)
+        return status
+
+    return cli.run(run)
 
 
 if __name__ == "__main__":

@@ -2,11 +2,12 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/put_note.py against tests/fake_p2z.py, which also stands in for paddleocr's `doc.py objects`:
-a note put into Zotero with its figures and tables linked, and its file left without links."""
+"""Tests for pr.py put (scripts/put_note.py) against tests/fake_p2z.py, which also stands in for paddleocr's
+`ocr.py objects`: a note put into Zotero with its figures and tables linked, and its file left without links."""
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -16,7 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE.parent / "scripts" / "put_note.py"
 sys.path.insert(0, str(HERE.parent / "scripts"))
-import sources  # noqa: E402
+from prlib import sources  # noqa: E402
 
 STEM = "xiaoTCACE2026.Published-IEEE"
 URL = "zotero://open-pdf/library/items/PDFKEY01"
@@ -51,17 +52,17 @@ class PutNote(unittest.TestCase):
         self.note.write_text(NOTE, encoding="utf-8")
         (self.dir / f"{STEM}.zotero.json").write_text(json.dumps({"attachment": "PDFKEY01"}), encoding="utf-8")
         (self.dir / STEM).mkdir()
-        (self.dir / f"{STEM}.pdf").write_bytes(b"%PDF-1.4\n")   # doc.py objects reads it; the fake does not
+        (self.dir / f"{STEM}.pdf").write_bytes(b"%PDF-1.4\n")   # ocr.py objects reads it; the fake does not
 
     def tearDown(self):
         shutil.rmtree(self.dir)
 
-    def run_it(self, **env):
-        env = {**os.environ, "PAPER_READ_P2Z": str(HERE / "fake_p2z.py"), "PAPER_READ_DOC": str(HERE / "fake_p2z.py"),
+    def run_it(self, note=None, **env):
+        env = {**os.environ, "PAPER_READ_P2Z": str(HERE / "fake_p2z.py"), "PAPER_READ_OCR": str(HERE / "fake_p2z.py"),
                "FAKE_P2Z": str(self.lib), **env}
-        done = subprocess.run([shutil.which("uv"), "run", "--quiet", "--script", str(SCRIPT), str(self.note)],
+        done = subprocess.run([shutil.which("uv"), "run", "--quiet", "--script", str(SCRIPT), str(note or self.note)],
                               capture_output=True, text=True, timeout=120, env=env)
-        return done.returncode, json.loads(done.stdout), done.stderr
+        return done.returncode, (json.loads(done.stdout) if done.stdout else None), done.stderr
 
     def put(self, n):
         """What note put was given, the n-th time."""
@@ -77,6 +78,7 @@ class PutNote(unittest.TestCase):
         self.assertEqual(out["annotations"], {"created": 3, "kept": 0})
         self.assertEqual([(u["token"], u["why"]) for u in out["unmatched"]],
                          [("Fig. 4", "rotated_page"), ("Fig. 99", "not_in_package")])
+        self.assertTrue(all(u["hint"] for u in out["unmatched"]))
         put = self.put(0)
         for link in (f"[Fig. 1]({URL}?annotation=ANNOT000)", f"[Table III]({URL}?annotation=ANNOT001)",
                      f"[Fig. 9]({URL}?annotation=ANNOT002)", f"[Figure 9]({URL}?annotation=ANNOT002)",
@@ -100,7 +102,7 @@ class PutNote(unittest.TestCase):
         self.assertEqual((code, out["links"]), (0, {"figures": 0, "tables": 0}), err)
         self.assertEqual({u["why"] for u in out["unmatched"]}, {"no_package"})
         (self.dir / STEM).mkdir()
-        code, out, err = self.run_it(PAPER_READ_DOC=str(self.dir / "no-paddleocr" / "doc.py"))
+        code, out, err = self.run_it(PAPER_READ_OCR=str(self.dir / "no-paddleocr" / "ocr.py"))
         self.assertEqual({u["why"] for u in out["unmatched"]}, {"no_paddleocr"}, err)
         (self.dir / f"{STEM}.zotero.json").unlink()
         self.note.write_text(NOTE, encoding="utf-8")
@@ -112,8 +114,29 @@ class PutNote(unittest.TestCase):
     def test_a_put_refused_leaves_the_file_clean(self):
         self.library(put_code="version_conflict")
         code, out, err = self.run_it()
-        self.assertEqual((code, out["code"], out["put"]["code"]), (1, "version_conflict", "version_conflict"), err)
+        self.assertEqual((code, out["code"], out["put"]["code"], out["hint"]),
+                         (1, "version_conflict", "version_conflict", "as the real one says"), err)
         self.assertNotEqual(self.put(0), NOTE)
+        self.assertEqual(self.note.read_text(encoding="utf-8"), NOTE)
+
+    def test_what_stops_it(self):
+        code, out, err = self.run_it(note=self.dir / "gone.note.md")
+        self.assertEqual((code, out["code"], out["file"], err), (1, "file_not_found", str(self.dir / "gone.note.md"), ""))
+        with socket.socket() as s:   # Zotero not running: a port just closed, the real paper-to-zotero
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        code, out, err = self.run_it(PAPER_READ_P2Z="", PAPER_TO_ZOTERO_BASE_URL=f"http://127.0.0.1:{port}",
+                                     PAPER_TO_ZOTERO_CONFIG=str(self.dir / "no-config.json"),
+                                     no_proxy="127.0.0.1,localhost", NO_PROXY="127.0.0.1,localhost")
+        last = json.loads(err.splitlines()[-1])
+        self.assertEqual((code, out, last["code"], last["step"]), (2, None, "zotero_unreachable", "annotate"))
+        self.assertEqual(self.note.read_text(encoding="utf-8"), NOTE)   # nothing put, the file as it was
+        (self.dir / f"{STEM}.zotero.json").unlink()   # nothing to link: note put is the step that cannot go on
+        code, out, err = self.run_it(PAPER_READ_P2Z="", PAPER_TO_ZOTERO_BASE_URL=f"http://127.0.0.1:{port}",
+                                     PAPER_TO_ZOTERO_CONFIG=str(self.dir / "no-config.json"),
+                                     no_proxy="127.0.0.1,localhost", NO_PROXY="127.0.0.1,localhost")
+        last = json.loads(err.splitlines()[-1])
+        self.assertEqual((code, out, last["code"], last["step"]), (2, None, "zotero_unreachable", "note put"))
         self.assertEqual(self.note.read_text(encoding="utf-8"), NOTE)
 
     def test_links_left_in_the_file_are_taken_off_first(self):

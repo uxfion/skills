@@ -2,8 +2,10 @@
 # requires-python = ">=3.11"
 # dependencies = ["reportlab"]
 # ///
-"""Tests for scripts/check_quotes.py: every quotation in a note is found in the paper, or marked as checked by eye."""
+"""Tests for pr.py quotes (scripts/check_quotes.py): every quotation in a note is found in the paper, or marked as
+checked by eye. The PDF and the package sit beside the note, where pr.py take puts them."""
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -67,9 +69,9 @@ EXPECTED = [
 ]
 
 
-def run(*args):
+def run(*args, env=None):
     done = subprocess.run([shutil.which("uv"), "run", "--quiet", "--script", str(SCRIPT), *map(str, args)],
-                          capture_output=True, text=True, timeout=120)
+                          capture_output=True, text=True, timeout=120, env={**os.environ, **(env or {})})
     return done.returncode, (json.loads(done.stdout) if done.stdout.strip() else None), done.stderr
 
 
@@ -77,7 +79,7 @@ class CheckQuotes(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = Path(tempfile.mkdtemp(prefix="paper-read-"))
-        cls.pdf = cls.dir / "paper.pdf"
+        cls.pdf = cls.dir / "paper.pdf"   # beside paper.note.md
         c = canvas.Canvas(str(cls.pdf))
         for i, line in enumerate(PAGE):
             c.drawString(72, 720 - 16 * i, line)
@@ -94,25 +96,34 @@ class CheckQuotes(unittest.TestCase):
         shutil.rmtree(cls.dir)
 
     def test_each_kind_of_quotation(self):
-        code, out, err = run(self.note, "--pdf", self.pdf, "--package", self.package)
+        code, out, err = run(self.note)
         self.assertEqual((code, out["code"]), (1, "open"), err)
         self.assertEqual([(q["line"], q["result"], q["checked"]) for q in out["quotes"]], EXPECTED)
         self.assertEqual(out["counts"], {"ok": 4, "not_found": 3, "package_only": 1, "too_short": 2, "unparsed": 1})
 
     def test_found_or_checked_passes(self):
         lines = NOTE.split("\n")
-        passing = self.dir / "passing.note.md"
+        passing = self.dir / "passing.note.md"   # no package beside it: the PDF alone
         passing.write_text("\n".join(lines[i - 1] for i in (1, 3, 4, 5, 7, 13)), encoding="utf-8")
-        code, out, err = run(passing, "--pdf", self.pdf)
-        self.assertEqual((code, out["code"], out["counts"]), (0, "pass", {"ok": 2, "not_found": 1}), err)
+        shutil.copyfile(self.pdf, self.dir / "passing.pdf")
+        code, out, err = run(passing)
+        self.assertEqual((code, out["code"], out["counts"], err), (0, "pass", {"ok": 2, "not_found": 1}, ""))
 
-    def test_an_unreadable_pdf(self):
-        code, out, _ = run(self.note, "--pdf", self.dir / "gone.pdf")
-        self.assertEqual((code, out["code"]), (2, "unreadable"))
-        empty = self.dir / "empty"
-        empty.mkdir()
-        code, out, _ = run(self.note, "--pdf", self.pdf, "--package", empty)  # a package folder without its .md
-        self.assertEqual((code, out["code"]), (2, "unreadable"))
+    def test_what_cannot_be_read(self):
+        lone = self.dir / "lone.note.md"   # no PDF beside it
+        lone.write_text(NOTE, encoding="utf-8")
+        code, out, _ = run(lone)
+        self.assertEqual((code, out["file"], out["code"], out["path"]), (1, str(lone), "file_not_found", str(self.dir / "lone.pdf")))
+        self.assertIn("pr.py take", out["hint"])
+        shutil.copyfile(self.pdf, self.dir / "lone.pdf")
+        (self.dir / "lone").mkdir()   # a package folder without its .md
+        code, out, _ = run(lone)
+        self.assertEqual((code, out["code"], out["path"]), (1, "file_unreadable", str(self.dir / "lone")))
+        code, out, _ = run(self.dir / "gone.note.md")
+        self.assertEqual((code, out["code"]), (1, "file_not_found"))
+        self.assertEqual(run(self.note, "--pdf", self.pdf)[0], 2)   # a usage error
+        code, out, err = run(self.note, env={"PATH": str(Path(shutil.which("uv")).parent)})   # no pdftotext on PATH
+        self.assertEqual((code, out, json.loads(err.splitlines()[-1])["code"]), (2, None, "no_pdftotext"))
 
 
 if __name__ == "__main__":

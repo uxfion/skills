@@ -4,11 +4,11 @@ What a paper note holds and how it is written. Read it before writing in a note,
 
 A paper has one **paper note**: a child note of its item in Zotero whose first line is 论文笔记. It holds the paper alone: what the paper says, each fact with its **source** (where in the paper it is), and judgements about the paper, marked as judgements. A project never appears in it; what a project decided goes into that project's paper index (references/notes.md). A note is never finished or final: every task that reads the paper may add to it or correct it (*Changing a note*).
 
-Outside Zotero the note is a Markdown file, `<scratch>/<package folder name>.note.md`, which `prepare_note.py` writes and `put_note.py` puts back into Zotero.
+Outside Zotero the note is a Markdown file, `<scratch>/<package folder name>.note.md`, which `pr.py take` writes and `pr.py put` puts back into Zotero.
 
 ## The skeleton
 
-A note started for a read-through, as `prepare_note.py` writes it:
+A note started for a read-through, as `pr.py take` writes it:
 
 ```markdown
 ---
@@ -67,7 +67,7 @@ A note started for one looked-up answer (`--bare`) holds the title, the 读的�
 7. 有什么可以进一步探索的点？
 8. 总结一下论文的主要内容 A descriptive summary the authors would agree with, built only from the answers above, with one sentence on why the paper matters.
 
-A fixed item of Q5 or Q6 the paper says nothing about keeps its bold word, followed by 论文没有说明; one that does not apply says 不适用 and why. `check_note.py --full` checks that every bold word is there.
+A fixed item of Q5 or Q6 the paper says nothing about keeps its bold word, followed by 论文没有说明; one that does not apply says 不适用 and why. `pr.py check --full` checks that every bold word is there.
 
 ## The tree
 
@@ -92,7 +92,7 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
   > 给定平扫肝脏 MRI 和对应的肿瘤 mask，模型同时合成临床上相关的三个时相
   ```
 
-  `check_quotes.py` looks for every quotation in the PDF's text layer, then in the package. One it cannot find (a table cell, a figure label, a formula the text layer garbles) is compared with the page image, corrected if need be, and marked as checked.
+  `pr.py quotes` looks for every quotation in the PDF's text layer, then in the package. One it cannot find (a table cell, a figure label, a formula the text layer garbles) is compared with the page image, corrected if need be, and marked as checked.
 - **An inference** is marked （推断）; knowledge from outside the paper （论文外）; what the paper does not say is written as 论文没有说明.
 - **Judgements about the paper** (Q6, Q7) are written as judgements, with what they rest on. "Not stated" is a fact and is written plainly; "possibly unfair" is a judgement and says why. Falling short of SOTA, closed code and honestly stated limits are not failures in themselves.
 

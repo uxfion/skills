@@ -219,3 +219,17 @@ ocr.py findings <scratch>/<名>
 ## 10. 待定
 
 没有。原先和 §3 字面对不上的三处（`-o` 指目录、只处理一样东西的命令退出 1 不打汇总、`-` 把上游的跳过和失败行原样转出），用户 2026-11-06 同意写进了 §3。
+
+## 11. 实施时的改正（2026-11-06）
+
+- `take` 不再按引用键比对 p2z 的行：先解析出条目 key，后面每个 p2z 调用都用它，第一行就是答案；没有引用键的条目也能取。
+- 从 `package take` 起，转上来的 `take` 失败行才带 `version`；`items`、`note take` 那几步在读到笔记之前，只带 `step`。
+- `check` 的文件那行，读不了的是笔记旁边的 `.taken` 时带 `path`。
+- `put` 多一个 `write_failed`：改写笔记文件失败时，原来的代码会落到回溯。
+- `sibling()` 遇到非零退出、又一行 JSON 都没打的兄弟命令，按退出 2 算，`step_failed`，`detail` 是标准错误最后一行。
+- `take -o` 取绝对路径，同 p2z `package take`。
+- `take -` 读到上游失败行之后 p2z 又做不下去：那一行已经在标准输出上（它是上游的行，先于 take 自己的事打出来），`heading` 也一样。
+- notes.md 那句 heading 的话改了：`jq 'select(.code=="ok")'` 会把失败行滤掉，句子写明这一点。
+- 例子里的 `xiaoTCACE2026` 是简写，真引用键是 `xiaoTCACETimeConditionedAutoregressive2026`（条目 `9ZFX6QP6`）。
+- 行数：代码 932 → 1203（入口 64、`prlib/cli.py` 193，三份调兄弟 skill 的代码合成一个 `sibling()`）；文档 392 → 389。
+- 在 paddleocr 合进来之前，`put` 把每个图表列为 `unmatched`，why 是 `no_paddleocr`。

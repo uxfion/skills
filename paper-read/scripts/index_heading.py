@@ -1,11 +1,13 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
 """Print a project paper index's heading line for each paper, from Zotero: the line is generated, never typed.
 
-  uv run scripts/index_heading.py --cite <citation key> [<citation key> ...]
+The papers are citation keys or item keys; - reads a list from stdin: a value a line, or paper-to-zotero's JSON lines
+by their `key` (else `cite`), so `p2z.py search ... | pr.py heading -` needs no field picked out. A line reporting a
+skip or a failure upstream is passed on as it is; an empty list does nothing.
 
 The line is `## <citation key> · <title> · <common names>（<venues> <year>）` (references/notes.md):
   - common names from the paper's aka/ tags, venues from its venue/ tags, each kind sorted by name and joined
@@ -13,48 +15,32 @@ The line is `## <citation key> · <title> · <common names>（<venues> <year>）
   - the year is the four-digit year in the item's date, which Zotero holds as typed ("2026-03", "6/2016");
   - a paper without an aka/ tag has no common-name part, which is the usual case: print it as it is.
 
-stdout: one JSON line per citation key, in the order given.
-  ok      {cite, code, heading}
-  other   paper-to-zotero's own line for a key it could not resolve (not_found, ambiguous), under `cite`
-Exit 0 = every key resolved; 1 = some did not; 2 = paper-to-zotero could not be run.
+stdout: one JSON line per paper, in the order named, each paper once.
+  ok         {cite, code, heading}: cite is the paper's citation key, whichever key named it
+  any other  paper-to-zotero's own line for a name that is not one item: {item, code: not_found | ambiguous, keys?,
+             hint}
+  not_run    {item, code}: paper-to-zotero could not go on
+Exit 0 = every paper has its heading; 1 = some has not, then stderr's last line is {"summary": {total, failed}};
+2 = cannot go on (Zotero not running, a list it cannot read, a usage error): stderr's last line is {code, hint}.
+
+Examples:
+  pr.py heading xiaoTCACE2026 heDeepResidualLearning2016 | jq -r 'select(.code=="ok").heading'
+  p2z.py search T-CACE | pr.py heading -
 """
-import argparse
-import json
-import os
 import re
-import subprocess
 import sys
-from pathlib import Path
 
-SKILL = Path(__file__).resolve().parent.parent
+from prlib import cli
+
 YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
-
-
-def p2z(*args):
-    """Run a paper-to-zotero command; its JSON lines and exit code. PAPER_READ_P2Z points elsewhere (tests)."""
-    script = os.environ.get("PAPER_READ_P2Z") or str(SKILL.parent / "paper-to-zotero" / "scripts" / "p2z.py")
-    done = subprocess.run(["uv", "run", "--quiet", script, *args], capture_output=True, text=True)
-    lines = []
-    for line in done.stdout.splitlines():
-        try:
-            lines.append(json.loads(line))
-        except json.JSONDecodeError:
-            continue
-    if done.returncode >= 2:  # it could not go on: why is stderr's last line, {code, hint}
-        last = (done.stderr.strip().splitlines() or [""])[-1]
-        try:
-            lines.append(json.loads(last))
-        except json.JSONDecodeError:
-            lines.append({"code": "failed", "detail": last})
-    return lines, done.returncode, done.stderr
 
 
 def tag_values(item, prefix):
     return sorted(t["tag"][len(prefix):].strip() for t in item.get("tags", []) if t.get("tag", "").startswith(prefix))
 
 
-def heading(item):
-    line = f"## {item.get('citationKey')} · {item.get('title') or ''}".rstrip()
+def heading(item, cite):
+    line = f"## {cite} · {item.get('title') or ''}".rstrip()
     names = tag_values(item, "aka/")
     if names:
         line += " · " + " / ".join(names)
@@ -64,26 +50,59 @@ def heading(item):
 
 
 def main(argv=None):
-    first, _, rest = __doc__.strip().partition("\n")
-    p = argparse.ArgumentParser(description=first, epilog=rest.strip(), formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--cite", nargs="+", required=True, metavar="CITE", help="citation key(s)")
-    args = p.parse_args(argv)
-    cites = list(dict.fromkeys(args.cite))
-    lines, code, err = p2z("items", *cites)
-    if code >= 2:
-        print(json.dumps({"code": "failed", "detail": lines}, ensure_ascii=False))
-        return 2
-    items = {l["citationKey"]: l for l in lines if "itemType" in l and l.get("citationKey")}
-    failures = {l.get("item"): {"cite": l.get("item"), **{k: v for k, v in l.items() if k != "item"}}
-                for l in lines if "itemType" not in l and l.get("code")}
-    missing = False
-    for cite in cites:
-        if cite in items:
-            print(json.dumps({"cite": cite, "code": "ok", "heading": heading(items[cite])}, ensure_ascii=False))
-        else:
-            missing = True
-            print(json.dumps(failures.get(cite) or {"cite": cite, "code": "not_found"}, ensure_ascii=False))
-    return 1 if missing else 0
+    p = cli.parser(__doc__)
+    p.add_argument("papers", nargs="*", metavar="PAPER", help="a citation key or item key; - reads a list from stdin")
+    args = cli.parse(p, argv)
+    if not args.papers:
+        p.error("name the papers: citation keys or item keys, or - to read a list from stdin")
+
+    def run():
+        named = cli.names(args.papers)
+        values = list(dict.fromkeys(n.value for n in named if n.line is None))
+        lines, stop = [], None
+        if values:
+            try:
+                lines = cli.sibling(cli.P2Z, "items", *values, step="items")[0]
+            except cli.Stop as s:
+                stop = s
+        items = {}   # (field, value) -> the item line it names
+        for line in lines:
+            if "itemType" in line:
+                items[("key", line["key"])] = line
+                items.setdefault(("cite", line.get("citationKey")), line)
+        failures = {line["item"]: line for line in lines if "itemType" not in line and "item" in line}
+        total = failed = 0
+        done = set()   # each paper once: by its key once resolved, else by the name
+        for name in named:
+            if name.line is not None:
+                line = name.line
+            else:
+                fields = (name.field,) if name.field else ("key", "cite")
+                item = next((items[(f, name.value)] for f in fields if (f, name.value) in items), None)
+                once = item["key"] if item else name.value
+                if once in done:
+                    continue
+                done.add(once)
+                if stop is not None:
+                    line = {"item": name.value, "code": "not_run"}
+                elif item is None:
+                    line = failures.get(name.value) or {"item": name.value, "code": "not_found",
+                                                        "hint": "paper-to-zotero's items printed no line for it."}
+                else:
+                    cite = item.get("citationKey") or item["key"]
+                    line = {"cite": cite, "code": "ok", "heading": heading(item, cite)}
+            total += 1
+            failed += line.get("code") not in ("ok", "skipped")
+            cli.emit(line)
+        if stop is not None:
+            cli.emit(stop.line(), sys.stderr)
+            return cli.CANNOT
+        if failed:
+            cli.emit({"summary": {"total": total, "failed": failed}}, sys.stderr)
+            return cli.ACT
+        return cli.OK
+
+    return cli.run(run)
 
 
 if __name__ == "__main__":

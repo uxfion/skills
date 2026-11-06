@@ -1,22 +1,22 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Check that every quotation in a paper note comes from the paper: step 3 of every change to a note, with check_note.py.
+"""Check that every quotation in a paper note comes from the paper: step 3 of every change to a note, with pr.py check.
 
-  uv run scripts/check_quotes.py <note> --pdf <PDF> [--package <package folder>]
+The paper is what pr.py take put beside the note <name>.note.md: the PDF <name>.pdf, and the structured package
+<name>/ when there is one (its .md is searched after the PDF).
 
-A quotation is a line `> "<the paper's words>"` (or `> “…”`), followed by nothing but an optional source in brackets, such as
-(Sec. III-A) or (Table III, p.11), and an optional check mark （已核对 …）; the words run to the line's last double
-quote of its kind, so double quotes inside them are copied as they are. Where it says it is in the paper is not checked: only
-whether its words are.
+A quotation is a line `> "<the paper's words>"` (or `> “…”`), followed by nothing but an optional source in brackets,
+such as (Sec. III-A) or (Table III, p.11), and an optional check mark （已核对 …）; the words run to the line's last
+double quote of its kind, so double quotes inside them are copied as they are. Where it says it is in the paper is not
+checked: only whether its words are.
 
 Both sides are brought to one form before they are compared: Unicode-normalised, LaTeX commands removed (and the
-package's HTML tags and comments),
-lowercased, letters and digits kept, and a point or comma kept between two digits (1.25 and 12.5 stay apart). A
-quotation cut with … is matched piece by piece, in order. A piece shorter than 20 characters in that form matches too
-much to prove anything.
+package's HTML tags and comments), lowercased, letters and digits kept, and a point or comma kept between two digits
+(1.25 and 12.5 stay apart). A quotation cut with … is matched piece by piece, in order. A piece shorter than 20
+characters in that form matches too much to prove anything.
 
 Each quotation, in order:
   ok             found in the PDF's text layer (pdftotext, poppler)
@@ -29,10 +29,13 @@ A quotation whose line carries （已核对 …） counts as checked whatever th
 stdout: one JSON object {code, quotes: [{line, result, checked, text}], counts}.
   pass   every quotation is ok or checked
   open   some are not: look at the page image, correct the quotation, mark it （已核对 <source> · <date>）, run again
-Exit 0 = pass; 1 = open; 2 = the note or the PDF cannot be read, or pdftotext is missing.
+  file_not_found, file_unreadable    {file, code, path, hint}: the note, the PDF beside it or the package (path)
+         cannot be read
+Exit 0 = pass; 1 = anything else; 2 = cannot go on: no_pdftotext, or a usage error.
+
+Examples:
+  pr.py quotes <scratch>/xiaoTCACE2026.Published-IEEE.note.md
 """
-import argparse
-import json
 import re
 import shutil
 import subprocess
@@ -40,8 +43,7 @@ import sys
 import unicodedata
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import sources  # noqa: E402
+from prlib import cli, sources
 
 MIN_PIECE = 20
 TAG = re.compile(r"</?[A-Za-z][^<>\n]*>")  # the package's HTML; a "<" in the text (p < 0.05) is no tag
@@ -91,13 +93,28 @@ def found(pieces, haystacks):
 
 def pdf_text(pdf):
     """The PDF's text layer, in pdftotext's reading order and in -raw stream order: a quote may match either."""
+    if not pdf.is_file():
+        raise cli.Stop("file_not_found", path=str(pdf),
+                       hint="No PDF beside the note: take the note with pr.py take, which puts <name>.pdf there.")
     texts = []
     for mode in ([], ["-raw"]):
         done = subprocess.run(["pdftotext", *mode, str(pdf), "-"], capture_output=True, text=True)
         if done.returncode != 0:
-            raise OSError(done.stderr.strip() or "pdftotext failed")
+            raise cli.Stop("file_unreadable", path=str(pdf), detail=done.stderr.strip()[-600:],
+                           hint="pdftotext cannot read this PDF: open it to see whether it is whole.")
         texts.append(canon(done.stdout))
     return texts
+
+
+def package_text(folder):
+    """The package's Markdown in the compared form; None without a package."""
+    if not folder.is_dir():
+        return None
+    md = next(folder.glob("*.md"), None)
+    if md is None:
+        raise cli.Stop("file_unreadable", path=str(folder),
+                       hint="The package folder holds no .md: take the note again into a new directory.")
+    return canon(TAG.sub(" ", COMMENT.sub(" ", cli.document(md, path=str(md)))))
 
 
 def check(note, pdf_texts, package_text):
@@ -121,28 +138,23 @@ def check(note, pdf_texts, package_text):
 
 
 def main(argv=None):
-    first, _, rest = __doc__.strip().partition("\n")
-    p = argparse.ArgumentParser(description=first, epilog=rest.strip(), formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("note", metavar="NOTE", help="the note file")
-    p.add_argument("--pdf", required=True, help="the PDF the note was read in")
-    p.add_argument("--package", help="the paper's structured package folder (its .md is searched after the PDF)")
-    args = p.parse_args(argv)
-    if not shutil.which("pdftotext"):
-        print(json.dumps({"code": "unreadable", "detail": "pdftotext (poppler) is not installed"}))
-        return 2
-    try:
-        note = Path(args.note).read_text(encoding="utf-8")
-        texts = pdf_text(args.pdf)
-        md = next(Path(args.package).glob("*.md"), None) if args.package else None
-        if args.package and not md:
-            raise OSError(f"no .md in the package folder {args.package}")
-        package_text = canon(TAG.sub(" ", COMMENT.sub(" ", md.read_text(encoding="utf-8")))) if md else None
-    except (OSError, UnicodeDecodeError) as e:
-        print(json.dumps({"code": "unreadable", "detail": str(e)}, ensure_ascii=False))
-        return 2
-    out = check(note, texts, package_text)
-    print(json.dumps(out, ensure_ascii=False))
-    return 0 if out["code"] == "pass" else 1
+    p = cli.parser(__doc__)
+    p.add_argument("note", metavar="NOTE", help="the note file, <name>.note.md as pr.py take wrote it")
+    args = cli.parse(p, argv)
+
+    def run():
+        if not shutil.which("pdftotext"):
+            raise cli.Stop("no_pdftotext", exit=cli.CANNOT,
+                           hint="Install poppler, which has pdftotext; the note is put once this check passes.")
+        note = cli.document(args.note, "No such note file: name the <name>.note.md pr.py take wrote.",
+                            path=args.note)
+        stem = Path(args.note).name.removesuffix(".note.md")
+        beside = Path(args.note).with_name(stem)
+        out = check(note, pdf_text(beside.with_name(f"{stem}.pdf")), package_text(beside))
+        cli.emit(out)
+        return cli.OK if out["code"] == "pass" else cli.ACT
+
+    return cli.run(run, file=args.note)
 
 
 if __name__ == "__main__":

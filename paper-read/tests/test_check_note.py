@@ -2,17 +2,20 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/check_note.py: when a paper note may go into Zotero, after any change and after a read-through."""
+"""Tests for pr.py check (scripts/check_note.py): when a paper note may go into Zotero, after any change and after a
+read-through."""
 import importlib.util
 import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "check_note.py"
+sys.path.insert(0, str(SCRIPT.parent))   # its prlib
 spec = importlib.util.spec_from_file_location("check_note", SCRIPT)
 check_note = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(check_note)
@@ -144,11 +147,16 @@ class CheckNote(unittest.TestCase):
                                   capture_output=True, text=True, timeout=120)
             return done.returncode, done.stdout, done.stderr
 
-        code, stdout, err = run(str(note), "--full")  # .taken beside the note is read without --taken
+        code, stdout, err = run("--full", str(note))  # the .taken beside the note
         self.assertEqual((code, json.loads(stdout)["missing_numbers"]), (1, ["Q3.2", "Q3.3"]), err)
-        code, stdout, err = run(str(note), "--full", "--taken", str(note))
-        self.assertEqual((code, json.loads(stdout)["code"]), (0, "complete"), err)
-        self.assertEqual(run(str(note) + ".gone")[0], 2)
+        Path(f"{note}.taken").write_text(FULL, encoding="utf-8")
+        code, stdout, err = run(str(note), "--full")
+        self.assertEqual((code, json.loads(stdout)["code"], err), (0, "complete", ""))
+        for gone in (str(note) + ".gone", str(scratch), "-"):   # not a file: the line about it, on stdout
+            code, stdout, err = run(gone)
+            self.assertEqual((code, json.loads(stdout)["file"], json.loads(stdout)["code"], err),
+                             (1, gone, "file_not_found", ""))
+        self.assertEqual(run(str(note), "--taken", str(note))[0], 2)   # a usage error
         shutil.rmtree(scratch)
 
 

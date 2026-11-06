@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/sources.py: which figures and tables a note names become links, and the links taken off again."""
+"""Tests for scripts/prlib/sources.py: which figures and tables a note names become links, and the links taken off again."""
 import re
 import sys
 import unittest
@@ -10,7 +10,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "scripts"))
-import sources  # noqa: E402
+from prlib import sources  # noqa: E402
 
 # The forms note-format.md tells the reader link, and those that do not, are what the code is held to.
 DOC = (HERE.parent / "references" / "note-format.md").read_text(encoding="utf-8")

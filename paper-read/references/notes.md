@@ -21,7 +21,7 @@ One file per project: `research/paper-index.md`, or the project's own paper inde
 - 借鉴期相 token + 连续时间编码的双条件写法（论文笔记 Q3） · research/… · 2026-11-02
 ```
 
-- **The heading** is `citation key · title · common names（venue year）`, printed by `uv run scripts/index_heading.py --cite <citation key>…` from the item's `aka/` and `venue/` tags; paste it as printed. A citation key it cannot resolve prints paper-to-zotero's own line instead: follow its `hint`. Most papers have no common name; one the field does call by a name but that prints without it is missing its `aka/` tag: add the tag by paper-to-zotero's references/tagging.md, *Common name*, and print again.
+- **The heading** is `citation key · title · common names（venue year）`, printed by `pr.py heading <citation key>… | jq -r 'select(.code=="ok").heading'` from the item's `aka/` and `venue/` tags; paste it as printed. A citation key it cannot resolve prints paper-to-zotero's own line instead, which has no `heading` (the filter drops it, and the call exits 1): follow its `hint`. Most papers have no common name; one the field does call by a name but that prints without it is missing its `aka/` tag: add the tag by paper-to-zotero's references/tagging.md, *Common name*, and print again.
 - **A line** is `decision: the point it rests on (论文笔记 Qn) · the document and section holding the reasoning · date`. A reason that fits in the line needs no document.
 - Record what was used and what was weighed and turned down, each with its reason. When the project changes a decision, rewrite its line: git keeps the history.
 - Write only your own project's index. Which projects used a paper: search their indexes for its citation key.
@@ -53,7 +53,7 @@ Its form is open; three things hold:
 
 ## Older notes
 
-A paper may carry notes from before this skill, the user's or earlier agents'. `prepare_note.py` takes them into `<scratch>/notes/` and leaves them in Zotero as they are.
+A paper may carry notes from before this skill, the user's or earlier agents'. `pr.py take` takes them into `<scratch>/notes/` and leaves them in Zotero as they are.
 
 - They are leads: what they say about the paper enters the paper note once found in the paper. Their structure, order and wording are no model.
 - What they say about a manuscript or a project goes to that project: your own project's into its index or documents; another project's into your report to the user.

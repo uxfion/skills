@@ -2,15 +2,16 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""A stand-in for paper-to-zotero's p2z.py in paper-read's tests: the commands prepare_note.py, put_note.py and
-index_heading.py run, answered from the library in the JSON file FAKE_P2Z names, as the real ones answer (their
--h) since paper-to-zotero's Unix conventions (2026-11-05): when their output changes, change this to match. Each call's arguments go to FAKE_P2Z.log, one JSON line each. Called as `objects`, it
-stands in for the paddleocr skill's `doc.py objects` (PAPER_READ_DOC).
+"""A stand-in for paper-to-zotero's p2z.py in paper-read's tests: the commands pr.py take, put and heading run,
+answered from the library in the JSON file FAKE_P2Z names, as the real ones answer (their -h) since paper-to-zotero's
+Unix conventions (2026-11-05): when their output changes, change this to match. Each call's arguments go to
+FAKE_P2Z.log, one JSON line each. Called as `objects`, it stands in for the paddleocr skill's `ocr.py objects`
+(PAPER_READ_OCR).
 
-The library: {"items": {cite: item}, "notes": {cite: [{key, title, text}]}, "pdfs": {cite: [PDF title, best first]},
-"packages": {cite: [PDF titles that have one]}, "findings": [finding], "objects": [doc.py objects' lines],
-"annotations": {comment: key}, "put_code": the code note put answers (ok by default)}. note put keeps each file it
-is given, as given, in FAKE_P2Z.put.<n>.
+The library: {"items": {cite: item, with its own 8-character "key"}, "notes": {cite: [{key, title, text}]}, "pdfs":
+{cite: [PDF title, best first]}, "packages": {cite: [PDF titles that have one]}, "findings": [finding], "objects":
+[ocr.py objects' lines], "annotations": {comment: key}, "put_code": the code note put answers (ok by default)}. An
+item is named by its key or its citation key. note put keeps each file it is given, as given, in FAKE_P2Z.put.<n>.
 """
 import json
 import os
@@ -22,8 +23,15 @@ def arg(args, flag):
     return args[args.index(flag) + 1] if flag in args else None
 
 
+def cite_of(lib, name):
+    """The citation key of the item a key or citation key names, or None."""
+    if name in lib["items"]:
+        return name
+    return next((cite for cite, item in lib["items"].items() if item["key"] == name), None)
+
+
 def note_take(lib, args):
-    cite, out = args[2], Path(arg(args, "-o"))
+    cite, out = cite_of(lib, args[2]), Path(arg(args, "-o"))
     notes = lib["notes"].get(cite, [])
     if not notes:
         print(json.dumps({"code": "no_notes", "hint": "No note matches."}))
@@ -38,11 +46,13 @@ def note_take(lib, args):
 
 
 def package_take(lib, args):
-    cite, out, title = args[2], Path(arg(args, "-o")), arg(args, "--title")
+    cite, out, title = cite_of(lib, args[2]), Path(arg(args, "-o")), arg(args, "--title")
+    key = lib["items"][cite]["key"]
     pdfs = lib["pdfs"][cite]
-    head = {"cite": cite, "key": "ITEMKEY1"}
+    head = {"cite": cite, "key": key}
     if title and title not in pdfs:
-        print(json.dumps({**head, "code": "no_such_title", "titles": pdfs}, ensure_ascii=False))
+        print(json.dumps({**head, "code": "no_such_title", "titles": pdfs,
+                          "hint": "No PDF of the item has that title; p2z.py pdf lists them."}, ensure_ascii=False))
         return 1
     title = title or pdfs[0]
     folder, link = out / f"{cite}.{title}", out / f"{cite}.{title}.pdf"
@@ -57,7 +67,7 @@ def package_take(lib, args):
         folder.mkdir()
         (folder / f"{folder.name}.md").write_text("# package\n", encoding="utf-8")
         (folder / f"{folder.name}.json").write_text(json.dumps({"findings": lib.get("findings", [])}), encoding="utf-8")
-    (out / f"{cite}.{title}.zotero.json").write_text(json.dumps({"key": "ITEMKEY1", "cite": cite, "attachment": "PDFKEY01",
+    (out / f"{cite}.{title}.zotero.json").write_text(json.dumps({"key": key, "cite": cite, "attachment": "PDFKEY01",
                                                                "title": title}), encoding="utf-8")
     print(json.dumps({**head, "title": title, "code": "ok", "pdf": "/zotero/storage/x.pdf", "input": str(link),
                       "folder": str(folder), "package": "PKGKEY01" if package else None}, ensure_ascii=False))
@@ -65,23 +75,24 @@ def package_take(lib, args):
 
 
 def read_pdfs(lib, args):
-    cite = args[1]
+    cite = cite_of(lib, args[1])
     for n, title in enumerate(lib["pdfs"].get(cite, [])):
-        print(json.dumps({"key": "ITEMKEY1", "citationKey": cite, "attachment": f"PDF{n:05d}", "attachment_title": title},
-                         ensure_ascii=False))
+        print(json.dumps({"key": lib["items"][cite]["key"], "citationKey": cite, "attachment": f"PDF{n:05d}",
+                          "attachment_title": title}, ensure_ascii=False))
     return 0
 
 
 def read_items(lib, args):
-    cites = args[1:]
     failed = 0
-    for cite in cites:
-        if cite in lib["items"]:
-            print(json.dumps({"key": "ITEMKEY1", "itemType": "journalArticle", "citationKey": cite, **lib["items"][cite]},
-                             ensure_ascii=False))
+    for name in args[1:]:
+        cite = cite_of(lib, name)
+        if cite:
+            print(json.dumps({"itemType": "journalArticle", "citationKey": cite, **lib["items"][cite]}, ensure_ascii=False))
         else:
-            print(json.dumps({"item": cite, "code": "not_found", "hint": "No item has this key or citation key."}))
+            print(json.dumps({"item": name, "code": "not_found", "hint": "No item has this key or citation key."}))
             failed = 1
+    if failed:
+        print(json.dumps({"summary": {"total": len(args) - 1, "failed": 1}}), file=sys.stderr)
     return failed
 
 

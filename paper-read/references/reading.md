@@ -6,12 +6,13 @@ This brief is for paper-read's **reader**: one subagent reading one paper of the
 
 Your prompt gives:
 
+- the statement every shell call starts with, which puts paper-read's `pr.py`, paper-to-zotero's `p2z.py` and paddleocr's `ocr.py` on PATH;
 - the note file, which you edit in place; the PDF; the package folder (the paddleocr skill's parse of that PDF), or none;
 - the paper's title, first author, year, venue and DOI, and the common names it is tagged with (`aka/`);
 - the scratch directory these sit in;
 - `<paper-read>`, this skill's directory, and the path of `note-format.md`, which says how a note is written: read it first;
 - the older notes on this paper, if any;
-- when the package has open findings: paddleocr's `settle.md` and `papers.md`, and how to run its `doc.py`;
+- when the package has open findings: paddleocr's `settle.md` and `papers.md`;
 - when this read moves the note to a better version: the previous version's PDF and package;
 - a project's questions about the paper, if any.
 
@@ -36,7 +37,7 @@ Older notes are leads: a fact in one enters the note once you have found it in t
 - The summaries come last (Q8, then the one-sentence summary), built only from the answers written. A fact they need that no answer holds means that answer is short: complete it.
 - A project's questions are answered in your report, with sources, not in the note. Whatever they lead you to find about the paper itself goes into the note like any other answer.
 
-**Settling the package.** When your prompt names open findings, settle them as you reach them in the reading. Follow settle.md §1–3 and record with its `doc.py commit`. You check those spots against the PDF anyway, and you know what the text is saying. Where settle.md and this brief differ, this brief wins: you write the note file as well as the package folder, and of settle.md's report only what *Report* below asks for goes into yours.
+**Settling the package.** When your prompt names open findings, settle them as you reach them in the reading. Follow settle.md §1–3 and record with `ocr.py commit`. You check those spots against the PDF anyway, and you know what the text is saying. Where settle.md and this brief differ, this brief wins: you write the note file as well as the package folder, and of settle.md's report only what *Report* below asks for goes into yours.
 
 ## Moving to another version
 
@@ -51,16 +52,16 @@ Every source in the note then points into the new PDF: check each against it. Th
 ## Product
 
 - The note file, edited in place.
-- The package folder, settled through `doc.py commit` (when it had open findings).
+- The package folder, settled through `ocr.py commit` (when it had open findings).
 
 Write only these, plus any drafts of yours in the scratch directory. Putting the note and the package into Zotero is the main agent's work.
 
 ## Done when
 
 1. The PDF's first page shows the title and first author given; otherwise you stopped and reported.
-2. `uv run <paper-read>/scripts/check_note.py <note> --full` prints `complete`.
-3. `uv run <paper-read>/scripts/check_quotes.py <note> --pdf <PDF> --package <package folder>` (no package: without `--package`) prints `pass`. A quotation short of `ok` is settled: an `unparsed` line rewritten in the quotation form; any other compared with the page image, corrected if need be, and marked （已核对 <source> · <date>）.
-4. With a settled package, `doc.py show <package folder>` prints `no open findings`.
+2. `pr.py check --full <note>` prints `complete`.
+3. `pr.py quotes <note>` prints `pass`. A quotation short of `ok` is settled: an `unparsed` line rewritten in the quotation form; any other compared with the page image, corrected if need be, and marked （已核对 <source> · <date>）.
+4. With a settled package, `ocr.py findings <package folder>` prints no line with status `open`, and exits 0.
 5. Then the self-review: split each answer into its claims, check every claim against the paper, correct what is wrong, and run the checks again.
 6. Your reply ends with the report (*Report*): every project question answered in it, and after a move, every difference listed.
 
@@ -69,7 +70,7 @@ Write only these, plus any drafts of yours in the scratch directory. Putting the
 Your reply is the report; the main agent saves it. Exceptions only:
 
 - the PDF is not this paper;
-- **package**: what settle.md's report lists under **open**, and each `unresolved` verdict; the main agent checks the rest with `doc.py show`;
+- **package**: what settle.md's report lists under **open**, and each `unresolved` verdict; the main agent checks the rest with `ocr.py findings`;
 - **library**: an error in the item's tags or fields: which, where, what it should be. A word the field uses for this paper that is not among its `aka/` names is one (`<paper-read>/../paper-to-zotero/references/tagging.md`, *Common name*). The main agent fixes it;
 - **version** (a move): each difference between the two versions, and what it became in the note;
 - **elsewhere**: the questions marked 要看别处, and where the answer would be;
