@@ -324,6 +324,19 @@ class Verdicts(unittest.TestCase):
         D.check(r, None, Path("."))
         self.assertEqual([f["id"] for f in r["findings"]], ["missing_text@p1"])
 
+    def test_a_renamed_source_is_found_beside_the_folder(self):
+        """Zotero renamed the PDF after the parse (2026-11-06: "Kim 等 - 2024 …" became "Kim et al. - 2024 …"):
+        the copy package take puts beside the folder is the source, when its bytes are the record's."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "paper.pdf").write_bytes(b"%PDF-1.4 the parsed bytes")
+            r = {"source": {"kind": "pdf", "file": "paper.pdf", "path": str(tmp / "gone" / "old name.pdf"),
+                            "sha256": D.sha256_of([tmp / "paper.pdf"])}}
+            self.assertEqual(D.source_of(r, folder=tmp / "paper")["path"], tmp / "paper.pdf")
+            self.assertIsNone(D.source_of(r), "no folder: nothing to look beside")
+            (tmp / "paper.pdf").write_bytes(b"%PDF-1.4 other bytes")
+            self.assertIsNone(D.source_of(r, folder=tmp / "paper"), "other bytes: not the source")
+
 
 class Migrate(unittest.TestCase):
     def test_edits_follow_their_text(self):

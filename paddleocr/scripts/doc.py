@@ -117,12 +117,18 @@ def sha256_of(files: list[Path]) -> str:
     return h.hexdigest()
 
 
-def source_of(record: dict, given: str | None = None, need: bool = False) -> dict | None:
-    """The source the record was parsed from: {"kind", "path", "files"}, checked against its sha256. None when the
-    record's path is empty or holds nothing and no --source was given, unless the command needs it."""
+def source_of(record: dict, given: str | None = None, need: bool = False, folder: Path | None = None) -> dict | None:
+    """The source the record was parsed from: {"kind", "path", "files"}, checked against its sha256. Where the
+    record's path holds nothing (the file renamed or moved since), its `file` beside the parse folder, where
+    package take and paper-read's take put it, when its sha256 is the record's. None when neither holds it and no
+    --source was given, unless the command needs it."""
     src = record["source"]
     raw = given or src.get("path") or ""
     path = Path(raw).expanduser() if raw else None
+    if not given and (path is None or not path.exists()) and folder is not None and src.get("file"):
+        beside = folder.parent / src["file"]
+        if beside.is_file() and sha256_of([beside]) == src["sha256"]:
+            path = beside
     if path is None or not path.exists():
         if given:
             raise Stop("file_not_found", exit=cli.CANNOT, path=given, hint="--source names no file.")
@@ -1617,7 +1623,7 @@ Examples:
 
     def go():
         record = load(folder)
-        src = source_of(record, args.source, need=bool(args.box))
+        src = source_of(record, args.source, need=bool(args.box), folder=folder)
         warn_unrecorded(folder, record)
         cli.write("\n".join(show(folder, record, src, args.what, args.box, args.dpi)) + "\n")
         return cli.OK
@@ -1653,7 +1659,10 @@ Example:
 
     def go():
         record = load(folder)
-        src = source_of(record, args.source)
+        src = source_of(record, args.source, folder=folder)
+        if src is None and record["source"].get("path"):
+            cli.log("[paddleocr] the source is not at the record's path nor beside the folder: the edits are recorded "
+                    "without checking them against it; give it with --source FILE to check them")
         with locked(folder):
             fields = settle_edits(folder, record, src)
         done = {"code": "ok"} if fields else {"code": "skipped", "reason": "nothing_to_commit"}
@@ -1690,7 +1699,7 @@ Examples:
 
     def go():
         record = load(folder)
-        src = source_of(record, args.source, need=True)
+        src = source_of(record, args.source, need=True, folder=folder)
         page = int(m.group(1)) if (m := re.fullmatch(r"p(\d+)", args.what)) else None
         with locked(folder):
             fields = settle_edits(folder, record, src)
@@ -1728,7 +1737,7 @@ Example:
     def go():
         ensure_engine()
         record = load(folder)
-        src = source_of(record, args.source, need=True)
+        src = source_of(record, args.source, need=True, folder=folder)
         with locked(folder):
             fields = settle_edits(folder, record, src)
             moves = build(record, src, folder)
@@ -1765,7 +1774,7 @@ Example:
 
     def go():
         record = load(folder)
-        for o in objects(record, source_of(record, args.source, need=True)):
+        for o in objects(record, source_of(record, args.source, need=True, folder=folder)):
             cli.emit(o)
         return cli.OK
     return cli.run(go, folder=str(folder))
