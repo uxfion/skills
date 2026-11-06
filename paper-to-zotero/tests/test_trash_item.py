@@ -125,8 +125,10 @@ class TrashItem(unittest.TestCase):
         self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["detail"]), (1, "write_denied", "Write access denied"))
 
     def test_cannot_check_and_arguments(self):
-        r = self.run_(OLD, base_url=f"http://127.0.0.1:{closed_port()}")
-        self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "zotero_unreachable"))
+        r = self.run_(OLD, PARENT, base_url=f"http://127.0.0.1:{closed_port()}")
+        self.assertEqual((r.code, r.lines, r.last["code"]),
+                         (2, [{"item": OLD, "code": "not_run"}, {"item": PARENT, "code": "not_run"}], "zotero_unreachable"),
+                         "each item named: not_run")
         r = self.run_(OLD, config=config_file(key=None))
         self.assertEqual((r.code, r.last["code"]), (2, "no_key"))
         self.zot.write_status = (401, "bad key")

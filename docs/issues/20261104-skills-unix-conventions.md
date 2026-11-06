@@ -1,7 +1,7 @@
 # skills：整套系统对接 Unix 哲学
 
 - 来源：用户 · 2026-11-04。讨论库里搜索结果太长时（见 [archive/20261104-paper-to-zotero-search-output-compact-wontfix.md](archive/20261104-paper-to-zotero-search-output-compact-wontfix.md)），用户先问：「或者你有没有办法能通过 Linux 的那种概念理论，像管道服务，grep/rg 那样支持」，「那有没有可能通过外部工具去调用呢？因为Unix的哲学就是通过各种工具、接工具或者管道或者数据流去传递嘛」；然后：「我倒是想把这整套系统都和UNIX哲学给对接好,这样的话也方便使用，因为现在我感觉还是用 Python 的思维多一点，但实际上我更喜欢 UNIX 哲学,包括以其他数据流的方式，它的管道符，还有它使用的各种键值，以及简称之类的」；又说明范围：「短选项，标准选项,反正就是一切涉及到UNIX的哲学，Linux那套操作逻辑…我还是挺欣赏 UNIX、Linux 那一套操作逻辑或者展现形式，还有它的文件base的思路，可能还不止，就是它的一整套系统」。
-- 状态：open。设计都已定（下面「已定」），spec 是 [docs/specs/20261104-skills-unix-conventions-spec.md](../specs/20261104-skills-unix-conventions-spec.md)，经三路审阅和 advisor；规则文字已改进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，新命令从第一版设计起照它做。p2z 样板已实现（2026-11-05）：p2z、paper-read、paper-fetch 的测试和根目录的约定检查全过，真库只读验收通过；实现时的修正记在 spec 第 9 节。删扫全库前的核对：921 个引用键全部按默认快速搜索精确命中，0 歧义。实现已提交（`1e81c30`），真写入验收 2026-11-05 通过（spec 第 9 节末尾），spec 已冻结。下一步：推送后三个 skill 一起重装；用户用一阵后重跑 `usage.py`，再定铺开。
+- 状态：open。设计都已定（下面「已定」），spec 是 [docs/specs/20261104-skills-unix-conventions-spec.md](../specs/20261104-skills-unix-conventions-spec.md)，经三路审阅和 advisor；规则文字已改进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，新命令从第一版设计起照它做。p2z 样板已实现（2026-11-05）：p2z、paper-read、paper-fetch 的测试和根目录的约定检查全过，真库只读验收通过；实现时的修正记在 spec 第 9 节。删扫全库前的核对：921 个引用键全部按默认快速搜索精确命中，0 歧义。实现已提交（`1e81c30`），真写入验收 2026-11-05 通过（spec 第 9 节末尾），spec 已冻结，已推送（`934be16`）、重装。铺开进行中：paper-fetch、paper-read、paddleocr、vllm-serve 四份 spec（`docs/specs/20261106-*-unix-conventions-spec.md`）过了保真、可用性、技术三路审阅，主 agent 按原则验收，2026-11-06 已定；§3 补的几处见第 14 条；实施计划用户同意。共用部分已做：p2z 读 `-` 清单时把上游的跳过、失败行原样转出，`trash` 停下时每样记 `not_run`。下一步按批实施（下面「铺开」一节）。
 
 ## 目标
 
@@ -29,6 +29,14 @@
 12. **规则文字**（用户同意）：spec 第 1 节里必须遵守的规矩并进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，成为所有 skill 共用的唯一出处；§4 *Skill text* 的例子改成入口加短词；AGENTS.md 的脚本那条加 `--quiet`、可执行位改成必须；README 改成指向原则；出处文件记了用户的原话。约定检查放在哪、怎么跑，实现时写进 AGENTS.md。
 13. **不另立共用代码，靠约定、检查和样板**（2026-11-05，用户同意）。p2z 里和具体服务无关、各 skill 都能用的代码约 220 行：`p2zlib/cli.py` 里 186 行，入口里约 30 行。整块用得上的只有 paper-fetch，它改造时本来就是拷一份；paper-read、paddleocr、vllm-serve 现在每个的命令行代码粗数十几到四十几行，各自只用得上几十行。各 skill 一致靠的是约定（原则 §3）和约定检查，检查按命令的行为验，不看代码是不是同一份；另立共用源文件、加拷贝一致的检查、每次改完同步几份，代价比省下的多。做法：p2z 的代码当样板，改造某个 skill 时拷它需要的部分，自己写它自己的部分。哪天同一处修改真要在几份拷贝里反复做，再抽。用户：「其实我觉得这套共用的东西，你完全可以以怎样的形式给抽象出来，就像我们design principle 里面那个交付标准还是什么东西，好像也是类似的思想。就是共用的东西我们可以一起约定好、规范好，然后每个 skill 定制化的东西，你再独立去定制嘛」；「这个工作有没有必要做，就是它共用的代码多吗？如果共用代码少的话，我感觉没必要」；「对，我也是想着，如果共用的少的话，我们就在 design principle 里面或者在哪个地方把它规范好，或者把设计理念讲好，这样的话，每个区实现的时候都是按照同一套思路」。原则不改（用户同意）：这个理念原则 §3 里已有，*A standard where cases share a shape, the rest per case*、*Cut where it pays*、*Small, independent, pure-Python scripts* 三条就推得出；哪个 skill 当样板、拷哪些文件，是这次铺开的做法，记在下面一节。
 
+14. **原则 §3 补四处**（2026-11-06，前三处用户：「可以」；四份铺开 spec 都碰到，advisor 审过措辞）：
+   - 退出 1 时，处理几样东西的命令最后打汇总；只处理一样东西的命令，那一行已经说清，不再打（p2z 的 `merge`、`mkcol`、`ready` 本来就这样）。
+   - 产物是几个文件的命令，写进 `-o` 指的目录，必须给或帮助写明默认；字母表里 `-o` 那行去掉"不给就写标准输出"，这半句留在讲文档产物的那句里。
+   - `-` 读到我们的 JSON 行却缺要取的字段时：报跳过（`code: skipped`）或报上游失败（`ok` 以外的 code）的，原样转到标准输出，失败算没做完；别的这种行让清单读不了（退出 2）。这样失败一直传到管道末端，不用在中间 `jq` 过滤、把它丢掉。同一句里"the skill's own JSON lines"改成"our skills' JSON lines"：p2z 的行也由 paddleocr 读。
+   - 再补一处（2026-11-06，用户选 A）：退出 2 时"已做的留在标准输出、没做的每样一行 `not_run`"只管处理几样东西的命令；只处理一样东西的，标准错误最后一行已说清，标准输出为空（p2z 的 `merge`、`mkcol`、`note take` 本来就这样）。复查时发现 p2z 的 `trash` 处理几样东西却不记 `not_run`，已在共用部分修好。
+   - 第三处同日再改（用户选 A）：产物是文档的命令（现在只有 p2z `export` 的 BibTeX），标准输出放不下 JSON 行。§3 那句的去处从"标准输出"改成"标准输出；产物是文档时，只把失败行放进标准错误末尾的汇总"，跳过行不出（没东西可导出）。export 自己认不出的名字本来就写在这份汇总里，所以它照规矩做，不是例外。讨论时和经典 Unix 对过：经典做法是失败走标准错误、自然绕过管道；我们把每样东西的结果留在标准输出（一批跑完一个文件就记全），这条规矩就是在这种写法下让失败照样到达管道末端。没改成失败走标准错误：一批的结果就不再在一个文件里，已推送的 p2z 样板和四份 spec 也得重做。
+   - 同日再定（用户选 A）：上游转来的行不是这条命令收到的名字，`tag`"写入前一处出错就全不写"的老规矩不管它：转出，其余照写，退出 1。整批不写会让 agent 在中间再加一步 `jq` 过滤，这条规矩要省掉的正是这一步；`tag` 重跑不会重复写。
+
 ## 铺开到其余 skill 时（p2z 样板的经验，2026-11-05）
 
 每个 skill 照同一套做：
@@ -39,10 +47,20 @@
 4. **从 p2z 拷需要的部分**（`p2zlib/cli.py`、`p2z.py`），自己写"一样东西"指什么、名字怎么解析、服务报什么错。先改共用的那层和一个样例脚本，其余照样例改，测试跟着每个脚本一起改。
 5. **整条管道测**：`-` 读到空清单（没有要做的事）和后面什么都没写（用法错误）、`pipefail`、写库的命令被 `head` 截断后仍做完。范围看后面写没写东西，不看清单空不空：p2z 这次就查出 `package names` 读到空清单会去改整个库。
 6. **调用方同一遍改**：别的 skill 里调它的地方，连同那边测试里的假替身（如 paper-read 的 `fake_p2z.py`）；推送后几个 skill 一起重装。
-7. **约定检查**：把这个 skill 从 `NOT_YET` 拿掉；运行时那几条，第二个 skill 加入时改成读各 skill 自己的假服务和示例命令。
+7. **约定检查**：把这个 skill 从 `NOT_YET` 拿掉。各 skill 不同的部分（帮助的环境、去掉的长选项、四条运行时用例和假服务）写在它自己的 `tests/conventions_fixture.py`，接口见 `tests/check_conventions.py` 的说明，p2z 的是样例（2026-11-05 已改，未提交）。
 8. **行数目标文档和脚本分开算**：说明从文档搬进 `-h`，文档变短、帮助变长。
 9. **批量替换**：每处先断言原文正好出现一次，换完再 grep 一遍误伤（这次误伤过同名的 `p2zlib/note_md.py`）。
 10. **原则里的进度已拿掉**（2026-11-05，用户选 A）：原则 §3 *The Unix/Linux philosophy* 最后一句原为 "Existing commands are brought over one skill at a time, paper-to-zotero first."，改成 "Existing commands are brought over a whole skill at a time."：整个 skill 一次改过来是规则，留下；哪个先改是进度，归这张 issue 和约定检查的 `NOT_YET`。用户：「我说的是项目层面的那种具体的代码或者进度之类的」。
+
+## 全流程试用（2026-11-05）
+
+用户：「你自己找几个，全流程测试一下呗」。主 agent 在 papers.cool 上挑了 3 篇和方向相近的新论文，故意用三种写法交给 agent：会议页面链接、arXiv 号、只给标题。全程交给只看已安装 skill 文档的普通 subagent：1 个导入 3 篇，3 个各读一篇、写论文笔记。主 agent 从 Zotero 读回核对，再用参考资料文件夹里的 `trial.py` 数每个 agent 的调用。
+
+- **导入**（91 次调用）：调 p2z 时 45 次都先设了 PATH，没有一次 `cd` 进 p2z、`uv run` p2z 或用已删的选项；查了 12 次 `-h`；3 处 `2>/dev/null` 都加在别的工具上（opencli、nvidia-smi）。只看文档的新 agent 把 p2z 的新写法用对了。
+- **读论文**（每个约 30 次调用）：FSCG 那个 agent 照 paper-read 文档的写法调 p2z（先 `cd` 到 paper-read，再 `uv run ../paper-to-zotero/scripts/p2z.py`）。另外两个 agent 是 `cd` 进 p2z 的目录再 `uv run scripts/p2z.py`，这是改造前的老写法，两份文档里都没这么写，还各有几处 `2>/dev/null`。它们从 paper-read 过来，只读了 p2z 的 tagging.md，没读到 SKILL.md *Calling*。所以 paper-read 改造之前，经它调 p2z 的写法会新旧混着用：这是铺开时先改 paper-read 的一条理由。
+- **结果**：3 篇都进了库，各有 PDF、结构化包和标签；3 篇都有了论文笔记，`check_note --full` complete、`check_quotes` pass、`put_note` ok。
+- **记下的 issue**（都是 2026-11-05 的）：p2z 的 `save-dry-run-attach`、`record-docs-lag`、`preprint-wanted-version`；paper-fetch 的 `miccai-pages`、`arxiv-abstract-latex`、`trial-import-web-notes`，以及 `arxiv-date-year-only` 补了两例；paddleocr 的 `checks-miss-word-misreads`、`settle-workflow-gaps`；paper-read 的 `report-when-main-is-subagent`、`note-format-trial-notes`。
+- **统计工具**：`usage.py` 现在认得出新写法（`p2z.py <词>`），也读 subagent 的记录；`trial.py` 按调用记录分项数：PATH、`cd` 进 p2z、paper-read 自己的写法（单列，不算旧习惯）、`2>/dev/null`、管道接 heredoc、`-h`、已删的选项。
 
 ## 现状（2026-11-04 盘点）
 

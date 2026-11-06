@@ -358,7 +358,7 @@ def notes_in(zot, args):
     if args.items:
         rows = []
         for name in cli.names(args.items):
-            rows += notes_of(zot, zot.resolve(name))
+            rows += [name.line] if name.line else notes_of(zot, zot.resolve(name))
         return rows
     if args.collection:
         return zot.rows(f"{LIB}/collections/{zot.collection(args.collection)}/items", {"itemType": "note"})
@@ -368,6 +368,9 @@ def notes_in(zot, args):
 def lines_of(zot, rows):
     names, lines = Names(zot), []
     for r in rows:
+        if "code" in r:   # a line passed on from upstream
+            lines.append(r)
+            continue
         if not is_note(r) or zotero.in_trash(r):
             continue
         d = zotero.data(r)
@@ -401,9 +404,9 @@ Examples:
   p2z.py note search denoising ronneberger2015unet
 """
     hits = {r["key"] for r in zot.rows(f"{LIB}/items", {"q": args.query, "qmode": "everything", "itemType": "note"})}
-    rows = [r for r in notes_in(zot, args) if r["key"] in hits]
+    rows = [r for r in notes_in(zot, args) if "code" in r or r["key"] in hits]
     code = lines_of(zot, rows)
-    return code if rows else cli.ACT
+    return code if any("code" not in r for r in rows) else cli.ACT
 
 
 def configure_take(p):

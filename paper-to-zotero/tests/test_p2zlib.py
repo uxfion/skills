@@ -371,8 +371,13 @@ class Skeleton(unittest.TestCase):
                                                                 '{"cite": "liu2022", "code": "not_found"}\n\n')):
             self.assertEqual(cli.names(["one2020", "-"]), [cli.Name("one2020", None), cli.Name("ABCD1234", None),
                                                            cli.Name("EFGH5678", "key"), cli.Name("liu2022", "cite")])
-        with mock.patch("sys.stdin", __import__("io").StringIO('{"tag": "x"}\n')):
-            self.assertEqual(self.stop(cli.names, ["-"]).code, "invalid_list")
+        with mock.patch("sys.stdin", __import__("io").StringIO('{"item": "x", "code": "not_found"}\n'
+                                                                '{"slug": "y", "code": "skipped", "reason": "r"}\n')):
+            self.assertEqual([n.line["code"] for n in cli.names(["-"])], ["not_found", "skipped"],
+                             "a skip or a failure upstream: passed on")
+        for line in ('{"tag": "x"}\n', '{"title": "t", "code": "ok"}\n'):
+            with mock.patch("sys.stdin", __import__("io").StringIO(line)):
+                self.assertEqual(self.stop(cli.names, ["-"]).code, "invalid_list")
 
     def stop(self, fn, *args):
         with self.assertRaises(cli.Stop) as caught:

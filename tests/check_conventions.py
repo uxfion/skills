@@ -18,15 +18,30 @@ skipped: take it off the list when it is. The letters come from the principles' 
            output passes the pipe buffer, cut by `| head -1`, still leaves stderr empty and keeps its exit status, and
            a writer cut off so still writes every item; a service that does not answer is exit 2, stderr's last line
            {code, hint}
+
+What differs from skill to skill comes from the skill's own tests/conventions_fixture.py (paper-to-zotero's is the example):
+  HELP_ENV          the environment every -h runs in: no config, each service at a port nothing listens on
+  REMOVED, SELECTS  long names dropped in the conversion {name: words still allowed it}; words where --collection
+                    selects (both optional)
+  env(tmp)          a context manager: starts the fake service, yields the environment the cases run in
+  quiet(tmp), reader(tmp), writer(tmp), no_service(tmp)
+                    each a {"run": a shell line as an agent types it, after the PATH statement}; quiet may add
+                    "lines", the stdout line count; writer adds "written", a function true once every item is written,
+                    or writer is a string saying why the skill has no command that writes many things; no_service adds
+                    "code", the code on stderr's last line
+The fixture imports at the top: it is loaded on its own and what it imported is put away again, so two skills'
+helpers.py never meet.
 """
 import concurrent.futures
+import functools
+import importlib.util
 import json
 import os
 import re
 import shutil
-import socket
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -37,12 +52,26 @@ SKILLS = sorted(p.parent.name for p in ROOT.glob("*/SKILL.md") if (p.parent / "s
 SHEBANG = "#!/usr/bin/env -S uv run --quiet --script"
 UV = shutil.which("uv")
 
-# Long names a skill dropped in its conversion, so none comes back: {skill: {name: the words still allowed it}}.
-REMOVED = {"paper-to-zotero": {"--q": (), "--cite": (), "--key": ("answer",), "--batch": (), "--out": (),
-                               "--tags-file": (), "--tree": (), "--limit": (), "--since": (), "--qmode": (),
-                               "--file": (), "--keep": (), "--drop": (), "--name": (), "--parent": (), "--note": ()}}
-# Where --collection selects, so it may appear (anywhere else it would replace: that is --set-collection).
-SELECTS = {"paper-to-zotero": {"items", "search", "lint", "export", "note list", "note search"}}
+
+
+@functools.cache
+def fixture(skill):
+    """The skill's tests/conventions_fixture.py, with its tests/ first on sys.path while it loads; the repo modules it
+    imported are then taken out of sys.modules and the path restored."""
+    path = ROOT / skill / "tests" / "conventions_fixture.py"
+    assert path.is_file(), f"{skill}: no tests/conventions_fixture.py"
+    saved, before = list(sys.path), set(sys.modules)
+    sys.path.insert(0, str(path.parent))
+    try:
+        spec = importlib.util.spec_from_file_location(f"conventions_fixture_{skill.replace('-', '_')}", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path[:] = saved
+        for name in set(sys.modules) - before:
+            if str(getattr(sys.modules[name], "__file__", None) or "").startswith(str(ROOT)):
+                del sys.modules[name]
 
 
 def letters():
@@ -75,31 +104,27 @@ def words_of(entry):
 
 
 def run(*argv, env=None, timeout=120, shell=False):
-    environ = {**os.environ, **(env or {})}
-    environ.pop("P2Z_PROG", None)
+    # an entry hands its typed name to the script in <X>_PROG: none may leak in from the shell running the check
+    environ = {k: v for k, v in {**os.environ, **(env or {})}.items() if not k.endswith("_PROG")}
     return subprocess.run(argv[0] if shell else [UV, "run", "--quiet", "--script", *map(str, argv)], shell=shell,
                           capture_output=True, text=True, env=environ, timeout=timeout,
                           executable="/bin/bash" if shell else None)
 
 
-def closed_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-NO_SERVICE = {"PAPER_TO_ZOTERO_CONFIG": "/nonexistent/config.json", "PAPER_TO_ZOTERO_BASE_URL": "http://127.0.0.1:9"}
+def shell(skill, line, env):
+    """A line as an agent types it: the PATH statement first, then the line, in bash."""
+    return run(f'set -o pipefail; export PATH="{ROOT / skill / "scripts"}:$PATH"; {line}', env=env, shell=True)
 
 
 def helps(skill):
     """{(word, sub or None): the CompletedProcess of `<entry> <word> [sub] -h`}, every subcommand included."""
-    entry = entry_of(skill)
+    entry, bare = entry_of(skill), fixture(skill).HELP_ENV
     words = list(words_of(entry))
     with concurrent.futures.ThreadPoolExecutor(8) as pool:
-        top = dict(zip(words, pool.map(lambda w: run(entry, w, "-h", env=NO_SERVICE), words)))
+        top = dict(zip(words, pool.map(lambda w: run(entry, w, "-h", env=bare), words)))
         subs = [(w, line.split()[0]) for w, done in top.items() if "\ncommands:\n" in done.stdout
                 for line in done.stdout.split("\ncommands:\n", 1)[1].split("\n\n", 1)[0].splitlines()]
-        deeper = dict(zip(subs, pool.map(lambda ws: run(entry, *ws, "-h", env=NO_SERVICE), subs)))
+        deeper = dict(zip(subs, pool.map(lambda ws: run(entry, *ws, "-h", env=bare), subs)))
     return entry, {**{(w, None): d for w, d in top.items() if (w, None) not in {(s[0], None) for s in subs}}, **deeper}
 
 
@@ -144,8 +169,9 @@ class Static(unittest.TestCase):
         import ast
         for skill in SKILLS:
             names = {p.stem for p in scripts(skill)} - {entry_of(skill).stem}
-            files = re.compile(r"\b(" + "|".join(map(re.escape, sorted(names))) + r")\.py\b")
-            removed = REMOVED.get(skill, {})
+            # no other script: nothing to name (an empty alternation would match any x.py)
+            files = re.compile(r"\b(" + "|".join(map(re.escape, sorted(names))) + r")\.py\b") if names else None
+            removed = getattr(fixture(skill), "REMOVED", {})
             words = {s: w for w, s in words_of(entry_of(skill)).items() if s}
             for path in scripts(skill) + sorted((ROOT / skill / "scripts").glob("*/*.py")):
                 word = words.get(path.stem)
@@ -153,7 +179,7 @@ class Static(unittest.TestCase):
                     if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
                         continue
                     with self.subTest(file=f"{skill}/{path.relative_to(ROOT / skill)}", line=node.lineno):
-                        self.assertIsNone(files.search(node.value), "a script file named where the word belongs")
+                        self.assertIsNone(files and files.search(node.value), "a script file named where the word belongs")
                         self.assertNotIn("uv run scripts/", node.value)
                         for name, allowed in removed.items():
                             if word not in allowed and re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", node.value):
@@ -188,43 +214,47 @@ class Help(unittest.TestCase):
                             if self.table[short]:
                                 self.assertIn(long, (None, self.table[short]), "the letter's long form is the table's")
                         if long == "--collection":
-                            self.assertIn(command, SELECTS.get(skill, set()), "--collection selects; replacing is --set-")
+                            self.assertIn(command, getattr(fixture(skill), "SELECTS", set()),
+                                          "--collection selects; replacing is --set-")
 
 
 class Runtime(unittest.TestCase):
-    def test_paper_to_zotero(self):
-        if "paper-to-zotero" not in SKILLS:
-            self.skipTest("not converted")
-        sys.path.insert(0, str(ROOT / "paper-to-zotero" / "tests"))
-        from fake_zotero import FakeZotero
-        from helpers import config_file
-        zot = FakeZotero()
-        self.addCleanup(zot.close)
-        zot.add_collection("COLL0001", "big")
-        for i in range(400):
-            zot.add_item(f"K{i:07d}", itemType="journalArticle", title=f"Paper {i} " + "x" * 300, collections=["COLL0001"])
-        entry = ROOT / "paper-to-zotero" / "scripts" / "p2z.py"
-        env = {"PAPER_TO_ZOTERO_CONFIG": str(config_file()), "PAPER_TO_ZOTERO_BASE_URL": zot.base_url}
+    def test_against_the_fake_service(self):
+        for skill in SKILLS:
+            with self.subTest(skill=skill):   # one skill's broken fixture does not stop the next
+                cases = fixture(skill)
+                with tempfile.TemporaryDirectory() as tmp, cases.env(Path(tmp)) as env:
+                    self.check(skill, cases, Path(tmp), env)
 
-        with self.subTest("every thing done: stderr empty"):
-            done = run(entry, "trash", "-n", "K0000001", "K0000002", env=env)
-            self.assertEqual((done.returncode, done.stderr, len(done.stdout.splitlines())), (0, "", 2), done.stderr)
+    def check(self, skill, cases, tmp, env):
+        with self.subTest(skill=skill, case="every thing done: stderr empty"):
+            case = cases.quiet(tmp)
+            done = shell(skill, case["run"], env)
+            self.assertEqual((done.returncode, done.stderr), (0, ""), done.stderr)
+            if "lines" in case:
+                self.assertEqual(len(done.stdout.splitlines()), case["lines"], done.stdout[-500:])
 
-        with self.subTest("a reader cut off by head: quiet, its status kept"):
-            self.assertGreater(400 * 300, 64 * 1024)
-            done = run(f"set -o pipefail; {entry} items --collection big | head -1", env=env, shell=True)
+        with self.subTest(skill=skill, case="a reader cut off by head: quiet, its status kept"):
+            line = cases.reader(tmp)["run"]
+            whole = shell(skill, line, env)
+            self.assertEqual(whole.returncode, 0, whole.stderr)
+            self.assertGreater(len(whole.stdout.encode()), 64 * 1024, "its output passes the pipe buffer")
+            done = shell(skill, f"{line} | head -1", env)
             self.assertEqual((done.returncode, done.stderr, len(done.stdout.splitlines())), (0, "", 1), done.stderr)
 
-        with self.subTest("a writer cut off by head: every item still written"):
-            keys = " ".join(f"K{i:07d}" for i in range(400))
-            done = run(f"set -o pipefail; {entry} update {keys} --set date=2024 | head -1", env=env, shell=True)
+        with self.subTest(skill=skill, case="a writer cut off by head: every item still written"):
+            if isinstance(cases.writer, str):
+                self.skipTest(cases.writer)
+            case = cases.writer(tmp)
+            done = shell(skill, f"{case['run']} | head -1", env)
             self.assertEqual((done.returncode, done.stderr, len(done.stdout.splitlines())), (0, "", 1), done.stderr)
-            self.assertEqual({zot.data(f"K{i:07d}").get("date") for i in range(400)}, {"2024"})
+            self.assertTrue(case["written"](), "every item written")
 
-        with self.subTest("no service: exit 2, why on stderr's last line"):
-            done = run(entry, "tags", env={**env, "PAPER_TO_ZOTERO_BASE_URL": f"http://127.0.0.1:{closed_port()}"})
-            self.assertEqual((done.returncode, done.stdout), (2, ""))
-            self.assertEqual(json.loads(done.stderr.splitlines()[-1])["code"], "zotero_unreachable")
+        with self.subTest(skill=skill, case="no service: exit 2, why on stderr's last line"):
+            case = cases.no_service(tmp)
+            done = shell(skill, case["run"], env)
+            self.assertEqual(done.returncode, 2, done.stderr)
+            self.assertEqual(json.loads(done.stderr.splitlines()[-1])["code"], case["code"])
 
 
 if __name__ == "__main__":

@@ -264,6 +264,10 @@ def lint(zot, args):
     if args.items:
         keys = set()
         for name in named:
+            if name.line is not None:   # a skip or a failure upstream, passed on
+                cli.emit(name.line)
+                failed += cli.outcome(name.line) == "failed"
+                continue
             try:
                 key = zot.resolve(name)
                 if key not in lib.top:

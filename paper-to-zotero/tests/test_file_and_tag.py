@@ -175,6 +175,11 @@ class FileAndTag(unittest.TestCase):
         self.assertEqual(r.lines[3]["keys"], [DUP1, DUP2])
         self.assertEqual(r.last["summary"], {"total": 4, "ok": 0, "skipped": 0, "failed": 4})
         self.assertEqual(self.zot.writes(), [])
+        failed, skip = {"item": "nope", "code": "not_found"}, {"slug": "s", "code": "skipped", "reason": "r"}
+        r = self.run_("-", "--add-tag", "read", stdin=f"{json.dumps(failed)}\n{json.dumps(skip)}\n{I2}\n")
+        self.assertEqual((r.code, r.lines[:2], r.lines[2]["code"], r.last["summary"]["failed"]), (1, [failed, skip], "ok", 1),
+                         "upstream's lines are passed on, not names of this command's: the rest are written")
+        self.assertEqual(self.tags(I2), [{"tag": "read", "type": 0}])
         r = self.run_(ATT, "--add-tag", "read")
         self.assertEqual(r.code, 0, r)
         self.assertEqual(self.tags(ATT), [{"tag": "read", "type": 0}], "tags are fine on an attachment")

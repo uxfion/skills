@@ -7,7 +7,8 @@
 
 What it exports: --collection (its top-level items: a key, a path from p2z.py collections or a name; -r adds the
 collections under it, those in the trash left out), and what follows the options: items (keys or citation keys; -
-reads a list from stdin, a value a line or our JSON lines, their `key`) and record files (a value with a "/" or
+reads a list from stdin, a value a line or our JSON lines, their `key`; a failure upstream passed on in such a list is
+listed under `unresolved`) and record files (a value with a "/" or
 ending in .json is a path: the item the record created, `saved.key`, else the one it found, `found.key`; a near match
 names another item, so such a record has none). An item named twice is exported once. Each 50 keys are one GET
 /items/top?itemKey=...&format=bibtex (the local API drops unknown keys silently, hence the JSON read that also gives
@@ -95,6 +96,9 @@ def export(zot, args):
         keys, summary["collections"] = collection_keys(zot, args.collection, args.recursive)
     unresolved, no_item_key = [], []
     for name in cli.names([v for v in args.items if v not in paths]):
+        if name.line is not None:   # upstream's failure goes into the summary; its skip is nothing to export
+            unresolved += [name.line] if cli.outcome(name.line) == "failed" else []
+            continue
         try:
             keys.append(zot.resolve(name))
         except cli.Stop as stop:

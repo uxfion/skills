@@ -8,9 +8,12 @@
 Each word runs one script of scripts/ (through uv, so the script's own dependencies load), its exit code passed
 through; prepare and save run two in turn. An unknown word exits 2 with this list.
 
-Exit codes, every word: 0 done (stderr empty); 1 something is yours to act on: a line's code says what, and stderr's
-last line is {"summary": ...}; 2 cannot go on (Zotero not running, no key, a usage error): stderr's last line is
-{code, hint}.
+Exit codes, every word: 0 done (stderr empty); 1 something is yours to act on: a line's code says what, and a word
+over several things ends stderr with {"summary": ...}; 2 cannot go on (Zotero not running, no key, a usage error):
+stderr's last line is {code, hint}, and a word over several things lists each one not done as not_run.
+
+A list read through - takes a value a line, or our JSON lines by the field that names the thing; a JSON line without
+that field which reports a skip or a failure upstream is passed on as it is, so a failure reaches the pipeline's end.
 
 Examples:
   p2z.py search POCUS | p2z.py pdf -

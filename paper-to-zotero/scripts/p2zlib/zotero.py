@@ -200,7 +200,7 @@ class Zotero:
         a key (any item: attachments, notes and the trash too) and as a citation key (the quick search, exact match;
         it sees the regular items outside the trash). A value from one of our JSON lines is checked only as the field
         it came from. -> the key; not_found, or ambiguous with `keys`."""
-        value, field = name
+        value, field = name.value, name.field
         keys = []
         if field in (None, "key") and KEY_RE.match(value) and self.item(value) is not None:
             keys.append(value)

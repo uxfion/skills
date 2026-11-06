@@ -5,10 +5,11 @@ stdout carries data only. A script on things (items, records) prints one compact
 it: {key or slug, code, ...}; `hint` appears only when the code is neither ok nor skipped (nor one of the script's
 answers); a skip is always `code: skipped` with a `reason` word.
   exit 0  everything done or skipped; stderr stays empty
-  exit 1  something is the agent's to act on (a line's code says what); stderr's last line is {"summary": {total, ok,
-          skipped, failed}}
+  exit 1  something is the agent's to act on (a line's code says what); a script over several things ends stderr with
+          {"summary": {total, ok, skipped, failed}}
   exit 2  the command cannot go on (Zotero not running, no key, input it cannot read, a usage error); stderr's last
-          line is {code, hint, ...}. The lines printed before stand; each thing not done is `code: not_run`.
+          line is {code, hint, ...}. A script over several things keeps the lines printed before, and each thing not
+          done is `code: not_run`.
 A script whose lines answer a question (p2z.py have: found, not_found) names those codes as its `answers`: they
 count as ok, so the answer is in the code and not in the exit status. A reader that closes the pipe early (`| head`)
 ends the printing, not the work: the rest goes nowhere and the exit code is the same.
@@ -28,8 +29,9 @@ BASE_URL_ENV = "PAPER_TO_ZOTERO_BASE_URL"
 PATH_ENDINGS = (".json", ".jsonl", ".pdf", ".bib", ".md")
 
 # An item as named after the options: a bare value is checked as a key and as a citation key; a value taken from one
-# of our own JSON lines only as the field it came from ("key" or "cite").
-Name = namedtuple("Name", "value field")
+# of our own JSON lines only as the field it came from ("key" or "cite"). `line`: a JSON line from a `-` list that
+# names no item but reports a skip or a failure upstream, passed on as it is (value and field None).
+Name = namedtuple("Name", "value field line", defaults=(None,))
 
 
 class Stop(Exception):
@@ -258,9 +260,10 @@ def stdin_lines():
 
 def names(values):
     """The items named after the options -> [Name]. `-` reads a list from stdin: a line is a value, or one of our own
-    JSON lines, which names its item by `key`, else by `cite`; a JSON line naming neither stops the command. An empty
-    list is no item: the command does nothing and exits 0. Nothing written after the options is the caller's to refuse
-    (a usage error), and never the whole library."""
+    JSON lines, which names its item by `key`, else by `cite`. A JSON line naming neither is passed on as it is
+    (Name.line) when its code reports a skip or a failure upstream (any code but ok); any other stops the command. An
+    empty list is no item: the command does nothing and exits 0. Nothing written after the options is the caller's to
+    refuse (a usage error), and never the whole library."""
     out = []
     for value in values:
         if value != "-":
@@ -277,6 +280,9 @@ def names(values):
             field = next((f for f in ("key", "cite") if isinstance(obj, dict) and isinstance(obj.get(f), str)
                           and obj[f].strip()), None)
             if field is None:
+                if isinstance(obj, dict) and isinstance(obj.get("code"), str) and obj["code"] != "ok":
+                    out.append(Name(None, None, obj))
+                    continue
                 raise Stop("invalid_list", exit=CANNOT, line=n, detail=line[:200],
                            hint="A list holds one item a line: a key or citation key, or a JSON line with `key` or "
                                 "`cite` (what search, items and pdf print). Nothing was done.")
@@ -367,11 +373,12 @@ def changes(sources):
 
 def resolved(zot, named, out, once=True):
     """(index, name, key) for each name in turn that is one item (zot.resolve); a name that is not prints its line on
-    `out`, and once Zotero is gone (out.stopped) every name left is not_run. once: an item named twice comes once."""
+    `out`, as does a line passed on from upstream, and once Zotero is gone (out.stopped) every name left is not_run.
+    once: an item named twice comes once."""
     seen = set()
     for i, name in enumerate(named):
-        if out.stopped is not None:
-            out.put({**head(name), "code": "not_run"})
+        if name.line is not None or out.stopped is not None:
+            out.put(name.line or {**head(name), "code": "not_run"})
             continue
         try:
             key = zot.resolve(name)
@@ -409,9 +416,14 @@ def main_items(doc, process, argv=None, *, configure=None, check=None):
         if check:
             check(p, args)
         zot = zotero.Zotero(args.base_url)
-        if not args.dry_run:
-            zot.write_headers()
         out = Lines()
+        try:
+            if not args.dry_run:
+                zot.write_headers()
+        except Stop as stop:
+            if stop.exit != CANNOT:
+                raise
+            out.stop(stop)   # every item named is not_run
         for _, name, key in resolved(zot, named, out):
             out.add(head(name, key), lambda: process(zot, key, args))
         return out.finish()

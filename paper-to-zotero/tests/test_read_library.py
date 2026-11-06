@@ -104,6 +104,11 @@ class ReadLibrary(unittest.TestCase):
         self.assertEqual((r.code, self.keys(r)), (0, ["K0000010"]), "named items pass the filters or print nothing")
         r = self.run_("items", "-", stdin='{"tag": "a"}\n')
         self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "invalid_list"))
+        failed, skip = {"item": "nope", "code": "not_found", "hint": "h"}, {"slug": "s", "code": "skipped", "reason": "r"}
+        r = self.run_("items", "-", stdin="\n".join(map(json.dumps, [failed, skip, {"key": "K0000003"}])))
+        self.assertEqual((r.code, r.lines[:2], self.keys(r)[2:]), (1, [failed, skip], ["K0000003"]),
+                         "upstream's skip and failure are passed on as they are; the failure is not done")
+        self.assertEqual(r.last, {"summary": {"total": 3, "failed": 1}})
 
     def test_search(self):
         r = self.run_("search", "number", "24")

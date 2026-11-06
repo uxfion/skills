@@ -15,3 +15,4 @@ docs/issues/**/*-reference/
 .env
 **/.memory/
 **/.claude/settings.local.json
+.claude/worktrees/

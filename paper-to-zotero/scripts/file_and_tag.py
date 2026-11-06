@@ -315,18 +315,22 @@ def apply(zot, entries, dry_run):
 
 def run(p, args, options):
     entries = from_options(p, args) if options else from_changes(args.items)
+    passed = [e["name"].line for e in entries if e["name"].line is not None]   # upstream's, passed on first
+    entries = [e for e in entries if e["name"].line is None]   # the rest go on, a failure upstream or not
     if not entries:   # an empty list: nothing to change
-        return cli.OK
+        return cli.finish(passed)
     zot = zotero.Zotero(args.base_url)
     try:
         if not args.dry_run:
             zot.write_headers()
-        return cli.finish(apply(zot, entries, args.dry_run))
+        return cli.finish(passed + apply(zot, entries, args.dry_run))
     except cli.Stop as stop:
         if stop.exit != cli.CANNOT:
             raise
         out = cli.Lines()
         out.stop(stop)
+        for line in passed:
+            out.put(line)
         for e in entries:
             out.put({**head(e), "code": "not_run"})
         return out.finish()

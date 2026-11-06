@@ -104,6 +104,11 @@ class ExportBib(unittest.TestCase):
         s = self.summary(r)
         self.assertEqual((s["count"], [(u["item"], u["code"]) for u in s["unresolved"]]), (4, [("ZZZZZZZZ", "not_found")]))
         self.assertNotIn("missing", s)
+        failed = {"item": "nope", "code": "not_found"}
+        r = self.run_("-", stdin="\n".join(map(json.dumps, [failed, {"slug": "s", "code": "skipped", "reason": "r"},
+                                                            {"key": "KEY00003"}])))
+        self.assertEqual((r.code, entries(r.out), self.summary(r)["unresolved"]), (1, ["Abel2019first"], [failed]),
+                         "upstream's failure goes into the summary as it is; its skip is nothing to export")
 
     def test_cite_unresolved_is_listed_not_fatal(self):
         r = self.run_("nobody2099", "dup2020twice", "lonely2018")
