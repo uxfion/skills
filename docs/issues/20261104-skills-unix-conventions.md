@@ -62,6 +62,14 @@
 - **记下的 issue**（都是 2026-11-05 的）：p2z 的 `save-dry-run-attach`、`record-docs-lag`、`preprint-wanted-version`；paper-fetch 的 `miccai-pages`、`arxiv-abstract-latex`、`trial-import-web-notes`，以及 `arxiv-date-year-only` 补了两例；paddleocr 的 `checks-miss-word-misreads`、`settle-workflow-gaps`；paper-read 的 `report-when-main-is-subagent`、`note-format-trial-notes`。
 - **统计工具**：`usage.py` 现在认得出新写法（`p2z.py <词>`），也读 subagent 的记录；`trial.py` 按调用记录分项数：PATH、`cd` 进 p2z、paper-read 自己的写法（单列，不算旧习惯）、`2>/dev/null`、管道接 heredoc、`-h`、已删的选项。
 
+## 铺开完成和第二次试用（2026-11-06）
+
+- **四个 skill 都改完、推送、重装**：vllm-serve `b3e2766`（之后 `19c3c57` 端口、`c71d1c6` `up` 在配置名处切开，用户选 B）、paper-fetch `ad7dde8`、paper-read `2e5ebb8`、paddleocr `70bbad1`（在 worktree 里改，合并）；各 spec 末尾记了实施时的改正。约定检查 `NOT_YET` 已空。pro6000 上的 vllm-serve 副本更新到最新（用户选 A）。
+- **原则 §3 补了一句**（`82a0109`，用户「可以，加进去吧」）：约定按命令的实际用法、同类工具的通行写法来选；启动另一个程序的命令把目标后面的参数原样交下去。起因是 `up` 必须写 `--`，用户问「是不是绕路了」。
+- **第二次试用**：读 15 篇论文（用户：「你可以去读部分重要的论文」），14 个只看文档的 reader 调我们的 skill 301 次，299 次带 PATH 那一句；`cd` 进 skill 目录、`uv run` skill 的脚本、对我们的命令 `2>/dev/null`、用旧脚本名，都是 0 次。笔记全部写进 Zotero，第一篇取回来逐字相同。
+- **读的过程中修的**：包的源 PDF 被 Zotero 改名后找不到（`4c166ae`）、PaddleX 例行日志（`8b1876c`）、`cut` 配标题和图片行（`d191c2f`）。这些都不是调用方式的问题，是 skill 的行为。
+- **收尾**：五个 skill 的 writing-for-agents 通读进行中；之后关这张 issue、冻结五份 spec。
+
 ## 现状（2026-11-04 盘点）
 
 - 5 个 skill、48 条命令（p2z 25、paper-fetch 11、paper-read 6、paddleocr 5、vllm-serve 1）；脚本约 1.8 万行，测试约 1.3 万行，SKILL.md 和参考文档约 2,200 行。
