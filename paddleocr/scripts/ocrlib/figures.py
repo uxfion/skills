@@ -15,7 +15,8 @@ when a task uses it:
   table           a table caption with no table near it sits by its crop: the table was drawn into the figure
   edge_cut        a side of its crops cuts through three or more marks (text, lines)
   second_opinion  the extent found from the caption outwards differs from its crops by more than a text row
-A caption whose crops include a figure an agent has recropped is settled and not checked.
+A caption whose crops include a figure an agent has recropped is settled and not checked; nor is a caption an agent
+named for a figure, nor that figure.
 
 The second opinion grows each caption's figure out from the caption until running text, another caption or a
 section heading stops it, taking every block in between whatever its label; roles come from the PDF text layer
@@ -608,7 +609,7 @@ def finding_of(page: int, c: dict, reasons: list[str], crops: list[tuple], opini
 
 
 def figure_findings(blocks: list[dict], figures: list[dict], sizes: dict, layers: dict | None = None, text_in=None,
-                    image_of=None, layout_of=None, settled=frozenset()) -> list[dict]:
+                    image_of=None, layout_of=None, settled=frozenset(), named=frozenset()) -> list[dict]:
     """figure_check findings, one per caption that fails a check, in page order.
 
     blocks: the document's blocks in reading order; figures: its figures, the crops, in reading order (a page's
@@ -616,9 +617,11 @@ def figure_findings(blocks: list[dict], figures: list[dict], sizes: dict, layers
     images the boxes refer to; layers: page -> font_chars or None (no text layer); text_in(page, box) -> the text
     layer's text inside a box, or None; image_of(page) -> the page image (BGR) or None, without which edge_cut and
     the second opinion are left out; layout_of(page) -> the layout model's boxes or None; settled: the ids of
-    figures an agent has recropped, whose captions are not checked."""
+    figures an agent has recropped, whose captions are not checked; named: the ids of figures whose caption an agent
+    named (their "caption"): neither those figures nor their captions take part in the check."""
     layers = layers or {}
     role, styles = classify([b for b in blocks if b["box"]], layers)
+    taken = {f["caption"] for f in figures if f["id"] in named}
     out, prev = [], None
     for page in sorted(sizes):
         prev = prev if prev and prev["page"] == page - 1 else None
@@ -626,8 +629,8 @@ def figure_findings(blocks: list[dict], figures: list[dict], sizes: dict, layers
         row = ROW * h
         pblocks = [b for b in blocks if b["page"] == page and b["box"]]
         pfigures = [f for f in figures if f["page"] == page]
-        captions = [b for b in pblocks if is_figure_caption(b)]
-        mine, loose = owners(pfigures, captions, h)
+        captions = [b for b in pblocks if is_figure_caption(b) and b["id"] not in taken]
+        mine, loose = owners([f for f in pfigures if f["id"] not in named], captions, h)
         numbered = {cr["id"]: n for n, cr in enumerate(pfigures, 1)}
         img = image_of(page) if image_of and captions else None
         opinion = {}

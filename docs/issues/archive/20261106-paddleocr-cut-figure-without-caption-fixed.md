@@ -1,5 +1,7 @@
 # paddleocr：`ocr.py cut` 新切出的图配不上自己的标题，编号还和新文字块撞
 
+> **已解决（2026-11-06）**：`ocr.py cut` 加 `--caption <块 id>`，由 agent 点名一张图的标题（不让脚本按位置猜），已有的图可以只点名标题、不带 `--box`；`cut` 的输出行带 `caption` 和 `number`，settle.md 第 2 节让 reader 核对。`cut` 切出的图一律有图片行（渲染版式 3→4；`commit` 按 Markdown 第一行写的版式读，旧版式的包不会把缺的图片行当成删除）。`cut` 切出的图编号 `p<N>-cut<k>`，新文字块仍是 `p<N>-n<k>`，不再撞号。把标题去掉 `#` 就变正文。顺带修了两处悄悄丢字：图片行紧挨着写的字成了新块；在图片行的位置上写字改为 `edit_refused` 并给出写法。图后面补的段落留在图后面。没修的：一次提交里把段落挪过图片行，仍被拒绝，提示分两次提交（先删再写）。实测：CycleGAN 的 Figure 7 得 `fig:7`、Figure 8 得 `fig:8`；USRMamba 第 9 页四张图都有图片行，第 11 页 Fig. 11、12、13 各有自己的 key。
+
 - 来源：2026-11-06 读论文（CycleGAN，`zhuUnpairedImagetoImageTranslation2017`），reader 报告，主 agent 核对了 `pr.py put` 的结果。用户没有提。
 - 状态：open。
 

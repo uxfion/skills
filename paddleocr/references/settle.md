@@ -30,6 +30,7 @@ Boxes are in source units, as `ocr.py show -h` says. `show` writes its images to
 
 1. **Edit `<stem>.md`** with your editing tool, at the block's own place. Rewrite text freely inside a block: a word, a table cell, a whole table, a paragraph. Put `<!-- fixed: <what changed, from which source> -->` on the line above each block you edit.
    - A paragraph of your own (blank lines around it) becomes a new block; a line added without a blank line joins the paragraph it touches.
+   - A heading that is running text: delete its leading `#`s, and it becomes body text.
    - An edit across several blocks, such as two paragraphs put in the right order, keeps the text in the first block and deletes the others.
    - A rebuilt table stays HTML. Use `rowspan`/`colspan` for multi-level headers, and an empty cell to head a column that has no heading.
    - Leave the first line, the `<!-- page N -->` lines and the `<!-- figure … -->` / `<!-- end figure … -->` lines as they are: they tie the Markdown to the record, and commit refuses edits to them.
@@ -81,12 +82,13 @@ For each:
 2. Whole and clean: verdict `ok`, with what you checked.
 3. Otherwise cut it anew: `ocr.py cut <folder> <figure id> --box X1,Y1,X2,Y2 --reason "<what was wrong>"`, starting from the second opinion's box when it looks right. Its line's `image` is the new crop: view it, and cut again until it holds the whole figure and no caption or body text. A figure can be wider than its caption or sit beside it. The image blocks inside the box become part of this figure, so for a figure split into several crops, cut any one of them to the whole box and the others go with it. The finding goes once the figure is cut.
 4. A figure the parse read as text or missed (`no_crop`): `ocr.py cut <folder> p<N> --box … --reason …` makes it, and the text the model read from it stays. When that text already says everything and its colours and layout add nothing, verdict `ok` instead.
+5. Each cut line also gives the figure's `caption` (its block id) and `number`, paired by place, so a figure cut apart from its neighbour can carry the neighbour's. When the number is not the figure's own, or is empty though the figure has a caption, name the caption: `ocr.py cut <folder> <figure id> --caption <block id>`. A caption the parse lost (read into the figure, or missed): restore it from the text layer as a paragraph of its own under the figure, commit, and name the block id commit's `recorded` gives it.
 
 An image that is no content of the document, such as a logo or a stray icon: delete its image line in the Markdown to hide it.
 
 Look at every figure on a page you open: a flagged figure often has an unflagged neighbour with the same fault.
 
-Done when every `figure_check` finding is gone or has a verdict, and every named figure has been seen whole.
+Done when every `figure_check` finding is gone or has a verdict, every named figure has been seen whole, and every figure you cut or made carries its own caption's number.
 
 ## 3. Beyond the findings
 
@@ -112,6 +114,6 @@ Commit a last time, then reply with these five parts, one line per item, so that
 
 - **fixed**: page, block or finding id, what changed.
 - **verdicts**: finding id, `ok` or `unresolved`, the reason.
-- **figures**: cut anew (figure id, what was wrong), kept (figure id), made (figure id).
+- **figures**: cut anew (figure id, what was wrong), kept (figure id), made (figure id), captions named (figure id, caption block id).
 - **read**: the pages compared in §3, and what you found there.
 - **open**: anything you could not settle, and why; if you could not finish, what you tried, what you settled and what is left; the last commit's line unless its code is `skipped`.

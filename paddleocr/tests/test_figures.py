@@ -397,6 +397,14 @@ class Findings(unittest.TestCase):
         caption = fb(20, "text", [100, 90, 1100, 200], "Extended Data Fig. 8 | A grid.", page=2)
         self.assertEqual(warned(pieces + [caption], {1: SIZE, 2: SIZE}, settled={pid(4)}), {})
 
+    def test_a_named_caption_and_its_figure_stay_out_of_the_check(self):
+        # the agent names the caption above as the crop's (ocr.py cut --caption); the one below is then left without one
+        blocks = [fb(1, "image", [100, 500, 1100, 800]), fb(2, "figure_title", [100, 810, 1100, 840], "Figure 1: Below."),
+                  fb(3, "figure_title", [100, 100, 1100, 130], "Figure 2: Named.")]
+        crop = [{**figs(blocks)[0], "caption": pid(3)}]
+        self.assertEqual(warned(blocks, figures=crop), {pid(3): "no_crop: no crop beside this caption"})
+        self.assertEqual(warned(blocks, figures=crop, named={pid(1)}), {pid(2): "no_crop: no crop beside this caption"})
+
 
 class Overlay(unittest.TestCase):
     def test_png_with_numbered_crops_caption_and_second_opinion(self):

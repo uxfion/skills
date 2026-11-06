@@ -27,7 +27,7 @@ from ocrlib import checks, cli, conventions, figures  # noqa: E402
 from ocrlib.cli import Stop  # noqa: E402
 
 FORMAT = 3               # the record's layout; a record of another format is parsed anew
-RENDER = 3               # the Markdown's layout
+RENDER = 4               # the Markdown's layout; commit reads an edited Markdown in the layout its first line names
 REFINE = 1               # bump when processing changes, so stored records are processed again (no GPU)
 CROP_DPI = 300
 IGNORED = {"number", "header", "header_image", "footer", "footer_image"}   # page furniture: in the record, not the Markdown
@@ -194,30 +194,34 @@ def page_of(ident: str) -> int:
 
 
 def fold(block: dict) -> dict:
-    """The block as it is now: its text and the rest as given, with every change applied in order. A text change
-    ("was" -> "now") whose "was" the text no longer holds exactly once is not applied: it is stale."""
-    state = {"text": block.get("text", ""), "level": None, "merged_into": None, "deleted": False, "stale": []}
+    """The block as it is now: its text, label and the rest as given, with every change applied in order. A text
+    change ("was" -> "now") whose "was" the text no longer holds exactly once is not applied: it is stale."""
+    state = {"text": block.get("text", ""), "label": block.get("label"), "level": None, "merged_into": None,
+             "deleted": False, "stale": []}
     for c in block.get("changes", []):
         if "was" in c:
             if state["text"].count(c["was"]) == 1:
                 state["text"] = state["text"].replace(c["was"], c["now"])
             else:
                 state["stale"].append(c)
-        for key in ("text", "level", "merged_into", "deleted"):
+        for key in ("text", "label", "level", "merged_into", "deleted"):
             if key in c:
                 state[key] = c[key]
     return state
 
 
 def fold_figure(fig: dict) -> dict:
-    """A figure as it is now: its box and whether it is hidden from its changes; its members as processing last
-    found them inside that box (the ids a change recorded are its history: a new parse can number blocks anew)."""
-    state = {"box": None, "members": [], "hidden": False}
+    """A figure as it is now: its box, the caption an agent or the user named for it, and whether it is hidden, from
+    its changes; its members as processing last found them inside that box (the ids a change recorded are its
+    history: a new parse can number blocks anew)."""
+    state = {"box": None, "members": [], "caption": None, "hidden": False}
     for c in fig.get("changes", []):
         if "box" in c:
             state.update(box=c["box"], hidden=False)
         if "members" in c:
             state["members"] = c["members"]
+        if "caption" in c:
+            state["caption"] = c["caption"]
         if "hidden" in c:
             state["hidden"] = c["hidden"]
     if "members" in fig:
@@ -238,7 +242,7 @@ def blocks_view(record: dict) -> list[dict]:
         s = fold(b)
         if s["deleted"]:
             continue
-        v = {"id": b["id"], "page": page_of(b["id"]), "label": b["label"], "text": s["text"], "box": b.get("box"),
+        v = {"id": b["id"], "page": page_of(b["id"]), "label": s["label"], "text": s["text"], "box": b.get("box"),
              "level": s["level"]}
         if target := s["merged_into"] or b.get("group"):
             v["merged_into"] = target
@@ -249,8 +253,8 @@ def blocks_view(record: dict) -> list[dict]:
 
 
 def figures_view(record: dict) -> list[dict]:
-    """The figures shown, as they are now: id, page, box, image, members, inside, caption, number, settled (an
-    agent or the user cut it)."""
+    """The figures shown, as they are now: id, page, box, image, members, inside, caption, number, named (an agent or
+    the user named its caption), settled (an agent or the user cut it or named its caption)."""
     out = []
     for f in record.get("figures", []):
         s = fold_figure(f)
@@ -258,6 +262,7 @@ def figures_view(record: dict) -> list[dict]:
             continue
         out.append({"id": f["id"], "page": page_of(f["id"]), "box": s["box"], "image": f["image"], "members": s["members"],
                     "inside": f.get("inside", []), "caption": f.get("caption"), "number": f.get("number", ""),
+                    "named": s["caption"] is not None and s["caption"] == f.get("caption"),
                     "settled": any(not c["by"].startswith("auto") for c in f.get("changes", []))})
     return out
 
@@ -306,8 +311,9 @@ def refine_figures(record: dict) -> None:
     """The figures, made again: the image blocks of a page that make up one figure put together (figures.group_page,
     by the second layout model's whole-figure boxes and the captions), every other image block a figure of its own,
     then the agent's and the user's changes put back. A figure keeps its id from one processing to the next: an id
-    of a figure someone changed wins, then any id it had, then its first image block's. Then each gets the blocks
-    inside its box (titles, labels: kept as the model read them, marked as the figure's) and its caption."""
+    of a figure someone changed wins, then any id it had, then its first image block's. Then each gets its caption,
+    the one an agent or the user named or else one found by place (figures.pair_captions, among the captions nobody
+    named), and the blocks inside its box (titles, labels: kept as the model read them, marked as the figure's)."""
     view = blocks_view({**record, "figures": []})
     charts = record["run"]["options"].get("charts", False)
     kinds = FIGURE_KINDS - ({"chart"} if charts else set())
@@ -362,10 +368,12 @@ def refine_figures(record: dict) -> None:
     made.sort(key=lambda f: (page_of(f["id"]), min([rank.get(m, 1e9) for m in fold_figure(f)["members"]] or [1e9]),
                              fold_figure(f)["box"][1]))
     sizes = {p["page"]: tuple(p["image_size"]) for p in record["pages"]}
-    shown = [{"id": f["id"], "page": page_of(f["id"]), "box": fold_figure(f)["box"], "image": f"imgs/{f['id']}.png",
-              "members": fold_figure(f)["members"]} for f in made if not fold_figure(f)["hidden"]]
-    captions = figures.pair_captions([b for b in view if b["box"]], shown, sizes)
     text = {b["id"]: b for b in view}
+    named = {f["id"]: c for f in made if not fold_figure(f)["hidden"] and (c := fold_figure(f)["caption"]) in text}
+    shown = [{"id": f["id"], "page": page_of(f["id"]), "box": fold_figure(f)["box"], "image": f"imgs/{f['id']}.png",
+              "members": fold_figure(f)["members"]} for f in made if not fold_figure(f)["hidden"] and f["id"] not in named]
+    captions = figures.pair_captions([b for b in view if b["box"] and b["id"] not in named.values()], shown, sizes)
+    captions.update(named)
     members = {m for f in made for m in fold_figure(f)["members"]}
     taken = set(captions.values()) | members
     for f in made:
@@ -453,7 +461,8 @@ def migrate(old: dict, new: dict) -> int:
 def check(record: dict, src: dict | None, folder: Path) -> dict:
     """Run the text-layer checks and the figure check on the record as it is now, and keep the conclusions an agent
     or the user reached: a finding judged "ok" or "unresolved" stays so while what it reports is among what was seen
-    then, and opens again when there is more. Returns what changed: {"gone", "new", "reopened"}."""
+    then, and opens again when there is more. With the source at hand, the record keeps the checks' version as the
+    one that made its findings. Returns what changed: {"gone", "new", "reopened"}."""
     view = blocks_view(record)
     figs = figures_view(record)
     infos = {p["page"]: p for p in record["pages"]}
@@ -493,7 +502,8 @@ def check(record: dict, src: dict | None, folder: Path) -> dict:
         layout_of = lambda p: None if infos[p].get("layout") is None else \
             [{"label": r[0], "score": r[1], "box": r[2:6]} for r in infos[p]["layout"]]
         found += figures.figure_findings(view, figs, sizes, layers, text_in, image_of, layout_of,
-                                         frozenset(f["id"] for f in figs if f["settled"]))
+                                         frozenset(f["id"] for f in figs if f["settled"]),
+                                         frozenset(f["id"] for f in figs if f["named"]))
     for lost in record.get("lost", []):
         c = lost["change"]
         found.append({"id": f"stale_edit@{lost['block']}", "code": "stale_edit", "page": page_of(lost["block"]),
@@ -505,6 +515,8 @@ def check(record: dict, src: dict | None, folder: Path) -> dict:
                           "items": [c["was"] for c in stale],
                           "detail": "; ".join(f"{c['was']!r} -> {c['now']!r} no longer matches the text" for c in stale)})
     record["checks"] = status
+    if src is not None:
+        record["run"].setdefault("versions", {})["checks"] = checks.VERSION
     return merge_findings(record, found)
 
 
@@ -669,10 +681,12 @@ def fixed_note(changes: list) -> str | None:
     return f"<!-- fixed: {joined} -->" if joined else "<!-- fixed -->"
 
 
-def pieces(record: dict) -> list[dict]:
+def pieces(record: dict, layout: int = RENDER) -> list[dict]:
     """The Markdown as pieces, in order: {"kind", "text", "owners"}. Kinds: manifest, page, figure / end (the figure
     markers), image (a figure's image line), block (owners: the block, then any formula numbers joined to it), note
-    (a finding's), fixed (the reason for an edit), info (a table's continuation)."""
+    (a finding's), fixed (the reason for an edit), info (a table's continuation). Every figure shown has its image
+    line: with its first image block, else right after its opening marker (layout 4; layout 3 wrote none for a
+    figure whose blocks hold no image)."""
     options = record["run"]["options"]
     view = blocks_view(record)
     by_id = {b["id"]: b for b in view}
@@ -734,15 +748,28 @@ def pieces(record: dict) -> list[dict]:
             elif fid not in done:
                 done.add(fid)
                 inner = [x for x in order if fig_of.get(x["id"]) == fid]
+                has_image = layout < 4 or any(x.get("figure") == fid for x in inner)
                 # markers only around a figure with more than its image: text the model read in it, other panels
-                bare = len(inner) == 1 and not (options.get("figure_text") and inner[0]["text"].strip())
-                seq += inner if bare else [{"start": fid}, *inner, {"end": fid}]
+                bare = len(inner) == 1 and has_image and not (options.get("figure_text") and inner[0]["text"].strip())
+                seq += inner if bare else [{"start": fid, "image": not has_image}, *inner, {"end": fid}]
         for f in figs:
             if page_of(f["id"]) == page and f["id"] not in done:
                 box, row = fold_figure(f)["box"], figures.ROW * info["image_size"][1]
                 at = next((i for i, x in enumerate(seq) if "id" in x and x["box"] and x["box"][1] >= box[1] - row
                            and min(x["box"][2], box[2]) > max(x["box"][0], box[0])), len(seq))
                 seq.insert(at, {"start": f["id"], "bare": True})
+        if layout >= 4:
+            # a paragraph added after a figure follows it: its last line here, the end marker, its image line alone,
+            # or its one block shown without markers
+            here = {f["id"] for f in figs if page_of(f["id"]) == page}
+            after = {x["id"]: a for x in seq if "id" in x and (a := raw.get(x["id"], {}).get("added", {}).get("after")) in here}
+            if after:
+                seq = [x for x in seq if x.get("id") not in after]
+                for fid in dict.fromkeys(after.values()):
+                    ends = [i for i, x in enumerate(seq) if fid in (x.get("end"), x.get("bare") and x.get("start"),
+                                                                     fig_of.get(x.get("id")))]
+                    at = ends[-1] + 1 if ends else len(seq)
+                    seq[at:at] = [by_id[i] for i, a in after.items() if a == fid]
         figure = {f["id"]: f for f in figs}
         imaged, started = set(), set()
         for k, x in enumerate(seq):
@@ -757,6 +784,8 @@ def pieces(record: dict) -> list[dict]:
                     continue
                 number = f" ({f['number']})" if f.get("number") else ""
                 out.append({"kind": "figure", "text": f"<!-- figure {f['id']}{number} -->", "owners": [f["id"]]})
+                if x.get("image"):                         # no image block among its blocks: its image line first
+                    out.append({"kind": "image", "text": f"![{f.get('number', '')}]({f['image']})", "owners": [f["id"]]})
                 continue
             if "end" in x:
                 out.append({"kind": "end", "text": f"<!-- end figure {x['end']} -->", "owners": [x["end"]]})
@@ -802,14 +831,14 @@ def pieces(record: dict) -> list[dict]:
     return head + out
 
 
-def manifest(record: dict, body: str) -> str:
+def manifest(record: dict, body: str, layout: int = RENDER) -> str:
     src = record["source"]
     found = record.get("findings", [])
     covered_pages = [p["coverage"] for p in record["pages"] if p.get("coverage") is not None]
     shown = figures_view(record)
     checked = [f for f in shown if f["caption"] and not f["settled"]] if record.get("checks") == "ok" else []
     name = src["file"] if re.fullmatch(r"[^\s\"]+", src["file"]) else json.dumps(src["file"], ensure_ascii=False)
-    fields = [f"render={RENDER}", f"source={name}", f"sha256={src['sha256'][:8]}",
+    fields = [f"render={layout}", f"source={name}", f"sha256={src['sha256'][:8]}",
               f"pages={format_pages(src['pages'])}/{src['page_count']}", f"checks={record.get('checks', 'skipped:not_run')}",
               f"coverage={min(covered_pages):.2f}" if covered_pages else "coverage=none",
               f"figures={len(shown)}", f"figures_checked={len(checked)}",
@@ -822,9 +851,9 @@ def body_hash(body: str) -> str:
     return hashlib.sha256(body.encode("utf-8")).hexdigest()[:12]
 
 
-def markdown(record: dict) -> tuple[str, list[dict]]:
-    """The Markdown, and its pieces with each one's first line (the manifest's is 0)."""
-    ps = pieces(record)
+def markdown(record: dict, layout: int = RENDER) -> tuple[str, list[dict]]:
+    """The Markdown in a layout, and its pieces with each one's first line (the manifest's is 0)."""
+    ps = pieces(record, layout)
     for p in ps:
         if p["kind"] == "block" and "imgs/img_in_" in p["text"]:
             p["text"] = table_paths(p["text"], record)
@@ -835,7 +864,7 @@ def markdown(record: dict) -> tuple[str, list[dict]]:
         lines.append(p["text"])
         at += n + 1
     body = "\n\n".join(lines) + "\n"
-    return manifest(record, body) + "\n\n" + body, ps
+    return manifest(record, body, layout) + "\n\n" + body, ps
 
 
 def format_pages(pages: list[int]) -> str:
@@ -917,8 +946,8 @@ INFO = re.compile(r"<!-- table \S+ continues on page [\d, ]+ -->")
 IMAGE_LINE = re.compile(r"!\[[^\]]*\]\((imgs/[^)]+)\)")
 
 
-def render_text(record: dict) -> tuple[str, list[dict]]:
-    return markdown(record)
+def render_text(record: dict, layout: int = RENDER) -> tuple[str, list[dict]]:
+    return markdown(record, layout)
 
 
 def edited(folder: Path, record: dict) -> bool:
@@ -956,20 +985,21 @@ def edit_of(old: str, new: str) -> tuple[str, str]:
     return old[a:b], new[a:len(new) - (len(old) - b)]
 
 
-def content_of(label: str, piece: str, level) -> tuple[str, object]:
-    """A block's text, and its heading level, back from its piece of Markdown: PaddleOCR's rules undone."""
+def content_of(label: str, piece: str, level) -> tuple[str, object, str]:
+    """A block's text, heading level and label back from its piece of Markdown: PaddleOCR's rules undone. A heading
+    whose piece no longer opens with # is body text."""
     if label in ("paragraph_title", "abstract_title", "reference_title", "content_title", "doc_title"):
         m = re.match(r"(#+)\s*", piece)
         if m:
-            return piece[m.end():], (len(m.group(1)) - 1 if label == "paragraph_title" else level)
-        return piece, level
+            return piece[m.end():], (len(m.group(1)) - 1 if label == "paragraph_title" else level), label
+        return piece, None, "text"
     if label == "abstract":
-        return re.sub(r"## (摘要|abstract)\n", r"\1", piece, count=1, flags=re.I), level
+        return re.sub(r"## (摘要|abstract)\n", r"\1", piece, count=1, flags=re.I), level, label
     if label == "reference":
-        return re.sub(r"^## (参考文献|references)$", r"\1", piece, count=1, flags=re.I | re.M), level
+        return re.sub(r"^## (参考文献|references)$", r"\1", piece, count=1, flags=re.I | re.M), level, label
     if label == "content":
-        return piece.replace("  \n", "\n"), level
-    return piece, level
+        return piece.replace("  \n", "\n"), level, label
+    return piece, level, label
 
 
 def paragraphs(text: str) -> int:
@@ -983,8 +1013,10 @@ def refused(detail: str, hint: str) -> Stop:
 
 def commit(record: dict, text: str) -> list[str]:
     """Record the edits made to the Markdown `text` as changes, in place; returns one line per change made.
-    Raises edit_refused when an edit cannot be taken (a protected line changed, an image line edited, ...)."""
-    gen, ps = render_text(record)
+    Raises edit_refused when an edit cannot be taken (a protected line changed, an image line edited, ...). The
+    text is compared with the Markdown generated in the layout its first line names (render=N)."""
+    layout = int(m.group(1)) if (m := re.match(r"<!-- paddleocr render=(\d+) ", text)) else RENDER
+    gen, ps = render_text(record, layout)
     if text == gen:
         return []
     raw = {b["id"]: b for b in record["blocks"]}
@@ -1080,16 +1112,20 @@ def commit(record: dict, text: str) -> list[str]:
                 continue
             touched = sorted({go[gi[i]] for i in range(i1, i2) if go[gi[i]] is not None})
             if not touched:
-                # lines where no piece was: part of the paragraph they touch, else a block of their own
+                # lines where no piece was: part of the paragraph they touch, else a block of their own (an image
+                # line is no paragraph: text against it is a block of its own)
                 first, last = ci[j1], ci[j2 - 1]
                 prev_g, next_g = (gi[i1 - 1] if i1 > 0 else None), (gi[i1] if i1 < len(gi) else None)
-                if first > 0 and c[first - 1].strip() and prev_g is not None and go[prev_g] is not None:
+                paragraph = lambda x: x is not None and go[x] is not None and ps[go[x]]["kind"] == "block"
+                if first > 0 and c[first - 1].strip() and paragraph(prev_g):
                     touched = [go[prev_g]]
-                elif last + 1 < len(c) and c[last + 1].strip() and next_g is not None and go[next_g] is not None:
+                elif last + 1 < len(c) and c[last + 1].strip() and paragraph(next_g):
                     touched = [go[next_g]]
                 else:
-                    # a block of their own per paragraph, each with the reason written above it
-                    before = next((go[gi[i]] for i in range(i1 - 1, -1, -1) if go[gi[i]] is not None), None)
+                    # a block of their own per paragraph, each with the reason written above it, after the piece
+                    # before them: in this region, else the page or figure marker that opens it
+                    before = next((go[gi[i]] for i in range(i1 - 1, -1, -1) if go[gi[i]] is not None),
+                                  owner[g0] if g0 >= 0 else None)
                     start = None
                     for j in range(first, last + 2):
                         if j <= last and c[j].strip():
@@ -1118,6 +1154,10 @@ def commit(record: dict, text: str) -> list[str]:
             whys = [w for j in range(c0 + 1 + a, c0 + 1 + max(a + 1, b)) for w in why_at.get(j, [])]
             edits[tuple(ks)] = ("\n".join(c[a:b]), whys)
 
+    if any(IMAGE_LINE.search(new) for _, _, new, _ in inserts):
+        raise refused("an image line was added, or a paragraph moved across one (which reads the same)",
+                      "Cut figures with ocr.py cut. To move a paragraph past an image line, delete it and commit, then "
+                      "write it in its new place and commit again.")
     for ks, (new, whys) in edits.items():
         group = [ps[k] for k in ks]
         for p in (p for p in group if p["kind"] == "image"):
@@ -1132,6 +1172,11 @@ def commit(record: dict, text: str) -> list[str]:
                 log.append(f"{fid}: figure hidden (its image line was deleted); bring it back with ocr.py cut")
         group = [p for p in group if p["kind"] == "block"]
         if not group:
+            if new.strip():
+                fid = next(p["owners"][0] for p in (ps[k] for k in ks) if p["kind"] == "image")
+                raise refused(f"text was written in the place of the image line of figure {fid}",
+                              "Keep the image line, or delete it alone to hide the figure, and write the text as a "
+                              "paragraph of its own, with blank lines around it.")
             continue
         if IMAGE_LINE.search(new) and not any(IMAGE_LINE.search(p["text"]) for p in group):
             raise refused("an image line was added", "Cut figures with ocr.py cut.")
@@ -1154,6 +1199,7 @@ def commit(record: dict, text: str) -> list[str]:
         # The edit as it shows in the Markdown, when the block's text holds what it changed exactly once; else the
         # block's text rebuilt from its piece by undoing PaddleOCR's rule.
         was, now_ = edit_of(group[0]["text"], new) if len(group) == 1 else ("", "")
+        label = b["label"]
         if was and b["text"].count(was) == 1:
             text, level, rest = b["text"].replace(was, now_), b["level"], []
         elif len(group) == 1 and len(group[0]["owners"]) > 1:
@@ -1164,24 +1210,28 @@ def commit(record: dict, text: str) -> list[str]:
             else:
                 text, level = new, b["level"]
         else:
-            text, level = content_of(b["label"], new, b["level"])
+            text, level, label = content_of(b["label"], new, b["level"])
         change = {"by": "agent", "at": now()}
         if text != b["text"]:
             was, now_ = edit_of(b["text"], text)
             change.update(was=was, now=now_)
+        if label != b["label"]:
+            change["label"] = label
         if level != b["level"]:
             change["level"] = level
         if len(change) > 2:
             change["why"] = why
             raw[first].setdefault("changes", []).append(change)
-            log.append(f"{first}: " + (f"{change['was'][:60]!r} -> {change['now'][:60]!r}" if "was" in change else f"level {level}"))
+            log.append(f"{first}: " + (f"{change['was'][:60]!r} -> {change['now'][:60]!r}" if "was" in change
+                                       else f"now {label}" if "label" in change else f"level {level}"))
         for o in rest:
             raw[o].setdefault("changes", []).append({"by": "agent", "at": now(), "deleted": True, "why": why})
             log.append(f"{o}: deleted, its text now in {first}")
 
     for page, before, new, whys in inserts:
-        anchor = ps[before]["owners"][0] if before is not None and ps[before]["kind"] in ("block",) else f"p{page}"
-        n = 1 + max([int(m.group(1)) for b in record["blocks"] if (m := re.fullmatch(rf"p{page}-n(\d+)", b["id"]))] + [0])
+        # after the block above it, or after the figure whose image line or marker is above it, else first on the page
+        kind = ps[before]["kind"] if before is not None else "page"
+        anchor = ps[before]["owners"][0] if kind in ("block", "image", "figure", "end") else f"p{page}"
         label, text, level = "text", new, None
         if new.lstrip().startswith("<table"):
             label = "table"
@@ -1189,8 +1239,8 @@ def commit(record: dict, text: str) -> list[str]:
             label = "display_formula"
         elif m := re.match(r"(#+)\s+", new):
             label, text, level = "paragraph_title", new[m.end():], len(m.group(1)) - 1
-        block = {"id": f"p{page}-n{n}", "label": label, "added": {"by": "agent", "at": now(), "after": anchor,
-                                                                  "why": "; ".join(w for w in whys if w)}, "text": text}
+        block = {"id": new_id(record, page, "n"), "label": label,
+                 "added": {"by": "agent", "at": now(), "after": anchor, "why": "; ".join(w for w in whys if w)}, "text": text}
         if level is not None:
             block["changes"] = [{"by": "agent", "level": level}]
         at = next((i + 1 for i, b in enumerate(record["blocks"]) if b["id"] == anchor), None)
@@ -1201,6 +1251,14 @@ def commit(record: dict, text: str) -> list[str]:
         record["blocks"].insert(at, block)
         log.append(f"{block['id']}: new {label} after {anchor}")
     return log
+
+
+def new_id(record: dict, page: int, kind: str) -> str:
+    """The id of a new block (kind "n": p3-n1) or of a new figure cut on a page (kind "cut": p3-cut1): one past the
+    highest such id that any block or figure of the page holds, so that a block and a figure never share an id."""
+    pattern = re.compile(rf"p{page}-{kind}(\d+)")
+    held = [int(m.group(1)) for x in record["blocks"] + record.get("figures", []) if (m := pattern.fullmatch(x["id"]))]
+    return f"p{page}-{kind}{1 + max(held + [0])}"
 
 
 def new_why(whys: list[str], changes: list) -> str:
@@ -1316,7 +1374,7 @@ def show(folder: Path, record: dict, src: dict | None, what: str, box=None, dpi:
                                      ("changed", any(not c["by"].startswith("auto") for c in b.get("changes", []))),
                                      (f"in figure {view.get(b['id'], {}).get('figure')}", view.get(b["id"], {}).get("figure"))) if on]
             box_s = to_source(info, b["box"]) if b.get("box") else None
-            out.append(f"{b['id']:9} {b['label']:17} {box_s} {' '.join(s['text'].split())[:70]!r} {', '.join(flags)}")
+            out.append(f"{b['id']:9} {s['label']:17} {box_s} {' '.join(s['text'].split())[:70]!r} {', '.join(flags)}")
         for f in figs.values():
             if f["page"] == page:
                 out.append(f"figure {f['id']} {f['number'] or ''} box {to_source(info, f['box'])} {f['image']}")
@@ -1371,7 +1429,7 @@ def show(folder: Path, record: dict, src: dict | None, what: str, box=None, dpi:
                    hint="ocr.py findings DIR lists the findings; ocr.py show DIR p<N> lists a page's blocks and figures.")
     b, s = raw[ident], fold(raw[ident])
     info = infos[page_of(ident)]
-    out.append(f"block {ident} {b['label']} box {to_source(info, b['box']) if b.get('box') else None}"
+    out.append(f"block {ident} {s['label']} box {to_source(info, b['box']) if b.get('box') else None}"
                + (" (deleted)" if s["deleted"] else ""))
     for c in b.get("changes", []):
         out.append(f"change {json.dumps(c, ensure_ascii=False)}")
@@ -1425,9 +1483,15 @@ def bad_box(box: list, page: int) -> Stop:
                      "gives the boxes of the page's blocks.")
 
 
-def set_figure(record: dict, ident: str | None, page: int | None, box: list, why: str) -> str:
-    """An agent's box for a figure, or a new figure (id p<page>-n<k>) for one the parse lacks; returns its id."""
+def set_figure(record: dict, ident: str | None, page: int | None, box: list | None, why: str,
+               caption: str | None = None) -> str:
+    """An agent's box for a figure, or a new figure (id p<page>-cut<k>) for one the parse lacks, and the block that is
+    its caption when the agent names one (box None: the caption alone); returns its id."""
     infos = {p["page"]: p for p in record["pages"]}
+    if caption and caption not in {b["id"] for b in blocks_view(record)}:
+        raise Stop("not_found", detail=f"no block {caption} to be the caption",
+                   hint="ocr.py show DIR p<N> lists a page's blocks. A caption the parse lost: write it into the "
+                        "Markdown as a paragraph of its own, commit, and name the block id commit's line gives it.")
     if ident:
         fig = next((f for f in record.get("figures", []) if f["id"] == ident), None)
         if fig is None:
@@ -1439,20 +1503,23 @@ def set_figure(record: dict, ident: str | None, page: int | None, box: list, why
         page = page_of(ident)
     elif page not in infos:
         raise not_parsed(page)
-    info = infos[page]
-    w, h = info["image_size"]
-    x1, y1, x2, y2 = to_engine(info, box)
-    ebox = [max(0, x1), max(0, y1), min(w, x2), min(h, y2)]
-    if ebox[2] - ebox[0] < 4 or ebox[3] - ebox[1] < 4:
-        raise bad_box(box, page)
-    kinds = FIGURE_KINDS - ({"chart"} if record["run"]["options"].get("charts") else set())
-    members = covered_images(blocks_view({**record, "figures": []}), page, ebox, kinds)
+    change = {"by": "agent", "at": now()}
+    if box is not None:
+        info = infos[page]
+        w, h = info["image_size"]
+        x1, y1, x2, y2 = to_engine(info, box)
+        ebox = [max(0, x1), max(0, y1), min(w, x2), min(h, y2)]
+        if ebox[2] - ebox[0] < 4 or ebox[3] - ebox[1] < 4:
+            raise bad_box(box, page)
+        kinds = FIGURE_KINDS - ({"chart"} if record["run"]["options"].get("charts") else set())
+        change.update(box=ebox, members=covered_images(blocks_view({**record, "figures": []}), page, ebox, kinds))
+    if caption:
+        change["caption"] = caption
     if not ident:
-        n = 1 + max([int(m.group(1)) for f in record.get("figures", []) if (m := re.fullmatch(rf"p{page}-n(\d+)", f["id"]))] + [0])
-        ident = f"p{page}-n{n}"
+        ident = new_id(record, page, "cut")
         fig = {"id": ident, "image": f"imgs/{ident}.png", "changes": []}
         record.setdefault("figures", []).append(fig)
-    fig.setdefault("changes", []).append({"by": "agent", "at": now(), "box": ebox, "members": members, "why": why})
+    fig.setdefault("changes", []).append({**change, "why": why})
     return ident
 
 
@@ -1536,10 +1603,16 @@ def box_value(text: str) -> list[float]:
 
 
 def warn_unrecorded(folder: Path, record: dict) -> None:
-    """A read-only command: the Markdown's edits that commit has not recorded are not in what it reads."""
+    """A read-only command: the Markdown's edits that commit has not recorded are not in what it reads; a record that
+    older code processed or checked holds findings and figures the current code may not make."""
     if edited(folder, record):
         cli.log(f"[paddleocr] the Markdown holds edits not committed yet, left out here; "
                 f"{cli.prog('commit')} {folder} records them")
+    had = record["run"].get("versions") or {}
+    if older := [f"{k} {had.get(k)}, now {v}" for k, v in versions().items() if had.get(k) != v]:
+        cli.log(f"[paddleocr] older code processed or checked this parse ({'; '.join(older)}), so its findings and "
+                f"figures may not be the current code's; {cli.prog('render')} {folder} processes and checks it again, "
+                "keeping the edits and verdicts")
 
 
 def cmd_findings(argv):
@@ -1566,7 +1639,8 @@ A finding is settled by a fix in the Markdown or a verdict on its note, then ocr
 
 stdout: {id, status: open | unresolved | ok, page, note}, open ones first; page is null for the whole document; note
 is the open note's text, or the reason given with the verdict. Read-only: when the Markdown holds edits not committed
-yet, stderr says so, and the lines leave them out.
+yet, stderr says so, and the lines leave them out; when older code processed or checked the parse, stderr says so and
+names the render that brings it up to date.
 Exit 0 = listed, none or many; 1 = the folder is no parse: one line {folder, code, hint}, code file_not_found,
 no_record or old_format.
 
@@ -1588,7 +1662,7 @@ Example:
 def cmd_show(argv):
     """A finding, block, figure or page of a parse, for reading: its text, the text layer under it, a page image.
 
-WHAT is a finding id (missing_text@p3), a block id (p4-12), a figure id (p6-4, p6-n1) or a page (p4):
+WHAT is a finding id (missing_text@p3), a block id (p4-12), a figure id (p6-4, p6-cut1) or a page (p4):
   finding  the finding in full, then its block as below; a figure_check: its crops and the second opinion as boxes,
            and an overlay image (caption blue, crops numbered, second opinion green dashed)
   block    its label, box and changes, its text, the text layer under its box with the pdftotext command for that
@@ -1601,7 +1675,8 @@ them), image pixels, or for --photo the pixels of pages/. Coordinates start at 0
 cut to the page, so no box needs a negative number.
 
 Images go to $TMPDIR/paddleocr-show/<stem>-<hash>/, named in the output; whoever runs show deletes that folder when
-done. Read-only: when the Markdown holds edits not committed yet, stderr says so, and the output leaves them out.
+done. Read-only: when the Markdown holds edits not committed yet, stderr says so, and the output leaves them out;
+when older code processed or checked the parse, stderr says so and names the render that brings it up to date.
 
 stdout: text for reading. Exit 0 = shown; 1 = nothing shown, and stderr's last line {folder, code, hint} says why:
 not_found (WHAT is not in the parse, or its page was not parsed), source_not_found (--box needs the source),
@@ -1634,9 +1709,10 @@ def cmd_commit(argv):
     """Record the edits and verdicts made in a parse's Markdown, check again, and write the Markdown anew.
 
 Editing <stem>.md before commit:
-  - change text anywhere in a block; an edit across blocks keeps the new text in the first and deletes the rest; a
-    paragraph of its own (blank lines around it) becomes a new block, and a line added without a blank line joins the
-    paragraph it touches; put <!-- fixed: why --> on the line above each edited block
+  - change text anywhere in a block; a heading whose leading #s you delete becomes body text; an edit across blocks
+    keeps the new text in the first and deletes the rest; a paragraph of its own (blank lines around it) becomes a new
+    block, and a line added without a blank line joins the paragraph it touches; put <!-- fixed: why --> on the line
+    above each edited block
   - settle a finding: change "open" in its note to "ok" (the parse is right, or it is a false alarm) or "unresolved"
     (wrong, and it cannot be fixed), with the reason after the colon
   - delete a figure's image line to hide it; cut figures with ocr.py cut
@@ -1672,45 +1748,58 @@ Example:
 
 
 def cmd_cut(argv):
-    """Cut a figure of a parse anew from a box, or make a new one on a page, for a figure read as text or missed.
+    """Cut a figure of a parse anew, make a new one on a page, or name the block that is a figure's caption.
 
-WHAT is a figure id (p6-4), cut anew to the box, or a page (p6), on which a new figure (p6-n1) is made. The image
-blocks inside the box become part of the figure, so a figure split into several crops is whole again once any of them
-is cut to the whole box; the text the model read from it stays. Markdown edits not recorded yet are committed first.
+WHAT is a figure id (p6-4), cut anew to --box, or a page (p6), on which --box makes a new figure (p6-cut1), for one
+read as text or missed. The image blocks inside the box become part of the figure, so a figure split into several
+crops is whole again once any of them is cut to the whole box; the text the model read from it stays. A figure id
+takes --box, --caption or both; a page takes --box. Markdown edits not recorded yet are committed first.
 Boxes are in source units from the page's top left: PDF points (as pdftotext -x -y -W -H takes them), image pixels,
 or for --photo the pixels of pages/; ocr.py show gives them.
 
-stdout: one line {folder, code: ok, figure, image, recorded, gone, new, reopened}, the last four as commit's: view the
-image, and cut again until it holds the whole figure and no caption or body text.
-Exit 0 = cut; 1 = the line's code says what is wrong: not_found (no such figure, a block that is no figure, or a page
-not parsed), edit_refused, source_not_found, source_mismatch, or the folder is no parse (file_not_found, no_record,
-old_format); 2 = stderr's last line {code, hint}: bad_box, locked, or --source names no file (file_not_found) or
-another file (source_mismatch).
+A figure's caption, and the number it gives the figure, is found by place: the caption nearest the figure, which can
+be another figure's. --caption names it instead: a caption block, or a caption you restored from the text layer as a
+paragraph of its own and committed (commit's line gives its block id). No other figure is paired with a named caption.
+
+stdout: one line {folder, code: ok, figure, image, caption, number, recorded, gone, new, reopened}, the last four as
+commit's; caption is the block id of the figure's caption (null when it has none), number the figure number it
+gives. View the image, and cut again until it holds the whole figure and no caption or body text; when caption or
+number is another figure's, name the right one with --caption.
+Exit 0 = cut; 1 = the line's code says what is wrong: not_found (no such figure, a block that is no figure, no block
+--caption names, or a page not parsed), edit_refused, source_not_found, source_mismatch, or the folder is no parse
+(file_not_found, no_record, old_format); 2 = stderr's last line {code, hint}: usage (no --box nor --caption, or a page
+without --box), bad_box, locked, or --source names no file (file_not_found) or another file (source_mismatch).
 
 Examples:
   ocr.py cut /abs/out/paper p6-4 --box 50,80,550,400 --reason "cut off the legend"
-  ocr.py cut /abs/out/paper p6 --box 50,80,550,400 --reason "read as text"
+  ocr.py cut /abs/out/paper p6 --box 50,80,550,400 --caption p6-n1 --reason "read as text; caption from the text layer"
+  ocr.py cut /abs/out/paper p6-cut1 --caption p6-12
 """
     def configure(p):
         p.add_argument("what", metavar="WHAT", help="a figure id (p6-4), or a page (p6) for a new figure")
-        p.add_argument("--box", type=box_value, metavar="X1,Y1,X2,Y2", required=True, help="the figure's whole extent")
+        p.add_argument("--box", type=box_value, metavar="X1,Y1,X2,Y2", help="the figure's whole extent")
+        p.add_argument("--caption", metavar="BLOCK", help="the block id of the figure's caption")
         p.add_argument("--reason", metavar="TEXT", default="", help="what was wrong, kept with the change")
-    _, args, folder = command("cut", cmd_cut.__doc__, argv, configure)
+    p, args, folder = command("cut", cmd_cut.__doc__, argv, configure)
+    page = int(m.group(1)) if (m := re.fullmatch(r"p(\d+)", args.what)) else None
+    if args.box is None and (page or not args.caption):
+        p.error("a page takes --box" if page else "name --box, --caption or both",
+                hint=f"{cli.prog('show')} {args.folder} {args.what} gives the boxes; {cli.prog('cut')} -h says more.")
 
     def go():
         record = load(folder)
         src = source_of(record, args.source, need=True, folder=folder)
-        page = int(m.group(1)) if (m := re.fullmatch(r"p(\d+)", args.what)) else None
         with locked(folder):
             fields = settle_edits(folder, record, src)
-            ident = set_figure(record, None if page else args.what, page, args.box, args.reason)
+            ident = set_figure(record, None if page else args.what, page, args.box, args.reason, args.caption)
             refine_figures(record)
             moves = check(record, src, folder)
             write_images(record, src, folder)
             text, _ = render_text(record)
             save(folder, record, text)
+        fig = next(f for f in record["figures"] if f["id"] == ident)
         cli.emit({"folder": str(folder), "code": "ok", "figure": ident, "image": str(folder / "imgs" / f"{ident}.png"),
-                  **tally(fields, moves)})
+                  "caption": fig.get("caption"), "number": fig.get("number", ""), **tally(fields, moves)})
         return cli.OK
     return cli.run(go, folder=str(folder))
 

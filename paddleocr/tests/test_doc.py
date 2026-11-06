@@ -99,7 +99,7 @@ class Markdown(unittest.TestCase):
 
     def test_manifest_and_pages(self):
         first = self.text.split("\n", 1)[0]
-        self.assertTrue(first.startswith("<!-- paddleocr render=3 source=synthetic.pdf "))
+        self.assertTrue(first.startswith("<!-- paddleocr render=4 source=synthetic.pdf "))
         self.assertIn("pages=1-3,5/5", first)
         self.assertEqual([p["text"] for p in self.pieces if p["kind"] == "page"],
                          ["<!-- page 1 -->", "<!-- page 2 -->", "<!-- page 3 -->", "<!-- page 5 -->"])
@@ -219,6 +219,16 @@ class Commit(unittest.TestCase):
         self.assertEqual(changes(r, "p2-7")[0]["level"], 2)
         self.assertIn("\n### 2 Results\n", D.render_text(r)[0])
 
+    def test_a_heading_made_plain_text_is_body_text(self):
+        # 2026-11, CycleGAN: the end of a sentence read as a heading ("important problem for future work.")
+        r = record()
+        self.edit(r, "## 2 Results", "<!-- fixed: running text, not a heading -->\n2 Results")
+        self.assertEqual([(c.get("label"), c["why"]) for c in changes(r, "p2-7")], [("text", "running text, not a heading")])
+        text = D.render_text(r)[0]
+        self.assertIn("\n2 Results\n", text)
+        self.assertNotIn("## 2 Results", text)
+        self.assertEqual(D.commit(r, text), [])
+
     def test_edit_across_blocks_goes_to_the_first(self):
         r = record()
         self.edit(r, "Ann Author, Bob Writer\n\n## Abstract", "Ann Author, Bob Writer. Abstract")
@@ -251,6 +261,29 @@ class Commit(unittest.TestCase):
         algorithm["text"] = "Algorithm 1 Search\n\n1: for each node do\n2:   expand it\n"
         self.edit(r, "for each node", "for every node")
         self.assertEqual([(c["was"], c["now"]) for c in changes(r, "p3-5")], [("each", "every")])
+
+    def test_text_against_an_image_line_is_never_lost(self):
+        # a caption typed right under a figure's image line, no blank line between: commit dropped it (2026-11)
+        r = record()
+        self.edit(r, "![](imgs/p5-5.png)\n", "![](imgs/p5-5.png)\nFig. 2. A caption the parse lost.\n")
+        self.assertEqual([(b["id"], b["text"], b["added"]["after"]) for b in r["blocks"] if b.get("added")],
+                         [("p5-n1", "Fig. 2. A caption the parse lost.", "p5-5")])
+        self.assertIn("![](imgs/p5-5.png)\n\nFig. 2. A caption the parse lost.\n\nA figure without", D.render_text(r)[0])
+        with self.assertRaises(D.Stop) as refused:                     # text in the image line's place
+            self.edit(record(), "![](imgs/p5-5.png)\n", "Fig. 2. A caption the parse lost.\n")
+        self.assertEqual(refused.exception.code, "edit_refused")
+
+    def test_a_paragraph_after_a_figure_stays_after_it(self):
+        # 2026-11, USRMamba p.11 and CycleGAN p.7: captions restored under their figures came out at the page's top
+        r = record()
+        self.edit(r, "<!-- end figure p2-2 -->\n", "<!-- end figure p2-2 -->\n\nA paragraph after the figure.\n")
+        self.assertEqual([b["added"]["after"] for b in r["blocks"] if b.get("added")], ["p2-2"])
+        self.assertIn("<!-- end figure p2-2 -->\n\nA paragraph after the figure.\n\nFig. 1 |", D.render_text(r)[0])
+        D.set_figure(r, None, 3, [50, 360, 560, 740], "")              # a figure without blocks, placed by its box
+        D.refine_figures(r)
+        self.edit(r, "![](imgs/p3-cut1.png)\n", "![](imgs/p3-cut1.png)\n\nFig. 3. Restored from the text layer.\n")
+        self.assertIn("![](imgs/p3-cut1.png)\n\nFig. 3. Restored from the text layer.\n\n", D.render_text(r)[0])
+        self.assertEqual(D.commit(r, D.render_text(r)[0]), [])
 
     def test_a_line_without_a_blank_joins_its_paragraph(self):
         r = record()
@@ -285,8 +318,10 @@ class Commit(unittest.TestCase):
         self.assertNotIn("imgs/p2-2.png", D.render_text(r)[0])
 
     def test_markers_are_protected(self):
+        # an image line as a paragraph of its own: 2026-11, USRMamba, where it became a text block
         for old, new in (("<!-- page 3 -->", "<!-- page 4 -->"), ("<!-- end figure p2-2 -->\n", ""),
-                         ("A figure without", "![x](imgs/mine.png)\nA figure without")):
+                         ("A figure without", "![x](imgs/mine.png)\nA figure without"),
+                         ("reference [1].\n", "reference [1].\n\n![Fig. 2](imgs/p3-n1.png)\n")):
             with self.assertRaises(D.Stop) as refused:
                 self.edit(record(), old, new)
             self.assertEqual(refused.exception.code, "edit_refused")
@@ -369,9 +404,39 @@ class Figures(unittest.TestCase):
     def test_new_figure_on_a_page(self):
         r = record()
         ident = D.set_figure(r, None, 3, [50, 260, 560, 350], "the parse read it as text")
-        self.assertEqual(ident, "p3-n1")
+        self.assertEqual(ident, "p3-cut1")
         fig = next(f for f in r["figures"] if f["id"] == ident)
         self.assertEqual(D.fold_figure(fig)["box"], [100, 520, 1120, 700])
+
+    def test_a_figure_cut_over_text_alone_has_its_image_line(self):
+        # 2026-11, USRMamba p.9: figures cut from a crop of four held the model's labels but no image block
+        r = record()
+        ident = D.set_figure(r, None, 5, [45, 80, 565, 155], "a legend and a list drawn as text")
+        D.refine_figures(r)
+        text = D.render_text(r)[0]
+        part = text.split(f"<!-- figure {ident} -->")[1].split(f"<!-- end figure {ident} -->")[0]
+        self.assertIn(f"![](imgs/{ident}.png)", part)
+        self.assertIn("Arrow indicates", part)
+        self.assertIn("1 Intro", part)
+        # a Markdown written in layout 3 had no image line there: edited and committed, the figure stays shown
+        old = D.render_text(r, 3)[0]
+        self.assertNotIn(f"imgs/{ident}.png", old)
+        edited = old.replace("A page after a gap", "A page after the gap")
+        hidden = copy.deepcopy(r)                                  # read as layout 4, the missing line is a deletion
+        D.commit(hidden, edited.replace("render=3 ", "render=4 "))
+        self.assertTrue(D.fold_figure(next(f for f in hidden["figures"] if f["id"] == ident))["hidden"])
+        D.commit(r, edited)
+        self.assertFalse(D.fold_figure(next(f for f in r["figures"] if f["id"] == ident))["hidden"])
+        self.assertIn(f"![](imgs/{ident}.png)", D.render_text(r)[0])
+
+    def test_new_blocks_and_new_figures_never_share_an_id(self):
+        # 2026-11, CycleGAN p.7: a figure cut on the page and the caption restored for it were both p7-n1
+        r = record()
+        r["figures"].append({"id": "p3-n1", "image": "imgs/p3-n1.png",       # a figure cut before figures had their own ids
+                             "changes": [{"by": "agent", "box": [100, 720, 1120, 780], "members": []}]})
+        D.commit(r, D.render_text(r)[0].replace("reference [1].\n", "reference [1].\n\nA dropped line.\n"))
+        self.assertEqual([b["id"] for b in r["blocks"] if b.get("added")], ["p3-n2"])
+        self.assertEqual(D.set_figure(r, None, 3, [50, 360, 560, 380], ""), "p3-cut1")
 
     def test_recut_takes_the_panels_inside(self):
         r = record()
@@ -488,13 +553,52 @@ class Commands(unittest.TestCase):
         code, out, err = self.run_word("cut", str(self.folder), "p3", "--box", "50,260,560,350", "--reason", "read as text")
         self.assertEqual(code, 0, err)
         line = json.loads(out)
-        self.assertEqual((line["code"], line["figure"], Path(line["image"]).is_file()), ("ok", "p3-n1", True))
+        self.assertEqual((line["code"], line["figure"], Path(line["image"]).is_file()), ("ok", "p3-cut1", True))
         r = json.loads((self.folder / "paper.json").read_text(encoding="utf-8"))
-        fig = next(f for f in r["figures"] if f["id"] == "p3-n1")
+        fig = next(f for f in r["figures"] if f["id"] == "p3-cut1")
         self.assertEqual((D.fold_figure(fig)["box"], fig["changes"][-1]["why"]), ([100, 520, 1120, 700], "read as text"))
         code, out, _ = self.run_word("cut", str(self.folder), "p3-2", "--box", "50,260,560,350")
         self.assertEqual((code, json.loads(out)["code"]), (1, "not_found"))
         self.assertIn("cut DIR p3 --box", json.loads(out)["hint"])
+
+    def test_a_named_caption_gives_its_figure_its_number(self):
+        """2026-11, CycleGAN p.7: Figure 7 and Figure 8 above one caption, Figure 8's. Cut apart, both were paired with
+        it; the agent restores Figure 7's caption from the text layer and names it."""
+        self.with_source()
+        self.edit_markdown("A chart of accuracy.\n", "A chart of accuracy.\n\nFig. 2. The chart alone.\n")
+        code, out, err = self.run_word("commit", str(self.folder))
+        self.assertEqual((code, json.loads(out)["recorded"]), (0, ["p2-n1: new text after p2-6"]), err)
+        self.run_word("cut", str(self.folder), "p2-2", "--box", "50,60,280,250")
+        code, out, err = self.run_word("cut", str(self.folder), "p2", "--box", "310,60,560,250")
+        line = json.loads(out)
+        self.assertEqual((code, line["figure"], line["caption"], line["number"]), (0, "p2-cut1", "p2-6", "Fig. 1"), err)
+        code, out, err = self.run_word("cut", str(self.folder), "p2-cut1", "--caption", "p2-n1")
+        line = json.loads(out)
+        self.assertEqual((code, line["caption"], line["number"]), (0, "p2-n1", "Fig. 2"), err)
+        code, out, err = self.run_word("objects", str(self.folder))
+        self.assertEqual({o["id"]: o["key"] for o in map(json.loads, out.splitlines()) if o["kind"] == "figure"},
+                         {"p2-2": "fig:1", "p2-cut1": "fig:2", "p5-5": None}, err)
+        text = (self.folder / "paper.md").read_text(encoding="utf-8")
+        self.assertIn("![Fig. 1](imgs/p2-2.png)", text)
+        self.assertIn("![Fig. 2](imgs/p2-cut1.png)", text)
+        code, out, _ = self.run_word("cut", str(self.folder), "p2-cut1", "--caption", "p2-n9")
+        self.assertEqual((code, json.loads(out)["code"]), (1, "not_found"))
+        code, _, err = self.run_word("cut", str(self.folder), "p2-cut1")
+        self.assertEqual((code, json.loads(err.splitlines()[-1])["code"]), (2, "usage"))
+
+    def test_findings_say_when_older_code_made_them(self):
+        """2026-11, M2Trans: a package checked by checks 5 showed missing_numbers that the checks of then made and
+        those of now do not; they vanished at the first cut."""
+        r = record([finding("missing_numbers@p1", ["21,202"])])
+        r["run"]["versions"] = {**D.versions(), "checks": D.checks.VERSION - 1}
+        (self.folder / "paper.json").write_text(json.dumps(r), encoding="utf-8")
+        code, _, err = self.run_word("findings", str(self.folder))
+        self.assertEqual(code, 0)
+        self.assertIn(f"checks {D.checks.VERSION - 1}, now {D.checks.VERSION}", err)
+        self.assertIn(f"render {self.folder.resolve()}", err)
+        r["run"]["versions"] = D.versions()
+        (self.folder / "paper.json").write_text(json.dumps(r), encoding="utf-8")
+        self.assertNotIn("older code", self.run_word("findings", str(self.folder))[2])
 
 
 @unittest.skipUnless(ENGINE, "needs the paddleocr tool environment: uv run tests/test_doc.py --engine")
