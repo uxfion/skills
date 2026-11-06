@@ -114,11 +114,8 @@ def named_notes(zot, args):
                        key=key, itemType=zotero.data(item).get("itemType"), parentItem=zotero.data(item).get("parentItem"))
     else:
         rows = notes_of(zot, key)
-    if args.title is not None:
-        rows = [r for r in rows if title_of(zotero.data(r).get("note")) == args.title]
     if not rows:
-        raise cli.Stop("no_notes", hint="No note matches; p2z.py note list shows the notes and their titles.",
-                       **({"title": args.title} if args.title is not None else {}))
+        raise cli.Stop("no_notes", hint="The item has no child note.")
     return rows
 
 
@@ -129,14 +126,14 @@ def take_name(meta):
 def take(zot, args, p):
     """Notes out of Zotero as Markdown: the note named, or the child notes of the item named.
 
-The item or note is named by its key or citation key. --title T keeps the notes whose first line, the title Zotero
-shows, is T. One note goes to stdout (the Markdown alone; a block kept as HTML is named on stderr) or -o FILE;
+The item or note is named by its key or citation key; one note of several: p2z.py note list shows their keys and
+titles, then take it by its key. One note goes to stdout (the Markdown alone; a block kept as HTML is named on stderr) or -o FILE;
 several need -o DIR/, one file each, <cite>.<key>.note.md (a standalone note: <key>.note.md), and with none the
 notes are named on stderr. A file there already is written over only when its front matter names the same note:
 after a version_conflict, take again into the same directory.
 
 stdout to files: one line per note {key, cite?, title, code ok, file, version, kept_html?: [[block, tag]]}; no_notes
-(the item has none, or none with that title), not_a_parent, not_found, ambiguous.
+(the item has none), not_a_parent, not_found, ambiguous.
 
 Examples:
   p2z.py note take ronneberger2015unet -o <scratch>/notes/
@@ -411,7 +408,6 @@ Examples:
 
 def configure_take(p):
     p.add_argument("item", metavar="ITEM|NOTE", help="a note, or the item whose child notes to take: a key or citation key")
-    p.add_argument("--title", help="only the notes whose first line is this")
     p.add_argument("-o", "--output", metavar="FILE|DIR/", help="a file (one note) or a directory/ (default: stdout)")
 
 

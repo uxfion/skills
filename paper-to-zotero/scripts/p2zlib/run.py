@@ -12,8 +12,8 @@ writes their first values:
   item            the Zotero item to create (p2z.py draft drafts it from the result; the agent revises it)
   warnings        [str]: what p2z.py draft noticed (a type guessed, the DOI put in extra, fields dropped)
   tags            [{tag, type}]: p2z.py draft's automatic tags (the curated ones are the tags file's, below)
-  collection      KEY or [KEYS]               citationKey    str
-  keep_preprint   str: why the item stays the preprint although the result's versions.published has entries
+  collection      a collection or a list: its key, path or name   citationKey    str
+  keep_preprint   str: why the item stays the preprint, with or without a published version (report lists it)
   accepted        [str]: what the agent accepts as it is: a check's flag (check_flags: "mapped:publicationTitle")
                   or a warning's text; decisions no longer list them
   blocker         str: what the record waits for (the last pass with the user, ...)

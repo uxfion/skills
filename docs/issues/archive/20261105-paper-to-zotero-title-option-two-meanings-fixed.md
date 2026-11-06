@@ -1,5 +1,7 @@
 # paper-to-zotero：`--title` 一个名字两个意思
 
+> **已解决（2026-11-06）**：`note take` 的 `--title` 去掉了，`--title` 只剩 `package take` 那个意思（PDF 的附件标题），paper-read 的 `take` 沿用它。一条笔记由 key 取：`p2z.py note list` 列出 key 和标题，再 `note take <笔记 key>`；`note take` 的帮助写了这一句。没改名：去掉比再起一个名字少一个选项，多一次调用而已（原则 §3 *General and simple*）。约定检查那边，p2z 的 `REMOVED` 加了 `--title` 只许在 `package`，所以别的 p2z 脚本再出现它会被查出来；跨 skill 的同名选项意思是否一致，仍靠原则那句话和审阅。
+
 - 来源：2026-11-05，paper-read 的 Unix 改造设计稿顺带指出，主 agent 对照代码核实。用户没有提。
 - 状态：open。
 

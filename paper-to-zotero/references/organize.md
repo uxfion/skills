@@ -76,7 +76,7 @@ For each of its `conflicts` (left as the kept item has them), say which value yo
 Outside Zotero a note is one Markdown file: a front matter that names the note and where it belongs, then the note, with whatever Markdown cannot say kept as HTML in place, so a file put back unedited leaves the note as it was. Work on notes in the scratch directory:
 
 ```bash
-p2z.py note take <citation key> -o <scratch>/notes/   # a file per child note; --title T picks one; a note's own key, that note
+p2z.py note take <citation key> -o <scratch>/notes/   # a file per child note; a note's own key, that note
 p2z.py note put <scratch>/notes/*.note.md -i           # back into Zotero; -i writes the new version into the file
 ```
 

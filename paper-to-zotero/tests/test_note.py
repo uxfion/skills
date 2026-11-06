@@ -53,7 +53,7 @@ class Note(unittest.TestCase):
     # ---- take -------------------------------------------------------------------------------------------------
 
     def test_take_one_note_to_stdout(self):
-        r = self.run_("take", "one2020paper", "--title", "论文笔记")
+        r = self.run_("take", "NOTE0001")
         self.assertEqual(r.code, 0, r)
         self.assertEqual(r.out, "---\nkey: NOTE0001\nversion: 13\nparent: one2020paper\nschema: 9\n---\n"
                                 "# 论文笔记\n\n- Q1 问题 [已答]\n")
@@ -86,7 +86,7 @@ class Note(unittest.TestCase):
                                 "# 主题：扩散\n\n见两篇\n")
 
     def test_take_finds_nothing(self):
-        r = self.run_("take", "one2020paper", "--title", "nope")
+        r = self.run_("take", "two2021paper")
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "no_notes"))
         r = self.run_("take", "nobody2099")
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "not_found"))

@@ -1,5 +1,7 @@
 # paper-to-zotero：`run.py` 里记录字段的说明落后于 import.md
 
+> **已解决（2026-11-06）**：`run.py` 的说明照 import.md 和代码改了：`collection` 是集合的 key、路径或名字，一个或一组；`keep_preprint` 是保留预印本的理由，有没有正式版都写，report 会列出。
+
 - 来源：2026-11-05 全流程试用，导入 agent 报告"两处说法不一样，不知道听哪个"，主 agent 对照文件核实。用户没有提。
 - 状态：open。
 
