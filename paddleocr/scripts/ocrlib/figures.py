@@ -6,7 +6,7 @@ whole-figure boxes of a second layout model and by the captions under them. The 
 image block left alone, one figure: a crop, which pair_captions gives its caption and so its number.
 
 The check starts from each figure caption and asks what must hold for it and its crops, not what kind of figure it
-is (2026-10, on parse.py's crops of then: 115 papers, 1138 captions, graded blind: every one of 138 severe errors
+is (2026-10, on the parse's crops of then: 115 papers, 1138 captions, graded blind: every one of 138 severe errors
 reported, 86% of the good figures passed). A caption that fails gets a figure_check finding, for the agent to judge
 when a task uses it:
   no_crop         no crop goes with the caption: the figure was read as text or a table, or missed
@@ -35,7 +35,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-import conventions as C
+from . import conventions as C
 
 VERSION = 2              # bump when figure grouping or the figure check changes, so stored parses are processed again
 COVER = 0.7              # share of a figure block's area inside a layout box that makes it one of the box's members

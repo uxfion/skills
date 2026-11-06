@@ -105,7 +105,7 @@ Run it after every pass of step 4: it skips what is done, and `no_file_yet` is n
 - `suggested_title`: a file the item had already keeps its own title; the report suggests the rename, which waits for the user.
 - Any other failure creates nothing: fix the record as its hint says and rerun — a rerun is always safe, a run cut off mid-POST included. A file that still cannot be attached goes to the user with its path.
 
-Then the structured packages of the PDFs this run attached, which the paddleocr skill parses (SKILL.md, *Sibling skills*): `p2z.py package take <their items' keys> --missing -o <imp>/structured/`, one parse of the links it printed with the paddleocr skill (`-o <imp>/structured`, in the background), then `p2z.py package put <imp>/structured/*/`. Their findings stay open: a paper is settled when a task first reads it. A PDF left without its package (no GPU, a failed parse) is archived all the same: name it in the report, and the next reader makes it.
+Then the structured packages of the PDFs this run attached, which the paddleocr skill parses (SKILL.md, *Sibling skills*): `p2z.py package take <their items' keys> --missing -o <imp>/structured/ | ocr.py parse -o <imp>/structured/ -` in the background, then `p2z.py package put <imp>/structured/*/`. Their findings stay open: a paper is settled when a task first reads it. A PDF left without its package (no GPU, a failed parse) is archived all the same: name it in the report, and the next reader makes it.
 
 Done when every record's item is in the library (`saved.key`, or `found` confirmed), every file the result passed is in the record's `attach`, and every PDF attached has its package or is named in the report as without one.
 

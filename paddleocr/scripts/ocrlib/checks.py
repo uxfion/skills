@@ -33,7 +33,7 @@ import re
 import unicodedata
 from collections import Counter
 
-import conventions
+from . import conventions
 
 VERSION = 6              # bump when the checks change, so stored parses are checked again
 

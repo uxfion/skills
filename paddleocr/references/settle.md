@@ -7,21 +7,21 @@ Your prompt names the document's folder and its source: a PDF, or the page image
 The folder holds:
 
 - `<stem>.md`: the text, page by page, with `<!-- page N -->` before each page. This is what you edit.
-- `<stem>.json`: the record. `doc.py` writes it; leave it to `doc.py`.
-- `imgs/`: the figures, named by figure id, cut by `doc.py figure`.
+- `<stem>.json`: the record. `ocr.py` writes it; leave it to `ocr.py`.
+- `imgs/`: the figures, named by figure id, cut by `ocr.py cut`.
 
 You are the only one writing to this folder. Do the work yourself; send no subagents. No git.
 
 ## Tools
 
-`doc.py` below is `uv run <skill>/scripts/doc.py`, where `<skill>` is the folder above the one holding this brief.
+Start every shell call with `set -o pipefail; export PATH="<skill>/scripts:<skill>/../vllm-serve/scripts:$PATH";`, where `<skill>` is the folder above the one holding this brief; `ocr.py <word> -h` is each word's reference.
 
-- `doc.py show <folder>`: the open findings, one per line: status, id, page, what it saw.
-- `doc.py show <folder> <finding id>`: the finding in full, the block it concerns with its text, the text layer under it (the `pdftotext` command for that region), and a page image with the block boxed. For a `figure_check`: the crops and the second opinion as boxes, and an overlay image.
-- `doc.py show <folder> p<N>`: every block of page N with its id, label, box and first words, and a page image with the block ids drawn on it.
-- `doc.py show <folder> p<N> --box X1 Y1 X2 Y2 --dpi 400`: that region of the page as an image, for small print and figure edges.
+- `ocr.py findings <folder>`: the open findings, one JSON line each: id, status, page, what it saw.
+- `ocr.py show <folder> <finding id>`: the finding in full, the block it concerns with its text, the text layer under it (the `pdftotext` command for that region), and a page image with the block boxed. For a `figure_check`: the crops and the second opinion as boxes, and an overlay image.
+- `ocr.py show <folder> p<N>`: every block of page N with its id, label, box and first words, and a page image with the block ids drawn on it.
+- `ocr.py show <folder> p<N> --box X1,Y1,X2,Y2 --dpi 400`: that region of the page as an image, for small print and figure edges.
 
-Boxes are in source units: PDF points for a PDF, as `pdftotext -x -y -W -H` takes them; pixels for image input.
+Boxes are in source units, as `ocr.py show -h` says. `show` writes its images to `$TMPDIR/paddleocr-show/<stem>-<hash>/`; delete that folder before you report.
 
 - **A PDF** has two sources for a page: its text layer (`pdftotext -layout -f N -l N <pdf> -`, or the region `show` gives), and its image (the page images `show` writes). Trust the text layer for characters and the image for layout.
 - **Image input** is its own only source: view the image, cropped and enlarged where the print is small.
@@ -34,9 +34,9 @@ Boxes are in source units: PDF points for a PDF, as `pdftotext -x -y -W -H` take
    - A rebuilt table stays HTML. Use `rowspan`/`colspan` for multi-level headers, and an empty cell to head a column that has no heading.
    - Leave the first line, the `<!-- page N -->` lines and the `<!-- figure … -->` / `<!-- end figure … -->` lines as they are: they tie the Markdown to the record, and commit refuses edits to them.
 2. **Give a verdict** where there is nothing to fix: change the note's `open` to `ok` (the parse is right, or the finding is a false alarm) or to `unresolved` (the parse is wrong and cannot be fixed), and put your reason after the colon in place of what was there: `<!-- ok missing_numbers@p11: tick labels of the Figure 3 axes -->`. A finding you fix needs no verdict: once fixed it goes away.
-3. **Commit:** `doc.py commit <folder>`. It records each edit as a change of its block, each verdict with its reason, runs the checks again and rewrites the Markdown. It prints what it recorded and which findings went, came or reopened. A finding still there after your fix means the fix missed: look again. Commit after each page you work through.
+3. **Commit:** `ocr.py commit <folder>`. It records each edit as a change of its block, each verdict with its reason, runs the checks again and rewrites the Markdown. Its line lists what it recorded (`recorded`) and the findings that went, came or reopened (`gone`, `new`, `reopened`). A finding still there after your fix means the fix missed: look again. Commit after each page you work through.
 
-When commit refuses, it says why and what to do: do that and commit again.
+When commit refuses (`edit_refused`), its `detail` says where and its `hint` what to do: do that and commit again.
 
 ## 1. Text findings
 
@@ -62,7 +62,7 @@ The codes, by remedy:
   - `empty_page`: confirm from the image that the page is blank or purely graphic.
 - `stale_edit`: an earlier edit no longer fits the block's text, after the document was processed again. Redo the edit if it is still needed; else give the verdict `ok`.
 
-Done when `doc.py show <folder>` lists no open finding but `figure_check` ones.
+Done when `ocr.py findings <folder>` exits 0 and its only `open` lines are `figure_check` ones.
 
 ## 2. Figures
 
@@ -77,10 +77,10 @@ Settle every `figure_check` finding and every figure your prompt names. The reas
 
 For each:
 
-1. `doc.py show <folder> <finding id>` and open its overlay: the caption in blue, each crop on the page numbered in its own colour, the second opinion as a green dashed box. Judge the numbered crops first, on their own: does one crop hold the whole figure, and nothing but it (no other figure, table or body text)? Then weigh the reasons and the second opinion. For `edge_cut`, view that edge enlarged (`show p<N> --box … --dpi 400`): the overlay is too small to show a line of text sliced in half. The second opinion is a candidate and can be the wrong one, taking in a table or a note under the figure.
+1. `ocr.py show <folder> <finding id>` and open its overlay: the caption in blue, each crop on the page numbered in its own colour, the second opinion as a green dashed box. Judge the numbered crops first, on their own: does one crop hold the whole figure, and nothing but it (no other figure, table or body text)? Then weigh the reasons and the second opinion. For `edge_cut`, view that edge enlarged (`show p<N> --box … --dpi 400`): the overlay is too small to show a line of text sliced in half. The second opinion is a candidate and can be the wrong one, taking in a table or a note under the figure.
 2. Whole and clean: verdict `ok`, with what you checked.
-3. Otherwise cut it anew: `doc.py figure <folder> <figure id> --box X1 Y1 X2 Y2 --why "<what was wrong>"`, starting from the second opinion's box when it looks right. It prints the new crop's path: view it, and cut again until it holds the whole figure and no caption or body text. A figure can be wider than its caption or sit beside it. The image blocks inside the box become part of this figure, so for a figure split into several crops, cut any one of them to the whole box and the others go with it. The finding goes once the figure is cut.
-4. A figure the parse read as text or missed (`no_crop`): `doc.py figure <folder> --page N --box … --why …` makes it, and the text the model read from it stays. When that text already says everything and its colours and layout add nothing, verdict `ok` instead.
+3. Otherwise cut it anew: `ocr.py cut <folder> <figure id> --box X1,Y1,X2,Y2 --reason "<what was wrong>"`, starting from the second opinion's box when it looks right. Its line's `image` is the new crop: view it, and cut again until it holds the whole figure and no caption or body text. A figure can be wider than its caption or sit beside it. The image blocks inside the box become part of this figure, so for a figure split into several crops, cut any one of them to the whole box and the others go with it. The finding goes once the figure is cut.
+4. A figure the parse read as text or missed (`no_crop`): `ocr.py cut <folder> p<N> --box … --reason …` makes it, and the text the model read from it stays. When that text already says everything and its colours and layout add nothing, verdict `ok` instead.
 
 An image that is no content of the document, such as a logo or a stray icon: delete its image line in the Markdown to hide it.
 
@@ -114,4 +114,4 @@ Commit a last time, then reply with these five parts, one line per item, so that
 - **verdicts**: finding id, `ok` or `unresolved`, the reason.
 - **figures**: cut anew (figure id, what was wrong), kept (figure id), made (figure id).
 - **read**: the pages compared in §3, and what you found there.
-- **open**: anything you could not settle, and why; if you could not finish, what you tried, what you settled and what is left; the last commit's output when it is not empty.
+- **open**: anything you could not settle, and why; if you could not finish, what you tried, what you settled and what is left; the last commit's line unless its code is `skipped`.

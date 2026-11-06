@@ -23,7 +23,7 @@ JSON lines, each word's `-h` with examples: `p2z.py collections` (keys, names, p
 
 ## Structured packages
 
-Every PDF has its package (SKILL.md, *Reading a library paper*); `p2z.py pdf` shows it as `package`. To make the missing ones, or to bring them all up to date after the paddleocr skill changed: `p2z.py package take --missing -o <dir>/` (or `--every`), with no item named for the whole library; parse the links with the paddleocr skill, `-o <dir>`, in background calls of about a hundred; then `p2z.py package put <dir>/*/`, which skips a folder the parse left unchanged. `trash`, `merge` and `update` carry a PDF's package along with it (trashed, moved, retitled, renamed after the citation key); after citation keys changed in Zotero itself, `p2z.py package names` renames the packages' files in place.
+Every PDF has its package (SKILL.md, *Reading a library paper*); `p2z.py pdf` shows it as `package`. To make the missing ones, or to bring them all up to date after the paddleocr skill changed: `p2z.py package take --missing -o <dir>/ > <dir>/taken.jsonl` (or `--every`), with no item named for the whole library; parse its lines with the paddleocr skill in background calls of about a hundred, `sed -n '1,100p' <dir>/taken.jsonl | ocr.py parse -o <dir>/ -`, then `101,200p` and on; then `p2z.py package put <dir>/*/`, which skips a folder the parse left unchanged. `trash`, `merge` and `update` carry a PDF's package along with it (trashed, moved, retitled, renamed after the citation key); after citation keys changed in Zotero itself, `p2z.py package names` renames the packages' files in place.
 
 ## Tidying tags and collections
 

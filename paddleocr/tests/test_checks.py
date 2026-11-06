@@ -2,14 +2,14 @@
 # requires-python = ">=3.9"
 # dependencies = ["pypdfium2"]
 # ///
-"""Tests for scripts/checks.py: tokens, the text-layer check, its findings and the PDF text layer (no GPU needed)."""
+"""Tests for scripts/ocrlib/checks.py: tokens, the text-layer check, its findings and the PDF text layer (no GPU)."""
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-import checks as C  # noqa: E402
+from ocrlib import checks as C  # noqa: E402
 
 PARAGRAPH = ("The diffusion model aligns the target image to match the style of the source domain while "
              "preserving the original spatial context of every scan in the handheld device collection.")

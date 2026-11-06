@@ -1,47 +1,11 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.11"
 # dependencies = ["numpy", "opencv-python-headless", "pypdfium2"]
 # ///
-"""The record of a parsed document, and everything done to it after the models ran.
+"""The record of a parsed document, and everything done to it after the models ran: ocr.py's words but parse.
 
-A parse is the folder OUTDIR/<stem>/:
-  <stem>.json   the record: the models' output as given (PaddleOCR's blocks, the second layout model's boxes), every
-                change made to it since, in order ("auto:<step>" by processing, "agent" / "user" by settling, each
-                with its reason), the figures, and the findings of the checks
-  <stem>.md     the reading copy, generated from the record
-  imgs/         the figures, and the images inside tables, as PNG cut from the source at 300 dpi
-  pages/        --photo only: the corrected page images the boxes refer to
-
-Commands; each but objects first commits Markdown edits that the record does not hold yet:
-  render DIR             process the models' output again with the current code, check, write the Markdown
-  show DIR [WHAT]        read-only. No WHAT: the open findings. WHAT a finding, block, figure or page (p4): its
-                         text, the text layer under it, the page image and an overlay; --box crops a region at --dpi
-  commit DIR             record the edits made to the Markdown as changes, check again, write the Markdown
-  figure DIR ID --box X1 Y1 X2 Y2 [--why WHY]   cut figure ID anew from that box; --page N instead of ID makes a
-                         new figure, for one the parse read as text or missed
-  objects DIR            read-only, for links into the PDF: one JSON line per figure and table, {id, kind figure |
-                         table, key, number, page, page_label, rect, top}. A figure is its whole box, its pieces
-                         under one caption joined; a table is its caption line ("TABLE III"), which carries its
-                         number. number: as the caption writes it. key: the number normalised,
-                         <fig|table>:<prefix><number>, prefix "", S (Supplementary) or ED (Extended Data), roman
-                         numerals upper case: fig:3, fig:S2, table:III; null when two captions give the same key, or
-                         there is no number. rect: [x1, y1, x2, y2] in the PDF's user space (points, origin bottom
-                         left, the page's crop box offset included), as PDF annotations store it; top: the box's top
-                         in points below the page's top edge; both null on a rotated page. page_label: the PDF's
-                         label for the page, else its number. The source must be a PDF.
-Boxes given and shown are in source units: PDF points (as pdftotext -x -y -W -H takes them), image pixels, or for
---photo the pixels of pages/. The source is found at the record's path or --source, and must match its sha256.
-
-Editing the Markdown (then commit):
-  - change text anywhere in a block; an edit across blocks puts the new text in the first and deletes the rest;
-    a new paragraph becomes a block of its own; put <!-- fixed: why --> on the line above an edited block
-  - settle a finding: change "open" in its note to "ok" (the parse is right, or it is a false alarm) or
-    "unresolved" (wrong, and it cannot be fixed), with the reason after the colon
-  - delete a figure's image line to hide it; cut figures with the figure command
-  - leave the first line, <!-- page N --> and the figure markers as they are: commit refuses edits to them
-
-Exit 0 = done; 1 = refused or failed, the reason on stderr; 2 = the record or its source is missing.
+Each command works on one parse folder, <outdir>/<stem>, and names it first on its line.
 """
 from __future__ import annotations
 
@@ -59,9 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import checks  # noqa: E402
-import conventions  # noqa: E402
-import figures  # noqa: E402
+from ocrlib import checks, cli, conventions, figures  # noqa: E402
+from ocrlib.cli import Stop  # noqa: E402
 
 FORMAT = 3               # the record's layout; a record of another format is parsed anew
 RENDER = 3               # the Markdown's layout
@@ -78,10 +41,6 @@ def versions() -> dict:
     return {"refine": REFINE, "checks": checks.VERSION, "figures": figures.VERSION, "conventions": conventions.VERSION}
 
 
-class Refused(Exception):
-    """A command that cannot go ahead; the message says why."""
-
-
 # ---------------------------------------------------------------- record and source
 
 def paths(folder: Path) -> tuple[Path, Path]:
@@ -90,12 +49,16 @@ def paths(folder: Path) -> tuple[Path, Path]:
 
 def load(folder: Path) -> dict:
     json_path = paths(folder)[0]
+    if not folder.exists():
+        raise Stop("file_not_found", hint="No such folder: name the one ocr.py parse wrote, <outdir>/<stem>.")
     try:
         record = json.loads(json_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        raise FileNotFoundError(f"no record at {json_path}: {e}") from e
+        raise Stop("no_record", detail=f"{json_path}: {e}",
+                   hint="The folder holds no readable record: name the one ocr.py parse wrote, <outdir>/<stem>.") from e
     if record.get("format") != FORMAT:
-        raise Refused(f"{json_path} is format {record.get('format', 2)}, not {FORMAT}: parse the source again")
+        raise Stop("old_format", detail=f"the record is format {record.get('format', 2)}, not {FORMAT}",
+                   hint="Parse the source again (ocr.py parse <source> -o <outdir>/): it moves this parse aside.")
     return record
 
 
@@ -130,12 +93,13 @@ def locked(folder: Path):
                 except OSError:
                     alive = False
                 if alive and time.time() - float(at) < LOCK_STALE:
-                    raise Refused(f"{folder} is being written by process {pid}; try again when it is done")
+                    raise Stop("locked", exit=cli.CANNOT, detail=f"process {pid} is writing the folder",
+                               hint="Wait until that process ends, then run this again.")
             except ValueError:
                 pass
             path.unlink(missing_ok=True)
     else:
-        raise Refused(f"could not lock {folder}")
+        raise Stop("locked", exit=cli.CANNOT, detail=f"could not lock {folder}", hint="Run this again.")
     with os.fdopen(fd, "w") as f:
         f.write(f"{os.getpid()} {time.time()}")
     try:
@@ -153,15 +117,30 @@ def sha256_of(files: list[Path]) -> str:
     return h.hexdigest()
 
 
-def source_of(record: dict, given: str | None = None) -> dict:
-    """The source the record was parsed from: {"kind", "path", "files"}, checked against its sha256."""
+def source_of(record: dict, given: str | None = None, need: bool = False) -> dict | None:
+    """The source the record was parsed from: {"kind", "path", "files"}, checked against its sha256. None when the
+    record's path is empty or holds nothing and no --source was given, unless the command needs it."""
     src = record["source"]
-    path = Path(given or src.get("path") or "").expanduser()
-    if not str(path) or not path.exists():
-        raise FileNotFoundError(f"source not found at {path or '(no path)'}; pass --source")
+    raw = given or src.get("path") or ""
+    path = Path(raw).expanduser() if raw else None
+    if path is None or not path.exists():
+        if given:
+            raise Stop("file_not_found", exit=cli.CANNOT, path=given, hint="--source names no file.")
+        if need:
+            raise Stop("source_not_found", path=raw or None,
+                       hint="The source is not at the record's path: give it with --source FILE.")
+        return None
     files = [path] if src["kind"] == "pdf" else [path / f for f in src["files"]] if path.is_dir() else [path]
-    if sha256_of(files) != src["sha256"]:
-        raise Refused(f"{path} is not the source this record was parsed from (sha256 differs)")
+    try:
+        same = sha256_of(files) == src["sha256"]
+    except OSError:                                    # a directory where a file was, or a page image gone
+        same = False
+    if not same:
+        if given:
+            raise Stop("source_mismatch", exit=cli.CANNOT, path=given,
+                       hint="--source is not the file this parse was made from (its sha256 differs).")
+        raise Stop("source_mismatch", path=raw, hint="The file at the record's path is not the one this parse was "
+                   "made from (its sha256 differs): give that one with --source FILE.")
     return {"kind": src["kind"], "path": path, "files": files}
 
 
@@ -991,9 +970,14 @@ def paragraphs(text: str) -> int:
     return len([s for s in re.split(r"\n\s*\n", text) if s.strip()])
 
 
+def refused(detail: str, hint: str) -> Stop:
+    """An edit commit cannot take: where (detail) and what to do (hint); nothing is recorded."""
+    return Stop("edit_refused", detail=detail, hint=f"{hint} Nothing was recorded.")
+
+
 def commit(record: dict, text: str) -> list[str]:
     """Record the edits made to the Markdown `text` as changes, in place; returns one line per change made.
-    Raises Refused when a protected line was changed."""
+    Raises edit_refused when an edit cannot be taken (a protected line changed, an image line edited, ...)."""
     gen, ps = render_text(record)
     if text == gen:
         return []
@@ -1005,7 +989,7 @@ def commit(record: dict, text: str) -> list[str]:
     # Notes first: a finding's verdict, and the reasons for edits; then they leave both sides.
     cur = text.split("\n")
     if not cur or not cur[0].startswith("<!-- paddleocr "):
-        raise Refused("the first line of the Markdown (<!-- paddleocr ... -->) is gone; restore it")
+        raise refused("the first line of the Markdown (<!-- paddleocr ... -->) is gone", "Restore it as it was.")
     findings = {f["id"]: f for f in record.get("findings", [])}
     verdict, why_at, body = {}, {}, []
     pending = []
@@ -1052,8 +1036,8 @@ def commit(record: dict, text: str) -> list[str]:
         want = [glines[i].strip() for i in keep]
         got = [body[i].strip() for i in have]
         first = next((a for a, b in zip(want, got) if a != b), (want + got)[min(len(want), len(got))] if want != got else "")
-        raise Refused(f"a page or figure marker was changed, moved or removed (first difference at {first!r}); "
-                      "put the markers back as they were; to hide a figure delete only its image line")
+        raise refused(f"a page or figure marker was changed, moved or removed (first difference at {first!r})",
+                      "Put the markers back as they were; to hide a figure, delete only its image line.")
 
     # Regions between protected lines line up one to one. Each is diffed by its non-blank lines, so that blank lines
     # left where notes were taken out never pair lines wrongly; an edit takes in the whole pieces it touches.
@@ -1135,24 +1119,25 @@ def commit(record: dict, text: str) -> list[str]:
             if p["text"] in new.split("\n"):
                 new = "\n".join(line for line in new.split("\n") if line != p["text"]).strip("\n")
             elif IMAGE_LINE.search(new):
-                raise Refused(f"the image line of figure {fid} was edited; cut figures with the figure command")
+                raise refused(f"the image line of figure {fid} was edited", "Cut figures with ocr.py cut.")
             else:
                 figs[fid].setdefault("changes", []).append({"by": "agent", "at": now(), "hidden": True,
                                                             "why": "; ".join(w for w in whys if w)})
-                log.append(f"{fid}: figure hidden (its image line was deleted); bring it back with the figure command")
+                log.append(f"{fid}: figure hidden (its image line was deleted); bring it back with ocr.py cut")
         group = [p for p in group if p["kind"] == "block"]
         if not group:
             continue
         if IMAGE_LINE.search(new) and not any(IMAGE_LINE.search(p["text"]) for p in group):
-            raise Refused("an image line was added; cut figures with the figure command")
+            raise refused("an image line was added", "Cut figures with ocr.py cut.")
         first, rest = group[0]["owners"][0], [o for p in group for o in p["owners"]][1:]
         had, has = sum(paragraphs(p["text"]) for p in group), paragraphs(new)
         if has > had:
             # a block edited and a paragraph added beside it, in one go: which paragraph is the block cannot be told
             who, its = ", ".join(p["owners"][0] for p in group), "its" if len(group) == 1 else "their"
-            raise Refused(f"the edit of {who} turns {had} paragraph{'s' * (had > 1)} into {has}, and which of them "
-                          f"{who} should hold cannot be told; commit {who} with only {its} own text first, then add "
-                          "the new paragraphs between blank lines and commit again")
+            raise refused(f"the edit of {who} turns {had} paragraph{'s' * (had > 1)} into {has}, and which of them "
+                          f"{who} should hold cannot be told",
+                          f"Commit {who} with only {its} own text first, then add the new paragraphs between blank "
+                          "lines and commit again.")
         why = new_why(whys, raw[first].get("changes", []))
         b = view[first]
         if not new.strip():
@@ -1239,48 +1224,61 @@ def build(record: dict, src: dict | None, folder: Path, refine: bool = True) -> 
     return moves
 
 
-def settle_edits(folder: Path, record: dict, src: dict | None) -> list[str]:
-    """Commit the Markdown's edits the record does not hold yet; returns the log."""
+def settle_edits(folder: Path, record: dict, src: dict | None) -> dict:
+    """Commit the Markdown's edits the record does not hold yet -> the line's fields: recorded (a sentence per
+    change), gone, new, reopened (finding ids), each only when not empty."""
     if not edited(folder, record):
-        return []
-    log = commit(record, paths(folder)[1].read_text(encoding="utf-8"))
+        return {}
+    recorded = commit(record, paths(folder)[1].read_text(encoding="utf-8"))
     moves = check(record, src, folder)
     text, _ = render_text(record)
     save(folder, record, text)
-    return log + moves_log(moves)
+    return tally({"recorded": recorded}, moves)
 
 
-def moves_log(moves: dict) -> list[str]:
-    out = []
-    for key, word in (("gone", "gone"), ("new", "new"), ("reopened", "reopened")):
-        if moves.get(key):
-            out.append(f"findings {word}: " + ", ".join(moves[key]))
-    return out
+def tally(fields: dict, *more: dict) -> dict:
+    """recorded, gone, new, reopened gathered from several steps, in order, each only when not empty."""
+    out = {}
+    for part in (fields, *more):
+        for key in ("recorded", "gone", "new", "reopened"):
+            out.setdefault(key, []).extend(x for x in part.get(key, []) if x not in out[key])
+    return {k: v for k, v in out.items() if v}
 
 
-def summary(record: dict) -> list[str]:
-    """The open findings, one a line, then the unresolved ones; "no open findings" when none is open."""
-    out = []
+def summary(record: dict) -> dict:
+    """What a parse holds: pages, blocks by label, figures, the lowest page coverage, how it was checked, and the
+    findings open and judged unresolved."""
+    counts = {}
+    for b in record["blocks"]:
+        counts[b["label"]] = counts.get(b["label"], 0) + 1
+    covered = [p["coverage"] for p in record["pages"] if p.get("coverage") is not None]
     found = record.get("findings", [])
-    for status in ("open", "unresolved"):
-        for f in found:
-            if f["status"] == status:
-                where = f"p{f['page']}" if f.get("page") else "document"
-                text = note_text(f) if status == "open" else f.get("why", "")
-                out.append(f"{status:10} {f['id']:28} {where:6} {text[:110]}")
-    if not any(f["status"] == "open" for f in found):
-        out.insert(0, "no open findings")
-    return out
+    return {"pages": len(record["pages"]), "blocks": counts, "figures": len(record.get("figures", [])),
+            "min_coverage": round(min(covered), 3) if covered else None, "checks": record.get("checks"),
+            "open": [f["id"] for f in found if f["status"] == "open"],
+            "unresolved": [f["id"] for f in found if f["status"] == "unresolved"]}
 
 
-def show(folder: Path, record: dict, src: dict | None, what: str | None, box=None, dpi: int = 300) -> list[str]:
+def finding_rows(record: dict, every: bool = False) -> list[dict]:
+    """The findings open, then those judged unresolved (every: then those judged ok): {id, status, page, note}; note
+    is the open note's text, or the verdict's reason."""
+    found = record.get("findings", [])
+    return [{"id": f["id"], "status": status, "page": f.get("page"),
+             "note": note_text(f) if status == "open" else f.get("why", "")}
+            for status in ("open", "unresolved", "ok")[:3 if every else 2] for f in found if f["status"] == status]
+
+
+def not_parsed(page: int) -> Stop:
+    return Stop("not_found", detail=f"page {page} was not parsed",
+                hint="The Markdown's first line lists the pages parsed (pages=).")
+
+
+def show(folder: Path, record: dict, src: dict | None, what: str, box=None, dpi: int = 300) -> list[str]:
     """What show prints; images go to a scratch folder named in the output."""
     import cv2
     infos = {p["page"]: p for p in record["pages"]}
     scratch = Path(tempfile.gettempdir()) / "paddleocr-show" / f"{folder.name}-{record['source']['sha256'][:8]}"
     scratch.mkdir(parents=True, exist_ok=True)
-    if not what:
-        return summary(record)
     view = {b["id"]: b for b in blocks_view(record)}
     figs = {f["id"]: f for f in figures_view(record)}
     raw = {b["id"]: b for b in record["blocks"]}
@@ -1289,15 +1287,17 @@ def show(folder: Path, record: dict, src: dict | None, what: str | None, box=Non
     if m := re.fullmatch(r"p(\d+)", what):
         page = int(m.group(1))
         if page not in infos:
-            raise Refused(f"page {page} was not parsed")
+            raise not_parsed(page)
         info = infos[page]
         if box:
             if src is None:
-                raise Refused("cropping needs the source")
+                raise Stop("source_not_found", hint="A crop is cut from the source: give it with --source FILE.")
             ebox = to_engine(info, box)
             image, k = (page_image(src, folder, info, dpi / 72), dpi / 72 / info["scale"]) if src["kind"] == "pdf" and not info.get("photo") \
                 else (page_image(src, folder, info, 1.0), 1 if info.get("photo") else 1 / info["scale"])
             part = crop(image, ebox, k)
+            if part is None:
+                raise bad_box(box, page)
             path = scratch / f"p{page}_{'_'.join(str(int(v)) for v in box)}_{dpi}dpi.png"
             cv2.imwrite(str(path), part)
             return [f"crop: {path}"]
@@ -1361,7 +1361,8 @@ def show(folder: Path, record: dict, src: dict | None, what: str | None, box=Non
     if ident not in raw:
         if finding and finding.get("page"):
             return out + show(folder, record, src, f"p{finding['page']}")
-        raise Refused(f"{what} is no finding, block, figure or page of this record")
+        raise Stop("not_found", detail=f"{what} is no finding, block, figure or page of this parse",
+                   hint="ocr.py findings DIR lists the findings; ocr.py show DIR p<N> lists a page's blocks and figures.")
     b, s = raw[ident], fold(raw[ident])
     info = infos[page_of(ident)]
     out.append(f"block {ident} {b['label']} box {to_source(info, b['box']) if b.get('box') else None}"
@@ -1412,22 +1413,32 @@ def figure_check_view(folder: Path, record: dict, src: dict | None, finding: dic
     return out
 
 
+def bad_box(box: list, page: int) -> Stop:
+    return Stop("bad_box", exit=cli.CANNOT, detail=f"the box {box} lies outside page {page} or is too small",
+                hint=f"Boxes are in source units, from the page's top left (ocr.py show -h); ocr.py show DIR p{page} "
+                     "gives the boxes of the page's blocks.")
+
+
 def set_figure(record: dict, ident: str | None, page: int | None, box: list, why: str) -> str:
     """An agent's box for a figure, or a new figure (id p<page>-n<k>) for one the parse lacks; returns its id."""
     infos = {p["page"]: p for p in record["pages"]}
     if ident:
         fig = next((f for f in record.get("figures", []) if f["id"] == ident), None)
         if fig is None:
-            raise Refused(f"no figure {ident}; `show DIR p<page>` lists a page's figures; --page N makes a new one")
+            on = re.match(r"p\d+", ident)
+            hint = (f"{ident} is no figure; a new one on its page: ocr.py cut DIR {on.group(0)} --box X1,Y1,X2,Y2."
+                    if any(b["id"] == ident for b in record["blocks"]) else
+                    "ocr.py show DIR p<N> lists a page's figures; ocr.py cut DIR p<N> --box ... makes a new one.")
+            raise Stop("not_found", detail=f"no figure {ident}", hint=hint)
         page = page_of(ident)
     elif page not in infos:
-        raise Refused(f"page {page} was not parsed")
+        raise not_parsed(page)
     info = infos[page]
     w, h = info["image_size"]
     x1, y1, x2, y2 = to_engine(info, box)
     ebox = [max(0, x1), max(0, y1), min(w, x2), min(h, y2)]
     if ebox[2] - ebox[0] < 4 or ebox[3] - ebox[1] < 4:
-        raise Refused(f"the box {box} lies outside page {page} or is too small; boxes are in source units")
+        raise bad_box(box, page)
     kinds = FIGURE_KINDS - ({"chart"} if record["run"]["options"].get("charts") else set())
     members = covered_images(blocks_view({**record, "figures": []}), page, ebox, kinds)
     if not ident:
@@ -1454,7 +1465,7 @@ def object_key(kind: str, words: str, number: str) -> str:
 def objects(record: dict, src: dict) -> list[dict]:
     """The figures and tables of the objects command, in page order."""
     if src["kind"] != "pdf":
-        raise Refused("objects places figures and tables in a PDF, and this record was parsed from images")
+        raise Stop("not_a_pdf", hint="objects places figures and tables in a PDF; this parse was made from images.")
     found = {}
     for f in figures_view(record):
         # the pieces of one figure, cut apart under one caption, are one object
@@ -1484,76 +1495,294 @@ def objects(record: dict, src: dict) -> list[dict]:
     return out
 
 
-def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = p.add_subparsers(dest="command", required=True)
-    for name in ("render", "show", "commit", "figure", "objects"):
-        s = sub.add_parser(name)
-        s.add_argument("folder", help="the parse's folder, OUTDIR/<stem>")
-        s.add_argument("--source", help="the PDF or image input, when not at the record's path")
-        if name == "show":
-            s.add_argument("what", nargs="?", help="a finding id, block id, figure id or page (p4)")
-            s.add_argument("--box", nargs=4, type=float, metavar=("X1", "Y1", "X2", "Y2"), help="with a page: crop this region")
-            s.add_argument("--dpi", type=int, default=300, help="resolution of the --box crop of a PDF page (default 300)")
-        if name == "figure":
-            s.add_argument("id", nargs="?", help="the figure to cut anew")
-            s.add_argument("--page", type=int, help="instead of an id: make a new figure on this page")
-            s.add_argument("--box", nargs=4, type=float, required=True, metavar=("X1", "Y1", "X2", "Y2"))
-            s.add_argument("--why", default="", help="the reason, kept with the change")
-    args = p.parse_args(argv)
-    folder = Path(args.folder).expanduser().resolve()
+# ---------------------------------------------------------------- the commands: ocr.py's words but parse
+
+def command(name: str, doc: str, argv: list, configure=None, source: bool = True):
+    """The parser of a command on one parse folder: DIR, --source unless `source` is False, then the command's own
+    arguments -> (parser, args, the folder resolved)."""
+    p = cli.parser(doc, sub=name)
+    p.add_argument("folder", metavar="DIR", help="the parse's folder, <outdir>/<stem>")
+    if source:
+        p.add_argument("--source", metavar="FILE",
+                       help="the PDF or page images the parse was made from, when they left the record's path")
+    if configure:
+        configure(p)
+    for i, a in enumerate(argv):          # --box X1 Y1 X2 Y2, four values: the box as one value is the way
+        if len(a) > 2 and "--box".startswith(a) and len(argv) > i + 4 and all(map(is_number, argv[i + 1:i + 5])):
+            p.error("--box takes one value", hint=f"Write the box as one value: --box {','.join(argv[i + 1:i + 5])}.")
+    args = cli.parse(p, argv)
+    return p, args, Path(args.folder).expanduser().resolve()
+
+
+def is_number(text: str) -> bool:
     try:
-        if args.command == "render":
-            ensure_engine()
+        float(text)
+        return True
+    except ValueError:
+        return False
+
+
+def box_value(text: str) -> list[float]:
+    values = text.split(",")
+    if len(values) != 4 or not all(map(is_number, values)):
+        raise argparse.ArgumentTypeError(f"{text!r}: a box is four numbers in one value, X1,Y1,X2,Y2")
+    return [float(v) for v in values]
+
+
+def warn_unrecorded(folder: Path, record: dict) -> None:
+    """A read-only command: the Markdown's edits that commit has not recorded are not in what it reads."""
+    if edited(folder, record):
+        cli.log(f"[paddleocr] the Markdown holds edits not committed yet, left out here; "
+                f"{cli.prog('commit')} {folder} records them")
+
+
+def cmd_findings(argv):
+    """The findings of a parse still open, and those judged unresolved: one JSON line each; -a adds those judged ok.
+
+A finding is a place where the checks against the source suspect the parse lost, garbled or invented something, or cut
+a figure wrong. Each open one is a note in the Markdown, <!-- open <id>: ... -->, before its block, figure or page;
+its id is <code>@<block or page>:
+  missing_text        a run of text-layer words absent from the parse
+  missing_numbers     numbers of two or more digits on text-layer lines but not in the parse
+  extra_text          a run of parsed words the text layer lacks: text the model invented
+  foreign_script      CJK, kana or Hangul characters the text layer lacks
+  table_mismatch      text-layer tokens inside a table's box absent from that table
+  unchecked_table     a table with no text layer in its box (embedded as an image)
+  table_empty_column  a headed column empty in every row: values shifted under the wrong headers
+  formula_number_gap  equation numbers missing from an otherwise continuous run
+  low_coverage        under 80% of the page's text-layer word trigrams were found
+  repetition          a block repeats one fragment, or cycles through the same words
+  empty_page          a page yielded no text
+  figure_check        a figure whose crop may be wrong (no_crop, split, two_figures, table, edge_cut, second_opinion)
+  no_text_layer       pages that cannot be checked (scans, images)
+  stale_edit          an earlier edit that no longer fits the block's text
+A finding is settled by a fix in the Markdown or a verdict on its note, then ocr.py commit (commit -h).
+
+stdout: {id, status: open | unresolved | ok, page, note}, open ones first; page is null for the whole document; note
+is the open note's text, or the reason given with the verdict. Read-only: when the Markdown holds edits not committed
+yet, stderr says so, and the lines leave them out.
+Exit 0 = listed, none or many; 1 = the folder is no parse: one line {folder, code, hint}, code file_not_found,
+no_record or old_format.
+
+Example:
+  ocr.py findings /abs/out/paper
+"""
+    _, args, folder = command("findings", cmd_findings.__doc__, argv, source=False, configure=lambda p: p.add_argument(
+        "-a", "--all", action="store_true", help="also the findings judged ok"))
+
+    def go():
         record = load(folder)
-        if args.command == "objects":  # read-only: no lock, and edits in the Markdown stay uncommitted
-            for o in objects(record, source_of(record, args.source)):
-                print(json.dumps(o, ensure_ascii=False))
-            return 0
-        try:
-            src = source_of(record, args.source)
-        except FileNotFoundError:
-            if args.command in ("render", "figure") or args.command == "show" and args.box:
-                raise
-            src = None
+        warn_unrecorded(folder, record)
+        for row in finding_rows(record, args.all):
+            cli.emit(row)
+        return cli.OK
+    return cli.run(go, folder=str(folder))
+
+
+def cmd_show(argv):
+    """A finding, block, figure or page of a parse, for reading: its text, the text layer under it, a page image.
+
+WHAT is a finding id (missing_text@p3), a block id (p4-12), a figure id (p6-4, p6-n1) or a page (p4):
+  finding  the finding in full, then its block as below; a figure_check: its crops and the second opinion as boxes,
+           and an overlay image (caption blue, crops numbered, second opinion green dashed)
+  block    its label, box and changes, its text, the text layer under its box with the pdftotext command for that
+           region, and the page image with the block boxed
+  figure   its box, image, members, caption and changes, and the page image with it boxed
+  page     every block with its id, label, box and first words, the page's figures, and the page image with the
+           block ids drawn on it; --box crops that region at --dpi instead
+Boxes, given and shown, are in source units from the page's top left: PDF points (as pdftotext -x -y -W -H takes
+them), image pixels, or for --photo the pixels of pages/. Coordinates start at 0, and a box past the page's edge is
+cut to the page, so no box needs a negative number.
+
+Images go to $TMPDIR/paddleocr-show/<stem>-<hash>/, named in the output; whoever runs show deletes that folder when
+done. Read-only: when the Markdown holds edits not committed yet, stderr says so, and the output leaves them out.
+
+stdout: text for reading. Exit 0 = shown; 1 = nothing shown, and stderr's last line {folder, code, hint} says why:
+not_found (WHAT is not in the parse, or its page was not parsed), source_not_found (--box needs the source),
+source_mismatch, or the folder is no parse (file_not_found, no_record, old_format); 2 = stderr's last line {code,
+hint}: bad_box, or --source names no file (file_not_found) or another file (source_mismatch).
+
+Examples:
+  ocr.py show /abs/out/paper missing_text@p3
+  ocr.py show /abs/out/paper p4 --box 72,100,300,400 --dpi 400
+"""
+    def configure(p):
+        p.add_argument("what", nargs="?", metavar="WHAT", help="a finding id, block id, figure id or page (p4)")
+        p.add_argument("--box", type=box_value, metavar="X1,Y1,X2,Y2", help="with a page: crop this region")
+        p.add_argument("--dpi", type=int, default=300, help="resolution of the crop from a PDF page (default 300)")
+    p, args, folder = command("show", cmd_show.__doc__, argv, configure)
+    if not args.what:
+        p.error("name what to show: a finding, block, figure or page (p4)",
+                hint=f"{cli.prog('findings')} {args.folder} lists the findings.")
+
+    def go():
+        record = load(folder)
+        src = source_of(record, args.source, need=bool(args.box))
+        warn_unrecorded(folder, record)
+        cli.write("\n".join(show(folder, record, src, args.what, args.box, args.dpi)) + "\n")
+        return cli.OK
+    return cli.run(go, sys.stderr, folder=str(folder))
+
+
+def cmd_commit(argv):
+    """Record the edits and verdicts made in a parse's Markdown, check again, and write the Markdown anew.
+
+Editing <stem>.md before commit:
+  - change text anywhere in a block; an edit across blocks keeps the new text in the first and deletes the rest; a
+    paragraph of its own (blank lines around it) becomes a new block, and a line added without a blank line joins the
+    paragraph it touches; put <!-- fixed: why --> on the line above each edited block
+  - settle a finding: change "open" in its note to "ok" (the parse is right, or it is a false alarm) or "unresolved"
+    (wrong, and it cannot be fixed), with the reason after the colon
+  - delete a figure's image line to hide it; cut figures with ocr.py cut
+  - leave the first line, <!-- page N --> and the figure markers as they are
+Each edit becomes a change of its block, each verdict keeps its reason; the checks run again, against the source when
+it is at hand, and the Markdown is generated anew from the record.
+
+stdout: one line {folder, code: ok, recorded, gone, new, reopened}: recorded holds a sentence per change, the others
+finding ids, each only when not empty; a finding still there after a fix means the fix missed. Nothing to record:
+code skipped, reason nothing_to_commit.
+Exit 0 = recorded, or nothing to; 1 = the line's code says what is wrong: edit_refused (detail says where, hint what
+to change; nothing was recorded), source_mismatch, or the folder is no parse (file_not_found, no_record, old_format);
+2 = stderr's last line {code, hint}: locked (another process is writing the folder), or --source names no file
+(file_not_found) or another file (source_mismatch).
+
+Example:
+  ocr.py commit /abs/out/paper
+"""
+    _, args, folder = command("commit", cmd_commit.__doc__, argv)
+
+    def go():
+        record = load(folder)
+        src = source_of(record, args.source)
         with locked(folder):
-            try:
-                log = settle_edits(folder, record, src)
-            except Refused as e:
-                if args.command != "show":
-                    raise
-                # show answers from the record even while the Markdown holds an edit commit cannot take yet
-                print(f"not committed: {e}", file=sys.stderr)
-                record, log = load(folder), []
-            if args.command == "render":
-                log += moves_log(build(record, src, folder))
-                log.append(f"rendered {paths(folder)[1]}")
-            elif args.command == "figure":
-                if bool(args.id) == bool(args.page):
-                    raise Refused("name a figure id, or --page for a new figure")
-                ident = set_figure(record, args.id, args.page, args.box, args.why)
-                refine_figures(record)
-                moves = check(record, src, folder)
-                write_images(record, src, folder)
-                text, _ = render_text(record)
-                save(folder, record, text)
-                log += [f"figure {ident}: {folder / 'imgs' / (ident + '.png')} — view it"] + moves_log(moves)
-            elif args.command == "show":
-                log += show(folder, record, src, args.what, args.box, args.dpi)
-            elif args.command == "commit" and not log:
-                log.append("nothing to commit")
-        print("\n".join(log))
-        return 0
-    except Refused as e:
-        print(f"refused: {e}", file=sys.stderr)
-        return 1
-    except FileNotFoundError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 2
+            fields = settle_edits(folder, record, src)
+        done = {"code": "ok"} if fields else {"code": "skipped", "reason": "nothing_to_commit"}
+        cli.emit({"folder": str(folder), **done, **fields})
+        return cli.OK
+    return cli.run(go, folder=str(folder))
+
+
+def cmd_cut(argv):
+    """Cut a figure of a parse anew from a box, or make a new one on a page, for a figure read as text or missed.
+
+WHAT is a figure id (p6-4), cut anew to the box, or a page (p6), on which a new figure (p6-n1) is made. The image
+blocks inside the box become part of the figure, so a figure split into several crops is whole again once any of them
+is cut to the whole box; the text the model read from it stays. Markdown edits not recorded yet are committed first.
+Boxes are in source units from the page's top left: PDF points (as pdftotext -x -y -W -H takes them), image pixels,
+or for --photo the pixels of pages/; ocr.py show gives them.
+
+stdout: one line {folder, code: ok, figure, image, recorded, gone, new, reopened}, the last four as commit's: view the
+image, and cut again until it holds the whole figure and no caption or body text.
+Exit 0 = cut; 1 = the line's code says what is wrong: not_found (no such figure, a block that is no figure, or a page
+not parsed), edit_refused, source_not_found, source_mismatch, or the folder is no parse (file_not_found, no_record,
+old_format); 2 = stderr's last line {code, hint}: bad_box, locked, or --source names no file (file_not_found) or
+another file (source_mismatch).
+
+Examples:
+  ocr.py cut /abs/out/paper p6-4 --box 50,80,550,400 --reason "cut off the legend"
+  ocr.py cut /abs/out/paper p6 --box 50,80,550,400 --reason "read as text"
+"""
+    def configure(p):
+        p.add_argument("what", metavar="WHAT", help="a figure id (p6-4), or a page (p6) for a new figure")
+        p.add_argument("--box", type=box_value, metavar="X1,Y1,X2,Y2", required=True, help="the figure's whole extent")
+        p.add_argument("--reason", metavar="TEXT", default="", help="what was wrong, kept with the change")
+    _, args, folder = command("cut", cmd_cut.__doc__, argv, configure)
+
+    def go():
+        record = load(folder)
+        src = source_of(record, args.source, need=True)
+        page = int(m.group(1)) if (m := re.fullmatch(r"p(\d+)", args.what)) else None
+        with locked(folder):
+            fields = settle_edits(folder, record, src)
+            ident = set_figure(record, None if page else args.what, page, args.box, args.reason)
+            refine_figures(record)
+            moves = check(record, src, folder)
+            write_images(record, src, folder)
+            text, _ = render_text(record)
+            save(folder, record, text)
+        cli.emit({"folder": str(folder), "code": "ok", "figure": ident, "image": str(folder / "imgs" / f"{ident}.png"),
+                  **tally(fields, moves)})
+        return cli.OK
+    return cli.run(go, folder=str(folder))
+
+
+def cmd_render(argv):
+    """Process a parse's stored model output again with the current code, check it, write the figures and Markdown.
+
+No GPU: it starts from what the models gave, as the record holds it. The edits and verdicts made since stay; Markdown
+edits not recorded yet are committed first. For a record older than the code, ocr.py parse does the same by itself.
+It runs in the paddleocr uv tool environment.
+
+stdout: the line ocr.py parse prints for a document, under its folder: {folder, code: ok, md, json, rendered: true,
+pages, blocks, figures, min_coverage, checks, open, unresolved, recorded, gone, new, reopened}, the last four as
+commit's.
+Exit 0 = rendered; 1 = the line's code says what is wrong: edit_refused, source_not_found, source_mismatch, or the
+folder is no parse (file_not_found, no_record, old_format); 2 = stderr's last line {code, hint}: paddleocr_missing,
+locked, or --source names no file (file_not_found) or another file (source_mismatch).
+
+Example:
+  ocr.py render /abs/out/paper
+"""
+    _, args, folder = command("render", cmd_render.__doc__, argv)
+
+    def go():
+        ensure_engine()
+        record = load(folder)
+        src = source_of(record, args.source, need=True)
+        with locked(folder):
+            fields = settle_edits(folder, record, src)
+            moves = build(record, src, folder)
+        json_path, md_path = paths(folder)
+        cli.emit({"folder": str(folder), "code": "ok", "md": str(md_path), "json": str(json_path), "rendered": True,
+                  **summary(record), **tally(fields, moves)})
+        return cli.OK
+    return cli.run(go, folder=str(folder))
+
+
+def cmd_objects(argv):
+    """Where a parse's figures and tables sit in its PDF, for links from notes: one JSON line each, in page order.
+
+A figure is its whole box, its pieces under one caption joined; a table is its caption line ("TABLE III"), which
+carries its number. Read-only: edits in the Markdown stay uncommitted. The source must be a PDF.
+
+stdout: {id, kind: figure | table, key, number, page, page_label, rect, top}
+  number      as the caption writes it
+  key         the number normalised, <fig|table>:<prefix><number>, prefix "", S (Supplementary) or ED (Extended
+              Data), roman numerals upper case: fig:3, fig:S2, table:III; null when two captions give the same key,
+              or there is no number
+  rect        [x1, y1, x2, y2] in the PDF's user space (points, origin bottom left, the page's crop box offset
+              included), as PDF annotations store it
+  top         the box's top in points below the page's top edge; rect and top are null on a rotated page
+  page_label  the PDF's label for the page, else its number
+Exit 0 = listed; 1 = one line {folder, code, hint}: not_a_pdf (the parse was made from images), source_not_found,
+source_mismatch, or the folder is no parse (file_not_found, no_record, old_format); 2 = stderr's last line {code,
+hint}: --source names no file (file_not_found) or another file (source_mismatch).
+
+Example:
+  ocr.py objects /abs/out/paper --source /abs/paper.pdf
+"""
+    _, args, folder = command("objects", cmd_objects.__doc__, argv)
+
+    def go():
+        record = load(folder)
+        for o in objects(record, source_of(record, args.source, need=True)):
+            cli.emit(o)
+        return cli.OK
+    return cli.run(go, folder=str(folder))
+
+
+COMMANDS = {"findings": cmd_findings, "show": cmd_show, "commit": cmd_commit, "cut": cmd_cut, "render": cmd_render,
+            "objects": cmd_objects}
+
+
+def main(argv=None) -> int:
+    name, rest = cli.subcommand(__doc__, COMMANDS, argv)
+    return COMMANDS[name](rest)
 
 
 def ensure_engine() -> None:
-    """render calls PaddleOCR's restructure_pages: re-run in the paddleocr tool environment when not in it."""
+    """render calls PaddleOCR's restructure_pages: re-run in the paddleocr tool environment when not in it (or stop
+    with paddleocr_missing)."""
     try:
         import paddlex  # noqa: F401
         return

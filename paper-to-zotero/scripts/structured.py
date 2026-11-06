@@ -138,7 +138,7 @@ def take(zot, args, p):
 For each PDF picked, into -o DIR/: <cite>.<title>.pdf, a link to the PDF in Zotero's storage (paddleocr's input: it
 names its output after it), <cite>.<title>.zotero.json, where it came from (put reads it), and, when the PDF has a
 package, <cite>.<title>/ unzipped from it (under today's name, should the key or title have changed since): read it.
-No package (`package: null`): run the paddleocr skill's parse on the link with -o DIR, which writes that same folder,
+No package (`package: null`): the paddleocr skill's `ocr.py parse <input> -o DIR/` writes that same folder,
 then put. The PDFs of the items named (keys or citation keys; - reads a list from stdin): by default the best
 (p2z.py pdf's first row); --title the one with that attachment title; --every all of them; --missing those without a
 package. With no item named, --missing and --every cover the whole library: the PDFs without a package (links only),
@@ -189,13 +189,13 @@ def put_one(zot, folder, args):
     side_path = folder.with_name(folder.name + SIDE)
     if not side_path.is_file():
         raise cli.Stop("not_taken", hint="put takes a folder take prepared, its <name>.zotero.json beside it: take the "
-                       "PDF, parse the link take made into that directory, then put.")
+                       "PDF, parse the link take made with ocr.py parse <input> -o DIR/, then put.")
     side = json.loads(side_path.read_text(encoding="utf-8"))
     head = {"cite": side.get("cite"), "key": side["key"], "title": side["title"]}
     json_path, md_path = folder / f"{folder.name}.json", folder / f"{folder.name}.md"
     if not (json_path.is_file() and md_path.is_file()):
-        raise cli.Stop("not_parsed", hint="No <name>.json and <name>.md in the folder: run the paddleocr skill's parse "
-                       "on the link take made, with -o its directory.", **head)
+        raise cli.Stop("not_parsed", hint="No <name>.json and <name>.md in the folder: parse the link take made with "
+                       "ocr.py parse <input> -o DIR/, DIR the folder's directory.", **head)
     pdf, item = zot.item(side["attachment"]), zot.item(side["key"])
     if pdf is None or item is None or zotero.in_trash(pdf) or zotero.in_trash(item):
         raise cli.Stop("pdf_gone", hint="The PDF this folder was parsed from has left the library (trashed, or merged "
@@ -207,7 +207,7 @@ def put_one(zot, folder, args):
     source = (json.loads(json_path.read_text(encoding="utf-8")).get("source") or {}).get("sha256")
     if source != sha256(path):
         raise cli.Stop("source_mismatch", hint="The folder was parsed from another file than this PDF; take the PDF again "
-                       "and parse the link take made.", **head)
+                       "and parse the link take made: ocr.py parse <input> -o DIR/.", **head)
     stem = zotero.package_stem(zotero.data(item).get("citationKey") or side["key"], title)
     body = build(folder, stem)
     md5 = hashlib.md5(body).hexdigest()

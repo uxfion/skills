@@ -47,16 +47,16 @@ class PageRanges(unittest.TestCase):
 
 class Inputs(unittest.TestCase):
     def test_not_found(self):
-        self.assertEqual(P.resolve_input("/no/such/file.pdf", None)["error"], "not_found")
+        self.assertEqual(P.resolve_input("/no/such/file.pdf", None)["code"], "file_not_found")
 
     def test_unsupported_file_and_empty_dir(self):
         with tempfile.TemporaryDirectory() as d:
             txt = Path(d) / "notes.txt"
             txt.write_text("x")
-            self.assertEqual(P.resolve_input(str(txt), None)["error"], "unsupported_input")
+            self.assertEqual(P.resolve_input(str(txt), None)["code"], "unsupported_input")
             empty = Path(d) / "empty"
             empty.mkdir()
-            self.assertEqual(P.resolve_input(str(empty), None)["error"], "unsupported_input")
+            self.assertEqual(P.resolve_input(str(empty), None)["code"], "unsupported_input")
 
     def test_image_directory_is_one_document(self):
         with tempfile.TemporaryDirectory() as d:
@@ -66,7 +66,7 @@ class Inputs(unittest.TestCase):
             self.assertEqual(doc["kind"], "images")
             self.assertEqual([f.name for f in doc["files"]], ["page1.jpg", "page2.png", "page10.png"])
             self.assertEqual((doc["page_count"], doc["pages"]), (3, [2, 3]))
-            self.assertEqual(P.resolve_input(d, "5")["error"], "bad_pages")
+            self.assertEqual(P.resolve_input(d, "5")["code"], "bad_pages")
 
 
 class RawPage(unittest.TestCase):
@@ -195,14 +195,93 @@ class StartUp(unittest.TestCase):
     def test_missing_tool_environment(self):
         env = dict(os.environ, PADDLEOCR_PYTHON="/no/such/python")
         out = subprocess.run([sys.executable, str(SCRIPT), "x.pdf", "-o", "out"], capture_output=True, text=True, env=env)
-        if out.returncode == 0 or '"paddleocr_missing"' not in out.stdout:
+        if out.returncode == 0 or '"paddleocr_missing"' not in out.stderr:
             try:
                 import paddleocr  # noqa: F401 - running inside the tool environment itself
                 self.skipTest("paddleocr importable here")
             except ImportError:
                 pass
         self.assertEqual(out.returncode, 2)
-        self.assertEqual(json.loads(out.stdout)["error"], "paddleocr_missing")
+        self.assertEqual(json.loads(out.stderr.splitlines()[-1])["code"], "paddleocr_missing")
+        self.assertEqual(json.loads(out.stdout), {"input": "x.pdf", "code": "not_run"})
+
+
+class Run(unittest.TestCase):
+    """main over the documents named, with the models stood in for: what - reads and passes on, what is not run, and
+    a reader that closes the pipe early."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        for name in ("a.png", "b.png"):
+            (self.dir / name).write_bytes(name.encode())
+        self.done, self.loads = [], 0
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.dir)
+
+    def main(self, *argv, stdin="", backend=None, tool=None, stdout=None):
+        """P.main with the models stood in for -> (exit code, stdout lines, stderr, stdin's position when the tool
+        environment was asked for)."""
+        import contextlib
+        import io
+        from unittest import mock
+        seen = {}
+
+        def ensure_tool_env():
+            seen["stdin_at"] = sys.stdin.tell()
+            if tool:
+                raise tool
+
+        def process(doc, args, state):
+            self.done.append(doc["input"])
+            return {"folder": str(args.output / doc["stem"])}
+
+        def load_backend(args, state):
+            self.loads += 1
+            return backend
+        out, err = stdout or io.StringIO(), io.StringIO()
+        with mock.patch.object(P, "ensure_tool_env", ensure_tool_env), mock.patch.object(P, "process", process), \
+                mock.patch.object(P, "load_backend", load_backend), mock.patch("sys.stdin", io.StringIO(stdin)), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = P.main([*argv, "-o", str(self.dir / "out")])
+        lines = [json.loads(line) for line in out.getvalue().splitlines()] if stdout is None else None
+        return code, lines, err.getvalue(), seen.get("stdin_at")
+
+    def test_a_list_of_paths_and_our_json_lines(self):
+        a, b = str(self.dir / "a.png"), str(self.dir / "b.png")
+        failed = {"cite": "y", "key": None, "code": "not_found", "hint": "No item has that key."}
+        taken = {"cite": "z", "code": "skipped", "reason": "already_taken"}
+        stdin = "\n".join([a, json.dumps({"cite": "x", "code": "ok", "input": b}), json.dumps(failed), json.dumps(taken)])
+        code, lines, err, stdin_at = self.main("-", stdin=stdin)
+        self.assertEqual(stdin_at, 0, "- is read after the tool environment, which may run the command again")
+        self.assertEqual(self.done, [a, b])
+        self.assertEqual([line.get("input") or line for line in lines], [a, b, failed, taken])
+        self.assertEqual((code, json.loads(err.splitlines()[-1])),
+                         (1, {"summary": {"total": 4, "ok": 2, "skipped": 1, "failed": 1}}))
+
+    def test_a_line_naming_nothing_stops_before_anything_is_parsed(self):
+        code, lines, err, _ = self.main("-", stdin=json.dumps({"cite": "x", "code": "ok"}))
+        self.assertEqual((code, lines, self.done, json.loads(err.splitlines()[-1])["code"]), (2, [], [], "invalid_list"))
+
+    def test_an_empty_list_is_nothing_to_do(self):
+        from ocrlib import cli
+        for tool in (None, cli.Stop("paddleocr_missing", exit=cli.CANNOT)):
+            code, lines, err, _ = self.main("-", stdin="", tool=tool)
+            self.assertEqual((code, lines, err, self.loads), (0, [], "", 0))
+
+    def test_a_missing_file_and_a_server_that_does_not_answer(self):
+        a, gone = str(self.dir / "a.png"), str(self.dir / "gone.pdf")
+        code, lines, err, _ = self.main(a, gone, backend={"error": "vl_server_unreachable", "detail": "no model list"})
+        self.assertEqual([(line["input"], line["code"]) for line in lines], [(a, "not_run"), (gone, "file_not_found")])
+        self.assertEqual((code, json.loads(err.splitlines()[-1])["code"], self.done), (2, "vl_server_unreachable", []))
+
+    def test_a_reader_that_closes_the_pipe(self):
+        r, w = os.pipe()
+        os.close(r)
+        with os.fdopen(w, "w") as closed:
+            code, _, err, _ = self.main(str(self.dir / "a.png"), str(self.dir / "b.png"), stdout=closed)
+        self.assertEqual((code, err, len(self.done)), (0, "", 2))
 
 
 if __name__ == "__main__":

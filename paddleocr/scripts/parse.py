@@ -1,78 +1,68 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
-# requires-python = ">=3.9"
+# requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Parse documents (PDFs or page images) with PaddleOCR-VL into a record, Markdown and figures.
+"""Parse documents, PDFs or page images, with PaddleOCR-VL into a record, Markdown and figures.
 
-Each INPUT is one document: a PDF, an image, or a directory of page images (natural order). For each document
-this runs the models and writes OUTDIR/<stem>/ (doc.py describes the folder and what can be done with it):
-
-  <stem>.json   the record: what the models gave, as given (PaddleOCR's blocks, with ids p<page>-<block_id>;
-                the second layout model's boxes on each page), the changes processing made to it, the figures,
-                and the findings of the checks
-  <stem>.md     the reading copy, generated from the record: <!-- page N --> before each page, LaTeX formulas
-                with \\tag*{(n)}, HTML tables (merged across pages), each figure's image where its first panel
-                was, inside <!-- figure ID --> markers with the text the model read in it
-  imgs/         the figures, PNG cut from the source at 300 dpi, named by figure id
+Each INPUT is one document: a PDF, an image, or a directory of page images (natural order); - reads a list of paths
+from stdin, a path a line or our JSON lines by `input` (parse's own, p2z.py package take's). Each document goes to
+DIR/<stem>/, the folder every other ocr.py word works on:
+  <stem>.json   the record: what the models gave, as given (PaddleOCR's blocks, with ids p<page>-<block_id>; the
+                second layout model's boxes on each page), every change made to it since, in order ("auto:<step>"
+                by processing, "agent" / "user" by settling, each with its reason), the figures, and the findings
+  <stem>.md     the reading copy, generated from the record: <!-- page N --> before each page, LaTeX formulas with
+                \\tag*{(n)}, HTML tables (merged across pages), each figure's image where its first panel was, inside
+                <!-- figure ID --> markers with the text the model read in it, a note before each open finding
+  imgs/         the figures, and the images inside tables, PNG cut from the source at 300 dpi, named by figure id
   pages/        --photo only: the corrected page images the boxes refer to
 
-and prints one JSON summary line per document on stdout (progress goes to stderr).
+Processing: PaddleOCR's restructure_pages (tables continued across pages merged, heading levels); figures put together
+from their panels by the second layout model's whole-figure boxes and the captions (PP-StructureV3's
+PP-DocLayout_plus-L, run on every page; when it cannot load, captions alone, and stderr says so); then the checks
+against the PDF's text layer and of each figure against its caption, whose findings ocr.py findings lists.
 
-A document whose record holds the same source (sha256, pages) and options is not parsed again: when the code
-that processes or checks a record has changed since, it is processed again from the stored model output, with
-no GPU ("rendered": true); else "skipped": "up_to_date". --force parses it again; the edits an agent or the user
-made carry over to the new parse (matched by block id and the text they changed), and those that no longer fit
-become stale_edit findings. A folder holding a parse of an older format is moved aside to <stem>.format2/ and
-the document parsed anew ("archived").
-
-Processing, in doc.py: PaddleOCR's restructure_pages (tables continued across pages merged, heading levels);
-figures put together from their panels by the second layout model's whole-figure boxes and the captions
-(PP-StructureV3's PP-DocLayout_plus-L, run on every page; when it cannot load, captions alone, and stderr says
-so); then the checks against the PDF's text layer (checks.py) and of each figure against its caption
-(figures.py). Findings, each with an id <code>@<block or page>:
-  missing_text        a run of text-layer words absent from the parse
-  missing_numbers     numbers of two or more digits on text-layer lines but not in the parse
-  extra_text          a run of parsed words the text layer lacks: text the model invented
-  foreign_script      CJK, kana or Hangul characters the text layer lacks
-  table_mismatch      text-layer tokens inside a table's box absent from that table
-  unchecked_table     a table with no text layer in its box (embedded as an image)
-  table_empty_column  a headed column empty in every row: values shifted under the wrong headers
-  formula_number_gap  equation numbers missing from an otherwise continuous run
-  low_coverage        under 80% of the page's text-layer word trigrams were found
-  repetition          a block repeats one fragment, or cycles through the same words
-  empty_page          a page yielded no text
-  figure_check        a figure whose crop may be wrong (no_crop, split, two_figures, table, edge_cut, second_opinion)
-  no_text_layer       pages that cannot be checked (scans, images)
-  stale_edit          an earlier edit that no longer fits the block's text
-Each open finding is a note in the Markdown, <!-- open <id>: ... -->, before its block, figure or page.
+A document whose record holds the same source (sha256, pages) and options is not parsed again: when the code that
+processes or checks a record has changed since, it is processed again from the stored model output, with no GPU
+(rendered: true); else it is skipped, reason up_to_date. -f parses it again; the edits an agent or the user made
+carry over to the new parse (matched by block id and the text they changed), and those that no longer fit become
+stale_edit findings. A folder holding a parse of an older format is moved aside to <stem>.format2/ and the document
+parsed anew (archived). Markdown edits not recorded yet are committed first.
 
 The VL model runs natively (one block at a time, about 10-15 s a page) or in a vLLM server (continuous batching,
-0.5-1 s a page). --backend auto, the default, asks the vllm-serve skill (installed beside this one, or
-VLLM_SERVE = its serve.py) for the server whenever a run has pages to parse, however few: `serve.py up
-paddleocr-vl` starts it unless it runs, and it stops by itself once idle. Without vllm-serve, without vLLM, or
-with too little free GPU memory for the server, the run goes native and stderr says why. --backend vllm insists
-on the server, --backend native avoids it, and --vl-server URL uses a given vLLM server. Each summary names its
-"backend" and "pages_per_minute".
+0.5-1 s a page). --backend auto, the default, asks the vllm-serve skill (installed beside this one, or VLLM_SERVE =
+its serve.py) for the server whenever a run has pages to parse, however few: `serve.py up paddleocr-vl` starts it
+unless it runs, and it stops by itself once idle. Without vllm-serve, without vLLM, or with too little free GPU memory
+for the server, the run goes native and stderr says why. --backend vllm insists on the server, --backend native
+avoids it, and --vl-server URL uses a given vLLM server.
 
-`uv run` starts this script in a bare environment; it re-executes itself with the Python of the `paddleocr` uv
-tool (PADDLEOCR_PYTHON overrides), with CUDA_MODULE_LOADING=EAGER set before CUDA initialises (lazy loading hung
-the VL model on WSL2 + RTX 50, 2026-10) and LD_LIBRARY_PATH stripped of CUDA toolkit directories when the
-environment ships its own CUDA runtime, so that Paddle loads those libraries rather than a system toolkit's.
+The models run in the Python of the `paddleocr` uv tool (PADDLEOCR_PYTHON overrides): the command re-executes itself
+there, with CUDA_MODULE_LOADING=EAGER set before CUDA initialises (lazy loading hung the VL model on WSL2 + RTX 50,
+2026-10) and LD_LIBRARY_PATH stripped of CUDA toolkit directories when the environment ships its own CUDA runtime, so
+that Paddle loads those libraries rather than a system toolkit's.
 
-Errors: "error" in a summary line (not_found, unsupported_input, bad_pages, parse_failed); alone on stdout when
-nothing can start: paddleocr_missing (no tool environment), vl_server_failed (--backend vllm, with vllm-serve's
-error), vl_server_unreachable (--vl-server). Exit 0 = every document parsed or skipped; 1 = some document
-failed; 2 = nothing could start.
+stdout: one line per document as it is done, {input, code, folder, md, json, ...}:
+  ok         parsed (backend, seconds, pages_per_minute, load_seconds, edits_carried, archived) or rendered: true;
+             then pages, blocks (by label), figures, min_coverage, checks, open and unresolved (finding ids), and
+             recorded, gone, new, reopened when Markdown edits were recorded or findings came and went
+  skipped    reason up_to_date, with the same counts
+  file_not_found, unsupported_input, bad_pages, parse_failed, edit_refused, locked: that document failed, see hint
+  not_run    not reached: the run stopped (exit 2)
+A line of a - list that names no input and reports a skip or a failure upstream is passed on as it is.
+stderr: progress ([paddleocr] ... page N done) and warnings that bear on the result (why the run went native, the
+second layout model not loaded); empty when every document is skipped.
+Exit 0 = every document parsed or skipped; 1 = some failed, and stderr's last line is {"summary": {total, ok,
+skipped, failed}}; 2 = it could not go on, and stderr's last line {code, hint} says why: paddleocr_missing (no tool
+environment), vl_server_failed (--backend vllm, with vllm-serve's reason), vl_server_unreachable (--vl-server),
+invalid_list (a - list line names no input; nothing was parsed), usage.
 
 Examples:
-  uv run parse.py paper.pdf -o out/
-  uv run parse.py a.pdf b.pdf scans/ -o out/ --pages 1-8
-  uv run parse.py papers/*.pdf -o out/ --vl-server http://127.0.0.1:8118/v1
+  ocr.py parse paper.pdf -o /abs/out/
+  ocr.py parse -f --pages 1-8 a.pdf b.pdf scans/ -o /abs/out/
+  p2z.py package take K1 K2 --missing -o /abs/d/ | ocr.py parse -o /abs/d/ -
 """
 from __future__ import annotations
 
-import argparse
 import glob
 import hashlib
 import json
@@ -91,7 +81,8 @@ IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 ENGINE = "PaddleOCR-VL-1.6"
 LAYOUT_PIPELINE = "PP-StructureV3"   # its layout model (PP-DocLayout_plus-L), with its settings, draws whole figures
 VL_PROFILE = "paddleocr-vl"         # the vllm-serve profile that serves the VL model
-sys.path.insert(0, str(Path(__file__).resolve().parent))   # doc.py and the modules it uses
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # the record's code (doc), and ocrlib
+from ocrlib import cli  # noqa: E402
 
 
 # ---------------------------------------------------------------- environment
@@ -134,8 +125,8 @@ def without_cuda_toolkit(path: str) -> str | None:
 
 
 def ensure_tool_env(script: str = __file__) -> None:
-    """Return inside an interpreter that has paddleocr, or exit with paddleocr_missing; `script` is what to run again
-    in the tool's interpreter (doc.py uses this too)."""
+    """Return inside an interpreter that has paddleocr, or raise paddleocr_missing (exit 2); `script` is what to run
+    again in the tool's interpreter (render passes its own)."""
     os.environ.setdefault("CUDA_MODULE_LOADING", "EAGER")
     os.environ.setdefault("PYTHONWARNINGS", "ignore")      # Paddle's UserWarnings would bury the progress lines
     pywarnings.filterwarnings("ignore")
@@ -146,9 +137,9 @@ def ensure_tool_env(script: str = __file__) -> None:
         pass
     python = tool_python()
     if not python or not Path(python).exists() or os.environ.get("_PADDLEOCR_REEXEC"):
-        print(json.dumps({"error": "paddleocr_missing",
-                          "detail": "no paddleocr uv tool found; see references/install.md"}), flush=True)
-        sys.exit(2)
+        guide = Path(__file__).resolve().parents[1] / "references" / "install.md"
+        raise cli.Stop("paddleocr_missing", exit=cli.CANNOT, detail="no paddleocr uv tool found",
+                       hint=f"Install it as {guide} says (PADDLEOCR_PYTHON names its Python when it is elsewhere).")
     os.environ["_PADDLEOCR_REEXEC"] = "1"
     # The loader reads LD_LIBRARY_PATH when a process starts, so this takes effect only across
     # the exec; started directly with the tool's Python, the script keeps the path it was given.
@@ -301,33 +292,37 @@ def sha256_of(paths: list[Path]) -> str:
 
 
 def resolve_input(raw: str, pages_spec: str | None) -> dict:
-    """Describe one document, or return {"input", "error", "detail"}."""
+    """Describe one document, or return the line of its failure, {"input", "code", "detail"?, "hint"}."""
     path = Path(raw).expanduser()
+    unsupported = "A document is a PDF, an image, or a directory of page images."
     if not path.exists():
-        return {"input": raw, "error": "not_found"}
+        return {"input": raw, "code": "file_not_found", "hint": "No such file or directory."}
     if path.is_dir():
         files = sorted((p for p in path.iterdir() if p.suffix.lower() in IMAGE_SUFFIXES), key=lambda p: natural_key(p.name))
         if not files:
-            return {"input": raw, "error": "unsupported_input", "detail": "directory holds no page images"}
+            return {"input": raw, "code": "unsupported_input", "detail": "directory holds no page images",
+                    "hint": unsupported}
         kind = "images"
     elif path.suffix.lower() == ".pdf":
         files, kind = [path], "pdf"
     elif path.suffix.lower() in IMAGE_SUFFIXES:
         files, kind = [path], "images"
     else:
-        return {"input": raw, "error": "unsupported_input", "detail": f"not a PDF or image: {path.suffix}"}
+        return {"input": raw, "code": "unsupported_input", "detail": f"not a PDF or image: {path.suffix}",
+                "hint": unsupported}
     if kind == "pdf":
         import pypdfium2 as pdfium
         try:
             count = len(pdfium.PdfDocument(str(path)))
         except Exception as e:  # noqa: BLE001 - pdfium raises its own error types
-            return {"input": raw, "error": "unsupported_input", "detail": f"unreadable PDF: {e}"}
+            return {"input": raw, "code": "unsupported_input", "detail": f"unreadable PDF: {e}", "hint": unsupported}
     else:
         count = len(files)
     try:
         pages = parse_pages(pages_spec, count)
     except ValueError as e:
-        return {"input": raw, "error": "bad_pages", "detail": str(e)}
+        return {"input": raw, "code": "bad_pages", "detail": str(e),
+                "hint": f"--pages takes page numbers and ranges within the document's {count} pages: 1-3,8 or 5-."}
     return {"input": raw, "path": path, "kind": kind, "files": files, "page_count": count, "pages": pages,
             "stem": path.stem if path.is_file() else path.name}
 
@@ -497,67 +492,70 @@ def archive(folder: Path) -> Path:
 
 
 def process(doc: dict, args, state: dict) -> dict:
+    """One document parsed, processed again or skipped -> its line's fields."""
     import doc as D
-    folder = Path(args.output) / doc["stem"]
+    folder = args.output / doc["stem"]
     json_path, md_path = D.paths(folder)
-    summary = {"input": doc["input"], "md": str(md_path), "json": str(json_path)}
+    line = {"folder": str(folder), "md": str(md_path), "json": str(json_path)}
     src = {"kind": doc["kind"], "path": doc["path"], "files": doc["files"]}
     old = stored(json_path)
     if old and old.get("format") != D.FORMAT:
-        summary["archived"] = str(archive(folder))
+        line["archived"] = str(archive(folder))
         old = None
     t0 = time.time()
     if doc["fresh"]:
         with D.locked(folder):
-            log = D.settle_edits(folder, old, src)
+            moves = D.settle_edits(folder, old, src)
             if old["run"].get("versions") != D.versions():
-                log += D.moves_log(D.build(old, src, folder))
-                summary["rendered"] = True
+                moves = D.tally(moves, D.build(old, src, folder))
+                line["rendered"] = True
             else:
-                summary["skipped"] = "up_to_date"
-        report(log, doc)
-        return finish(summary, old)
+                line.update(code="skipped", reason="up_to_date")
+        return {**line, **D.summary(old), **moves}
     folder.mkdir(parents=True, exist_ok=True)
     record = run_models(doc, args, state, folder)
+    moves = {}
     with D.locked(folder):
         if old and old["source"]["sha256"] == doc["sha"]:
-            report(D.settle_edits(folder, old, src), doc)
+            moves = D.settle_edits(folder, old, src)
             if carried := D.migrate(old, record):
-                summary["edits_carried"] = carried
+                line["edits_carried"] = carried
         D.build(record, src, folder)
     seconds = time.time() - t0
-    summary.update(backend=state["backend"], seconds=round(seconds, 1),
-                   pages_per_minute=round(len(doc["pages"]) * 60 / seconds, 1))
+    line.update(backend=state["backend"], seconds=round(seconds, 1),
+                pages_per_minute=round(len(doc["pages"]) * 60 / seconds, 1))
     if "load_seconds" in state:
-        summary["load_seconds"] = state.pop("load_seconds")
-    return finish(summary, record)
+        line["load_seconds"] = state.pop("load_seconds")
+    return {**line, **D.summary(record), **moves}
 
 
-def report(log: list[str], doc: dict) -> None:
-    for line in log:
-        print(f"[paddleocr] {doc['stem']}: {line}", file=sys.stderr, flush=True)
+def attempt(doc: dict, args, state: dict) -> dict:
+    """process(); whatever fails is this document's own line, a lock another run holds on its folder too."""
+    try:
+        return process(doc, args, state)
+    except cli.Stop as stop:
+        stop.exit = cli.ACT
+        raise
+    except Exception as e:  # noqa: BLE001 - this document fails, the next is parsed
+        raise cli.Stop("parse_failed", detail=f"{type(e).__name__}: {e}",
+                       hint="Parse this document again on its own; take a failure that repeats to the user.") from e
 
 
-def finish(summary: dict, record: dict) -> dict:
-    """The summary line: pages, blocks by label, the lowest page coverage, figures, and the findings left open."""
-    counts = {}
-    for b in record["blocks"]:
-        counts[b["label"]] = counts.get(b["label"], 0) + 1
-    covered = [p["coverage"] for p in record["pages"] if p.get("coverage") is not None]
-    found = record.get("findings", [])
-    summary.update(pages=len(record["pages"]), blocks=counts, figures=len(record.get("figures", [])),
-                   min_coverage=round(min(covered), 3) if covered else None, checks=record.get("checks"),
-                   open=[f["id"] for f in found if f["status"] == "open"],
-                   unresolved=[f["id"] for f in found if f["status"] == "unresolved"])
-    return summary
+BACKEND_HINTS = {
+    "vl_server_unreachable": "Nothing answered at --vl-server: check the URL, or leave --vl-server out and the "
+                             "vllm-serve skill provides the server.",
+    "vl_server_failed": "--backend vllm takes only vllm-serve's server, and detail says why there is none; without "
+                        "--backend the run goes native.",
+}
 
 
-def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("inputs", nargs="+", metavar="INPUT", help="PDF, image, or directory of page images")
-    p.add_argument("-o", "--output", required=True, metavar="OUTDIR", help="each document goes to OUTDIR/<stem>/")
+def build_parser() -> cli.Parser:
+    p = cli.parser(__doc__)
+    p.add_argument("inputs", nargs="*", metavar="INPUT",
+                   help="a PDF, an image, or a directory of page images; - reads a list of paths from stdin")
+    p.add_argument("-o", "--output", required=True, metavar="DIR/", help="each document goes to DIR/<stem>/")
     p.add_argument("--pages", metavar="RANGES", help="pages to parse, e.g. 1-3,8 or 5- (output keeps original numbers)")
-    p.add_argument("--force", action="store_true", help="parse again even when the record is of this source and options")
+    p.add_argument("-f", "--force", action="store_true", help="parse again even when the record is of this source and options")
     p.add_argument("--charts", action="store_true", help="turn charts into data tables (values are model-read; check them)")
     p.add_argument("--figure-text", action="store_true", help="OCR the text inside figures into the Markdown")
     p.add_argument("--photo", action="store_true", help="correct orientation and warping (photographed or skewed scans)")
@@ -569,28 +567,41 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
-    args = build_parser().parse_args(argv)
-    ensure_tool_env()
-    docs = [resolve_input(raw, args.pages) for raw in args.inputs]
-    for doc in docs:
-        if "error" not in doc:
+    p = build_parser()
+    args = cli.parse(p, argv)
+    if not args.inputs:
+        p.error("name the documents: PDFs, images or directories of page images; - reads their paths from stdin")
+    args.output = Path(args.output).expanduser().resolve()
+    try:
+        ensure_tool_env()       # may run this again in the tool's Python, with the same stdin: - is read after it
+        missing = None
+    except cli.Stop as stop:    # no tool environment: the list is read here, and no document is parsed
+        missing = stop
+    try:
+        named = cli.paths(args.inputs, "input")
+    except cli.Stop as stop:
+        cli.emit(stop.line(), sys.stderr)
+        return stop.exit
+    out, state = cli.Lines(), {}
+    docs = {} if missing else {i: resolve_input(raw, args.pages) for i, raw in enumerate(named) if isinstance(raw, str)}
+    for doc in docs.values():
+        if "code" not in doc:
             doc["sha"] = sha256_of(doc["files"] if doc["kind"] == "images" else [doc["path"]])
-            json_path = Path(args.output) / doc["stem"] / f"{doc['stem']}.json"
+            json_path = args.output / doc["stem"] / f"{doc['stem']}.json"
             doc["fresh"] = not args.force and current(stored(json_path), doc, args)
-    pending = sum(len(doc["pages"]) for doc in docs if "error" not in doc and not doc["fresh"])
-    state, failed = {}, False
-    if pending and (error := load_backend(args, state)):
-        print(json.dumps(error, ensure_ascii=False), flush=True)
-        return 2
-    for doc in docs:
-        if "error" not in doc:
-            try:
-                doc = process(doc, args, state)
-            except Exception as e:  # noqa: BLE001 - report and continue with the next document
-                doc = {"input": doc["input"], "error": "parse_failed", "detail": f"{type(e).__name__}: {e}"}
-        failed |= "error" in doc
-        print(json.dumps(doc, ensure_ascii=False), flush=True)
-    return 1 if failed else 0
+    pending = sum(len(doc["pages"]) for doc in docs.values() if "code" not in doc and not doc["fresh"])
+    if missing and any(isinstance(raw, str) for raw in named):
+        out.stop(missing)
+    elif pending and (error := load_backend(args, state)):
+        out.stop(cli.Stop(error["error"], exit=cli.CANNOT, detail=error.get("detail"),
+                          hint=BACKEND_HINTS.get(error["error"])))
+    for i, raw in enumerate(named):
+        doc = docs.get(i)
+        if isinstance(raw, dict) or doc and "code" in doc:   # passed on from upstream, or failed before parsing
+            out.put(raw if isinstance(raw, dict) else doc)
+        else:
+            out.add({"input": raw}, lambda: attempt(doc, args, state))
+    return out.finish()
 
 
 if __name__ == "__main__":

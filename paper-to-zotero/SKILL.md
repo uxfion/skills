@@ -7,7 +7,7 @@ description: Puts papers into Zotero — item, PDF, collection, tags — from a 
 
 Everything in Zotero: items with their PDFs, filed and tagged; the library tidied, fixed and exported; the notes and structured packages kept beside the papers. This skill never goes online: finding a paper and its PDF is the paper-fetch skill's, reading one through is paper-read's.
 
-**Calling.** Start every shell call with this statement, filled in with this file's absolute directory, then the commands: `set -o pipefail; export PATH="<this directory>/scripts:<this directory>/../paper-fetch/scripts:$PATH";` — `p2z.py <word> …` and paper-fetch's `pf.py <word> …` are then found from anywhere in the call, your working directory stays where it is, and a failure anywhere in a pipe sets the call's exit code. `p2z.py -h` lists the words; `p2z.py <word> -h` is each one's reference: what it reads, its options, its lines, its exit codes. stdout is data, one JSON line per thing (BibTeX, Markdown and change lists as they are); stderr stays empty when everything is done, so keep it: on exit 1 its last line sums up what is not, on exit 2 it is `{code, hint}`, saying why nothing could go on.
+**Calling.** Start every shell call with this statement, filled in with this file's absolute directory, then the commands: `set -o pipefail; export PATH="<this directory>/scripts:<this directory>/../paper-fetch/scripts:<this directory>/../paddleocr/scripts:$PATH";` — `p2z.py <word> …` and paper-fetch's `pf.py <word> …` are then found from anywhere in the call, your working directory stays where it is, and a failure anywhere in a pipe sets the call's exit code. `p2z.py -h` lists the words; `p2z.py <word> -h` is each one's reference: what it reads, its options, its lines, its exit codes. stdout is data, one JSON line per thing (BibTeX, Markdown and change lists as they are); stderr stays empty when everything is done, so keep it: on exit 1 its last line sums up what is not, on exit 2 it is `{code, hint}`, saying why nothing could go on.
 
 | operation | where |
 |---|---|
@@ -70,7 +70,7 @@ p2z.py package take <citation key> -o <scratch>/
 
 Named by title or author, `p2z.py search <surname title words>` finds it first (`| p2z.py package take - -o <scratch>/` takes what it found). `take` picks the best version; `--title <attachment title>` picks another (`p2z.py pdf <citation key>` lists them, best first, with each file's path). Reading the package — and the paper's note before it, where what the paper says is already answered — is the paper-read skill's (*Look it up*, *Read a paper*). Then:
 
-- `package: null` (the PDF came in where there was no GPU): parse `input`, the link `take` made, with the paddleocr skill (*Sibling skills*), `-o <scratch>`; a parse beyond fixing in place: the same with `--force`;
+- `package: null` (the PDF came in where there was no GPU): parse `input`, the link `take` made, with the paddleocr skill (*Sibling skills*): `ocr.py parse <input> -o <scratch>/`; a parse beyond fixing in place: the same with `-f`;
 - after a parse, a settled finding or a fix: `p2z.py package put <scratch>/<cite>.<title>/`, so the next reader gets your work (an unchanged folder is skipped).
 
 Done when every folder you changed is put back.

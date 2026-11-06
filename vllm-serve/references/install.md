@@ -73,7 +73,7 @@ The first `up` of a Hub model downloads it as the first phase of the start (`sta
 | `CUDA_DEVICE_ORDER=PCI_BUS_ID` | `CUDA_VISIBLE_DEVICES` numbers then mean `nvidia-smi`'s numbers; CUDA's own order puts the fastest GPU first. |
 | `VLLM_ENGINE_READY_TIMEOUT_S=86400` | vLLM's own deadline (600 s, applied with data parallel) stopped a 52 GB load from a nearly full disk (2026-10); `up` waits until the server answers or exits. |
 | `VLLM_WSL2_ENABLE_PIN_MEMORY=1` | vLLM turns pinned memory off under WSL2 unless told. 0.28 then stopped with "UVA is not available"; 0.31 falls back to device memory and runs slower. |
-| `CUDA_MODULE_LOADING` removed | Programs that run Paddle beside vLLM (paddleocr's `parse.py`) set it to `EAGER`; inherited by vLLM 0.28, it stalled the engine start at "Initializing a V1 LLM engine" for minutes. |
+| `CUDA_MODULE_LOADING` removed | Programs that run Paddle beside vLLM (paddleocr's `ocr.py parse`) set it to `EAGER`; inherited by vLLM 0.28, it stalled the engine start at "Initializing a V1 LLM engine" for minutes. |
 | `HF_HUB_OFFLINE=1` when the weights are cached | The server starts without asking the Hub. |
 
 A variable in the caller's environment goes over the plain settings (`VLLM_*`, `CUDA_DEVICE_ORDER`, `HF_HUB_OFFLINE`), not over the CUDA paths serve.py rewrites or the variables it removes; the profile's `env` goes over all of them. A server started by hand, outside `serve.py`, needs the same. vLLM picks the attention kernels for the GPU: FlashAttention 3 on Hopper only, FlashInfer on Blackwell data-centre GPUs (sm_100), FlashAttention 2 on RTX 50 / RTX PRO 6000 (sm_120), Ada and Ampere; nothing to install for it.

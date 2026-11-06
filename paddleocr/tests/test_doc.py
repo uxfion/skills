@@ -11,9 +11,12 @@ continued over a page with an image inside it, a lone image, page furniture); fi
 what processing makes of it. `uv run tests/test_doc.py --engine` runs again in the paddleocr tool environment and
 adds the tests that need PaddleOCR: processing the raw record gives exactly those two files, and the Markdown rules
 give what PaddleOCR's own do."""
+import contextlib
 import copy
 import importlib.util
+import io
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -239,8 +242,9 @@ class Commit(unittest.TestCase):
                                  ("p3-n2", "text", "A dropped paragraph.", "")])
 
     def test_an_edit_that_adds_a_paragraph_is_refused(self):
-        with self.assertRaises(D.Refused):
+        with self.assertRaises(D.Stop) as refused:
             self.edit(record(), "reference [1].\n", "reference [2].\n\nA dropped paragraph.\n")
+        self.assertEqual(refused.exception.code, "edit_refused")
         # blank lines a block already holds are its own: 611 of 1465 algorithm blocks in 267 parses (2026-11)
         r = record()
         algorithm = next(b for b in r["blocks"] if b["id"] == "p3-5")
@@ -283,8 +287,9 @@ class Commit(unittest.TestCase):
     def test_markers_are_protected(self):
         for old, new in (("<!-- page 3 -->", "<!-- page 4 -->"), ("<!-- end figure p2-2 -->\n", ""),
                          ("A figure without", "![x](imgs/mine.png)\nA figure without")):
-            with self.assertRaises(D.Refused):
+            with self.assertRaises(D.Stop) as refused:
                 self.edit(record(), old, new)
+            self.assertEqual(refused.exception.code, "edit_refused")
 
     def test_unedited_commits_nothing(self):
         r = record()
@@ -365,11 +370,118 @@ class Lock(unittest.TestCase):
     def test_one_writer(self):
         with tempfile.TemporaryDirectory() as tmp:
             with D.locked(Path(tmp)):
-                with self.assertRaises(D.Refused):
+                with self.assertRaises(D.Stop) as held:
                     with D.locked(Path(tmp)):
                         pass
+                self.assertEqual((held.exception.code, held.exception.exit), ("locked", 2))
             with D.locked(Path(tmp)):
                 pass
+
+
+class Commands(unittest.TestCase):
+    """The words on a parse folder, as ocr.py runs them: their lines, exit codes and what they leave on disk. The
+    fixture record's source path is empty: it has no source, unless a test gives it a blank PDF."""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.folder = self.dir / "paper"
+        self.folder.mkdir()
+        (self.folder / "paper.json").write_text(json.dumps(record()), encoding="utf-8")
+        shutil.copy(FIXTURES / "synthetic.md", self.folder / "paper.md")
+
+    def tearDown(self):
+        shutil.rmtree(self.dir)
+
+    def run_word(self, *argv):
+        """-> (exit code, stdout, stderr)"""
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = D.main(list(argv))
+            except SystemExit as e:
+                code = e.code
+        return code, out.getvalue(), err.getvalue()
+
+    def files(self):
+        return {p.name: p.read_bytes() for p in self.folder.iterdir() if p.is_file()}
+
+    def edit_markdown(self, old, new):
+        md = self.folder / "paper.md"
+        md.write_text(md.read_text(encoding="utf-8").replace(old, new, 1), encoding="utf-8")
+
+    def with_source(self):
+        """A blank five-page Letter PDF as the record's source."""
+        import pypdfium2 as pdfium
+        pdf = pdfium.PdfDocument.new()
+        for _ in range(5):
+            pdf.new_page(612, 792)
+        path = self.dir / "paper.pdf"
+        pdf.save(str(path))
+        r = json.loads((self.folder / "paper.json").read_text(encoding="utf-8"))
+        r["source"].update(path=str(path), sha256=D.sha256_of([path]))
+        (self.folder / "paper.json").write_text(json.dumps(r), encoding="utf-8")
+
+    def test_findings_and_show_read_only_and_warn_of_uncommitted_edits(self):
+        r = record([finding("missing_text@p1", ["the right column ends here"]),
+                    finding("table_mismatch@p2-9", ["0.95"], "unresolved", why="illegible"),
+                    finding("no_text_layer", status="ok", why="a scan")])
+        (self.folder / "paper.json").write_text(json.dumps(r), encoding="utf-8")
+        self.edit_markdown("after the formula", "following the formula")
+        before = self.files()
+        code, out, err = self.run_word("findings", str(self.folder))
+        self.assertEqual(code, 0, err)
+        self.assertEqual([json.loads(line) for line in out.splitlines()], [
+            {"id": "missing_text@p1", "status": "open", "page": 1, "note": "the right column ends here"},
+            {"id": "table_mismatch@p2-9", "status": "unresolved", "page": 2, "note": "illegible"}])
+        self.assertIn("not committed", err)
+        code, out, _ = self.run_word("findings", "-a", str(self.folder))
+        self.assertEqual(json.loads(out.splitlines()[-1]), {"id": "no_text_layer", "status": "ok", "page": None,
+                                                            "note": "a scan"})
+        code, out, err = self.run_word("show", str(self.folder), "p3")
+        self.assertEqual(code, 0, err)
+        self.assertIn("p3-5", out)
+        self.assertIn("not committed", err)
+        self.assertEqual(self.files(), before)            # nothing recorded, the Markdown untouched
+
+    def test_usage_errors_name_the_way(self):
+        code, _, err = self.run_word("show", str(self.folder))
+        self.assertEqual((code, json.loads(err.splitlines()[-1])["code"]), (2, "usage"))
+        self.assertIn(f"findings {self.folder}", json.loads(err.splitlines()[-1])["hint"])
+        code, _, err = self.run_word("cut", str(self.folder), "p3", "--box", "50", "260", "560", "350")
+        self.assertEqual((code, json.loads(err.splitlines()[-1])["hint"]), (2, "Write the box as one value: --box 50,260,560,350."))
+
+    def test_commit_records_then_has_nothing_to_commit(self):
+        self.edit_markdown("after the formula", "following the formula")
+        code, out, err = self.run_word("commit", str(self.folder))
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(json.loads(out), {"folder": str(self.folder.resolve()), "code": "ok",
+                                           "recorded": ["p1-11: 'after' -> 'following'"]})
+        code, out, err = self.run_word("commit", str(self.folder))
+        self.assertEqual((code, json.loads(out)["code"], json.loads(out)["reason"]), (0, "skipped", "nothing_to_commit"))
+
+    def test_a_folders_problem_is_its_own_line(self):
+        self.edit_markdown("<!-- page 3 -->", "<!-- page 4 -->")
+        before = self.files()
+        code, out, err = self.run_word("commit", str(self.folder))
+        line = json.loads(out)
+        self.assertEqual((code, err, line["folder"], line["code"]), (1, "", str(self.folder.resolve()), "edit_refused"))
+        self.assertIn("<!-- page 3 -->", line["detail"])
+        self.assertEqual(self.files(), before)
+        code, out, _ = self.run_word("findings", str(self.dir / "gone"))
+        self.assertEqual((code, json.loads(out)["code"]), (1, "file_not_found"))
+
+    def test_cut_a_new_figure_on_a_page_with_a_box_in_one_value(self):
+        self.with_source()
+        code, out, err = self.run_word("cut", str(self.folder), "p3", "--box", "50,260,560,350", "--reason", "read as text")
+        self.assertEqual(code, 0, err)
+        line = json.loads(out)
+        self.assertEqual((line["code"], line["figure"], Path(line["image"]).is_file()), ("ok", "p3-n1", True))
+        r = json.loads((self.folder / "paper.json").read_text(encoding="utf-8"))
+        fig = next(f for f in r["figures"] if f["id"] == "p3-n1")
+        self.assertEqual((D.fold_figure(fig)["box"], fig["changes"][-1]["why"]), ([100, 520, 1120, 700], "read as text"))
+        code, out, _ = self.run_word("cut", str(self.folder), "p3-2", "--box", "50,260,560,350")
+        self.assertEqual((code, json.loads(out)["code"]), (1, "not_found"))
+        self.assertIn("cut DIR p3 --box", json.loads(out)["hint"])
 
 
 @unittest.skipUnless(ENGINE, "needs the paddleocr tool environment: uv run tests/test_doc.py --engine")

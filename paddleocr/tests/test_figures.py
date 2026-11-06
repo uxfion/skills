@@ -2,7 +2,7 @@
 # requires-python = ">=3.9"
 # dependencies = ["numpy", "opencv-python-headless", "pypdfium2"]
 # ///
-"""Tests for scripts/figures.py: figure groups, captions paired with figures, the second opinion, the checks and the
+"""Tests for scripts/ocrlib/figures.py: figure groups, captions paired with figures, the second opinion, the checks and the
 overlay (no GPU needed). Pages are Letter at scale 2: 1224 x 1584 pixels, a text row about 12."""
 import sys
 import tempfile
@@ -14,8 +14,8 @@ import numpy as np
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-import conventions as C  # noqa: E402
-import figures as F  # noqa: E402
+from ocrlib import conventions as C  # noqa: E402
+from ocrlib import figures as F  # noqa: E402
 
 SIZE = (1224, 1584)
 RUNNING = "We compare the methods on every dataset of the study and report the mean and spread of each metric. " * 4

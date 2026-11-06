@@ -1,4 +1,4 @@
-# PaddleOCR-VL-1.6, the VL model of the paddleocr skill's pipeline (client: paddleocr parse.py), which sends one
+# PaddleOCR-VL-1.6, the VL model of the paddleocr skill's pipeline (client: paddleocr ocr.py parse), which sends one
 # request per layout block, about 200 at a time.
 # Arguments: vllm-project/recipes models/PaddlePaddle/PaddleOCR-VL-1.6.yaml (2026-07) - OCR gains nothing from
 # prefix caching or image reuse - plus --max-model-len from PaddleX's server config for this model (3.7).
