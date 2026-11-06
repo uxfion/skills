@@ -60,7 +60,7 @@ Done when the answer rests on the note or the paper's text, and what belongs in 
 **Whether to read a paper through is yours to judge.** Read through a paper that matters to the project: one its decisions will lean on, or one close to its problem. A paper from a strong journal or conference weighs more. For the rest, look up what you need. Papers are read when a task needs them, never in bulk at import. A note `pr.py check --full` already finds `complete` is not read again: look up what it lacks. A better version in the library (`better_pdf`) is the exception: reading the paper through on it is how the note moves there.
 
 1. **Take** (*Every change to a note*, step 1). `open_findings` in the output counts the package's unsettled spots: the reader settles them as it reads. With `better_pdf`, take again into a new scratch directory with `--title <better_pdf>`: `previous` then holds the version the note was read in, for the reader to compare; when it has no PDF or package, its `code` says why, and the reader moves the note without that comparison (reading.md, *Moving to another version*).
-2. **Send the reader** (*Handoffs*). Several papers: one reader each, up to 5 at once.
+2. **Send the reader** (*Handoffs*). Several papers: one reader each, up to 5 at once. A subagent running this flow is its own reader: it reads by references/reading.md, then goes on from step 3 with its own findings, and keeps what would be `report.md` in its reply.
 3. **Check what comes back**, against the files:
    - the checks of *Every change to a note*, step 3, with `--full`;
    - a package that had open findings: `ocr.py findings <package>` prints no line with status `open`, and exits 0;
@@ -70,7 +70,7 @@ Done when the answer rests on the note or the paper's text, and what belongs in 
    What fails goes back to the same reader with the output as printed: Claude Code `SendMessage`. If it cannot be resumed, send a new reader with the same brief, the note file as it stands, that output and the first reader's reply.
 4. **Save the reader's reply** as `<scratch>/report.md`, then act on it:
    - the PDF is not this paper: stop; it goes to the user;
-   - a settled package: `p2z.py package put <package>`;
+   - a settled package: `p2z.py package put <package>`, which trashes the package it replaces (a derived copy: no question for the user);
    - a library error it names, such as a common name the paper goes by without its `aka/` tag: read the item, and if the error is real, fix it by paper-to-zotero's rules and list it in your report. Deleting or merging items waits for the user;
    - questions marked 要看别处: they stay open until the user asks;
    - answers to a project's questions: write back what *Look it up* step 3 says belongs in the note;

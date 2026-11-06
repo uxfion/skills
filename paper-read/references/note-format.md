@@ -77,7 +77,7 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
 - **States**: 待答 (not yet), 进行中 (being answered), 已答, 论文没有说明 (the paper does not say; never guessed), 要看别处 (the answer is outside the paper: the code, the supplement), 等 Qn (waits for another answer, asked again under it: `### Q3.2 对比方法也给了 mask 吗？ [等 Q5] → Q5.1`; once Q5.1 is answered, `[已答] → Q5.1`).
 - A heading without a number is a section and has no state.
 - A heading is plain text in Zotero: it shows no math, and TeX in it does not come back as a heading. Write a symbol there in Unicode (ŷᵢ, fθ) and the formula in the answer.
-- A blank line before every block: Better Notes cuts its outline by them.
+- A blank line before every block you write: Better Notes cuts its outline by them. Taken from Zotero, a block nested in a list item or a quote sits right under the line before it, and a table's rule reads `| --- |`: the same note.
 - **A question's number never changes** once written: a project's index points at it. A new question takes the next free number under its parent. A question that turns out to be wrongly asked keeps its number and heading; its answer says why it was wrong.
 - Marks (below) go in the text, never in a heading.
 
@@ -92,13 +92,13 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
   > 给定平扫肝脏 MRI 和对应的肿瘤 mask，模型同时合成临床上相关的三个时相
   ```
 
-  `pr.py quotes` looks for every quotation in the PDF's text layer, then in the package. One it cannot find (a table cell, a figure label, a formula the text layer garbles) is compared with the page image, corrected if need be, and marked as checked.
+  `pr.py quotes` looks for every quotation in the PDF's text layer, then in the package. The text layer holds no LaTeX: of the sentences an answer could rest on, quote one in plain words. One it cannot find (a table cell, a figure label, a formula the text layer garbles) is compared with the page image, corrected if need be, and marked as checked; one found only in the package (`package_only`) likewise, and where the package misread the words, quote the PDF and settle that spot in the package (`ocr.py commit`).
 - **An inference** is marked （推断）; knowledge from outside the paper （论文外）; what the paper does not say is written as 论文没有说明.
 - **Judgements about the paper** (Q6, Q7) are written as judgements, with what they rest on. "Not stated" is a fact and is written plainly; "possibly unfair" is a judgement and says why. Falling short of SOTA, closed code and honestly stated limits are not failures in themselves.
 
 **Marks**, in the text after the fact they concern:
 
-- `（已核对 <source> · <date>）`: someone compared this fact with the PDF. One per fact, the latest only.
+- `（已核对 <source> · <date>）`: someone compared this fact with the PDF. One per fact, the latest only; a table checked cell by cell takes one, after the sentence that presents it.
 - `（更正 <date>：原写"…"，按 <evidence and its source> 改）`: what was there before a correction, and why it changed. It stays.
 - `（<new PDF title> 删去了这段，原见 <previous PDF title> <source>）`: a later version dropped what this sentence rests on. It stays.
 
@@ -107,7 +107,7 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
 When the note is put into Zotero, each figure and table it names in one of these forms becomes a link to a blue box on it in the PDF the note was read in, so a reader of the note sees it in one click. The links live in Zotero only: the note file you edit has none.
 
 - Linked: `Fig. 9`, `Fig.9`, `Figure 9`, `Fig. 2(b)` (the link is `Fig. 2`), `Table III`, `Supplementary Fig. 3`, `Extended Data Table 1`.
-- Not linked: `p.11`, `Sec. III-A`, `Eq. (3)`, `图 4`.
+- Not linked: `p.11`, `Sec. III-A`, `Eq. (3)`, `图 4`, and any name in a heading: `### Q5.1 Table III 说明什么？`.
 
 Of `Table I/II` only the first links: write each in full, `Table I, Table II`, for each to link.
 

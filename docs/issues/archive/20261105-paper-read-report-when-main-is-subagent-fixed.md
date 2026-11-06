@@ -1,5 +1,7 @@
 # paper-read：主 agent 本身是 subagent 时，reader 的报告没地方存
 
+> **已解决（2026-11-06）**：SKILL.md *Read a paper* 第 2 步加一句：由 subagent 跑这个流程时，它自己就是 reader，照 reading.md 读，再拿自己的结果从第 3 步接着走，原本存成 `report.md` 的内容留在它的回复里。主对话照旧把 reader 的回复存成 `report.md`。2026-11-06 起主 agent 读论文时自己当主 agent、每篇派一个 reader，碰不到这个问题。
+
 - 来源：2026-11-05 全流程试用，三个读论文 agent 都碰到了。用户没有提。
 - 状态：open。
 

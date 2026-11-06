@@ -83,8 +83,10 @@ def locate(keys, package, pdf, key):
     if not Path(cli.OCR).is_file():
         return {}, {k: ("no_paddleocr", None) for k in keys}, counts
     objects, code, err = cli.sibling(cli.OCR, "objects", package, "--source", pdf)
-    if code:
-        return {}, {k: ("objects_failed", err.strip()[-DETAIL:]) for k in keys}, counts
+    if code:   # exit 1: its line about the package, on stdout; exit 2: stderr's last line
+        line = next((o for o in objects if "code" in o), None)
+        detail = json.dumps(line, ensure_ascii=False) if line else (err.strip().splitlines() or [""])[-1]
+        return {}, {k: ("objects_failed", detail[-DETAIL:]) for k in keys}, counts
     placed = {o["key"]: o for o in objects if o.get("key")}
     entries, why = {}, {}
     for k in keys:

@@ -111,6 +111,15 @@ class PutNote(unittest.TestCase):
                          (0, {"figures": 0, "tables": 0}, {"no_pdf"}), err)
         self.assertEqual(self.put(2), NOTE)
 
+    def test_objects_failing_says_why(self):
+        for fail, said in ((1, '"code": "not_a_pdf"'), (2, '"code": "locked"')):   # its stdout line; stderr's last
+            with self.subTest(exit=fail):
+                self.library(objects_fail=fail)
+                code, out, err = self.run_it()
+                self.assertEqual((code, out["code"], out["links"]), (0, "ok", {"figures": 0, "tables": 0}), err)
+                self.assertEqual({u["why"] for u in out["unmatched"]}, {"objects_failed"})
+                self.assertTrue(all(said in u["detail"] for u in out["unmatched"]), out["unmatched"])
+
     def test_a_put_refused_leaves_the_file_clean(self):
         self.library(put_code="version_conflict")
         code, out, err = self.run_it()

@@ -6,12 +6,13 @@
 answered from the library in the JSON file FAKE_P2Z names, as the real ones answer (their -h) since paper-to-zotero's
 Unix conventions (2026-11-05): when their output changes, change this to match. Each call's arguments go to
 FAKE_P2Z.log, one JSON line each. Called as `objects`, it stands in for the paddleocr skill's `ocr.py objects`
-(PAPER_READ_OCR).
+(PAPER_READ_OCR), whose lines follow the paddleocr Unix conventions spec (2026-11-06) §5.
 
 The library: {"items": {cite: item, with its own 8-character "key"}, "notes": {cite: [{key, title, text}]}, "pdfs":
 {cite: [PDF title, best first]}, "packages": {cite: [PDF titles that have one]}, "findings": [finding], "objects":
-[ocr.py objects' lines], "annotations": {comment: key}, "put_code": the code note put answers (ok by default)}. An
-item is named by its key or its citation key. note put keeps each file it is given, as given, in FAKE_P2Z.put.<n>.
+[ocr.py objects' lines], "objects_fail": 1 or 2 (objects fails with that exit), "annotations": {comment: key},
+"put_code": the code note put answers (ok by default)}. An item is named by its key or its citation key. note put
+keeps each file it is given, as given, in FAKE_P2Z.put.<n>.
 """
 import json
 import os
@@ -122,7 +123,14 @@ def annotate(lib, args, path):
     return 0
 
 
-def objects(lib):
+def objects(lib, args):
+    fail = lib.get("objects_fail")   # exit 1: a line about the package on stdout; exit 2: stderr's last line
+    if fail == 1:
+        print(json.dumps({"folder": args[1], "code": "not_a_pdf", "hint": "as the real one says"}))
+        return 1
+    if fail == 2:
+        print(json.dumps({"code": "locked", "hint": "as the real one says"}), file=sys.stderr)
+        return 2
     for o in lib.get("objects", []):
         print(json.dumps(o, ensure_ascii=False))
     return 0
@@ -147,7 +155,7 @@ def main(args):
     if args[0] == "annotate":
         return annotate(lib, args, path)
     if args[0] == "objects":
-        return objects(lib)
+        return objects(lib, args)
     print(f"fake p2z: no such command {args}", file=sys.stderr)
     return 2
 
