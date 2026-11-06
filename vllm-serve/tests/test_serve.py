@@ -7,7 +7,6 @@ life cycle against a stand-in vllm and hf (no GPU needed)."""
 import importlib.util
 import json
 import os
-import signal
 import socket
 import subprocess
 import sys
@@ -24,68 +23,7 @@ spec = importlib.util.spec_from_file_location("serve", SCRIPT)
 S = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(S)
 
-# A stand-in for `vllm serve MODEL ... --served-model-name NAME --port P --host H`: records its arguments and
-# environment, writes FAKE_LOG_SECONDS of start-up lines (or goes quiet for FAKE_QUIET_SECONDS, or fails like vLLM
-# on a busy GPU when FAKE_FAIL is set), then answers /health, /v1/models and a /metrics page with two
-# data-parallel engines, each running FAKE_RUNNING requests. With FAKE_STOP_SECONDS it takes that long to stop.
-FAKE_VLLM = r'''#!/usr/bin/env python3
-import json, os, signal, sys, time
-from http.server import BaseHTTPRequestHandler, HTTPServer
-args = sys.argv[1:]
-last = lambda flag: [args[i + 1] for i, a in enumerate(args) if a == flag][-1]
-name, port = last("--served-model-name"), int(last("--port"))
-open(os.environ["FAKE_RECORD"], "w").write(json.dumps({"args": args, "env": dict(os.environ)}))
-if os.environ.get("FAKE_STOP_SECONDS"):
-    signal.signal(signal.SIGTERM, lambda *_: (time.sleep(float(os.environ["FAKE_STOP_SECONDS"])), os._exit(0)))
-for _ in range(int(float(os.environ.get("FAKE_LOG_SECONDS", 0)) * 4)):
-    print("Loading safetensors checkpoint shards ...", flush=True); time.sleep(0.25)
-time.sleep(float(os.environ.get("FAKE_QUIET_SECONDS", 0)))
-if os.environ.get("FAKE_FAIL"):
-    print("ValueError: Free memory on device cuda:0 (2.1/31.4 GiB) on startup is less than desired GPU memory utilization")
-    for i in range(30): print(f'  File "vllm/engine/core.py", line {i}, in run_engine_core')
-    print("RuntimeError: Engine core initialization failed. See root cause above."); sys.exit(1)
-R = os.environ.get("FAKE_RUNNING", "0")
-METRICS = f"""# HELP vllm:num_requests_running x
-vllm:num_requests_running{{engine="0",model_name="m"}} {R}
-vllm:num_requests_running{{engine="1",model_name="m"}} {R}
-vllm:num_requests_waiting{{engine="0",model_name="m"}} 0.0
-vllm:kv_cache_usage_perc{{engine="0",model_name="m"}} 0.25
-vllm:kv_cache_usage_perc{{engine="1",model_name="m"}} 0.5
-vllm:request_success_total{{engine="0",finished_reason="stop",model_name="m"}} 3.0
-vllm:prompt_tokens_total{{engine="0",model_name="m"}} 1000.0
-vllm:generation_tokens_total{{engine="0",model_name="m"}} 500.0
-"""
-PAGES = {"/health": "", "/metrics": METRICS, "/v1/models": json.dumps({"data": [{"id": name}]})}
-class H(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200 if self.path in PAGES else 404); self.end_headers()
-        self.wfile.write(PAGES.get(self.path, "").encode())
-    def log_message(self, *a): pass
-HTTPServer(("127.0.0.1", port), H).serve_forever()
-'''
-
-# A stand-in for `hf download MODEL`: records its pid and environment, prints FAKE_HF_SECONDS of progress, then
-# puts the model's main revision into HF_HUB_CACHE.
-FAKE_HF = r'''#!/usr/bin/env python3
-import json, os, sys, time
-from pathlib import Path
-open(os.environ["FAKE_HF_RECORD"], "w").write(json.dumps({"pid": os.getpid(), "env": dict(os.environ)}))
-for i in range(int(float(os.environ.get("FAKE_HF_SECONDS", 0)) * 4)):
-    print(f"Fetching 4 files: {i}%", file=sys.stderr, flush=True); time.sleep(0.25)
-repo, commit = Path(os.environ["HF_HUB_CACHE"]) / f"models--{sys.argv[2].replace('/', '--')}", "a" * 40
-(repo / "snapshots" / commit).mkdir(parents=True)
-(repo / "snapshots" / commit / "config.json").write_text("{}")
-(repo / "refs").mkdir()
-(repo / "refs" / "main").write_text(commit)
-print(repo / "snapshots" / commit)
-'''
-
-
-def free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
+from fakes import free_port, install   # noqa: E402  (tests/, first on sys.path)
 
 @contextmanager
 def not_http(port):
@@ -158,7 +96,7 @@ class Pieces(unittest.TestCase):
                                     ("never", "above 0"), ("broken", "not valid TOML")):
                     with self.assertRaises(S.Failure) as e:
                         S.load_profile(name)
-                    self.assertIn(words, e.exception.detail)
+                    self.assertIn(words, e.exception.detail + e.exception.hint)
 
     def test_command_and_address(self):
         profile = {"model": "Org/Model", "port": 8118, "args": ["--trust-remote-code", "--host", "0.0.0.0"], "env": {"X": 1}}
@@ -280,9 +218,7 @@ class LifeCycle(unittest.TestCase):
         (root / "model").mkdir()
         self.port = free_port()
         self.write_profile("fake", idle_minutes=10)
-        for name, text in (("vllm", FAKE_VLLM), ("hf", FAKE_HF)):
-            (root / name).write_text(text.replace("#!/usr/bin/env python3", f"#!{sys.executable}"))
-            (root / name).chmod(0o755)
+        install(root)
         self.record = root / "record.json"
         self.env = dict(os.environ, XDG_CONFIG_HOME=str(root / "config"), XDG_STATE_HOME=str(root / "state"),
                         VLLM_SERVE_VLLM=str(root / "vllm"), FAKE_RECORD=str(self.record), VLLM_SERVE_TICK="0.5",
@@ -292,7 +228,7 @@ class LifeCycle(unittest.TestCase):
             self.env.pop(k, None)
 
     def tearDown(self):
-        self.run_serve("down", "--all")
+        self.run_serve("down", "-a")
         self.tmp.cleanup()
 
     def write_profile(self, name, idle_minutes, args='"--trust-remote-code"', model=None, port=None, env=""):
@@ -300,26 +236,30 @@ class LifeCycle(unittest.TestCase):
             f'model = "{model or self.root / "model"}"\nport = {port or self.port}\nidle_minutes = {idle_minutes}\n'
             f'args = [{args}]\nenv = {{ {env} }}\n')
 
-    def run_serve(self, *args, **env):
-        out = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True,
+    def run_serve(self, *args, stdin=None, **env):
+        out = subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, input=stdin,
                              env={**self.env, **env}, timeout=120)
         self.stderr = out.stderr
         return [json.loads(line) for line in out.stdout.splitlines()], out.returncode
 
     def start_up(self, profile="fake", **env):
         return subprocess.Popen([sys.executable, str(SCRIPT), "up", profile], stdout=subprocess.PIPE, text=True,
-                                stderr=subprocess.DEVNULL, env={**self.env, **env})
+                                stderr=subprocess.PIPE, env={**self.env, **env})
 
     def status(self, profile="fake"):
-        lines, _ = self.run_serve("status")
-        return next(s for s in lines if s["profile"] == profile)
+        (line,), _ = self.run_serve("status", profile)
+        return line
+
+    def last_stderr(self):
+        return json.loads(self.stderr.splitlines()[-1])
 
     def phase(self, profile="fake"):
         return self.status(profile).get("phase")
 
     def test_up_reuse_status_down(self):
         (first,), code = self.run_serve("up", "fake", "--", "--seed", "0", CUDA_VISIBLE_DEVICES="4,5", FAKE_RUNNING="1")
-        self.assertEqual((code, first["started"], first["url"]), (0, True, f"http://127.0.0.1:{self.port}/v1"))
+        self.assertEqual((code, first["code"], first["started"], first["url"]),
+                         (0, "ok", True, f"http://127.0.0.1:{self.port}/v1"))
         self.assertNotIn("host", first)
         recorded = json.loads(self.record.read_text())
         self.assertNotIn("CUDA_MODULE_LOADING", recorded["env"])
@@ -331,13 +271,15 @@ class LifeCycle(unittest.TestCase):
         self.assertEqual(other["differs"]["cuda_visible_devices"], "4,5")
         self.assertIn("--seed", other["differs"]["args"])
         time.sleep(1.5)                                    # a few supervisor ticks
-        status, _ = self.run_serve("status")
-        mine = next(s for s in status if s["profile"] == "fake")
+        everyone, code = self.run_serve("status")              # every profile: this one and the skill's own
+        self.assertEqual(code, 0)
+        self.assertIn("fake", [s["profile"] for s in everyone])
+        mine = self.status()                                    # `status fake`: that line only
         self.assertEqual((mine["phase"], mine["gpus"], mine["load"]["running"], mine["load"]["kv_cache_usage"]),
                          ("running", "4,5", 2, 0.5))
         self.assertTrue(mine["owner"])
-        (stopped,), _ = self.run_serve("down", "fake")
-        self.assertTrue(stopped["stopped"])
+        (stopped,), code = self.run_serve("down", "fake")
+        self.assertEqual((code, stopped, self.stderr), (0, {"profile": "fake", "code": "ok"}, ""))
         self.assertFalse(S.healthy("127.0.0.1", self.port))
         self.assertEqual(self.phase(), "stopped")
 
@@ -358,8 +300,9 @@ class LifeCycle(unittest.TestCase):
         self.run_serve("down", "fake")
         t = time.time()
         (err,), code = self.run_serve("up", "fake", FAKE_QUIET_SECONDS="120", VLLM_SERVE_START_LIMIT="3")
-        self.assertEqual((code, err["error"]), (2, "server_failed"))
+        self.assertEqual((code, err["profile"], err["code"]), (1, "fake", "server_failed"))
         self.assertIn("has not answered", err["detail"])
+        self.assertIn("install.md", err["hint"])
         self.assertLess(time.time() - t, 30)
 
     def test_down_while_up_waits(self):
@@ -367,12 +310,15 @@ class LifeCycle(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.phase() == "starting"))
         t = time.time()
         (stopped,), _ = self.run_serve("down", "fake")
-        self.assertTrue(stopped["stopped"])
+        self.assertEqual(stopped["code"], "ok")
         self.assertLess(time.time() - t, 15)
-        err = json.loads(waiting.communicate(timeout=30)[0])
-        self.assertEqual(err["error"], "server_failed")
+        out, progress = waiting.communicate(timeout=30)
+        err = json.loads(out)
+        self.assertEqual((waiting.returncode, err["code"]), (1, "server_failed"))
         self.assertIn("exited while starting", err["detail"])
         self.assertIn("SIGTERM", err["detail"])                # the log's end says why
+        self.assertTrue(err["hint"])
+        self.assertIn("[vllm-serve] starting fake", progress)
 
     def test_a_second_up_takes_over_from_a_killed_one(self):
         first = self.start_up(FAKE_QUIET_SECONDS="3")
@@ -404,20 +350,23 @@ class LifeCycle(unittest.TestCase):
     def test_port_busy(self):
         with not_http(self.port):                          # another program, not even HTTP
             (err,), code = self.run_serve("up", "fake")
-        self.assertEqual((code, err["error"]), (2, "port_busy"))
+        self.assertEqual((code, err["code"]), (1, "port_busy"))
         self.assertIn("another program", err["detail"])
+        self.assertIn("ss -ltnp", err["hint"])
         self.write_profile("other", 10)                    # another profile on the same port, still loading
         loading = self.start_up("other", FAKE_QUIET_SECONDS="120")
         self.assertTrue(wait_for(lambda: self.phase("other") == "starting"))
         (err,), code = self.run_serve("up", "fake")
-        self.assertEqual((code, err["error"]), (2, "port_busy"))
+        self.assertEqual((code, err["code"]), (1, "port_busy"))
         self.assertIn("profile other", err["detail"])
+        self.assertIn("status", err["hint"])
         self.run_serve("down", "other")
         loading.communicate(timeout=30)
 
     def test_failure_points_at_the_log(self):
         (err,), code = self.run_serve("up", "fake", FAKE_FAIL="1")
-        self.assertEqual((code, err["error"]), (2, "server_failed"))
+        self.assertEqual((code, err["code"]), (1, "server_failed"))
+        self.assertIn("install.md", err["hint"])
         self.assertIn("exited while starting", err["detail"])
         self.assertIn("Engine core initialization failed", err["detail"])
         log = self.root / "state" / "vllm-serve" / "fake.log"
@@ -438,7 +387,7 @@ class LifeCycle(unittest.TestCase):
         waiting = self.start_up(FAKE_HF_SECONDS="120")
         self.assertTrue(wait_for(lambda: self.phase() == "downloading"))
         (stopped,), _ = self.run_serve("down", "fake")
-        self.assertTrue(stopped["stopped"])
+        self.assertEqual(stopped["code"], "ok")
         err = json.loads(waiting.communicate(timeout=30)[0])
         self.assertIn("exited while downloading", err["detail"])
         self.assertIn("Fetching 4 files", (self.root / "state" / "vllm-serve" / "fake.log").read_text())
@@ -468,7 +417,7 @@ class LifeCycle(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.phase() == "stopping"))
         (again,), code = self.run_serve("up", "fake")      # never handed the server being stopped
         self.assertEqual((code, again["started"]), (0, True))
-        self.assertTrue(json.loads(stopping.communicate(timeout=60)[0])["stopped"])
+        self.assertEqual(json.loads(stopping.communicate(timeout=60)[0])["code"], "ok")
 
     def test_another_logins_server(self):
         self.run_serve("up", "fake")
@@ -479,12 +428,46 @@ class LifeCycle(unittest.TestCase):
             with self.assertRaises(S.Failure) as e:
                 S.down("fake")
         self.assertEqual(e.exception.code, "not_permitted")
-        self.assertIn("min idle", e.exception.detail)
+        self.assertIn("min idle", e.exception.hint)
 
     def test_unknown_profile(self):
-        for command in ("up", "down"):
+        for command in ("up", "down", "status"):
             (err,), code = self.run_serve(command, "nope")
-            self.assertEqual((code, err["error"]), (2, "unknown_profile"))
+            self.assertEqual((code, err["profile"], err["code"]), (1, "nope", "unknown_profile"))
+            self.assertTrue(err["hint"])
+        self.assertEqual(json.loads(self.stderr.splitlines()[-1])["summary"]["failed"], 1)   # status: the summary
+        (err,), code = self.run_serve("status", "../profiles/fake")         # a name, never a path
+        self.assertEqual((code, err["code"]), (1, "unknown_profile"))
+
+    def test_the_command_line(self):
+        """What is wrong with the call, or with what it needs before it starts: exit 2, stdout empty, stderr's last
+        line {code, detail, hint}."""
+        for args, words in ((["up", "fake", "extra"], "go after --"), (["up", "fake", "--max-model-len", "8192"],
+                            "go after --"), (["up", "--", "fake"], "up -h"), (["down"], "down -h"),
+                            (["down", "-a", "fake"], "down -h"), (["start", "fake"], "serve.py -h"), ([], "serve.py -h")):
+            lines, code = self.run_serve(*args)
+            self.assertEqual((code, lines, self.last_stderr()["code"]), (2, [], "usage"), args)
+            self.assertIn(words, self.last_stderr()["hint"], args)
+        lines, code = self.run_serve("up", "fake", VLLM_SERVE_VLLM=str(self.root / "no-vllm"))
+        self.assertEqual((code, lines, self.last_stderr()["code"]), (2, [], "vllm_missing"))
+        self.assertIn("VLLM_SERVE_VLLM", self.last_stderr()["detail"] + self.last_stderr()["hint"])
+        lines, code = self.run_serve("down", "-", stdin='{"profile": "fake", "code": "ok"}\n{"summary": {}}\n')
+        self.assertEqual((code, lines, self.last_stderr()["code"]), (2, [], "invalid_list"))   # nothing done
+        self.assertEqual(self.run_serve("down", "-", stdin=""), ([], 0))     # an empty list: nothing to do
+
+    def test_down_several_and_from_a_list(self):
+        self.write_profile("other", 10, port=free_port())
+        for name in ("fake", "other"):
+            self.assertEqual(self.run_serve("up", name)[1], 0)
+        listed, _ = self.run_serve("status", "fake", "other")
+        failed_upstream = {"code": "port_busy", "detail": "d", "hint": "h"}
+        stopped, code = self.run_serve("down", "-", stdin="".join(json.dumps(x) + "\n" for x in (*listed, failed_upstream)))
+        self.assertEqual((code, stopped), (1, [{"profile": "fake", "code": "ok"}, {"profile": "other", "code": "ok"},
+                                               failed_upstream]))           # passed on, and counted as not done
+        self.assertEqual(self.last_stderr()["summary"], {"total": 3, "ok": 2, "skipped": 0, "failed": 1})
+        again, code = self.run_serve("down", "fake", "other")
+        self.assertEqual((code, [x["code"] for x in again], self.stderr), (0, ["skipped", "skipped"], ""))
+        self.assertEqual(again[0]["reason"], "not_running")
 
 
 if __name__ == "__main__":

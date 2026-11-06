@@ -206,7 +206,7 @@ ssh <host> '. <root>/env.sh && <root>/vllm-serve/scripts/serve.py status' | jq -
 
 **本仓库以外**
 
-- **共享服务器上的副本**（主机 B，2× RTX PRO 6000，`<root>/vllm-serve/`）：要用户点头才做，不是例行步骤：更新要先停掉那边的服务，那台机器别人也在用。用户同意后照 shared-machines.md 第 4 步：`status` 显示空闲，用旧副本停掉它的服务，`rsync -a` 新目录，在那边跑一次 `serve.py -h`。状态文件格式没变，先停是照那一步的规矩。
+- **共享服务器上的副本**（pro6000，2× RTX PRO 6000，`<root>/vllm-serve/`）：要用户点头才做，不是例行步骤（用户 2026-11-06 选 A：第一批验完后先只读检查、再更新）：更新要先停掉那边的服务，那台机器别人也在用。用户同意后照 shared-machines.md 第 4 步：`status` 显示空闲，用旧副本停掉它的服务，`rsync -a` 新目录，在那边跑一次 `serve.py -h`。状态文件格式没变，先停是照那一步的规矩。
 - **用户另一个项目里的旧部署包装脚本**：给用户一句话，我们不动——"它按路径加载 `serve.py`、把收到的参数交给 `main()`。入口名和 `main()` 都没变，`up <profile>`、`status`、`down <profile>` 照样能用；但 `up <profile>` 后面不带 `--` 直接跟 vLLM 参数，现在是用法错误，要写成 `up <profile> -- <参数>`。里面改 `STARTUP_TIMEOUT` 的那行早已不起作用。要不要改、这个脚本还用不用，由你在那个项目里定。"
 
 ## 7. 约定检查和验收
@@ -236,7 +236,7 @@ ssh <host> '. <root>/env.sh && <root>/vllm-serve/scripts/serve.py status' | jq -
 **动手前先在真机器上看的**（只列出来，这次不做）：
 
 1. 本机（RTX 5090 D，vLLM 0.31）用现在的 `serve.py`：`up paddleocr-vl` 冷启动和已在跑各一次、`status`、`down`，记下标准输出、标准错误的每一行和退出码，当"改前"的底。确认成功时标准错误只有第 5 节说的那几行。
-2. 主机 B：`ssh <host> '. <root>/env.sh && <root>/vllm-serve/scripts/serve.py -h'`，用现在的副本，不经 `uv run`（只读，不碰服务）。开头那一行靠 `env -S`（coreutils 8.30 起才有）和 `env.sh` 放进 PATH 的 uv；跑不起来，那边就写 `uv run --quiet <root>/vllm-serve/scripts/serve.py`。
+2. pro6000：`ssh <host> '. <root>/env.sh && <root>/vllm-serve/scripts/serve.py -h'`，用现在的副本，不经 `uv run`（只读，不碰服务）。开头那一行靠 `env -S`（coreutils 8.30 起才有）和 `env.sh` 放进 PATH 的 uv；跑不起来，那边就写 `uv run --quiet <root>/vllm-serve/scripts/serve.py`。（2026-11-06 主 agent 做了：退出 0，coreutils 9.4，uv 在 PATH 上，按路径直接跑就行。）
 3. 本机：在 8118 端口上放一个别的程序，跑一次 paddleocr 的解析，看现在 `port_busy` 怎么传到 paddleocr 的标准错误、怎么退回原生；改完后同样跑一次对照。
 
 **验收：**
@@ -245,7 +245,7 @@ ssh <host> '. <root>/env.sh && <root>/vllm-serve/scripts/serve.py status' | jq -
 - 本机实测：`serve.py up paddleocr-vl` 冷启动、再一次直接拿来用（标准错误为空）、`status paddleocr-vl`、`status | serve.py down -`；`VLLM_SERVE_VLLM=/nonexistent serve.py up paddleocr-vl` 得到 `vllm_missing`、退出 2；paddleocr 解析一页走 vLLM 服务。
 - 文档变短：SKILL.md 加 `references/` 现在 282 行（64 + 110 + 59 + 49），改完要更短；挪走的是字段说明，进了 `-h`。`serve.py` 多出的只有 man 页和从 p2z 拷来的输出那几十行，都只写一处。
 - 文档和例子里没有 `cd`、`uv run scripts/`、`2>/dev/null`。
-- 主机 B 的副本：用户点头、更新之后，`status` 认得出那边的部署 profile。
+- pro6000 上的副本：用户点头、更新之后，`status` 认得出那边的部署 profile。
 
 ## 8. 偏离和理由
 
@@ -258,3 +258,12 @@ ssh <host> '. <root>/env.sh && <root>/vllm-serve/scripts/serve.py status' | jq -
 ## 9. 待定
 
 没有。`down -a` 留着（字母表里就是这个意思，范围是整理不是删功能）；ssh 的写法见第 8 节第 3 条；`up` 退出 1 不打汇总，用户 2026-11-06 同意写进了 §3。
+
+## 10. 实施时的改正（2026-11-06）
+
+- `hint` 按出错的地方各写各的：原来写在 `detail` 后半句的"下一步怎么做"挪进 `hint`；所有 `unknown_profile` 共用一句默认的。
+- paddleocr 那边 `error` 后面的 `detail`，取 vllm-serve 的 `detail` 和 `hint`，用 "; " 连起来。
+- `up` 在 `--` 前面多写东西：用法错误 `unrecognized arguments: …`，提示 "vLLM arguments go after --: serve.py up PROFILE -- ARG ..."。profile 名字里有 `/`：`unknown_profile`。
+- 退出 2 时，vllm-serve 的 `{code, detail, hint}` 也会出现在 paddleocr 的标准错误上，紧挨在它自己那行 `[paddleocr] vllm-serve <code>: …` 前面（标准错误边读边转），重复但无害。
+- 行数：`serve.py` 809 → 1053。拷来的输出那层约 125 行，比第 7 节说的"几十行"多；man 页 75 行。文档 282 → 279 行，词数反而多了约 5%：多的是 *Calling* 一段和 `status | … | serve.py down -` 那条管道。
+- 实测时碰到的环境问题：本机 8118 端口被 Windows 一侧的程序占着（WSL 镜像网络），`up` 连端口时没人应答，于是判为空闲，vLLM 绑不上，报成 `server_failed`。另记 issue。实测改用 8128。

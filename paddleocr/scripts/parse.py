@@ -201,16 +201,36 @@ def served_models(url: str) -> list[str] | None:
 
 
 def serve_up(serve: str) -> dict:
-    """The VL model's server from vllm-serve: {"url", "model", ...} or {"error", "detail"}. vllm-serve starts it
-    unless it runs, shares it with other callers and stops it once idle, so this run leaves it running."""
+    """The VL model's server from vllm-serve: its `up` line {"url", "model", ...} or {"error", "detail"}. vllm-serve
+    starts it unless it runs, shares it with other callers and stops it once idle, so this run leaves it running.
+    Its stderr, the progress of a start that can take minutes, passes on to ours as it comes. The answer is the code
+    of its last line: stdout's when it exits 0 or 1, stderr's when it exits 2 (nothing tried); only ok serves."""
     try:
-        done = subprocess.run(["uv", "run", serve, "up", VL_PROFILE], stdout=subprocess.PIPE, text=True)
+        proc = subprocess.Popen(["uv", "run", "--quiet", serve, "up", VL_PROFILE], stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True)
     except OSError as e:
         return {"error": "uv_missing", "detail": str(e)}
+    last_err = ""
+    for line in proc.stderr:
+        print(line, end="", file=sys.stderr, flush=True)
+        last_err = line.strip() or last_err
+    out = proc.stdout.read()
+    proc.wait()
+    last = last_err if proc.returncode == 2 else (out.strip().splitlines() or [""])[-1]
     try:
-        return json.loads(done.stdout.strip().splitlines()[-1])
-    except (IndexError, ValueError):
-        return {"error": "no_answer", "detail": f"vllm-serve printed {done.stdout[-300:]!r}"}
+        got = json.loads(last)
+    except ValueError:
+        got = None
+    if not (isinstance(got, dict) and isinstance(got.get("code"), str)):
+        return {"error": "no_answer", "detail": f"vllm-serve exited {proc.returncode}; its last line: {last[-300:]!r}"}
+    if got["code"] != "ok":
+        return {"error": got["code"], "detail": "; ".join(str(got[k]) for k in ("detail", "hint") if got.get(k))}
+    if got.get("foreign_cuda"):
+        guide = Path(serve).resolve().parents[1] / "references" / "install.md"
+        print(f"[paddleocr] vllm-serve foreign_cuda: the VL server loaded CUDA libraries from outside vLLM's "
+              f"environment: {', '.join(got['foreign_cuda'])}; {guide}, entry `foreign_cuda`, traces them",
+              file=sys.stderr, flush=True)
+    return got
 
 
 def load_backend(args, state: dict) -> dict | None:

@@ -1,45 +1,34 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Serve models on this machine's GPUs through one shared vLLM installation, one server per model profile.
-
-  serve.py up PROFILE [-- ARGS]  start the profile's server unless it already runs, wait until it answers, and
-                                 print {"profile", "url", "model", "started"}; concurrent calls share one server.
-                                 ARGS are `vllm serve` arguments for this start only; the caller's environment
-                                 reaches the server too (CUDA_VISIBLE_DEVICES picks the GPUs), except variables the
-                                 profile's env sets
-  serve.py down PROFILE          stop it now, in whatever phase, waiting up to 90 s for it to end (--all: every
-                                 profile)
-  serve.py status                one JSON line per profile: phase, url, owner, gpus, load, idle_for_minutes, log;
-                                 a stopped one's "last": how its last start ended, and whether that was a failure
+"""vllm-serve: models as OpenAI-compatible vLLM servers on this machine's GPUs, one server per model profile.
 
 A start is one job of a supervisor process: it downloads the weights when the cache lacks them, starts vLLM and
 writes all their output to the profile's log. Its phases: downloading, starting, running, stopping; with no
-supervisor the profile is stopped. `up` waits until the server answers or the supervisor exits; a vLLM that has not
-answered 30 min after its start is stopped (the download does not count). Once it has answered, a server stops by
-itself after idle_minutes without a request, so the GPUs are free for other work; `up` counts as a request. The
-log's last line says how the start ended; the next start keeps the log as <profile>.prev.log and says so when that
-start failed. Clients speak the OpenAI API at the url, with the model name given.
+supervisor the profile is stopped. A vLLM that has not answered 30 min after its start is stopped (the download
+does not count). Once it has answered, a server stops by itself after idle_minutes without a request, so the GPUs
+are free for other work. The log's last line says how the start ended; the next start keeps the log as
+<profile>.prev.log and says so when that start failed.
 
-Profiles: <name>.toml in ~/.config/vllm-serve/profiles/ (XDG_CONFIG_HOME), then in the skill's profiles/.
-Keys: model (Hugging Face id or local directory; clients use it as the model name), port, idle_minutes (above 0,
-default 10), args (`vllm serve` arguments), env, extends (a profile to start from: its keys, then this file's; args
-are appended, env merged; a profile may extend the one of its own name further down the search path).
-Every vLLM setting is a vLLM argument. serve.py reads two of them, the last one winning as in vLLM: --host
-(added as 127.0.0.1 when absent) and --revision (the weights it downloads); it adds --served-model-name and --port.
+Profiles: <name>.toml in ~/.config/vllm-serve/profiles/ (XDG_CONFIG_HOME), then in the skill's profiles/; a
+profile is named, never a path. Keys: model (Hugging Face id or local directory; clients use it as the model
+name), port, idle_minutes (above 0, default 10), args (`vllm serve` arguments), env, extends (a profile to start
+from: its keys, then this file's; args are appended, env merged; a profile may extend the one of its own name
+further down the search path). Every vLLM setting is a vLLM argument. serve.py reads two of them, the last one
+winning as in vLLM: --host (added as 127.0.0.1 when absent) and --revision (the weights it downloads); it adds
+--served-model-name and --port.
 The vllm executable: VLLM_SERVE_VLLM, else the `vllm` uv tool, else vllm on PATH.
 State and logs: ~/.local/state/vllm-serve/ (XDG_STATE_HOME), <profile>.log per server.
 
-`up`'s line may also carry "host" (the server listens beyond this machine: clients elsewhere use the machine's
-address), "differs" (the running server's model, port, arguments or GPUs where they differ from what this `up`
-asks for; it serves as it is) and "foreign_cuda" (CUDA libraries a freshly started server mapped from outside
-vLLM's environment; there should be none).
+Exit codes, every word: 0 done; 1 a profile is yours to act on: its line's code and hint say what, and down and
+status end stderr with {"summary": ...}; 2 the command cannot go on (no vLLM, a state file of another login, a
+usage error): stderr's last line is {code, detail, hint}.
 
-Errors, one JSON line on stdout with exit 2: unknown_profile, vllm_missing, port_busy (another profile's server,
-named, or another program on the port), server_failed (the supervisor exited: the phase, the log and its end),
-not_permitted (a server or file of another login).
+Examples:
+  serve.py up paddleocr-vl
+  serve.py status | jq -c 'select(.phase == "running" and .idle_for_minutes >= 30)' | serve.py down -
 """
 from __future__ import annotations
 
@@ -63,6 +52,13 @@ import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 
+SELF = Path(__file__).name
+# word: (script, what it does). Every word runs here, in serve.py, so none has a script of its own.
+WORDS = {
+    "up": (None, "start a profile's server unless it runs, wait until it answers, print where it is"),
+    "down": (None, "stop profiles' servers, in whatever phase"),
+    "status": (None, "list the profiles: phase, url, owner, GPUs, load, idle time, last start, log"),
+}
 SKILL_PROFILES = Path(__file__).resolve().parent.parent / "profiles"
 GUIDE = Path(__file__).resolve().parent.parent / "references" / "install.md"
 KEYS = {"model", "port", "idle_minutes", "args", "env", "extends"}
@@ -79,12 +75,20 @@ MACHINE_ENV = {"VLLM_WSL2_ENABLE_PIN_MEMORY": "1", "VLLM_USE_FLASHINFER_SAMPLER"
 CUDA_LIBRARY = re.compile(r"/lib(cudart|cublas|cublasLt|cudnn\w*|nvrtc|nccl|cufft|curand|cusolver|cusparse)\.so")
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # this machine's servers, never via a proxy
+OK, ACT, CANNOT = 0, 1, 2
+FIX_PROFILE = "Name a profile that detail lists, or fix the file it names."
 
 
 class Failure(Exception):
-    def __init__(self, code: str, detail: str):
+    """A problem with one profile, on that profile's line (exit 1), or one that stops the command (exit CANNOT: its
+    line is stderr's last)."""
+
+    def __init__(self, code: str, detail: str, hint: str, exit: int = ACT):
         super().__init__(detail)
-        self.code, self.detail = code, detail
+        self.code, self.detail, self.hint, self.exit = code, detail, hint, exit
+
+    def line(self, profile: str | None = None) -> dict:
+        return {**({"profile": profile} if profile else {}), "code": self.code, "detail": self.detail, "hint": self.hint}
 
 
 # ---------------------------------------------------------------- profiles
@@ -100,28 +104,28 @@ def profile_names() -> list[str]:
 
 def profile_path(name: str, below: Path | None = None) -> Path:
     """The first <name>.toml on the search path, or the first after `below`'s directory (a profile extending the
-    profile of its own name)."""
+    profile of its own name). A name is never a path: one holding "/" is no profile."""
     dirs = profile_dirs()
     if below is not None:
         later = [i for i, d in enumerate(dirs) if d.resolve() == below.parent.resolve()]
         dirs = dirs[later[0] + 1:] if later else dirs
     for d in dirs:
-        if (d / f"{name}.toml").is_file():
+        if "/" not in name and (d / f"{name}.toml").is_file():
             return d / f"{name}.toml"
     raise Failure("unknown_profile", f"no {name}.toml in {', '.join(map(str, dirs))}; "
-                                     f"profiles: {', '.join(profile_names()) or 'none'}")
+                                     f"profiles: {', '.join(profile_names()) or 'none'}", FIX_PROFILE)
 
 
 def read_profile(path: Path, seen: tuple[Path, ...] = ()) -> dict:
     if path in seen:
-        raise Failure("unknown_profile", f"profiles extend each other in a circle: {', '.join(map(str, seen))}")
+        raise Failure("unknown_profile", f"profiles extend each other in a circle: {', '.join(map(str, seen))}", FIX_PROFILE)
     try:
         p = tomllib.loads(path.read_text(encoding="utf-8"))
     except (tomllib.TOMLDecodeError, UnicodeDecodeError) as e:
-        raise Failure("unknown_profile", f"{path} is not valid TOML: {e}") from None
+        raise Failure("unknown_profile", f"{path} is not valid TOML: {e}", FIX_PROFILE) from None
     if unknown := sorted(set(p) - KEYS):
-        raise Failure("unknown_profile", f"{path}: unknown keys {', '.join(unknown)} (keys: {', '.join(sorted(KEYS))}; "
-                                         f"vLLM settings go in args, e.g. --gpu-memory-utilization)")
+        raise Failure("unknown_profile", f"{path}: unknown keys {', '.join(unknown)} (keys: {', '.join(sorted(KEYS))})",
+                      "Fix the file: vLLM settings go in args, e.g. --gpu-memory-utilization.")
     base = {}
     if "extends" in p:
         parent = profile_path(p["extends"], below=path if p["extends"] == path.stem else None)
@@ -133,10 +137,10 @@ def load_profile(name: str) -> dict:
     path = profile_path(name)
     p = {"idle_minutes": 10, **read_profile(path)}
     if missing := [k for k in ("model", "port") if k not in p]:
-        raise Failure("unknown_profile", f"{path} lacks {', '.join(missing)}")
+        raise Failure("unknown_profile", f"{path} lacks {', '.join(missing)}", FIX_PROFILE)
     if not isinstance(p["idle_minutes"], (int, float)) or p["idle_minutes"] <= 0:
-        raise Failure("unknown_profile", f"{path}: idle_minutes must be minutes above 0 "
-                                         f"(a server meant to stay up takes a large number)")
+        raise Failure("unknown_profile", f"{path}: idle_minutes must be minutes above 0",
+                      "Fix the file: a server meant to stay up takes a large number.")
     return {**p, "name": name, "path": str(path)}
 
 
@@ -292,8 +296,10 @@ def listening(host: str | None, port: int) -> bool:
 # ---------------------------------------------------------------- vLLM's environment
 
 def find_vllm() -> str | None:
-    if os.environ.get("VLLM_SERVE_VLLM"):
-        return os.environ["VLLM_SERVE_VLLM"]
+    """The vllm executable: VLLM_SERVE_VLLM (None when that is no executable file), else the `vllm` uv tool, else
+    vllm on PATH."""
+    if named := os.environ.get("VLLM_SERVE_VLLM"):
+        return named if os.path.isfile(named) and os.access(named, os.X_OK) else None
     try:
         tool_dir = subprocess.run(["uv", "tool", "dir"], capture_output=True, text=True, check=True).stdout.strip()
         candidate = Path(tool_dir) / "vllm" / "bin" / "vllm"
@@ -487,7 +493,8 @@ def log_tail(name: str, lines: int = 20) -> str:
 
 
 def failed(name: str, phase: str) -> Failure:
-    return Failure("server_failed", f"{name}'s supervisor exited while {phase}; {log_path(name)} ends:\n{log_tail(name)}")
+    return Failure("server_failed", f"{name}'s supervisor exited while {phase}; {log_path(name)} ends:\n{log_tail(name)}",
+                   f"Read the log for the cause, then {GUIDE}, \"A server that does not start, or loads foreign CUDA\".")
 
 
 def start_supervisor(name: str, profile: dict, extra: list[str]) -> dict:
@@ -532,15 +539,14 @@ def wait_ready(name: str, state: dict, told: bool) -> dict:
 
 
 def reply(name: str, state: dict, want: dict, started: bool, vllm: str | None) -> dict:
-    out = {"profile": name, "url": url(state["host"], state["port"]), "model": state["model"], "started": started}
+    out = {"profile": name, "code": "ok", "url": url(state["host"], state["port"]), "model": state["model"],
+           "started": started}
     if state["host"] not in LOOPBACK:
         out["host"] = state["host"]
     if differs := {k: state.get(k) for k in ("model", "port", "args", "cuda_visible_devices") if state.get(k) != want[k]}:
         out["differs"] = differs
     if started and (foreign := server_foreign_cuda(state, vllm)):
         out["foreign_cuda"] = foreign
-        print(f"[vllm-serve] {name}'s server loaded CUDA libraries from outside vLLM's environment: "
-              f"{', '.join(foreign)}; {GUIDE}, entry `foreign_cuda`, traces them", file=sys.stderr, flush=True)
     return out
 
 
@@ -555,13 +561,16 @@ def up(name: str, extra: list[str]) -> dict:
             if state is None:
                 holder = next((n for n in running_names() if n != name and (read_state(n) or {}).get("port") == profile["port"]), None)
                 if holder:
-                    raise Failure("port_busy", f"port {profile['port']} is held by profile {holder}'s server "
-                                               f"(`serve.py status` shows it)")
+                    raise Failure("port_busy", f"port {profile['port']} is held by profile {holder}'s server",
+                                  f"`{SELF} status` names it: use that profile, or `down` it once idle.")
                 if listening(want["host"], profile["port"]):
-                    raise Failure("port_busy", f"another program listens on port {profile['port']}: "
-                                               f"`ss -ltnp | grep :{profile['port']}`")
+                    raise Failure("port_busy", f"another program listens on port {profile['port']}",
+                                  f"`ss -ltnp | grep :{profile['port']}` names it.")
                 if not (vllm := find_vllm()):
-                    raise Failure("vllm_missing", f"no vllm executable; installing it: {GUIDE}")
+                    named = os.environ.get("VLLM_SERVE_VLLM")
+                    raise Failure("vllm_missing", f"VLLM_SERVE_VLLM names {named}, which is not an executable file" if named else
+                                  "no vllm executable", f"Install vLLM per {GUIDE}" + (", or point VLLM_SERVE_VLLM at "
+                                  "its vllm, or unset it." if named else "."), exit=CANNOT)
                 state, started, told = start_supervisor(name, profile, extra), True, True
         if not state or state.get("phase") == "stopping":       # on its way out: decide again once it is gone
             time.sleep(1)
@@ -711,23 +720,24 @@ def down(name: str) -> dict:
         state = live(name)
         if state is None:
             profile_path(name)                          # a name that is neither running nor a profile: unknown_profile
-            return {"profile": name, "stopped": False}
+            return {"profile": name, "code": "skipped", "reason": "not_running"}
         if pid := state.get("pid"):
             try:
                 os.kill(pid, signal.SIGTERM)
                 write_state(name, {**state, "phase": "stopping"})   # no `up` is handed it from now on
             except PermissionError:
-                raise Failure("not_permitted", f"{name}'s server (pid {pid}) was started by {state.get('owner', 'another login')}: "
-                                               f"that login stops it, or it stops by itself after "
-                                               f"{state.get('idle_minutes')} min idle") from None
+                raise Failure("not_permitted", f"{name}'s server (pid {pid}) was started by "
+                                               f"{state.get('owner', 'another login')}",
+                              f"That login stops it, or it stops by itself after {state.get('idle_minutes')} min idle."
+                              ) from None
             except ProcessLookupError:
                 pass
     for _ in range(90):                                 # until the supervisor signalled is gone, even if a new
         now = live(name)                                # `up` has started another meanwhile
         if now is None or now.get("pid") not in (None, state.get("pid")):
-            return {"profile": name, "stopped": True}
+            return {"profile": name, "code": "ok"}
         time.sleep(1)
-    return {"profile": name, "stopped": False, "phase": "stopping"}
+    return {"profile": name, "code": "still_stopping", "hint": f"`{SELF} status {name}` shows when it is gone."}
 
 
 def status(name: str) -> dict:
@@ -754,55 +764,289 @@ def status(name: str) -> dict:
     return out
 
 
-def main(argv=None) -> int:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = p.add_subparsers(dest="command", required=True)
-    for command in ("up", "_supervise"):
-        s = sub.add_parser(command)
-        s.add_argument("profile")
-        s.add_argument("vllm_args", nargs="*", help="after --: `vllm serve` arguments for this start")
-    d = sub.add_parser("down")
-    d.add_argument("profile", nargs="?")
-    d.add_argument("--all", action="store_true")
-    sub.add_parser("status")
-    args = p.parse_args(argv)
+
+# ---------------------------------------------------------------- the words
+
+UP = """Start the profile's server unless it runs, wait until it answers, and print where it is.
+
+up waits, with no deadline, until the server answers or its start fails; concurrent ups share one server, and each
+counts as a request. Arguments after -- go to `vllm serve` for this start only; the caller's environment reaches
+the server too (CUDA_VISIBLE_DEVICES picks the GPUs), except variables the profile's env sets. A server already
+running is used as it is.
+
+stdout, one line: {profile, code: ok, url, model, started}. Clients speak the OpenAI API at url, with model as the
+model name; started says whether this up started the server. The line may add
+  host          the server listens beyond this machine: clients elsewhere use the machine's address and url's port
+  differs       where the running server differs from what this up asks for (model, port, args,
+                cuda_visible_devices); it serves as it is
+  foreign_cuda  CUDA libraries a freshly started server mapped from outside vLLM's environment; there should be none
+A profile that cannot be served is one line {profile, code, detail, hint}:
+  unknown_profile  no such profile, or its file is broken
+  port_busy        another profile's server, or another program, holds the port
+  server_failed    the supervisor exited before the server answered: the phase, the log and its last 20 lines
+stderr: while a start is under way, "[vllm-serve] starting ..." or "[vllm-serve] waiting for ..." with the log's
+path, and a warning when the profile's last start failed; empty when the server was running.
+
+Exit 0 served; 1 not served, the line's code says why; 2 nothing tried, stdout empty: stderr's last line is
+{code, detail, hint}, the code vllm_missing (no vllm executable), not_permitted (a state file of another login) or
+usage.
+
+Examples:
+  serve.py up paddleocr-vl
+  CUDA_VISIBLE_DEVICES=4,5 serve.py up qwen38-27b -- --data-parallel-size 2
+"""
+
+DOWN = """Stop profiles' servers now, in whatever phase, waiting up to 90 s for each to end.
+
+A running server is shared: down cuts off whoever is using it.
+
+stdout, one line per profile, as each ends:
+  {profile, code: ok}                             stopped
+  {profile, code: skipped, reason: not_running}   it was not running
+  {profile, code: still_stopping, hint}           still ending after 90 s
+  {profile, code: unknown_profile, detail, hint}  no such profile
+  {profile, code: not_permitted, detail, hint}    a server another login started
+A JSON line read through - that names no profile is passed on as it is when its code reports a skip or a failure
+upstream; any other such line makes the list unreadable (invalid_list).
+
+Exit 0 every line ok or skipped, stderr empty; an empty list read through - is nothing to do. 1 another code:
+stderr's last line is {"summary": ...}. 2 a usage error, a list it cannot read (nothing done), or a state file of
+another login: stderr's last line is {code, detail, hint}, and each profile left is a not_run line.
+
+Examples:
+  serve.py down paddleocr-vl
+  serve.py status | jq -c 'select(.phase == "running" and .idle_for_minutes >= 30)' | serve.py down -
+"""
+
+STATUS = """List profiles, one line each: every profile configured or running, or the ones named.
+
+stdout fields:
+  profile, model, url, log
+  phase                downloading, starting, running, stopping or stopped
+  pid, owner, gpus     a live server: its supervisor, the login that started it, its CUDA_VISIBLE_DEVICES
+  host                 the server listens beyond this machine
+  idle_for_minutes     a running server: minutes since its last request; it stops at stops_after_minutes
+  load                 a running server, read from its metrics every 30 s: running and waiting requests,
+                       kv_cache_usage, prefix_cache_hit_rate, preemptions, prompt_tokens_per_s,
+                       generation_tokens_per_s
+  last                 a stopped profile: how its last start ended, {ended, failed, at}; failed: true is a failure
+                       that may have gone unseen
+A profile whose file is broken, or a name no profile has, is {profile, code: unknown_profile, detail, hint}.
+
+Exit 0 all listed, also when there is none; 1 a line is unknown_profile: stderr's last line is {"summary": ...};
+2 a usage error.
+
+Examples:
+  serve.py status paddleocr-vl
+  serve.py status | jq -c 'select(.phase != "stopped")'
+"""
+
+
+def split(argv: list[str]) -> tuple[list[str], list[str]]:
+    """argv cut at its first `--`: what comes before it, and what comes after, which goes to vLLM as it is. Cut
+    before parsing: argparse alone takes `up p extra` as a vLLM argument and `up -- p` as the profile."""
+    if "--" not in argv:
+        return argv, []
+    return argv[:argv.index("--")], argv[argv.index("--") + 1:]
+
+
+def up_word(argv: list[str]) -> int:
+    left, extra = split(argv)
+    p = parser(UP, "up", usage=f"{SELF} up [-h] PROFILE [-- VLLM_ARG ...]")
+    p.add_argument("profile", nargs="?", metavar="PROFILE", help="a profile's name")
+    args, stray = p.parse_known_intermixed_args(left)
+    if stray:
+        p.error(f"unrecognized arguments: {' '.join(stray)}", f"vLLM arguments go after --: {SELF} up PROFILE -- ARG ...")
+    if args.profile is None:
+        p.error("name a profile")
     try:
-        if args.command == "_supervise":
-            return supervise(args.profile, args.vllm_args)
-        if args.command == "up":
-            print(json.dumps(up(args.profile, args.vllm_args)), flush=True)
-        elif args.command == "down":
-            if not args.all and not args.profile:
-                p.error("down needs a profile or --all")
-            if not args.all:
-                print(json.dumps(down(args.profile)), flush=True)
-                return 0
-            code = 0
-            for name in sorted({*profile_names(), *running_names()}):
-                try:
-                    print(json.dumps(down(name)), flush=True)
-                except Failure as e:
-                    print(json.dumps({"profile": name, "error": e.code, "detail": e.detail}), flush=True)
-                    code = 2
-            return code
-        else:
-            for name in sorted({*profile_names(), *running_names()}):
-                try:
-                    print(json.dumps(status(name)), flush=True)
-                except Failure as e:
-                    print(json.dumps({"profile": name, "error": e.code, "detail": e.detail}), flush=True)
+        emit(up(args.profile, extra))
+        return OK
     except Failure as e:
-        print(json.dumps({"error": e.code, "detail": e.detail}), flush=True)
-        return 2
-    except PermissionError as e:
-        owner = ""
+        emit(e.line() if e.exit == CANNOT else e.line(args.profile), sys.stderr if e.exit == CANNOT else None)
+        return e.exit
+
+
+def down_word(argv: list[str]) -> int:
+    p = parser(DOWN, "down")
+    p.add_argument("profiles", nargs="*", metavar="PROFILE",
+                   help="a profile's name; - reads a list from stdin: a name a line, or the JSON lines status, up "
+                        "and down print, by their profile")
+    p.add_argument("-a", "--all", action="store_true", help="every profile, configured or running")
+    args = p.parse_intermixed_args(argv)
+    if args.all and args.profiles:
+        p.error("-a stops every profile: name none beside it")
+    if not args.all and not args.profiles:
+        p.error("name the profiles, - to read them from stdin, or -a for all")
+    try:
+        named = sorted({*profile_names(), *running_names()}) if args.all else names(args.profiles)
+    except Failure as e:
+        emit(e.line(), sys.stderr)
+        return e.exit
+    out = Lines()
+    for name in named:
+        out.put(name) if isinstance(name, dict) else out.add(name, lambda: down(name))
+    return out.finish()
+
+
+def status_word(argv: list[str]) -> int:
+    p = parser(STATUS, "status")
+    p.add_argument("profiles", nargs="*", metavar="PROFILE", help="a profile's name; none: every profile")
+    args = p.parse_intermixed_args(argv)
+    out = Lines()
+    for name in args.profiles or sorted({*profile_names(), *running_names()}):
+        out.add(name, lambda: status(name))
+    return out.finish()
+
+
+# ---------------------------------------------------------------- output and the command line
+# write, emit, the usage error, the word listing, names() and Lines: copied from
+# paper-to-zotero/scripts/p2zlib/cli.py at 8b0a0cd and cut to serve.py's use: a line is about a profile, and a
+# status line, which carries no code, counts as ok.
+
+def write(text: str) -> None:
+    """Text to stdout. Once the reader has closed the pipe, stdout goes to /dev/null and the work goes on."""
+    try:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+    except BrokenPipeError:
         try:
-            owner = f" (owned by {Path(e.filename).owner()})" if e.filename else ""
-        except (OSError, KeyError):
+            fd = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(fd, sys.stdout.fileno())
+            os.close(fd)
+        except (OSError, ValueError):
             pass
-        print(json.dumps({"error": "not_permitted", "detail": f"{e}{owner}; the owner hands it over, e.g. `chown -R`"}), flush=True)
-        return 2
-    return 0
+
+
+def emit(obj: dict, stream=None) -> None:
+    """One JSON line: to stdout (write), or to `stream`."""
+    text = json.dumps(obj, ensure_ascii=False) + "\n"
+    if stream is None:
+        write(text)
+    else:
+        stream.write(text)
+        stream.flush()
+
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message, hint=None):
+        """A usage error: the usage line, then {code: usage, detail, hint} as stderr's last line; exit 2."""
+        self.print_usage(sys.stderr)
+        emit({"code": "usage", "detail": message, "hint": hint or f"See {self.prog} -h."}, sys.stderr)
+        raise SystemExit(CANNOT)
+
+
+def parser(doc: str, word: str, usage: str | None = None) -> Parser:
+    """A word's parser, whose -h is its man page: the doc's first line, the options, then the rest."""
+    first, _, rest = doc.strip().partition("\n")
+    return Parser(prog=f"{SELF} {word}", usage=usage, description=first, epilog=rest.strip(),
+                  formatter_class=argparse.RawDescriptionHelpFormatter)
+
+
+def listing() -> str:
+    first, _, rest = __doc__.strip().partition("\n")
+    width = max(map(len, WORDS)) + 2
+    words = "\n".join(f"  {word:<{width}}{text}" for word, (_, text) in WORDS.items())
+    return f"usage: {SELF} WORD [options] [operands]   ({SELF} WORD -h for each)\n\n{first}\n\nwords:\n{words}\n\n{rest.strip()}\n"
+
+
+def names(values: list[str]) -> list:
+    """The profiles named after the options, `-` read from stdin as a list: a line is a name, or one of our JSON
+    lines, which names its profile by `profile`. A JSON line without it is passed on as it is (a dict) when its code
+    reports a skip or a failure upstream (any code but ok); any other stops the command before anything is done."""
+    out = []
+    for value in values:
+        if value != "-":
+            out.append(value)
+            continue
+        for n, line in enumerate((x.strip() for x in sys.stdin.read().splitlines() if x.strip()), 1):
+            if not line.startswith("{"):
+                out.append(line)
+                continue
+            try:
+                obj = json.loads(line)
+            except ValueError:
+                obj = None
+            if isinstance(obj, dict) and isinstance(obj.get("profile"), str) and obj["profile"].strip():
+                out.append(obj["profile"].strip())
+            elif isinstance(obj, dict) and isinstance(obj.get("code"), str) and obj["code"] != "ok":
+                out.append(obj)
+            else:
+                raise Failure("invalid_list", f"stdin line {n}: {line[:200]}",
+                              "A list holds one profile a line: a name, or a JSON line with `profile` (what status, "
+                              "up and down print). Nothing was done.", exit=CANNOT)
+    return out
+
+
+def not_permitted(e: PermissionError) -> Failure:
+    """A file in the state directory that another login owns: the command cannot go on."""
+    owner = ""
+    try:
+        owner = f" (owned by {Path(e.filename).owner()})" if e.filename else ""
+    except (OSError, KeyError):
+        pass
+    return Failure("not_permitted", f"{e}{owner}", "The owner hands it over, e.g. `chown -R`.", exit=CANNOT)
+
+
+class Lines:
+    """The lines of a word over several profiles, printed as they come. add(name, fn) prints fn()'s line, or the
+    line of the Failure it raised; after one that stops the command, that profile and every later one are not_run.
+    finish() -> the exit code, after the summary (exit 1) or the stop (exit 2) on stderr."""
+
+    def __init__(self):
+        self.counts = {"total": 0, "ok": 0, "skipped": 0, "failed": 0}
+        self.stopped: Failure | None = None
+
+    def put(self, line: dict) -> None:
+        code = line.get("code", "ok")
+        self.counts["total"] += 1
+        self.counts[code if code in ("ok", "skipped") else "failed"] += 1
+        emit(line)
+
+    def add(self, name: str, fn) -> None:
+        if self.stopped is None:
+            try:
+                return self.put(fn())
+            except PermissionError as e:
+                self.stopped = not_permitted(e)
+            except Failure as e:
+                if e.exit != CANNOT:
+                    return self.put(e.line(name))
+                self.stopped = e
+        self.put({"profile": name, "code": "not_run"})
+
+    def finish(self) -> int:
+        if self.stopped is not None:
+            emit(self.stopped.line(), sys.stderr)
+            return CANNOT
+        if self.counts["failed"]:
+            emit({"summary": self.counts}, sys.stderr)
+            return ACT
+        return OK
+
+
+WORD_RUNS = {"up": up_word, "down": down_word, "status": status_word}
+
+
+def main(argv=None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    word = argv[0] if argv else None
+    if word == "_supervise":            # up's own call when it starts a server: serve.py _supervise PROFILE -- ARG ...
+        left, extra = split(argv[1:])
+        return supervise(left[0], extra)
+    if word in ("-h", "--help"):
+        write(listing())
+        return OK
+    if word not in WORDS:
+        sys.stderr.write(listing())
+        emit({"code": "usage", "detail": f"no word {word!r}" if word else "name a word", "hint": f"See {SELF} -h."},
+             sys.stderr)
+        return CANNOT
+    try:
+        return WORD_RUNS[word](argv[1:])
+    except PermissionError as e:
+        emit(not_permitted(e).line(), sys.stderr)
+        return CANNOT
 
 
 if __name__ == "__main__":

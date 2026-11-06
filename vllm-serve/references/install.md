@@ -1,6 +1,6 @@
 # Installing and troubleshooting vLLM
 
-`scripts/serve.py` runs the `vllm` executable of one uv tool environment (or `VLLM_SERVE_VLLM`). Check what is there first:
+`serve.py` runs as SKILL.md's *Calling* says, after `set -o pipefail; export PATH="<vllm-serve's directory>/scripts:$PATH";`. It runs the `vllm` executable of one uv tool environment (or `VLLM_SERVE_VLLM`). Check what is there first:
 
 ```bash
 uv tool list | grep -A1 '^vllm'

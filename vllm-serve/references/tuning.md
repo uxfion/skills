@@ -1,6 +1,6 @@
 # Sizing and tuning a model server
 
-Take the mainstream, cheap wins and stop there: what the model card and the vLLM recipe recommend, and what vLLM turns on with one switch (its attention kernels, prefix caching, a model's own MTP head). Confirm each with one quick comparison on the real workload. Leave niche tuning alone: external draft models, hand-set batch and chunk sizes, performance modes. Options that change the numbers (FP8 KV cache, quantised weights) stay out of runs whose results must compare with earlier ones.
+Take the mainstream, cheap wins and stop there: what the model card and the vLLM recipe recommend, and what vLLM turns on with one switch (its attention kernels, prefix caching, a model's own MTP head). Confirm each with one quick comparison on the real workload. Leave niche tuning alone: external draft models, hand-set batch and chunk sizes, performance modes. Options that change the numbers (FP8 KV cache, quantised weights) stay out of runs whose results must compare with earlier ones. `serve.py` runs as SKILL.md's *Calling* says, after `set -o pipefail; export PATH="<vllm-serve's directory>/scripts:$PATH";`.
 
 The figures below are Qwen3.8-27B (BF16, 55.6 GB on disk) on vLLM 0.32 in 2026-10, a worked example of each method.
 

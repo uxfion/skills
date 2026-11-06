@@ -4,7 +4,9 @@
 # ///
 """Tests for scripts/parse.py: page ranges, input resolution, the raw record of a page, the backend and the start-up
 path (no GPU needed). Checks, figures and the record have their own tests."""
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -13,6 +15,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "parse.py"
 spec = importlib.util.spec_from_file_location("parse", SCRIPT)
@@ -159,6 +162,33 @@ class Backend(unittest.TestCase):
             os.environ.pop("VLLM_SERVE", None)
             if old is not None:
                 os.environ["VLLM_SERVE"] = old
+
+    def test_vllm_serve_answers_by_code(self):
+        # A stand-in vllm-serve entry printing what `serve.py up` prints: exit 0 an ok line, 1 a line whose code says
+        # why not (with a url, which does not count), 2 nothing on stdout and the reason as stderr's last line.
+        fake = '\n'.join(['# /// script', '# dependencies = []', '# ///', 'import json, os, sys',
+                          'code = int(os.environ["FAKE_UP_EXIT"])',
+                          'print("[vllm-serve] starting paddleocr-vl; log: /state/paddleocr-vl.log", file=sys.stderr)',
+                          'print(os.environ["FAKE_UP_LINE"], file=sys.stderr if code == 2 else sys.stdout)',
+                          'sys.exit(code)', ''])
+        ok = {"profile": "paddleocr-vl", "code": "ok", "url": "http://127.0.0.1:8118/v1", "model": "M",
+              "started": True, "foreign_cuda": ["/usr/local/cuda-12.8/lib64/libcublas.so.12"]}
+        busy = {"profile": "paddleocr-vl", "code": "port_busy", "url": "http://127.0.0.1:8118/v1",
+                "detail": "another program listens on port 8118", "hint": "`ss -ltnp | grep :8118` names it."}
+        missing = {"code": "vllm_missing", "detail": "no vllm executable", "hint": "Install vLLM."}
+        expected = {0: ok, 1: {"error": "port_busy", "detail": "another program listens on port 8118; "
+                                                               "`ss -ltnp | grep :8118` names it."},
+                    2: {"error": "vllm_missing", "detail": "no vllm executable; Install vLLM."}}
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "serve.py").write_text(fake)
+            for code, line in ((0, ok), (1, busy), (2, missing)):
+                err = io.StringIO()
+                with self.subTest(exit=code), mock.patch.dict(os.environ, VLLM_SERVE=str(Path(d) / "serve.py"),
+                                                              FAKE_UP_EXIT=str(code), FAKE_UP_LINE=json.dumps(line)), \
+                        contextlib.redirect_stderr(err):
+                    self.assertEqual(P.serve_up(P.find_serve()), expected[code])
+                    self.assertIn("[vllm-serve] starting paddleocr-vl", err.getvalue())   # the progress, passed on
+                    self.assertEqual("libcublas.so.12" in err.getvalue(), code == 0)        # foreign_cuda, said on stderr
 
 
 class StartUp(unittest.TestCase):
