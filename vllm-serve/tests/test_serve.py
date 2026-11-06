@@ -178,6 +178,13 @@ class Pieces(unittest.TestCase):
             (repo / "refs" / "main").write_text(commit)
             self.assertTrue(S.hub_cached("Org/Model"))
 
+    def test_up_cuts_at_the_profile(self):
+        """What follows the profile is vLLM's, as timeout or torchrun hand on their command's arguments."""
+        self.assertEqual(S.at_profile(["fake", "--max-model-len", "8192"]), (["fake"], ["--max-model-len", "8192"]))
+        self.assertEqual(S.at_profile(["fake", "--", "--seed", "0"]), (["fake"], ["--seed", "0"]), "a -- after it: dropped")
+        self.assertEqual(S.at_profile(["--", "fake", "x"]), (["fake"], ["x"]), "a -- before it ends up's options")
+        self.assertEqual(S.at_profile(["-h"]), (["-h"], []))
+
     def test_health_probe_never_crashes(self):
         port = free_port()
         self.assertFalse(S.healthy("127.0.0.1", port))                  # nothing listens
@@ -266,7 +273,7 @@ class LifeCycle(unittest.TestCase):
         self.assertNotIn("CUDA_MODULE_LOADING", recorded["env"])
         self.assertEqual(recorded["env"]["CUDA_VISIBLE_DEVICES"], "4,5")
         self.assertEqual(recorded["args"][2:5], ["--trust-remote-code", "--seed", "0"])     # serve MODEL, then these
-        (same,), _ = self.run_serve("up", "fake", "--", "--seed", "0", CUDA_VISIBLE_DEVICES="4,5")
+        (same,), _ = self.run_serve("up", "fake", "--seed", "0", CUDA_VISIBLE_DEVICES="4,5")   # the same without --
         self.assertEqual((same["started"], "differs" in same), (False, False))
         (other,), _ = self.run_serve("up", "fake")         # a plain caller: the running server, and how it differs
         self.assertEqual(other["differs"]["cuda_visible_devices"], "4,5")
@@ -448,8 +455,7 @@ class LifeCycle(unittest.TestCase):
     def test_the_command_line(self):
         """What is wrong with the call, or with what it needs before it starts: exit 2, stdout empty, stderr's last
         line {code, detail, hint}."""
-        for args, words in ((["up", "fake", "extra"], "go after --"), (["up", "fake", "--max-model-len", "8192"],
-                            "go after --"), (["up", "--", "fake"], "up -h"), (["down"], "down -h"),
+        for args, words in ((["up"], "up -h"), (["up", "-x", "fake"], "up -h"), (["down"], "down -h"),
                             (["down", "-a", "fake"], "down -h"), (["start", "fake"], "serve.py -h"), ([], "serve.py -h")):
             lines, code = self.run_serve(*args)
             self.assertEqual((code, lines, self.last_stderr()["code"]), (2, [], "usage"), args)

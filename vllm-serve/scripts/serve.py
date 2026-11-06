@@ -787,7 +787,8 @@ def status(name: str) -> dict:
 UP = """Start the profile's server unless it runs, wait until it answers, and print where it is.
 
 up waits, with no deadline, until the server answers or its start fails; concurrent ups share one server, and each
-counts as a request. Arguments after -- go to `vllm serve` for this start only; the caller's environment reaches
+counts as a request. What follows the profile goes to `vllm serve` as it is, for this start only, as timeout or
+torchrun hand on their command's arguments (a -- right after the profile is allowed); the caller's environment reaches
 the server too (CUDA_VISIBLE_DEVICES picks the GPUs), except variables the profile's env sets. A server already
 running is used as it is.
 
@@ -810,7 +811,7 @@ usage.
 
 Examples:
   serve.py up paddleocr-vl
-  CUDA_VISIBLE_DEVICES=4,5 serve.py up qwen38-27b -- --data-parallel-size 2
+  CUDA_VISIBLE_DEVICES=4,5 serve.py up qwen38-27b --data-parallel-size 2
 """
 
 DOWN = """Stop profiles' servers now, in whatever phase, waiting up to 90 s for each to end.
@@ -867,13 +868,22 @@ def split(argv: list[str]) -> tuple[list[str], list[str]]:
     return argv[:argv.index("--")], argv[argv.index("--") + 1:]
 
 
+def at_profile(argv: list[str]) -> tuple[list[str], list[str]]:
+    """up's argv cut at the profile, as timeout or torchrun cut at their command: up's own options and the profile,
+    then what follows it, for vLLM as it is. A -- before the profile ends up's options; one right after it is dropped."""
+    for i, arg in enumerate(argv):
+        if arg == "--" or not arg.startswith("-"):
+            rest = argv[i + 1:] if arg == "--" else argv[i:]
+            own, after = argv[:i] + rest[:1], rest[1:]
+            return own, after[1:] if after[:1] == ["--"] else after
+    return argv, []
+
+
 def up_word(argv: list[str]) -> int:
-    left, extra = split(argv)
-    p = parser(UP, "up", usage=f"{SELF} up [-h] PROFILE [-- VLLM_ARG ...]")
-    p.add_argument("profile", nargs="?", metavar="PROFILE", help="a profile's name")
-    args, stray = p.parse_known_intermixed_args(left)
-    if stray:
-        p.error(f"unrecognized arguments: {' '.join(stray)}", f"vLLM arguments go after --: {SELF} up PROFILE -- ARG ...")
+    left, extra = at_profile(argv)
+    p = parser(UP, "up", usage=f"{SELF} up [-h] PROFILE [VLLM_ARG ...]")
+    p.add_argument("profile", nargs="?", metavar="PROFILE", help="a profile's name; what follows it goes to vLLM")
+    args = p.parse_args(left)
     if args.profile is None:
         p.error("name a profile")
     try:

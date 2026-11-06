@@ -267,3 +267,4 @@ ssh <host> '. <root>/env.sh && <root>/vllm-serve/scripts/serve.py status' | jq -
 - 退出 2 时，vllm-serve 的 `{code, detail, hint}` 也会出现在 paddleocr 的标准错误上，紧挨在它自己那行 `[paddleocr] vllm-serve <code>: …` 前面（标准错误边读边转），重复但无害。
 - 行数：`serve.py` 809 → 1053。拷来的输出那层约 125 行，比第 7 节说的"几十行"多；man 页 75 行。文档 282 → 279 行，词数反而多了约 5%：多的是 *Calling* 一段和 `status | … | serve.py down -` 那条管道。
 - 实测时碰到的环境问题：本机 8118 端口被 Windows 一侧的程序占着（WSL 镜像网络），`up` 连端口时没人应答，于是判为空闲，vLLM 绑不上，报成 `server_failed`。另记 issue。实测改用 8128。
+- **`up` 改成在配置名处切开**（用户 2026-11-06 选 B，取代第 3 节 `up` 那条和第 1 节的 `--` 写法）：配置名前面是 `serve.py` 自己的选项（只有 `-h`），后面的原样交给 vLLM；配置名后面紧跟的 `--` 可写可不写，配置名前面的 `--` 结束选项。理由：`up` 是替人启动另一个程序的命令，经典 Unix 的启动器（`timeout 5 cmd -x`、`sudo cmd`、`env A=1 cmd`、`nohup cmd`）和 Python 的（`torchrun train.py --lr`、`uv run script.py --flag`）都把目标后面的参数交给目标，不用 `--`。必须写 `--` 是从原则 §3"选项和操作对象可以任意交错"推出来的，这条适合处理一批东西的命令，不适合启动器。配置名就是分界，不用猜参数归谁。用户：「理论上如果我在用 Python 的时候，我都不会这么刻意去加，是不是绕路了？」——是绕了，我先前只比了"要 `--`"和"让脚本猜"两种，漏了这一种。
