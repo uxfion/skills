@@ -191,3 +191,15 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 - **`--source FILE` 留作选项**：命令处理的是解析目录；源文件只在它挪了地方、记录里的路径失效时才写，角色不同，像 p2z 的 `merge --into`。
 - **`show` 的图片不经 `-o`**：照旧写临时目录，`-h` 写明，`-o` 留给 issue（第 8 节）。
 - **范围外的一处行为**：`show` 改成只读（第 8 节），今天它会先 commit。
+
+## 11. 实施时的改正（2026-11-06）
+
+- 在 worktree 里改，合进 main 是 `70bbad1`。`parse.py` 里调 vllm-serve 的那段（`serve_up`、`load_backend`）一行没动；`vl_server_*` 的错误在 `main` 里转成标准错误那一行。
+- 从 p2z 拷的是 `Lines`（parse 的汇总是 `{total, ok, skipped, failed}`），不是 `summarize`；拷来的 `paths(values, field)` 按 `input` 读 `-`，上游的跳过、失败行原样转出。
+- 解析几篇时某个目录被锁：只算那一篇 `locked`，退出 1，不让整个命令退出 2。
+- 发现码表放在 `findings -h`，`parse -h` 指过去。`findings` 碰到没提交的 Markdown 改动也在标准错误上警告一行（第 7 节测试要的）。
+- organize.md 那段保留"一次约一百篇"：先 `p2z.py package take --missing -o <dir>/ > <dir>/taken.jsonl`，再 `sed -n '1,100p' … | ocr.py parse -o <dir>/ -`。
+- 顺手修：`show --box` 框整个落在页外报 `bad_box`；`--source` 指向目录算 `source_mismatch`；记录里"bring it back with the figure command"改成 `ocr.py cut`。
+- 行数：代码 3,398 → 3,924（入口 66、`ocrlib/cli.py` 219，`doc.py` +229，其中约 100 行是 man 页）；文档 315 → 310 行。
+- GPU 实测（2026-11-06，8128 端口）全过，`objects` 新旧输出逐字节相同。第 1 节"库里已有的结构化包照旧算最新"不对：888 个包里 881 个的检查版本是 5，现在的代码（改造前也一样）是 6，下次解析会不用 GPU 重处理一遍（12 页约 4 秒），结果和旧代码重处理的逐字相同。这是更早那次升级检查版本带来的，不是这次改造。
+- 解析加载模型时，PaddleX 往标准错误打四行例行日志（"Creating model …"、"Model files already exist …"），改造前就有，不合 §3：另记 issue。
