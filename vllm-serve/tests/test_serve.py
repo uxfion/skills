@@ -183,7 +183,8 @@ class Pieces(unittest.TestCase):
         self.assertFalse(S.healthy("127.0.0.1", port))                  # nothing listens
         with not_http(port):
             self.assertFalse(S.healthy("127.0.0.1", port))              # something that is not HTTP
-            self.assertTrue(S.listening("127.0.0.1", port))
+            self.assertEqual(S.port_taken("127.0.0.1", port), "listens")
+        self.assertIsNone(S.port_taken("127.0.0.1", port), "free once it closed")
 
     def test_idle_and_load(self):
         text = ('# HELP vllm:num_requests_running x\nvllm:num_requests_running{engine="0"} 2.0\n'
@@ -353,6 +354,11 @@ class LifeCycle(unittest.TestCase):
         self.assertEqual((code, err["code"]), (1, "port_busy"))
         self.assertIn("another program", err["detail"])
         self.assertIn("ss -ltnp", err["hint"])
+        with socket.socket() as held:                      # the port bound, nothing listening (2026-11-06: a
+            held.bind(("127.0.0.1", self.port))            # Windows program's connection, under mirrored WSL)
+            (err,), code = self.run_serve("up", "fake")
+        self.assertEqual((code, err["code"]), (1, "port_busy"), "not server_failed after vLLM fails to bind")
+        self.assertIn("nothing listens", err["detail"])
         self.write_profile("other", 10)                    # another profile on the same port, still loading
         loading = self.start_up("other", FAKE_QUIET_SECONDS="120")
         self.assertTrue(wait_for(lambda: self.phase("other") == "starting"))

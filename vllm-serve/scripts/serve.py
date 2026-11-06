@@ -284,13 +284,23 @@ def healthy(host: str | None, port: int) -> bool:
         return False
 
 
-def listening(host: str | None, port: int) -> bool:
-    """Whether any program accepts connections on the port where the server would listen."""
+def port_taken(host: str | None, port: int) -> str | None:
+    """What keeps vLLM from binding the port, asked the way vLLM binds it (SO_REUSEADDR, as uvicorn): "listens" (a
+    program serves there), "held" (something has the port without listening: a connection's local end, or, under
+    WSL's mirrored networking, a Windows program), or None (free)."""
     try:
         socket.create_connection((address(host), port), timeout=2).close()
-        return True
+        return "listens"
     except OSError:
-        return False
+        pass
+    family, kind, proto, _, where = socket.getaddrinfo(host or "127.0.0.1", port, type=socket.SOCK_STREAM)[0]
+    with socket.socket(family, kind, proto) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(where)
+        except OSError:
+            return "held"
+    return None
 
 
 # ---------------------------------------------------------------- vLLM's environment
@@ -563,9 +573,16 @@ def up(name: str, extra: list[str]) -> dict:
                 if holder:
                     raise Failure("port_busy", f"port {profile['port']} is held by profile {holder}'s server",
                                   f"`{SELF} status` names it: use that profile, or `down` it once idle.")
-                if listening(want["host"], profile["port"]):
-                    raise Failure("port_busy", f"another program listens on port {profile['port']}",
-                                  f"`ss -ltnp | grep :{profile['port']}` names it.")
+                taken, port = port_taken(want["host"], profile["port"]), profile["port"]
+                if taken == "listens":
+                    raise Failure("port_busy", f"another program listens on port {port}",
+                                  f"`ss -ltnp | grep :{port}` names it.")
+                if taken == "held":
+                    raise Failure("port_busy", f"port {port} is in use, though nothing listens on it",
+                                  f"`ss -tanp | grep :{port}` names what holds it; under WSL's mirrored networking it "
+                                  f"may be a Windows program (`netstat -ano | findstr :{port}` there). Wait until it "
+                                  "lets go, or give the profile another port (an `extends` profile in "
+                                  "~/.config/vllm-serve/profiles/).")
                 if not (vllm := find_vllm()):
                     named = os.environ.get("VLLM_SERVE_VLLM")
                     raise Failure("vllm_missing", f"VLLM_SERVE_VLLM names {named}, which is not an executable file" if named else
