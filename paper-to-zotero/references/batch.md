@@ -8,7 +8,7 @@ A paper is a result in `<imp>/fetch/results/<slug>.json`, written by paper-fetch
 
 ## The run
 
-**1. Triage** (you, the main agent, in minutes): identify every paper (import.md step 1; a .bib through `p2z.py ids`, a list as `id<TAB>citation key` lines on `identify`'s stdin), choose the versions (step 2), then draft and prepare (step 3): its `decide` lists say what is still open. Send the same-paper judges and the tagging subagents (step 3), who work beside the passes. Put every question in one message (below).
+**1. Triage** (you, the main agent, in minutes): identify every paper (import.md step 1; a .bib through `p2z.py ids`, a list as `id<TAB>citation key` lines piped to `pf.py identify … -`), choose the versions (step 2), then draft and prepare (step 3): its `decide` lists say what is still open. Send the same-paper judges and the tagging subagents (step 3), who work beside the passes. Put every question in one message (below).
 
 **2. First pass**: paper-fetch's chain over the results of the records that need a file (import.md step 4).
 

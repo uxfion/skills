@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for the fold of fetch.jsonl into the result files (pflib/run.py settle, scripts/settle.py), the label event,
+"""Tests for the fold of fetch.jsonl into the result files (pflib/run.py settle, pf.py sync), the label event,
 and filing a file without consuming one that is not this run's."""
 import json
 import os
@@ -103,16 +103,20 @@ class Fold(unittest.TestCase):
         own = fake_pdf(self.work.inbox / "x.pdf", [f"{TITLE}\nJane Doe"]) if self.work.inbox.mkdir() is None else None
         self.assertTrue(self.work.owns(own))
 
-    def test_settle_every_result_in_a_directory(self):
-        result_file(self.work.root, "roe2023other", csl={"title": "Other", "DOI": "10.1/x"})
-        r = call(settle, "--dir", self.work.root)
-        self.assertEqual([x["slug"] for x in r.lines[:-1]], ["doe2024deep", "roe2023other"])
-        r = call(settle, self.work.root / "results" / "nope.json")
-        self.assertEqual((r.code, r.lines[0]["code"]), (1, "result_invalid"))
+    def test_sync_results_named_or_listed(self):
+        other = result_file(self.work.root, "roe2023other", csl={"title": "Other", "DOI": "10.1/x"})
+        r = call(settle, self.path, other)
+        self.assertEqual(([x["slug"] for x in r.lines], r.code, r.err), (["doe2024deep", "roe2023other"], 0, ""))
+        listed = f'{self.path}\n{{"slug": "roe2023other", "code": "ok", "path": "{other}"}}\n{self.path}\n'
+        r = call(settle, "-", stdin=listed)
+        self.assertEqual([x["slug"] for x in r.lines], ["doe2024deep", "roe2023other"], "a path named twice comes once")
+        r = call(settle, self.work.root / "results" / "nope.json", self.path)
+        self.assertEqual((r.code, r.lines[0]["code"], r.last["summary"]["failed"]), (1, "result_invalid", 1))
+        self.assertEqual((call(settle).code, call(settle, "-").code), (2, 0), "nothing named; an empty list")
 
     def test_smoke(self):
-        r = smoke("settle", self.path)
-        self.assertEqual((r.code, r.lines[0]["status"]), (0, "not_got"), r)
+        r = smoke("sync", self.path)
+        self.assertEqual((r.code, r.lines[0]["status"], r.err), (0, "not_got", ""), r)
 
 
 if __name__ == "__main__":

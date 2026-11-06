@@ -3,7 +3,7 @@
 # dependencies = []
 # ///
 """Tests for scripts/identify.py: result files from identifiers and pages, the CSL's normalization, a preprint's
-versions, the OpenAlex / Europe PMC lookups, --redraft (--html) and --search, against the fake web (doi.org, Crossref,
+versions, the OpenAlex / Europe PMC lookups, redraft (--html) and search, against the fake web (doi.org, Crossref,
 arXiv's API, OpenAlex, Europe PMC, venue pages)."""
 import json
 import os
@@ -134,10 +134,13 @@ class Base(unittest.TestCase):
                                                                     "api.openalex.org", "www.ebi.ac.uk", "127.0.0.1")}))
 
     def run_(self, *argv, stdin="", env=None):
+        """pf.py identify | search | redraft ..., the word first."""
         return call(identify, *argv, env={**self.web.env(), **(env or {})}, stdin=stdin)
 
-    def ident(self, *ids, stdin=""):
-        return self.run_(*ids, "-o", self.work.root, stdin=stdin)
+    def ident(self, *ids, stdin=None):
+        """pf.py identify -o <dir>/ ID..., and - when there is a list for stdin."""
+        return self.run_("identify", "-o", f"{self.work.root}/", *ids, *(["-"] if stdin is not None else []),
+                         stdin=stdin or "")
 
     def path(self, slug):
         return self.work.results / f"{slug}.json"
@@ -153,7 +156,7 @@ class Identifying(Base):
     def test_identifiers_become_results_and_a_rerun_keeps_them(self):
         r = self.ident(stdin=f"# comment\n{JBHI}\tliu2022jbhi\n\n{CVPR}\narXiv:{DDPM}v2\n10.9999/twin\n")
         self.assertEqual(r.code, 0, r)
-        self.assertEqual([(o["id"], o["code"], o["slug"], o["record_of"]) for o in r.lines[:-1]],
+        self.assertEqual([(o["id"], o["code"], o["slug"], o["record_of"]) for o in r.lines],
                          [(JBHI, "ok", "liu2022jbhi", "published"), (CVPR, "ok", "he2016deep", "published"),
                           (f"arXiv:{DDPM}v2", "ok", "ho2020denoising", "preprint"),
                           ("10.9999/twin", "ok", "liu2022progressive", "published")])
@@ -173,7 +176,7 @@ class Identifying(Base):
         self.assertEqual(ho["versions"]["preprint"]["ids"], {"arxiv": DDPM, "doi": "10.48550/arXiv." + DDPM})
         self.web.requests.clear()
         r = self.ident("doi:" + JBHI.lower(), DDPM, "10.9999/missing")
-        self.assertEqual([(o["code"], o.get("reason"), o.get("slug")) for o in r.lines[:-1]],
+        self.assertEqual([(o["code"], o.get("reason"), o.get("slug")) for o in r.lines],
                          [("skipped", "exists", "liu2022jbhi"), ("skipped", "exists", "ho2020denoising"),
                           ("not_found", None, None)])
         self.assertEqual(self.requested("/doi/*"), ["/doi/10.9999/missing"])
@@ -183,7 +186,7 @@ class Identifying(Base):
         r = self.ident("10.9999/twin", "--slug", "mine")
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "slug_taken"))
         r = self.ident("10.9999/twin", JBHI)
-        self.assertEqual([(o["code"], o.get("slug")) for o in r.lines[:-1]],
+        self.assertEqual([(o["code"], o.get("slug")) for o in r.lines],
                          [("ok", "liu2022progressive"), ("skipped", "mine")])
         self.assertEqual([o["reason"] for o in self.ident(stdin=f"{JBHI}\n{JBHI}\n").lines[:2]], ["exists", "duplicate"])
         # A key brought later (a .bib after a bare id): the result takes it while nothing was fetched under the old name.
@@ -204,7 +207,7 @@ class Identifying(Base):
 
     def test_two_papers_that_derive_one_slug(self):
         r = self.ident(JBHI, "10.9999/twin")
-        self.assertEqual([o["slug"] for o in r.lines[:-1]], ["liu2022progressive", "liu2022progressive-2"])
+        self.assertEqual([o["slug"] for o in r.lines], ["liu2022progressive", "liu2022progressive-2"])
         self.assertEqual(self.res("liu2022progressive-2")["ids"]["doi"], "10.9999/twin")
 
     def test_citation_keys_and_the_version_wanted(self):
@@ -214,7 +217,7 @@ class Identifying(Base):
         self.assertEqual((r.lines[0]["slug"], res["cite"], res["slug_given"], res["wanted"], res["versions"]["incomplete"]),
                          ("Shinn_2023_Reflexion", "Shinn:2023 Reflexion", True, "published", ["arxiv"]),
                          "the key verbatim in cite, its file-safe form the slug")
-        r = self.run_(REFLEXION, "--wanted", "preprint", "-o", self.work.root)
+        r = self.run_("identify", REFLEXION, "--wanted", "preprint", "-o", self.work.root)
         res = self.res("Shinn_2023_Reflexion")
         self.assertEqual((r.lines[0]["code"], res["versions"]["incomplete"], res["slug_given"], res["cite"], res["wanted"]),
                          ("ok", [], True, "Shinn:2023 Reflexion", "preprint"),
@@ -223,7 +226,7 @@ class Identifying(Base):
                          ("exists", "preprint"), "kept unless given anew")
         self.ident(JBHI)
         self.work.append({"event": "pass", "pass": 1, "slug": "liu2022progressive"})
-        r = self.run_(JBHI, "--slug", "Liu:2022", "--wanted", "accepted", "-o", self.work.root)
+        r = self.run_("identify", JBHI, "--slug", "Liu:2022", "--wanted", "accepted", "-o", self.work.root)
         res = self.res("liu2022progressive")
         self.assertEqual((r.lines[0]["reason"], r.lines[0]["slug_not_applied"], res["cite"], res["wanted"], res["slug_given"]),
                          ("exists", "Liu_2022", "Liu:2022", "accepted", False),
@@ -240,7 +243,7 @@ class Identifying(Base):
         self.web.route("/doi/10.9999/broken", "upstream", status=503)
         r = self.ident(stdin="10.9999/missing\n10.9999/html\nnot-an-id\n10.9999/broken\ntitle: Some Paper\n")
         self.assertEqual(r.code, 1, r)
-        self.assertEqual([o["code"] for o in r.lines[:-1]],
+        self.assertEqual([o["code"] for o in r.lines],
                          ["not_found", "no_csl_record", "no_identifier", "doi_org_error", "needs_pinning"])
         stub = r.lines[1]
         self.assertTrue(stub["stub"])
@@ -254,14 +257,42 @@ class Identifying(Base):
     def test_cannot_go_on(self):
         self.web.rate_limit("/doi/10.1109/JBHI*", retry_after=120)
         r = self.ident(JBHI, CVPR)
-        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]], r.lines[-1]["summary"]["stopped"]),
-                         (2, ["source_blocked", "not_run"], "source_blocked"))
-        self.assertEqual(self.ident(CVPR).lines[0]["code"], "source_blocked", "the stop holds for the directory's next run")
+        self.assertEqual((r.code, [o["code"] for o in r.lines], r.last["code"]),
+                         (2, ["not_run", "not_run"], "source_blocked"), "the id it stopped on and the rest: not_run")
+        self.assertEqual(self.ident(CVPR).last["code"], "source_blocked", "the stop holds for the directory's next run")
         (self.work.root / "pace.json").unlink()
-        r = self.run_(CVPR, "-o", self.work.root, env={"DOI_BASE_URL": f"http://127.0.0.1:{closed_port()}"})
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "doi_org_unreachable"))
-        for argv in (["--slug", "x", JBHI, CVPR], ["--author", "Liu"], [JBHI, "--search", "x"]):
-            self.assertEqual(self.run_(*argv).code, 2, argv)
+        r = self.run_("identify", CVPR, "-o", self.work.root, env={"DOI_BASE_URL": f"http://127.0.0.1:{closed_port()}"})
+        self.assertEqual((r.code, r.lines[0]["code"], r.last["code"]), (2, "not_run", "doi_org_unreachable"))
+        for argv in (["identify", "--slug", "x", JBHI, CVPR], ["identify", "--slug", "x", "-"], ["identify"],
+                     ["search", "--author", "Liu"], ["identify", JBHI, "--search", "x"], ["redraft", NEURIPS],
+                     ["redraft", NEURIPS, "a.json", "b.json"], ["claim", JBHI]):
+            r = self.run_(*argv)
+            self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "usage"), argv)
+
+    def test_a_list_on_stdin(self):
+        """- reads a list: an id a line (a TAB and a key optional), our JSON lines by `id`; a line without one that
+        reports a skip or a failure goes on as it is; any other makes the list unreadable, and nothing is done."""
+        self.assertEqual((self.ident(stdin="").code, self.ident(stdin="").out), (0, ""), "an empty list: nothing to do")
+        pin = '{"i": 1, "id": "%s", "why": "title and first author"}\n{"i": 2, "id": null, "why": "two fit"}\n' % JBHI
+        r = self.ident(stdin=pin)
+        self.assertEqual((r.code, r.out, r.last["code"], self.requested("/doi/*")), (2, "", "invalid_list", []),
+                         "a null id: filter it first (jq -c 'select(.id)')")
+        search = '{"doi": "%s", "title": "x", "similarity": 0.9, "code": "ok"}\n' % JBHI
+        r = self.ident(stdin=search)
+        self.assertEqual((r.code, r.last["code"]), (2, "invalid_list"))
+        self.assertIn("confirm a candidate", r.last["hint"], "a search line is a candidate, not an identifier")
+        upstream = '{"file": "/nowhere/x.pdf", "code": "file_not_found", "hint": "No such file."}'
+        r = self.ident(stdin=f'{pin.splitlines()[0]}\n{upstream}\n{{"id": "{CVPR}", "code": "ok", "slug": "he2016deep"}}\n')
+        self.assertEqual((r.code, [(o.get("id"), o["code"]) for o in r.lines]),
+                         (1, [(JBHI, "ok"), (None, "file_not_found"), (CVPR, "ok")]))
+        self.assertEqual(r.lines[1], json.loads(upstream), "passed on as it is")
+        self.assertEqual(r.last["summary"], {"total": 3, "ok": 2, "skipped": 0, "failed": 1})
+        r = self.ident(JBHI, JBHI)
+        self.assertEqual((r.lines[1]["reason"], r.lines[1]["path"]), ("duplicate", str(self.path("liu2022progressive"))))
+        # identify's lines that name no result reach fetch as they are, and count there as not done
+        r = self.ident(stdin="title: Another Paper\n")
+        fetched = call(load("fetch"), "-", stdin=r.out)
+        self.assertEqual((fetched.code, fetched.out), (1, r.out))
 
     def test_normalization(self):
         self.web.doi("10.9999/crossref-keys", {"type": "proceedings-article", "source": "Crossref", "title": "Crossref Keys",
@@ -274,7 +305,7 @@ class Identifying(Base):
                        "10.1007/978-3-319-24574-4_28", "10.1007/other-series", "10.1007/crossref-down", "10.9999/crossref-keys",
                        "10.9999/alias", "doi:" + JBHI.lower())
         self.assertEqual(r.code, 0, r)
-        jama, swin, erratum, notice, unet, other, down, keys, alias, jbhi = (self.res(o["slug"]) for o in r.lines[:-1])
+        jama, swin, erratum, notice, unet, other, down, keys, alias, jbhi = (self.res(o["slug"]) for o in r.lines)
         self.assertEqual(alias["ids"]["doi"], "10.9999/twin")
         self.assertIn("record DOI '10.9999/twin' differs from requested '10.9999/alias'; using the record's", alias["warnings"])
         self.assertEqual((jbhi["ids"]["doi"], [w for w in jbhi["warnings"] if "differs" in w]), (JBHI, []),
@@ -302,14 +333,14 @@ class Identifying(Base):
         self.assertIn("date taken from 'published-online' (no usable 'issued')", keys["warnings"])
 
     def test_smoke(self):
-        r = smoke("identify", CVPR, "-o", self.work.root, env=self.web.env())
-        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
+        r = smoke("identify", CVPR, "-o", f"{self.work.root}/", env=self.web.env())
+        self.assertEqual((r.code, r.lines[0]["code"], r.err), (0, "ok", ""), r)
 
 
 class Versions(Base):
     def test_published_versions_of_preprints(self):
         r = self.ident(REFLEXION, "2105.05537", CVPR)
-        self.assertEqual([o.get("versions") for o in r.lines[:-1]], [1, 1, None])
+        self.assertEqual([o.get("versions") for o in r.lines], [1, 1, None])
         reflexion = self.res("shinn2023reflexion")["versions"]
         self.assertEqual((reflexion["preprint"]["latest"], reflexion["preprint"]["comment"], reflexion["incomplete"]),
                          ("v4", "v4 contains a few additional experiments", []))
@@ -333,10 +364,10 @@ class Versions(Base):
     def test_a_silent_source_keeps_its_last_answers(self):
         self.web.route("/crossref/works", "busy", status=503, times=2)
         r = self.ident(REFLEXION, "2105.05537")
-        self.assertEqual([o["incomplete"] for o in r.lines[:-1]], [["crossref"], ["crossref"]])
+        self.assertEqual([o["incomplete"] for o in r.lines], [["crossref"], ["crossref"]])
         self.web.route("/arxiv/api/query", "busy", status=503, times=1)
         r = self.ident(REFLEXION, "2105.05537")
-        self.assertEqual([o["incomplete"] for o in r.lines[:-1]], [["arxiv"], ["arxiv"]])
+        self.assertEqual([o["incomplete"] for o in r.lines], [["arxiv"], ["arxiv"]])
         reflexion, swin = self.res("shinn2023reflexion")["versions"], self.res("cao2021swin")["versions"]
         self.assertEqual((reflexion["preprint"]["latest"], reflexion["preprint"]["comment"]),
                          ("v4", "v4 contains a few additional experiments"), "arXiv's answer from the first run")
@@ -350,7 +381,7 @@ class Versions(Base):
     def test_crossref_429_during_the_versions(self):
         self.web.rate_limit("/crossref/works*", retry_after=120)
         r = self.ident(REFLEXION, "2105.05537", "10.1007/978-3-319-24574-4_28")
-        self.assertEqual((r.code, [o["code"] for o in r.lines[:-1]], [o.get("incomplete") for o in r.lines[:-1]]),
+        self.assertEqual((r.code, [o["code"] for o in r.lines], [o.get("incomplete") for o in r.lines]),
                          (0, ["ok", "ok", "ok"], [["crossref"], ["crossref"], None]))
         self.assertEqual(self.requested("/crossref/works*"), ["/crossref/works"],
                          "Crossref is not asked again in the run: not by the next search, the DOI arXiv declares, nor LNCS")
@@ -369,7 +400,7 @@ class Versions(Base):
         self.web.route("/arxiv/api/query", "busy", status=503, times=1)
         self.ident(REFLEXION)
         path = self.path("shinn2023reflexion")
-        self.assertEqual(self.run_("--redraft", NEURIPS, path).lines[0]["code"], "ok")
+        self.assertEqual(self.run_("redraft", NEURIPS, path).lines[0]["code"], "ok")
         self.assertEqual(self.res("shinn2023reflexion")["versions"]["incomplete"], ["arxiv"])
         self.assertEqual(self.ident(REFLEXION).lines[0]["reason"], "exists", "its version is chosen: not asked again")
         self.assertEqual(self.res("shinn2023reflexion")["record_of"], "published")
@@ -384,7 +415,7 @@ class Redraft(Base):
         res.update(alt_titles=["An Earlier Title"], files=[{"name": "x.preprint.pdf"}], outcome={"status": "got"},
                    set_aside=[{"name": "x.file.pdf", "md5": "0" * 32, "why": "refused"}])
         res.save()
-        r = self.run_("--redraft", NEURIPS, path)
+        r = self.run_("redraft", NEURIPS, path)
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
         res = self.res("shinn2023reflexion")
         self.assertEqual((res["record_of"], res["ids"]["doi"], res["ids"]["arxiv"], res["csl"]["type"]),
@@ -400,15 +431,16 @@ class Redraft(Base):
         self.assertEqual(res["alt_titles"], ["An Earlier Title"], "the same title up to case: nothing added")
         self.assertEqual(res["request"], {"given": REFLEXION, "redraft": NEURIPS})
         self.assertFalse(any("no arXiv id" in w for w in res["warnings"]))
-        self.assertEqual(self.run_("--redraft", "doi:" + NEURIPS, path).lines[0]["reason"], "same_doi")
-        self.run_("--redraft", "https://doi.org/10.1234/journal-version", path)
+        r = self.run_("redraft", path, "doi:" + NEURIPS)
+        self.assertEqual((r.code, r.lines[0]["reason"], r.lines[0]["path"]), (0, "same_doi", str(path)), "written the other way round")
+        self.run_("redraft", "https://doi.org/10.1234/journal-version", path)
         self.assertEqual(self.res("shinn2023reflexion")["alt_titles"],
                          ["An Earlier Title", "Reflexion: language agents with verbal reinforcement learning"])
         for target, code in (("10.48550/arXiv." + REFLEXION, "not_published"), ("10.9999/missing", "not_found")):
-            r = self.run_("--redraft", target, path)
+            r = self.run_("redraft", target, path)
             self.assertEqual((r.code, r.lines[0]["code"]), (1, code), target)
         self.ident(CVPR)
-        r = self.run_("--redraft", "10.1234/journal-version", self.path("he2016deep"))
+        r = self.run_("redraft", "10.1234/journal-version", self.path("he2016deep"))
         self.assertIn("no arXiv id on the result before the redraft: no preprint route to its text and no arXiv line "
                       "for the item", r.lines[0]["warnings"])
 
@@ -421,7 +453,7 @@ class Redraft(Base):
             "citation_pdf_url": "/paper_files/1b44-Paper-Conference.pdf"})
         self.ident(REFLEXION)
         path = self.path("shinn2023reflexion")
-        r = self.run_("--redraft", neurips, path)
+        r = self.run_("redraft", neurips, path)
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
         csl = self.res("shinn2023reflexion")["csl"]
         self.assertEqual({k: csl.get(k) for k in ("type", "container-title", "page", "issued", "URL", "source", "author")},
@@ -431,7 +463,7 @@ class Redraft(Base):
                                                             {"family": "Cassano", "given": "Federico"}]})
         for url, code in ((self.web.page("/paper/bare", "Just a page"), "no_citation_meta"),
                           (self.web.url("/paper/missing"), "page_unreachable")):
-            r = self.run_("--redraft", url, path)
+            r = self.run_("redraft", url, path)
             self.assertEqual((r.code, r.lines[0]["code"]), (1, code), url)
 
     def test_from_the_html_a_browser_saved(self):
@@ -442,7 +474,7 @@ class Redraft(Base):
             "citation_conference_title": "NeurIPS 2023", "citation_publication_date": "10 December 2023"}), encoding="utf-8")
         refuses = self.web.route("/paper/refuses", "Forbidden", status=403)
         self.ident(REFLEXION)
-        r = self.run_("--redraft", refuses, self.path("shinn2023reflexion"), "--html", saved)
+        r = self.run_("redraft", refuses, self.path("shinn2023reflexion"), "--html", saved)
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
         res = self.res("shinn2023reflexion")
         self.assertEqual({k: res["csl"].get(k) for k in ("type", "container-title", "issued", "URL")},
@@ -455,13 +487,14 @@ class Redraft(Base):
         self.assertEqual((r.lines[0]["code"], r.lines[0]["stub"]), ("page_unreachable", True))
         self.assertIn("--html <file>", r.lines[0]["hint"])
         stub = self.path(r.lines[0]["slug"])
-        r = self.run_("--html", saved, "--redraft", refuses, stub)
+        r = self.run_("redraft", "--html", saved, stub, refuses)
         self.assertEqual((r.code, r.lines[0].get("warnings")), (0, None), "a stub is filled, without the preprint's warnings")
         self.assertEqual((self.res(stub.stem)["csl"]["title"], self.res(stub.stem)["wanted"]),
                          ("Reflexion: Language Agents with Verbal Reinforcement Learning", "published"))
-        for argv in (["--redraft", NEURIPS, stub, "--html", saved], ["--redraft", refuses, stub, "--html", saved.with_name("none")],
-                     [REFLEXION, "--html", saved]):
-            self.assertEqual(self.run_(*argv).code, 2, argv)
+        for argv in (["redraft", NEURIPS, stub, "--html", saved], ["redraft", refuses, stub, "--html", saved.with_name("none")],
+                     ["identify", REFLEXION, "--html", saved]):
+            self.assertEqual((self.run_(*argv).code, self.run_(*argv).out), (2, ""), argv)
+        self.assertEqual(self.run_("redraft", refuses, stub, "--html", saved.with_name("none")).last["code"], "file_not_found")
 
     def test_a_page_identified_directly(self):
         page = self.web.page("/paper/tmlr", "", meta={
@@ -482,7 +515,7 @@ class Redraft(Base):
                                               ("Cole", "December 2023"), ("Dunn", "10/12/2023"), ("Eyre", "2023/12/10")))]
         r = self.ident(*pages)
         self.assertEqual(r.code, 0, r)
-        results = [self.res(o["slug"]) for o in r.lines[:-1]]
+        results = [self.res(o["slug"]) for o in r.lines]
         self.assertEqual([res["csl"]["issued"]["date-parts"] for res in results],
                          [[[2023, 12, 10]], [[2023, 12, 10]], [[2023, 12]], [[2023]], [[2023, 12, 10]]])
         self.assertIn("the page's date '10/12/2023' read as [2023]: check it", results[3]["warnings"],
@@ -499,9 +532,9 @@ class Search(Base):
         self.web.crossref("10.1109/isaics.2025.1", type="proceedings-article", container_title="ISAICS",
                           title="Robust Verbal Reinforcement Learning for Language Agents", issued={"date-parts": [[2025]]},
                           author=[{"given": "Li", "family": "Wang"}, {"given": "Noah", "family": "Shinn"}])
-        r = self.run_("--search", "Reflexion: Language Agents with Verbal Reinforcement Learning", "--author", "shinn")
-        self.assertEqual(r.code, 0, r)
-        lines = {o["doi"]: o for o in r.lines[:-1]}
+        r = self.run_("search", "Reflexion:", "Language Agents with Verbal Reinforcement Learning", "--author", "shinn")
+        self.assertEqual((r.code, r.err), (0, ""), r)
+        lines = {o["doi"]: o for o in r.lines}
         self.assertEqual(list(lines), [NEURIPS, "10.21203/rs.3.rs-1/v1", "10.48550/arXiv." + REFLEXION, "10.1109/isaics.2025.1"],
                          "Crossref's order, nothing filtered out: posted content and a dissimilar title too")
         self.assertEqual({k: lines[NEURIPS].get(k) for k in ("authors", "similarity", "first_author_differs", "type", "year")},
@@ -513,7 +546,10 @@ class Search(Base):
         self.assertTrue(lines["10.21203/rs.3.rs-1/v1"]["first_author_differs"], "no authors: no first author to match")
         asked = self.web.requested("GET", "/crossref/works")[0].query
         self.assertEqual((asked["rows"], asked["query.author"], "author" in asked["select"].split(",")), ("5", "shinn", True))
-        self.assertEqual(r.lines[-1]["summary"]["query"], "Reflexion: Language Agents with Verbal Reinforcement Learning")
+        self.assertEqual(asked["query.bibliographic"], "Reflexion: Language Agents with Verbal Reinforcement Learning",
+                         "the words make one query")
+        r = self.run_("search", "zzqx", "vvwk")
+        self.assertEqual((r.code, r.out, r.err), (1, "", ""), "none found: exit 1, as grep")
 
 
 class Lookups(Base):
@@ -533,10 +569,10 @@ class Lookups(Base):
         self.web.europepmc(JBHI, pmid="555", abstractText="Another abstract entirely.")
         self.web.europepmc(NEURIPS, pmid="666")
         key = "oa-key-1234567890"
-        r = call(identify, "10.9999/med1", "10.9999/med2", JBHI, "-o", self.work.root, env=self.web.env(),
+        r = call(identify, "identify", "10.9999/med1", "10.9999/med2", JBHI, "-o", self.work.root, env=self.web.env(),
                  config=config_file(openalex_key=key))
         self.assertEqual(r.code, 0, r)
-        med1, med2, jbhi = (self.res(o["slug"]) for o in r.lines[:-1])
+        med1, med2, jbhi = (self.res(o["slug"]) for o in r.lines)
         self.assertEqual({k: med1["csl"].get(k) for k in ("abstract", "PMID", "PMCID", "keyword")},
                          {"abstract": "Background A different abstract.", "PMID": "222", "PMCID": "PMC333",
                           "keyword": ["Clinical trial", "Something"]},
@@ -557,7 +593,7 @@ class Lookups(Base):
         self.assertEqual((openalex[0].query["filter"], openalex[0].query["api_key"]),
                          (f"doi:10.9999/med1|10.9999/med2|{JBHI.lower()}", key))
         self.ident(REFLEXION)
-        r = self.run_("--redraft", NEURIPS, self.path("shinn2023reflexion"))
+        r = self.run_("redraft", NEURIPS, self.path("shinn2023reflexion"))
         self.assertEqual((r.lines[0]["code"], self.res("shinn2023reflexion")["ids"]["pmid"]), ("ok", "666"), "a redraft asks too")
 
     def test_a_lookup_that_does_not_answer_is_asked_again(self):

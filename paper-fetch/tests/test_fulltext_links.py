@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/fulltext_links.py against the fake web's OpenAlex, Europe PMC and venue pages."""
+"""Tests for pf.py locate (scripts/fulltext_links.py) against the fake web's OpenAlex, Europe PMC and venue pages."""
 import json
 import os
 import tempfile
@@ -138,10 +138,9 @@ class FulltextLinks(unittest.TestCase):
 
     def test_done_stale_and_incomplete(self):
         path = self.result("nat", "10.1000/nat.1")
-        r = self.run_(path, "--dry-run")
-        self.assertEqual((r.lines[0]["code"], r.lines[0]["reason"], r.lines[-1]["summary"].get("dry_run")),
-                         ("ok", "absent", True))
-        self.assertFalse((self.work.links / "nat.json").exists(), "--dry-run writes nothing")
+        r = self.run_("-n", path)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["reason"], r.err), (0, "ok", "absent", ""))
+        self.assertFalse((self.work.links / "nat.json").exists(), "-n writes nothing")
         self.run_(path)
         self.web.requests.clear()
         r = self.run_(path)
@@ -192,7 +191,7 @@ class FulltextLinks(unittest.TestCase):
         res["request"] = {"given": "https://example.org/papers/given.pdf"}
         given.write_text(json.dumps(res))
         r = self.run_(noid, allfail, stub, bad, given)
-        self.assertEqual(r.code, 1)
+        self.assertEqual((r.code, r.last["summary"]), (1, {"total": 5, "ok": 1, "skipped": 0, "failed": 4}))
         self.assertEqual([(o["slug"], o["code"]) for o in r.lines[:5]],
                          [("noid", "no_identifier"), ("allfail", "no_answer"), ("stub", "no_identifier"),
                           ("bad", "result_invalid"), ("given", "ok")])
@@ -204,7 +203,7 @@ class FulltextLinks(unittest.TestCase):
         unreadable = config_file()
         unreadable.write_text("{not json")
         r = self.run_(self.result("x", "10.1000/nat.1"), config=unreadable)
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "config_unreadable"))
+        self.assertEqual((r.code, r.lines, r.last["code"]), (2, [{"slug": "x", "code": "not_run"}], "config_unreadable"))
 
     def test_a_429_stops_the_host_for_the_run(self):
         self.web.rate_limit("/openalex/works/doi:10.1000/limit")
@@ -231,10 +230,10 @@ class FulltextLinks(unittest.TestCase):
         self.assertEqual([(x["url"], x["source"], x["version"]) for x in got], [("https://site.example/u.pdf", "openalex", "published")])
 
     def test_smoke(self):
-        r = smoke("fulltext_links", self.result("nat", "10.1000/nat.1"), config=self.config,
-                  env=self.web.env())
-        self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
-        r = smoke("fulltext_links", "--help")
+        listed = f'{{"id": "10.1000/nat.1", "code": "ok", "path": "{self.result("nat", "10.1000/nat.1")}"}}\n'
+        r = smoke("locate", "-", config=self.config, env=self.web.env(), stdin=listed)
+        self.assertEqual((r.code, r.lines[0]["code"], r.err), (0, "ok", ""), r)
+        r = smoke("locate", "-h")
         self.assertEqual(r.code, 0, r)
         self.assertIn("<dir>/links/<slug>.json", r.out)
 

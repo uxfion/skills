@@ -15,7 +15,7 @@ stdout: the lines, nothing else (`grep -c ^title:` counts the entries without an
 file_not_found | file_unreadable | no_entry}, then {"summary": {total, failed}} last; 2 = usage.
 
 Example:
-  p2z.py ids refs.bib | pf.py identify -o <scratch>/paper-to-zotero/fetch
+  p2z.py ids refs.bib | pf.py identify -o <scratch>/paper-to-zotero/fetch/ -
 """
 import re
 from pathlib import Path

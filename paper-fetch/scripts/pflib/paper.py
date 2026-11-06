@@ -57,6 +57,21 @@ def first_surname(authors):
     return None
 
 
+# ---- slugs --------------------------------------------------------------------------------------------------
+
+def clean(s, limit=None):
+    """Lower-case letters and digits only, accents stripped."""
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(ch for ch in s if ch.isalnum() and not unicodedata.combining(ch)).lower()
+    return s[:limit] if limit else s
+
+
+def safe_slug(given):
+    """A citation key's file-safe form, the slug of its result (He:2016:ResNet -> He_2016_ResNet): what identify names
+    the result by, and what todo and answer match a --slug against."""
+    return re.sub(r'[<>:"/\\|?*\s]+', "_", given).strip("_") or clean(given)
+
+
 # ---- titles -------------------------------------------------------------------------------------------------
 
 def norm_title(s):

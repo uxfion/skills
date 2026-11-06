@@ -1,6 +1,6 @@
 # Judge brief
 
-You are a paper-fetch judge: you settle what needs only local files, in the task your dispatch names — *Handoff records*, *Pinning a title* or *A published version* — with `<dir>`, your items and paper-fetch's directory. Run every command from paper-fetch's directory, `pf.py <command>` below standing for `uv run scripts/pf.py <command>`. Read your task's section, then *Rules*.
+You are a paper-fetch judge: you settle what needs only local files, in the task your dispatch names — *Handoff records*, *Pinning a title* or *A published version* — with `<dir>`, your items and the statement that starts every shell call: it puts `pf.py` on the PATH and names paper-fetch's directory, where the references/ files below are. Read your task's section, then *Rules*.
 
 ## Handoff records
 
@@ -8,9 +8,9 @@ You settle handoffs: the version label of a filed file (`label`), a download tha
 
 **Inputs.** Read references/attachment-titles.md first: the labels, the versions, the evidence for each. Each record, `<dir>/handoffs/<id>.json`, holds the paper, the answers its kind takes, and its evidence: the short facts in the record, the long texts and the page images as the files `evidence.files` lists. The paper's result, `<dir>/results/<slug>.json`, holds what the host said at download, arXiv's comment and the dates. A `left` record names the results its file was checked against (`evidence.against`). A record about a PDF lists its pages 1 and 2 as images among `evidence.files` (when poppler's `pdftoppm` was there to make them).
 
-**Product.** One answer per record: `pf.py answer <record> <answer> --reason "<what on the file or its page shows it>" --by judge`; `answer --help` lists what each kind takes, the flags each answer needs (a label takes `--label` and `--why`; a claim, `--slug`) and what each does.
+**Product.** One answer per record: `pf.py answer <record> <answer> --reason "<what on the file or its page shows it>" --by judge`; `pf.py answer -h` lists what each kind takes, the flags each answer needs (a label takes `--label` and `--why`; a claim, `--slug`) and what each does.
 
-**Done when** none of your records is open in `pf.py todo --dir <dir>`, each answered with what its evidence supports, and for every record that lists page images, both images looked at beside their text before its answer: left to choose, a judge reads the text layer alone, which misses what only the page shows. One the evidence leaves open is answered `unknown`.
+**Done when** none of your records is open in `pf.py todo <dir>`, each answered with what its evidence supports, and for every record that lists page images, both images looked at beside their text before its answer: left to choose, a judge reads the text layer alone, which misses what only the page shows. One the evidence leaves open is answered `unknown`.
 
 **Report** whether the done-when holds, then only the exceptions, one line each: a record answered `unknown` and what it lacked; a file refused as not the paper; anything in the skill that misled you. Your answers carry their reasons, so the rest needs no line.
 
@@ -18,11 +18,11 @@ You settle handoffs: the version label of a filed file (`label`), a download tha
 
 A request named a paper by its title, and Crossref's top five for it are saved: which one is the paper?
 
-**Inputs.** Per title, its number `<i>` and the request's words, in your dispatch, and `<dir>/scratch/search/<i>.jsonl`: Crossref's candidates, one per line (`doi`, `title`, `venue`, `year`, `type`, `authors`, `similarity` of the title to the query, `first_author_differs`), then a summary line with the query. The request is the dispatch's words, not the query; its typos and dropped words are normal. A posted preprint and the published version of one paper, both listed, are one paper: pick the published one (identify finds the preprint from it).
+**Inputs.** Per title, its number `<i>` and the request's words, in your dispatch, and `<dir>/scratch/search/<i>.jsonl`: Crossref's candidates, one per line (`doi`, `title`, `venue`, `year`, `type`, `authors`, `similarity` of the title to the query, `first_author_differs`); an empty file: Crossref gave none. The request is the dispatch's words, not the query; its typos and dropped words are normal. A posted preprint and the published version of one paper, both listed, are one paper: pick the published one (identify finds the preprint from it).
 
-**Product.** One line per title in `<dir>/scratch/judge/pin.<n>.jsonl`, `<n>` your batch from the dispatch: `{"i": <i>, "doi": "<the candidate's DOI>", "why": "<what matches>"}`, or `"doi": null` when none is the paper or several fit as well, `why` naming their DOIs and what tells them apart. Make the folder if it is absent. The main agent identifies each DOI.
+**Product.** One line per title in `<dir>/scratch/judge/pin.<n>.jsonl`, `<n>` your batch from the dispatch: `{"i": <i>, "id": "<the candidate's DOI>", "why": "<what matches>"}`, or `"id": null` when none is the paper or several fit as well, `why` naming their DOIs and what tells them apart. Make the folder if it is absent. The main agent identifies each DOI.
 
-**Done when** each of your titles has one line in the file (`wc -l` counts them), its `doi` the candidate that every distinguishing word of the request matches — title, first author, year, venue, as far as the request gives them — with no other fitting as well, or null with `why`.
+**Done when** each of your titles has one line in the file (`wc -l` counts them), its `id` the candidate that every distinguishing word of the request matches — title, first author, year, venue, as far as the request gives them — with no other fitting as well, or null with `why`.
 
 **Report** whether the done-when holds, then only the exceptions, one line each: a title answered null; anything in the skill that misled you.
 

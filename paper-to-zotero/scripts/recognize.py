@@ -43,7 +43,7 @@ stdout: one line per record {slug, code, ...}.
                   attachment is in the trash; the agent writes the record's item by hand from p2z.py check's skeleton
   not_a_stub      the result has metadata: p2z.py draft drafts the item, p2z.py save attaches its files
   no_file         the stub has no PDF filed cannot_judge: paper-fetch has not got it yet
-  file_changed    the PDF's md5 is not the one in the result: settle the result again, then rerun
+  file_changed    the PDF's md5 is not the one in the result: sync the result again (pf.py sync), then rerun
   in_library      the PDF is in Zotero already {attachment, parent, parent_title, citationKey}; nothing sent. Under
                   `parent`, the paper is there, nothing to import; parent null, a stray standalone copy: once it is
                   in the trash (p2z.py trash), rerun
@@ -88,7 +88,7 @@ def the_pdf(res, path):
         md5 = None
     if md5 != f.get("md5"):
         raise cli.Stop("file_changed", file=str(file), hint="The file is not the one the result lists (gone, or changed "
-                                                            "since): settle the result again, then rerun.")
+                                                            "since): sync the result again (pf.py sync), then rerun.")
     return f, file, [g["name"] for g in files[1:]]
 
 

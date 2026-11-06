@@ -113,11 +113,11 @@ HINTS = {
                          "refuse for a file that is the notice, since the article itself is wanted; check the "
                          "result's DOI is not the notice's",
     "supplement_suspected": "page 1 opens as supplementary material (`supplement_marker`): answer refuse for a "
-                            "supplement when the main article is wanted, accept --version supplement when the "
-                            "supplement is",
+                            "supplement when the main article is wanted, accept --as supplement when the supplement "
+                            "is",
     "doi_mismatch": "page 1 prints another DOI (`dois_on_page_1`): another paper, or another version of this one; "
-                    "check the result's DOI, and claim an accepted manuscript or preprint as such (claim --file F "
-                    "--slug S --version accepted | preprint)",
+                    "check the result's DOI, and claim an accepted manuscript or preprint as such (pf.py claim --as "
+                    "accepted FILE RESULT)",
     "not_the_article": "a page without text: not the article",
     "no_pdftotext": "pdftotext / pdfinfo (poppler-utils, a system package) are required; tell the user and install "
                     "it only with their OK (references/install.md)",

@@ -49,13 +49,13 @@ class Ready(unittest.TestCase):
         self.assertEqual(out["config"]["moved"], ["openalex_key", "institution"], "paper-fetch's now")
         self.assertNotIn("sk-SECRET", r.out, "presence only, never a value")
         self.assertEqual([c["path"] for c in out["collections"]], ["自然图像", "自然图像/Diffusion"], "trashed ones left out")
-        self.assertFalse(self.work.root.exists(), "no directory without --dir: organizing needs none")
-        out = self.run_("--dir", self.work.root).lines[0]
+        self.assertFalse(self.work.root.exists(), "no directory named, none made: organizing needs none")
+        out = self.run_(self.work.root).lines[0]
         self.assertEqual((out["dir"], out["leftovers"]), (str(self.work.root), []))
         self.assertTrue(self.work.records.is_dir() and self.work.scratch.is_dir())
         (self.work.records / "old.json").write_text(json.dumps({"item": {"title": "x"}, "found": {"code": "found", "key": "K"}}))
         (self.work.root / "fetch").mkdir()
-        out = self.run_("--dir", self.work.root).lines[0]
+        out = self.run_(self.work.root).lines[0]
         self.assertEqual([x["path"] for x in out["leftovers"]], ["fetch", "records/old.json"])
         self.assertEqual(out["old_format"], [{"slug": "old", "blocks": ["found"]}])
         self.config.chmod(0o644)
@@ -90,7 +90,7 @@ class Ready(unittest.TestCase):
         self.assertEqual((r.code, r.last["code"]), (2, "config_unreadable"))
 
     def test_smoke(self):
-        r = smoke("ready", "--dir", self.work.root, "--base-url", self.zot.base_url, config=self.config)
+        r = smoke("ready", self.work.root, "--base-url", self.zot.base_url, config=self.config)
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
 

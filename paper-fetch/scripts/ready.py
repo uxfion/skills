@@ -1,9 +1,9 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Before fetching: the facts a run needs, and its directory.
+"""Before fetching: check poppler, OpenCLI and the config, and make the run's directory.
 
 One call answers: are pdftotext and pdfinfo (poppler-utils) on PATH, and pdftoppm (pages of a handed-over file as
 images; without it the handoff carries text only); what the config file holds (presence only, never a value: a
@@ -13,18 +13,20 @@ it names). It makes <dir> with results/, links/, handoffs/, inbox/, unverified/,
 (an existing marker is left alone: a resumed run), writes <dir>/run.json (downloads, session: what the later scripts
 read), and lists what already lies in <dir>, deleting nothing: a PDF that never reached anyone belongs to the user.
 
-<dir>: --dir, given as <scratch>/paper-fetch with <scratch> the session's scratchpad; without --dir,
-${TMPDIR:-/tmp}/paper-fetch. An import passes its own, <scratch>/paper-to-zotero/fetch.
+<dir>, after the options: <scratch>/paper-fetch with <scratch> the session's scratchpad; an import names its own,
+<scratch>/paper-to-zotero/fetch; none, ${TMPDIR:-/tmp}/paper-fetch.
 Config: $PAPER_FETCH_CONFIG or ~/.config/paper-fetch/config.json, mode 600, every field optional:
 {"openalex_key", "institution": {"proxy", "discovery"}}.
 Downloads: --downloads > $PAPER_FETCH_DOWNLOADS > under WSL the Windows Downloads folder (powershell.exe, then
 cmd.exe %USERPROFILE%) > xdg-user-dir DOWNLOAD > ~/Downloads; a folder that does not exist gives null.
 
-stdout: one JSON object {code, ...the facts}. Exit 0 = ready; 1 = not ready (dir_unwritable: pass a writable --dir);
-2 = cannot check (config_unreadable, no_pdftotext: install poppler-utils, references/install.md).
+One line, {code, ...the facts}: code ok, dir_unwritable (name a writable directory) or no_pdftotext (install
+poppler-utils on the user's word: references/install.md). Exit 0 = ready; 1 = not ready, the line says why; 2 =
+cannot check (config_unreadable), then stderr's last line is {code, hint}.
 
-Example:
-  uv run scripts/pf.py ready --dir <scratch>/paper-fetch
+Examples:
+  pf.py ready <scratch>/paper-fetch
+  pf.py ready <dir> --downloads ~/Downloads
 """
 import json
 import os
@@ -79,7 +81,7 @@ def opencli_status():
     path = shutil.which("opencli")
     if not path:
         return {"path": None}
-    version = command_output(["opencli", "--version"], 30)
+    version = command_output(["opencli", "-V"], 30)
     major = re.match(r"v?(\d+)\.", version or "")
     if not major or int(major.group(1)) < 2:
         return {"path": path, "version": version,
@@ -134,7 +136,7 @@ def prepare_dir(work, downloads):
             work.started.touch()
         work.set(downloads=downloads, session=SESSION)
     except OSError as e:
-        raise cli.Stop("dir_unwritable", hint="Pass a writable directory with --dir.", dir=str(work.root),
+        raise cli.Stop("dir_unwritable", hint="Name a writable directory: pf.py ready <dir>.", dir=str(work.root),
                        detail=str(e)) from None
     layout, leftovers = {getattr(work, name) for name in LAYOUT}, []
     for entry in sorted(work.root.iterdir()):
@@ -150,9 +152,10 @@ def prepare_dir(work, downloads):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("--dir", default=DEFAULT_DIR, metavar="DIR", help="the directory of the run (default: %(default)s)")
+    p.add_argument("dir", nargs="?", default=DEFAULT_DIR, metavar="DIR",
+                   help="the run's directory (default: ${TMPDIR:-/tmp}/paper-fetch)")
     p.add_argument("--downloads", metavar="DIR", help="the browser's Downloads folder (default: detected)")
-    args = p.parse_args(argv)
+    args = cli.parse(p, argv)
 
     def go():
         conf = config.read(strict=True)
@@ -165,7 +168,7 @@ def main(argv=None):
         facts = {"config": config_summary(conf), "poppler": poppler, "downloads_dir": downloads,
                  "opencli": opencli_status(), "session": SESSION, **prepare_dir(run.Work(args.dir), downloads)}
         cli.emit({"code": code, **({"hint": hint} if hint else {}), **facts})
-        return cli.OK if code == "ok" else cli.CANNOT
+        return cli.OK if code == "ok" else cli.ACT
 
     return cli.run(go)
 

@@ -6,12 +6,12 @@ From what the user gives to Zotero items with their PDFs, filed and tagged, and 
 
 ## 0. Ready
 
-Read `../paper-fetch/SKILL.md` now (no such file → stop, as SKILL.md's *Sibling skills* says): this file names its sections, and its commands run as `pf.py <command>` on the PATH of SKILL.md's *Calling*.
+Read `../paper-fetch/SKILL.md` now (no such file → stop, as SKILL.md's *Sibling skills* says): this file names its sections, and its commands run as `pf.py <word>` on the PATH of SKILL.md's *Calling*.
 
 ```bash
-p2z.py ready --dir <imp>
-pf.py ready --dir <imp>/fetch
-pf.py claim --dir <imp>/fetch --watch      # in the background, the whole run
+p2z.py ready <imp>
+pf.py ready <imp>/fetch
+pf.py watch <imp>/fetch                    # in the background, the whole run
 ```
 
 Act on what this skill's `ready` reports:
@@ -27,8 +27,8 @@ Done when both `ready`s report `ok` and the watcher runs.
 paper-fetch's *Identify a paper*, writing into `<imp>/fetch`:
 
 ```bash
-pf.py identify <DOI | arXiv id | paper page> [--slug <citation key>] -o <imp>/fetch
-p2z.py ids refs.bib | pf.py identify -o <imp>/fetch
+pf.py identify <DOI | arXiv id | paper page> [--slug <citation key>] -o <imp>/fetch/
+p2z.py ids refs.bib | pf.py identify -o <imp>/fetch/ -
 ```
 
 A .bib or .ris is a list source, never a file to import as it is. `ids` reads a .bib into one `<DOI, else arXiv id><TAB><citation key>` line per entry (a .ris you list in the same form yourself); an entry with neither comes out as `title:…`, which `identify` answers with `needs_pinning` — find its DOI or arXiv id as *Identify a paper* says, then identify it with its key.
@@ -37,7 +37,7 @@ Done when every paper has a result with metadata, or is a stub — a DOI without
 
 ## 2. Choose the version
 
-The rule is this skill's: **the published version comes first**, unless the user asked for the preprint. It is chosen now, before any record is drafted, so the item is drafted once. A conference paper later extended into a journal article is two papers, two items: the version chosen is this paper's. Confirming a candidate from a preprint's `versions.published` and redrafting the result to it is paper-fetch's *Identify a paper* (`pf.py identify --redraft <DOI | paper page> <result>`); the preprint stays in the result's `versions.preprint`, and drafting takes from it what the published record lacks. No published version, or the user wants the preprint → the preprint it is, and its record gets `keep_preprint` with the reason in step 3.
+The rule is this skill's: **the published version comes first**, unless the user asked for the preprint. It is chosen now, before any record is drafted, so the item is drafted once. A conference paper later extended into a journal article is two papers, two items: the version chosen is this paper's. Confirming a candidate from a preprint's `versions.published` and redrafting the result to it is paper-fetch's *Identify a paper* (`pf.py redraft <DOI | paper page> <result>`); the preprint stays in the result's `versions.preprint`, and drafting takes from it what the published record lacks. No published version, or the user wants the preprint → the preprint it is, and its record gets `keep_preprint` with the reason in step 3.
 
 Done when every preprint result is redrafted or has its reason to stay.
 
@@ -56,7 +56,7 @@ p2z.py prepare <imp>/records/*.json
 
 **Tags.** Every paper whose item this run creates gets its curated tags ([tagging.md](tagging.md)) in its own tags file, `<imp>/tags/<slug>.json`, written only by whoever tags it; `save` creates the item with them and the record's automatic `tags`, and creates nothing for a paper without its tags file (`untagged`), so no item goes in untagged unnoticed. A paper the library holds already is not tagged here: `prepare` lists `tags` for every paper not confirmed in the library, a paper with candidates still open included, so tagging runs beside the judges; a tags file written for a paper then answered `same` goes unused. A few papers you tag yourself by tagging.md; for more, tagging subagents (SKILL.md, *Handoffs*): `p2z.py tags > <imp>/scratch/library-tags.jsonl` once, then each dispatch fills in `<imp>` and about 20 record paths, those `prepare` lists under `tags`. What comes back is a tags file per paper and the new tags in their reports; `prepare` lists `tags` for no paper once every file is there, and a file `save` cannot read is `invalid_tags`.
 
-**`published_versions`**: the item is still the preprint while its result lists published versions — step 2's choice, unmade. Made after drafting: `identify --redraft`, then `p2z.py draft --redraft <result>` drafts the item again and keeps your other fields; or write `keep_preprint`.
+**`published_versions`**: the item is still the preprint while its result lists published versions — step 2's choice, unmade. Made after drafting: `pf.py redraft`, then `p2z.py draft --redraft <result>` drafts the item again and keeps your other fields; or write `keep_preprint`.
 
 **Checks and warnings** (`checks`, `warnings`): what Zotero will do with a field (`mapped:publicationTitle`: stored as `proceedingsTitle`; `missing_minimum:date`) and what drafting noticed. Revise the item, or accept the effect: copy the flag or the warning, as `prepare` printed it, into the record's `accepted`.
 
@@ -77,16 +77,16 @@ Done when `prepare` has run on the final records and lists nothing under `decide
 
 ## 4. Get the files
 
-A record whose item the library already holds with a PDF of the paper needs no file. The results of the rest go to paper-fetch's *Get the file: the chain* — `fulltext_links`, then `fetch` pass by pass, every file through `claim` and labelled there:
+A record whose item the library already holds with a PDF of the paper needs no file. The results of the rest go to paper-fetch's *Get the file: the chain* — `locate`, then `fetch` pass by pass, every file through `claim` and labelled there:
 
 ```bash
-pf.py fulltext_links <imp>/fetch/results/<slug>.json …
+pf.py locate <imp>/fetch/results/<slug>.json …
 pf.py fetch --pass N <imp>/fetch/results/<slug>.json …
 ```
 
 Between passes, step 5 saves what is in hand. Before paper-fetch's last pass, the user is told and the run waits: each record still without its file gets a `blocker` saying what it waits for ("last pass with the user: institutional login"), and the report goes out.
 
-Done when paper-fetch's chain is done for every result handed to it, and `pf.py settle --dir <imp>/fetch` has folded the watcher's late arrivals into the results.
+Done when paper-fetch's chain is done for every result handed to it, and `pf.py sync <imp>/fetch/results/*.json` has folded the watcher's late arrivals into the results.
 
 ## 5. Save and attach
 
@@ -99,7 +99,7 @@ Run it after every pass of step 4: it skips what is done, and `no_file_yet` is n
 - `untagged`: the paper's tags file is not written yet (step 3), so no item was created; `save` again once it is.
 - `readback_mismatch` from `create`: the item exists but a tag or a collection did not stick; `p2z.py tag <citation key> --add-tag … --add-collection …` sets it right.
 - `citation_key_hint`: the key holds a character TeX treats specially (`^`, `_`, `&` …), so `\cite{}` would break on it; ask the user, then `p2z.py update <key> --set citationKey=<suggested>`.
-- `unsettled` or `file_changed`: `pf.py settle --dir <imp>/fetch`, then `save` again.
+- `unsettled` or `file_changed`: `pf.py sync <imp>/fetch/results/*.json`, then `save` again.
 - `unchecked` (or `unchecked` names on an `ok` line): a stub's PDF, which paper-fetch had nothing to check against; [no-doi-record.md](no-doi-record.md) identifies the paper from it.
 - `unconfirmed` names: files attached although their agent could not tell they are the paper's; the report lists them for the user.
 - `suggested_title`: a file the item had already keeps its own title; the report suggests the rename, which waits for the user.
@@ -126,6 +126,6 @@ Done when the report is in the conversation: every paper's row read from the lib
 
 ## 7. Clear residue
 
-paper-fetch's *Residue* first: stop the watcher, close the sessions it names, and sweep Downloads — `pf.py claim --dir <imp>/fetch --sweep` lists what this run left there, `p2z.py have <those files>` says which the library holds; delete those this run downloaded and the library holds, and name the rest in the report (a file the user downloaded for themselves is theirs). Then delete `<imp>`: Zotero holds its own copy of every attached file. Delete only what this run created, and a file only after its `attach`: a file that did not reach Zotero is a deliverable, handed over with its path. Every exit path ends here; a wait for the user is a pause, not an exit — a record with a `blocker` keeps the tab, the session and `<imp>` until the run resumes or the user drops it.
+paper-fetch's *Residue* first: stop the watcher, close the sessions it names, and sweep Downloads — `pf.py downloads <imp>/fetch | jq -r .source | p2z.py have -` lists what this run left there and says which the library holds; delete those this run downloaded and the library holds, and name the rest in the report (a file the user downloaded for themselves is theirs). Then delete `<imp>`: Zotero holds its own copy of every attached file. Delete only what this run created, and a file only after its `attach`: a file that did not reach Zotero is a deliverable, handed over with its path. Every exit path ends here; a wait for the user is a pause, not an exit — a record with a `blocker` keeps the tab, the session and `<imp>` until the run resumes or the user drops it.
 
 Done when Downloads holds no file of this run, `<imp>` is gone, every paper-fetch session's close has answered "tab lease released", and anything you could not remove is named in the report with its location.

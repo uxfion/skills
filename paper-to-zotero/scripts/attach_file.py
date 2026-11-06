@@ -35,8 +35,8 @@ renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [na
                 library_has_pdf (the item has a PDF of the paper, and the result was never fetched for another)
   unchecked     the result's only files are a stub's (`files`): Zotero's recognizer identifies the paper from its
                 PDF (references/no-doi-record.md)
-  unsettled     the result has no outcome: settle it (paper-fetch's pf.py settle), then rerun
-  file_changed  a file's md5 is not the one in the result: settle the result again, then rerun
+  unsettled     the result has no outcome: sync it (paper-fetch's pf.py sync), then rerun
+  file_changed  a file's md5 is not the one in the result: sync the result again (pf.py sync), then rerun
   no_result     the record names no result file (`fetched`), or it cannot be read: p2z.py draft writes it
   no_item_key   the record has no item in Zotero yet (p2z.py create; library candidates: their same_paper handoff)
   not_found | not_a_parent | unsupported_file | readback_mismatch | unexpected_response | write_denied |
@@ -92,7 +92,7 @@ def wanted(res, path, made_from=None):
             md5 = None
         if md5 != f.get("md5"):
             raise cli.Stop("file_changed", file=str(file), hint="The file is not the one the result lists (gone, or "
-                                                                "changed since): settle the result again, then this again.")
+                                                                "changed since): sync the result again (pf.py sync), then this again.")
         out.append((f, file, title))
     return out, unchecked
 
@@ -103,7 +103,7 @@ def process(rec, ctx):
         if library_has_pdf(rec):
             return cli.skipped("library_has_pdf", key=run.item_key(rec))
         raise cli.Stop("unsettled", hint="The result was never settled, so its files may lack one that came: run "
-                                         "paper-fetch's pf.py settle on it, then this again.", result=str(path))
+                                         "paper-fetch's pf.py sync on it, then this again.", result=str(path))
     sent = rec.get("recognize") if isinstance(rec.get("recognize"), dict) else {}
     files, unchecked = wanted(res, path, made_from=sent.get("md5") if sent.get("code") in ("recognized", "not_recognized") else None)
     if not files:

@@ -1,10 +1,10 @@
 # Setting up
 
-Read when `ready.py` reports something missing. Each piece below says what needs it and how it is put in place; system packages and settings in the user's own programs are the user's to approve.
+Read when `pf.py ready` reports something missing. Each piece below says what needs it and how it is put in place; system packages and settings in the user's own programs are the user's to approve.
 
 ## The skill itself
 
-The scripts share one library, `scripts/pflib/`, a subdirectory the skill installs with it (`npx skills add` copies the whole folder). After installing or updating, `uv run scripts/pf.py --help` lists every command; an error naming `pflib` means the folder came without it — install the skill again.
+The scripts share one library, `scripts/pflib/`, a subdirectory the skill installs with it (`npx skills add` copies the whole folder). After installing or updating, `pf.py -h` (on the PATH of SKILL.md's *Calling*) lists every word; an error naming `pflib` means the folder came without it — install the skill again.
 
 ## poppler-utils (required)
 
@@ -28,7 +28,7 @@ Fetching drives the user's own Chrome — headed, signed in to their library —
 
 ## The config file
 
-One file holds every setting and secret: `~/.config/paper-fetch/config.json` (`$PAPER_FETCH_CONFIG` points elsewhere, for tests), mode 600, outside any repository. Every field is optional; a missing one turns its feature off, and `ready.py` says which are set without printing any value.
+One file holds every setting and secret: `~/.config/paper-fetch/config.json` (`$PAPER_FETCH_CONFIG` points elsewhere, for tests), mode 600, outside any repository. Every field is optional; a missing one turns its feature off, and `ready` says which are set without printing any value.
 
 ```json
 {
@@ -37,8 +37,8 @@ One file holds every setting and secret: `~/.config/paper-fetch/config.json` (`$
 }
 ```
 
-- `openalex_key` — the user's OpenAlex API key (openalex.org, free): `fulltext_links.py` sends it with each lookup, which makes single-DOI lookups free of the daily budget. Without it the lookups run unkeyed.
-- `institution.proxy` — the domain of the institution's EZproxy-style proxy, so that pages behind it are recognised (`fetch.py`) and links under it are marked as needing the browser.
+- `openalex_key` — the user's OpenAlex API key (openalex.org, free): `locate` sends it with each lookup, which makes single-DOI lookups free of the daily budget. Without it the lookups run unkeyed.
+- `institution.proxy` — the domain of the institution's EZproxy-style proxy, so that pages behind it are recognised (`fetch`) and links under it are marked as needing the browser.
 - `institution.discovery` — the library's discovery search page as a search URL with `{title}` where the title goes (a Primo search URL with its `vid`): `fetch`'s discovery route searches titles there. `ready` asks for it when it is missing (`config.ask_user`) and reports it without `{title}` (`config.discovery_template`).
 
-Write the file with `chmod 600`; `ready.py` warns when others can read it.
+Write the file with `chmod 600`; `ready` warns when others can read it.

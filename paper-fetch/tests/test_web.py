@@ -113,12 +113,11 @@ class Get(unittest.TestCase):
         status, headers, body, final = self.get("/gone")
         self.assertEqual((status, final, body), (404, self.site.other + "/missing", b"not here"))
 
-    def test_the_log_line_leaves_out_the_query(self):
+    def test_a_request_that_goes_well_says_nothing_on_stderr(self):
         status, _, _, final = self.get("/echo", params={"api_key": "SECRET", "q": "x"})
         self.assertEqual(status, 200)
         self.assertIn("api_key=SECRET", final)
-        self.assertIn("/echo -> 200", self.err)
-        self.assertNotIn("SECRET", self.err)
+        self.assertEqual(self.err, "", "no routine log, and so no key in one")
 
     def test_max_bytes_caps_the_body(self):
         self.assertEqual(len(self.get("/big", max_bytes=100)[2]), 100)

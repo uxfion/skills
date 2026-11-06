@@ -3,14 +3,14 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Step 0 of work in Zotero: the facts it needs, and with --dir an import's directory.
+"""Step 0 of work in Zotero: the facts it needs, and an import's directory when one is named.
 
 One call answers: is Zotero's local API up; is a usable write key stored (with --authorize and none usable, obtain
 one: Zotero shows a dialog and the user must click Always Allow); what the config file holds (presence only, never a
-value); and it prints the library's collection tree with paths ("自然图像/Diffusion"). With --dir (an import:
-<scratch>/paper-to-zotero) it makes the directory's records/ and scratch/, lists what already lies there (deleting
-nothing) and names the records an older version left (old_format: their computed blocks are redone by p2z.py
-prepare). Fetching (Downloads, the browser, poppler) is paper-fetch's, checked by its own ready.
+value); and it prints the library's collection tree with paths ("自然图像/Diffusion"). Given DIR after the options
+(an import's: <scratch>/paper-to-zotero) it makes the directory's records/ and scratch/, lists what already lies there
+(deleting nothing) and names the records an older version left (old_format: their computed blocks are redone by
+p2z.py prepare). Fetching (Downloads, the browser, poppler) is paper-fetch's, checked by its own ready.
 
 Config: $PAPER_TO_ZOTERO_CONFIG or ~/.config/paper-to-zotero/config.json, mode 600: {"zotero": {"key", "serverID"}};
 --authorize writes the "zotero" block and keeps the rest. The openalex key and institution an older version kept
@@ -23,7 +23,7 @@ server_mismatch, config_unreadable), then stderr's last line is {code, hint}. Wh
 stderr says so.
 
 Examples:
-  p2z.py ready --dir <scratch>/paper-to-zotero
+  p2z.py ready <scratch>/paper-to-zotero
   p2z.py ready --authorize
 """
 import json
@@ -121,7 +121,7 @@ def prepare_dir(work):
         work.records.mkdir(parents=True, exist_ok=True)
         work.scratch.mkdir(exist_ok=True)
     except OSError as e:
-        raise cli.Stop("dir_unwritable", hint="Pass a writable directory with --dir.", dir=str(work.root),
+        raise cli.Stop("dir_unwritable", hint="Name a writable directory: p2z.py ready <dir>.", dir=str(work.root),
                        detail=str(e)) from None
     leftovers, old = [], []
     for entry in sorted(work.root.iterdir()):
@@ -143,8 +143,8 @@ def prepare_dir(work):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("--dir", metavar="DIR", help="an import's directory, <scratch>/paper-to-zotero: made with records/ "
-                                                "and scratch/")
+    p.add_argument("dir", nargs="?", metavar="DIR", help="an import's directory, <scratch>/paper-to-zotero: made with "
+                                                         "records/ and scratch/")
     p.add_argument("--authorize", action="store_true", help="when no usable key is stored, ask Zotero for one: the user "
                                                             "clicks Always Allow in its dialog; saved in the config (mode 600)")
     p.add_argument("--timeout", type=float, default=AUTHORIZE_WAIT, metavar="SECONDS",

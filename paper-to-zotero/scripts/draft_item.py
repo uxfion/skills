@@ -18,7 +18,7 @@ is -o DIR/, by default records/ beside the result's fetch/ (an import's layout:
                keywords, its model's, never.
   warnings     what drafting noticed: a type guessed, a role stored as contributor, the DOI put in extra, fields the
                type has no place for. What the metadata itself is suspected of stays in the result's warnings.
-A record with an item is skipped; --redraft drafts its item again (after pf.py identify --redraft chose another
+A record with an item is skipped; --redraft drafts its item again (after pf.py redraft chose another
 version) and keeps the agent's fields, unless the item is in Zotero already. A result renamed since its record was
 drafted (its renamed_from) takes the record along: the record is renamed and points at it (`renamed_from` on the
 line).

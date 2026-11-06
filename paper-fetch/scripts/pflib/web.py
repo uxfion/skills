@@ -253,7 +253,7 @@ def get(url, *, params=None, headers=None, host=None, timeout=30, pacer=None, ma
     elsewhere; INSTITUTION for full text through the institution); a redirect to another host is paced under that
     host. headers add to or replace the User-Agent (BROWSER_UA for pages) and set Accept; max_bytes caps the body
     read. A 429 stops the host that answered it and raises Blocked, as does a host already stopped; network failures
-    raise OSError. The log line leaves out the query (it may carry a key)."""
+    raise OSError."""
     pacer = pacer or PACER
     hops = _Hops(pacer, url, host or paper.host_of(url))
     hops.enter(hops.first)
@@ -269,7 +269,6 @@ def get(url, *, params=None, headers=None, host=None, timeout=30, pacer=None, ma
             body = e.read() if max_bytes is None else e.read(max_bytes)
     except http.client.HTTPException as e:  # a broken reply: a network failure to the caller
         raise ConnectionError(f"{type(e).__name__}: {e}") from e
-    log(f"GET {url.split('?', 1)[0]} -> {status}")
     if status == 429:
         raise Blocked(hops.key, *pacer.stop(hops.key, retry_after(rheaders)))
     return status, rheaders, body, final

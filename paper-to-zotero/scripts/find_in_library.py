@@ -6,7 +6,7 @@
 """Is it in the Zotero library already, read-only: each record's paper (its `found` and `near_matches`), each other file by its md5.
 
 What follows the options is paths (- reads a list of paths from stdin): a file that holds one JSON object is a
-record, any other file (a PDF a run left behind: paper-fetch's claim --sweep lists them) is looked up among the
+record, any other file (a PDF a run left behind: paper-fetch's pf.py downloads lists them) is looked up among the
 library's attachments by its md5.
 
 A record: only an identifier confirms a paper is there: the DOI (a doi.org url and an Extra "DOI:" line count),

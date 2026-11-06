@@ -1,9 +1,12 @@
-"""What every test file shares: loading a script, running it in this process or as a subprocess, a config, a result
-file, a closed port, and PDFs without poppler (stubs on PATH that print sidecar files, or a minimal real PDF).
+"""What every test file shares: loading a script, running it in this process or through pf.py as a subprocess, a
+config, a result file, a closed port, and PDFs without poppler (stubs on PATH that print sidecar files, or a minimal
+real PDF).
 
     from helpers import load, call, smoke, config_file, result_file, closed_port
     settle = load("settle")
-    r = call(settle, result_file(tmp, "doe2024paper"), config=cfg)   # r.code, r.out, r.err, r.lines
+    r = call(settle, result_file(tmp, "doe2024paper"), config=cfg)   # r.code, r.out, r.err, r.lines, r.last
+    r = call(claim, "scan", tmp)                                      # a script of several commands: the word first
+    r = smoke("sync", result_file(tmp, "doe2024paper"))              # pf.py sync ..., as the docs run it
 
 Every run checks that no secret of a config_file (the OpenAlex key) appears in stdout or stderr. Copied from
 paper-to-zotero/tests/helpers.py (commit 95cea41) without the fake Zotero.
@@ -73,6 +76,12 @@ class Output:
     def err_lines(self):
         return [json.loads(line) for line in self.err.splitlines() if line.startswith("{")]
 
+    @property
+    def last(self):
+        """stderr's last line as JSON: the summary (exit 1) or the stop (exit 2); None when stderr is empty."""
+        lines = self.err.strip().splitlines()
+        return json.loads(lines[-1]) if lines else None
+
     def __repr__(self):
         return f"Output(code={self.code}, out={self.out[-800:]!r}, err={self.err[-800:]!r})"
 
@@ -118,17 +127,15 @@ def call(module, *argv, config=None, env=None, stdin=""):
     return _no_secret(Output(code, out.getvalue(), err.getvalue()))
 
 
-SHEBANG = "#!/usr/bin/env -S uv run --script"
 UV = shutil.which("uv")   # found once: a test may hand the script a PATH of stubs only
 
 
-def smoke(name, *argv, config=None, env=None, timeout=120):
-    """scripts/<name>.py as its own process, run by uv as the docs run it (after checking it opens with the uv shebang)."""
-    first = (SCRIPTS / f"{name}.py").read_text(encoding="utf-8").splitlines()[0]
-    assert first == SHEBANG, f"{name}.py must open with {SHEBANG!r}, not {first!r}"
+def smoke(word, *argv, config=None, env=None, stdin=None, timeout=120):
+    """`pf.py <word> ...` as its own process, as the docs run it."""
     environ = {**os.environ, **({"PAPER_FETCH_CONFIG": str(config)} if config else {}), **(env or {})}
-    done = subprocess.run([UV, "run", "--quiet", "--script", str(SCRIPTS / f"{name}.py"), *map(str, argv)], capture_output=True,
-                          text=True, env=environ, timeout=timeout)
+    environ.pop("PF_PROG", None)
+    done = subprocess.run([UV, "run", "--quiet", "--script", str(SCRIPTS / "pf.py"), word, *map(str, argv)],
+                          capture_output=True, text=True, env=environ, input=stdin, timeout=timeout)
     return _no_secret(Output(done.returncode, done.stdout, done.stderr))
 
 

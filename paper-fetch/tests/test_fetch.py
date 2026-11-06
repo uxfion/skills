@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/fetch.py and scripts/wait.py. The browser is a stub `opencli` on PATH that plays a scenario
+"""Tests for pf.py fetch and pf.py wait. The browser is a stub `opencli` on PATH that plays a scenario
 (pages by URL with their PDF candidates, in-page fetch answers, links that download, pdf.js viewers, result links) and
 keeps its tab in a file; plain HTTP is a local http.server; pdftotext is stubbed to print a PDF's bytes after its
 9-byte header (a test PDF is b"%PDF-1.4\\n" + its text). The papers are result files as identify writes them, with
@@ -28,6 +28,11 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 answer = load("answer")
 TITLE = "Progressive Deep Learning for Cardiac Image Segmentation"
 OTHER = "A Completely Different Paper About Lung Nodules"
+
+
+def last(err):
+    """stderr's last line as JSON: the summary (exit 1) or the stop (exit 2)."""
+    return json.loads(err.strip().splitlines()[-1])
 
 
 def pdf(text):
@@ -222,7 +227,9 @@ class Fetch(unittest.TestCase):
         self.assertEqual(self.events("try"), [("a", "open", "ok"), ("b", "publisher", "ok"), ("e", "preprint", "held")],
                          "a file the check cannot be sure of is held for the paper's agent, and the paper waits")
         self.assertEqual([(h["slug"], h["kind"]) for h in self.handoffs()], [("e", "file"), ("a", "label"), ("b", "label")])
-        self.assertEqual(lines[-1]["summary"]["handoffs"], {"file": 1, "label": 2})
+        self.assertEqual(last(err)["summary"]["handoffs"], {"file": 1, "label": 2})
+        self.assertEqual([x["code"] for x in lines if x.get("event") == "try"], ["ok", "ok", "held"], "a try's code is its result")
+        self.assertEqual({x["code"] for x in lines if "handoff" in x}, {"handoff"})
         self.assertIn("no_discovery", [x.get("code") for x in lines])
         self.assertEqual(self.fetch("--pass", "1", *recs)[0], 1)
         self.assertEqual((len(self.work.events("try")), len(self.handoffs())), (3, 3), "nothing is tried or handed over twice")
@@ -281,7 +288,7 @@ class Fetch(unittest.TestCase):
         [page] = self.handoffs("page")
         self.assertEqual((code, page["slug"], page["code"], page["evidence"]["page"]["title"]),
                          (1, "x", "no_pdf_link", "Sign in"), "no title decides it is a gate: the agent looks")
-        self.assertEqual([sorted(x) for x in lines if "handoff" in x], [["handoff", "kind", "path", "slug"]],
+        self.assertEqual([sorted(x) for x in lines if "handoff" in x], [["code", "handoff", "kind", "path", "slug"]],
                          "who takes a kind is SKILL.md's: the line names none")
         self.assertEqual(self.files(), ["y.pdf"], "the walk went on with the others")
         self.assertEqual(self.events("try"), [("y", "publisher", "ok")], "a handoff is no try")
@@ -295,7 +302,8 @@ class Fetch(unittest.TestCase):
         r = self.answer(page, "blocked", "--reason", "a bot check on the publisher")
         self.assertEqual((r.code, self.events("try")[-1]), (0, ("x", "publisher", "blocked")), r)
         self.assertTrue(run.held_on_route(self.work, "x", 1))
-        self.assertEqual(self.fetch("--pass", "1", x)[1][-1]["summary"]["satisfied"], 0)
+        code, _, err = self.fetch("--pass", "1", x)
+        self.assertEqual((code, err, run.satisfied(self.work, run.read(x))), (0, "", False), "held: nothing open, no summary")
         self.assertEqual([t for t in self.events("try") if t[0] == "x"], [("x", "publisher", "blocked")], "held this pass")
         self.fetch("--pass", "2", "--route", "publisher", x)
         [_, again] = self.handoffs("page")
@@ -375,7 +383,7 @@ class Fetch(unittest.TestCase):
         code, lines, err = self.fetch("--pass", "1", "--route", "publisher", *recs)
         self.assertEqual(code, 1, err + json.dumps(lines))
         self.assertEqual(self.files(), ["c.pdf", "d.pdf", "f.pdf", "g.pdf"])
-        self.assertEqual(lines[-1]["summary"], {"results": 4, "satisfied": 4, "handoffs": {"label": 4}, "routes": ["publisher"]})
+        self.assertEqual(last(err)["summary"], {"results": 4, "satisfied": 4, "handoffs": {"label": 4}, "routes": ["publisher"]})
         # c and d came through Downloads, whose claim saw no page: fetch adds how they came
         came = {s: run.arrived(self.work, s, run.md5_of(self.work.results / f"{s}.pdf")) for s in ("c", "d")}
         self.assertEqual([(s, e["route"], e["evidence"]["url"], e["evidence"].get("page", {}).get("href"))
@@ -414,14 +422,14 @@ class Fetch(unittest.TestCase):
                       "no wording decides the guest view: the agent reads the page and signs in")
         self.config.write_text(json.dumps({"institution": {"discovery": "https://disc.example/search?vid=X&query=old"}}))
         lines = self.fetch("--pass", "2", "--route", "discovery", self.result("p2", OTHER, doi=None))[1]
-        self.assertIn("no_discovery", [x.get("code") for x in lines], "a search URL without {title}: ready.py says how to write it")
+        self.assertIn("no_discovery", [x.get("code") for x in lines], "a search URL without {title}: pf.py ready says how to write it")
 
     def test_a_snapshot_and_a_start_page(self):
         self.scene({"pages": {"https://doi.org/10.1000/x.1": {"html": f"<html><title>{TITLE}</title><h1>{TITLE}</h1>Wei Liu</html>"},
                               "https://pmc.example/1": {"pdf": ["https://pmc.example/1.pdf"]}},
                     "fetch": {"https://pmc.example/1.pdf": b64(pdf(f"{OTHER}\nWei Liu"))}})
         self.assertEqual(self.fetch("--pass", "3", "--route", "snapshot", self.result("s"))[0], 0)
-        self.assertEqual(self.fetch("--pass", "1", "--start", "https://pmc.example/1", "--version", "accepted",
+        self.assertEqual(self.fetch("--pass", "1", "--start", "https://pmc.example/1", "--as", "accepted",
                                     self.result("t", OTHER, "10.1000/t.9"))[0], 1, "its label is open: the agent's next step")
         self.assertEqual(self.files(), ["s.html", "t.accepted.pdf"])
         self.assertEqual(self.events("try")[-1], ("t", "start", "ok"), "a start page is never a route's try")
@@ -452,9 +460,27 @@ class Fetch(unittest.TestCase):
             r = call(wait, gated, "--file-only", "--timeout", "5", env=self.env)
         self.assertEqual((r.code, r.lines[0]["code"], self.files()), (0, "arrived", ["v.pdf", "w.pdf"]), r)
 
+    def test_cannot_go_on(self):
+        """No pdftotext, or results of two directories: each result still without its file is not_run, and why is
+        stderr's last line; a line passed on from upstream goes out as it is and counts as not done."""
+        recs = [self.result("n1"), self.result("n2", OTHER, "10.1000/n.2")]
+        bare = self.tmp / "bare"
+        bare.mkdir()
+        done = subprocess.run([sys.executable, str(SCRIPTS / "fetch.py"), "--pass", "1", *recs], capture_output=True,
+                              text=True, env={**self.env, "PATH": str(bare)}, timeout=120)
+        self.assertEqual((done.returncode, done.stdout.splitlines(), last(done.stderr)["code"]),
+                         (2, ['{"slug": "n1", "code": "not_run"}', '{"slug": "n2", "code": "not_run"}'], "no_pdftotext"))
+        elsewhere = result_file(self.tmp / "elsewhere", "z", csl={"title": TITLE})
+        code, lines, err = self.fetch("--pass", "1", recs[0], str(elsewhere))
+        self.assertEqual((code, [x["code"] for x in lines], last(err)["code"]), (2, ["not_run", "not_run"], "mixed_work_dirs"))
+        upstream = '{"id": "title:A Paper", "code": "needs_pinning", "hint": "find its DOI"}'
+        done = subprocess.run([sys.executable, str(SCRIPTS / "fetch.py"), "-"], input=upstream + "\n", capture_output=True,
+                              text=True, env=self.env, timeout=120)
+        self.assertEqual((done.returncode, done.stdout, done.stderr), (1, upstream + "\n", ""), "nothing else to do")
+
     def test_smoke(self):
         for name, first in (("fetch", "Walk one pass of the chain"), ("wait", "Wait at a gate")):
-            r = smoke(name, "--help")
+            r = smoke(name, "-h")
             self.assertEqual(r.code, 0, r)
             self.assertIn(first, r.out)
 

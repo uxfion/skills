@@ -3,15 +3,11 @@
 Read when a caller wants which paper it is and what is known about it, and no file: a citation to complete, a list to check against Crossref, a .bib to key, a library item whose DOI is missing.
 
 ```bash
-uv run scripts/pf.py identify -o <dir> <ids...>                 # or stdin: `id[<TAB>key]` per line
-uv run scripts/pf.py identify --search "<title>" --author <surname>   # Crossref's top five; writes nothing
+pf.py identify -o <dir>/ <ids...>                 # or - for a list on stdin: `id[<TAB>key]` per line
+pf.py search <title> --author <surname>           # Crossref's top five; writes nothing
 ```
 
-- The metadata is in the result files; the lines only report what was done. A result holds `csl` (CSL-JSON in CSL's own vocabulary, `source` the catalogue it came from; where doi.org gave none, the abstract from Europe PMC, else OpenAlex, the PMID and PMCID, and the authors' keywords from Europe PMC), `ids`, `cite` (the key as given), `wanted`, `record_of`, `versions`, `alt_titles`, `warnings` (an erratum-like title, a date taken from another field, a sales-page DOI, where an abstract came from). `enrichment.openalex_keywords`: OpenAlex's model's keywords, a tagging hint. `scripts/pflib/run.py` documents every field.
-- A `title:` line is `needs_pinning`: a title is pinned by hand (SKILL.md, *Identify a paper*), and `--search` is one way.
-- `--search` lists Crossref's top five in its own order, with authors, the title's similarity and `first_author_differs`: which one is the paper is yours, or for several titles judges' (SKILL.md, *Identify a paper*) — confirm the title and first author before identifying its DOI.
-- `versions.incomplete` and `enrichment.incomplete` name sources that did not answer; identifying the same id again asks them again, and what they gave before stays meanwhile (the files already got stay too).
-- `page_unreachable`: the page refuses plain HTTP. A browser agent saves its HTML as `<dir>/scratch/pages/<slug>.html`; `identify --redraft <page url> <result> --html <file>` reads it through the same parser.
-- `slug_taken`: the key's slug names another paper's result in that directory — give another key, or another directory.
+- The lines report what was done; the metadata is in the result files (`scripts/pflib/run.py` documents every field, `pf.py identify -h` where each comes from). Each line's code and hint say where identify stopped short; SKILL.md's *Identify a paper* says who takes a `needs_pinning` title, a `page_unreachable` page and a preprint's published versions.
+- `search` lists Crossref's top five in its own order, with authors, the title's similarity and `first_author_differs`: which one is the paper is yours, or for several titles judges' (SKILL.md, *Identify a paper*) — confirm the title and first author before identifying its DOI.
 
 No `ready`, no watcher and no browser are needed (but for an unreachable page, or a title only a browser finds): everything here is metadata over plain HTTP, paced per host through the machine's pace file (`~/.cache/paper-fetch/pace.json`).

@@ -107,7 +107,7 @@ def main(argv=None):
             slug = (res or {}).get("slug") or path.stem
             if res is None:
                 problems.append({"slug": slug, "code": "result_invalid", "path": str(path), "detail": problem,
-                                 "hint": "Not one of paper-fetch's result files: look at it, or settle it again."})
+                                 "hint": "Not one of paper-fetch's result files: look at it, or sync it again (pf.py sync)."})
             changes += [c for c in (change_of(f, hits, titles) for f in files_of(res)) if c]
             problems += [{"slug": slug, "file": f.get("name"), **not_filed(f, hits)} for f in set_aside(res)]
         text = "".join(json.dumps(c, ensure_ascii=False) + "\n" for c in changes)

@@ -1,9 +1,9 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""List where copies of each result's paper may be had, before any file is fetched: <dir>/links/<slug>.json.
+"""Find where each result's full text may be had, before any file is fetched: <dir>/links/<slug>.json.
 
 links: {items: [{url, source, version: published | accepted | preprint | unknown, needs_browser}], incomplete?}, from:
   arxiv      the result's arXiv id (ids.arxiv, else its preprint's in versions.preprint; a 10.48550 DOI is that
@@ -17,7 +17,7 @@ links: {items: [{url, source, version: published | accepted | preprint | unknown
   page       the result's URL (csl.URL) when it is the venue's own page for the paper (not doi.org, not a preprint
              server: a NeurIPS, PMLR or OpenReview page): the PDF the page declares (citation_pdf_url), the published
              version
-Library discovery systems and aggregators are not asked here: fetch.py's routes use them.
+Library discovery systems and aggregators are not asked here: pf.py fetch's routes use them.
 
 A link's version, the first rule that applies: arxiv.org, biorxiv.org, medrxiv.org -> preprint; a PMC or Europe PMC
 host -> Europe PMC's word on the paper (a preprint record, an author manuscript -> accepted, else published; unknown
@@ -36,17 +36,21 @@ line says why (`reason`). A source that did not answer is named in `incomplete`,
 are kept. A host that answers 429 is asked by no script on this machine until its Retry-After, else for an hour
 (source_blocked; the machine's pace file, pflib/web.py); requests to a host keep their gap.
 
-stdout: one line per result {slug, code, reason?, links, sources: {source: its code}, first?}, then {"summary"}.
+One line per result as it is done, {slug, code, reason?, links, sources: {source: its code}, first?}: the count
+and the first link; the links themselves are in the file.
   ok              links written (`first`: the first link's version, needs_browser and host)
   no_identifier   no DOI, no arXiv id and no page of the venue's: nothing to look up (a stub identified from a web
                   address gets that address as its one link, of unknown version: source `request`)
   no_answer       no source answered; the links file is written with every source incomplete, so a rerun asks again
   skipped         reason done: links up to date
 Source codes: ok | not_found | no_identifier | refused (the page answered 401/403) | source_blocked | http_<n> |
-network_error | bad_response. Exit 0 = every result ok or done; 1 = not; 2 = the config file is unreadable.
+network_error | bad_response. -n writes no links file.
+Exit 0 = every result ok or done; 1 = not, then stderr's last line is {"summary": {total, ok, skipped, failed}}; 2 =
+the config file is unreadable, then each result is not_run and stderr's last line is {code, hint}.
 
-Example:
-  uv run scripts/fulltext_links.py <dir>/results/*.json
+Examples:
+  pf.py locate <dir>/results/*.json
+  pf.py identify -o <dir>/ 2006.11239 | pf.py locate -
 """
 import html
 import re
@@ -265,7 +269,6 @@ def identifiers(res):
 
 def setup(args, results):
     config.read(strict=True)
-    work = results[0].work if results else None
     return {"key": config.openalex_key(), "proxy": config.institution()["proxy"], "pacer": web.Pacer(web.pace_path()),
             "dry_run": args.dry_run}
 
@@ -286,7 +289,7 @@ def process(res, ctx):
     if not any(ids.values()):
         return {"code": "no_identifier",
                 "hint": "The result has no DOI, arXiv id or venue page: identify the paper by its DOI or arXiv id "
-                        "(identify.py), or look for copies in the browser."}
+                        "(pf.py identify), or look for copies in the browser."}
     statuses, answers = {}, {}
     for name in SOURCES:
         try:

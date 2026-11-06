@@ -41,7 +41,7 @@ Problem codes (each problem is {"code", ...}: a fact and its evidence; what it m
                           "journalAbbreviation"}): maybe swapped
   missing_doi             a journal article or conference paper with no DOI in its DOI field or an Extra "DOI:" line
                           (an arXiv DOI is not one; venues that issue none - ICML, ICLR - are expected here: their
-                          official page is the url); paper-fetch's identify --search looks a DOI up by title
+                          official page is the url); paper-fetch's pf.py search looks a DOI up by title
   missing_abstract        a research item with no abstract
   untagged                a research item with no manual tag, so no curated tag (references/tagging.md): automatic
                           tags only, or none. Tagging subagents take it, not the judges (references/organize.md,

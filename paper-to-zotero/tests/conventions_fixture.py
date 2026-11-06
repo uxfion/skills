@@ -11,7 +11,7 @@ HELP_ENV = {"PAPER_TO_ZOTERO_CONFIG": "/nonexistent/config.json", "PAPER_TO_ZOTE
 # Long names dropped in the conversion, so none comes back: {name: the words still allowed it}.
 REMOVED = {"--q": (), "--cite": (), "--key": ("answer",), "--batch": (), "--out": (), "--tags-file": (), "--tree": (),
            "--limit": (), "--since": (), "--qmode": (), "--file": (), "--keep": (), "--drop": (), "--name": (),
-           "--parent": (), "--note": (), "--title": ("package",)}
+           "--parent": (), "--note": (), "--title": ("package",), "--dir": ()}
 # Where --collection selects, so it may appear (anywhere else it would replace: that is --set-collection).
 SELECTS = {"items", "search", "lint", "export", "note list", "note search"}
 

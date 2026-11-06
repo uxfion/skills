@@ -1,7 +1,7 @@
 """paper-fetch's directory: its layout and settings, the result files, the log, how a file reaches a result, the
 handoffs to agents and their answers, and the fold of the log into the results.
 
-Layout (ready.py makes it). <dir> is <scratch>/paper-fetch/, or the directory a caller names with -o (an import:
+Layout (pf.py ready makes it). <dir> is <scratch>/paper-fetch/, or the directory a caller names (an import:
 <scratch>/paper-to-zotero/fetch/):
   results/<slug>.json   one result per paper (below); its files beside it, named by the version each was wanted as
                         (its kind, paper.KINDS): <slug>.pdf, .accepted.pdf, .preprint.pdf, .supplement.pdf, .html; a
@@ -23,7 +23,7 @@ A result file, results/<slug>.json, one JSON object:
   request               {given}: what identify was asked for (an id or url)
   record_of             preprint | published: which version the CSL describes
   ids                   {doi, arxiv, pmid, pmcid}, each a string or null
-  csl                   the paper's metadata as normalized CSL-JSON (identify.py says how), with `source` the agency
+  csl                   the paper's metadata as normalized CSL-JSON (pf.py identify -h says how), with `source` the agency
                         that gave it and, by name, what CSL has no variable for (arXiv's `categories`); `keyword` is
                         the authors' keywords as a list
   alt_titles            [str]: other titles the paper went by
@@ -52,7 +52,7 @@ wanted, request, warnings; its files are checked against nothing: cannot_judge.
 Writers: identify writes all but files, set_aside and outcome; settle() writes those three and settled_at, from
 fetch.jsonl, every time from the whole log (so whoever folds last is right), and first opens a `label` handoff for
 each filed file without a label (ask_labels), whichever command filed it. fetch, wait, claim and answer fold the
-results they touched when they end; settle.py does it on its own, after the watcher filed something. The watcher and
+results they touched when they end; pf.py sync does it on its own, after the watcher filed something. The watcher and
 agents only append events, through scripts.
 
 Handoffs. Where a script reaches the edge of what it can be certain of, it writes a handoff: handoffs/<id>.json
@@ -616,7 +616,7 @@ def label(work, slug, title, why, by="agent", md5=None):
         own = paper_file(work, res)
         md5 = md5_of(own) if own else None
     if md5 not in files:
-        raise Stop("no_such_file", hint="The result has no file with that md5; settle.py lists its files.", md5=md5,
+        raise Stop("no_such_file", hint="The result has no file with that md5; pf.py sync lists its files.", md5=md5,
                    files={f.name: m for m, f in files.items()})
     return work.append({"event": "label", "slug": slug, "md5": md5, "file": files[md5].name, "title": title.strip(),
                         "why": why, "by": by})
@@ -757,8 +757,8 @@ def answer(work, hid, word, *, reason=None, title=None, why=None, slug=None, ver
     elif kind == "left" and word == "claim":
         if not slug:
             raise Stop("no_slug", exit=ACT, hint="Name the paper the file is for: --slug SLUG.", id=hid)
-        target = slug
-        out.append(accept(work, record["file"], slug, reason, kind=version))
+        target = paper.safe_slug(slug)
+        out.append(accept(work, record["file"], target, reason, kind=version))
     out.append(work.append({"event": "answer", "id": hid, "slug": target, "kind": kind, "answer": word,
                             "reason": reason, "by": by}))
     return out
@@ -867,7 +867,7 @@ PARTIAL = (".crdownload", ".part", ".tmp", ".download")
 def new_downloads(work, dl):
     """Complete files newer than .started, oldest first."""
     if not work.started.exists():
-        raise Stop("no_started", exit=CANNOT, hint="The directory has no .started: run ready.py first.")
+        raise Stop("no_started", exit=CANNOT, hint="The directory has no .started: run pf.py ready first.")
     started, out = work.started.stat().st_mtime, []
     for f in dl.iterdir():
         try:
@@ -891,7 +891,7 @@ class Scanner:
     time changed, and counts as complete once two looks found it the same; a file that is no PDF is never opened
     again; the results are read again only when results/ changed. Each PDF is checked against every result fetch was
     asked for and that is not satisfied yet (wanted()): passing for exactly one -> filed, else left there (it may be
-    the user's own; an agent's own download is handed over with `claim --file`) and checked again only against
+    the user's own; an agent's own download is handed over with pf.py claim) and checked again only against
     results that became wanted since."""
 
     def __init__(self, work, dl):
@@ -944,7 +944,7 @@ class Scanner:
 
 
 def watcher_alive(work):
-    """Whether the watcher (claim.py --watch) of this directory is running: its pid in run.json, alive."""
+    """Whether the watcher (pf.py watch) of this directory is running: its pid in run.json, alive."""
     pid = work.settings().get("watcher")
     try:
         os.kill(int(pid), 0)

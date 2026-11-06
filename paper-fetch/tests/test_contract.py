@@ -4,7 +4,7 @@
 # ///
 """The result files paper-fetch hands its callers, made by its own scripts and kept as fixtures/results/: a caller
 (paper-to-zotero's test_contract.py) reads them to prove it can consume what paper-fetch writes. This test makes
-them again — identify, redraft, claim, accept, label and settle against the fake web — and fails when they are no
+them again — identify, redraft, claim, accept, label and sync against the fake web — and fails when they are no
 longer what is kept: then the format changed, and its callers must be checked. PF_REGEN_FIXTURES=1 writes them anew.
 
 The kept results: liu2022jbhi (a journal article, slug given, its PDF labelled), shinn2023reflexion (an arXiv
@@ -49,22 +49,22 @@ class Contract(Base):
             [h] = [h for h in run.open_handoffs(self.work, slug=slug) if h["kind"] == "label" and h["md5"] == md5]
             run_(answer, h["path"], "label", "--label", title, "--why", why, "--by", "judge")
 
-        run_(identify, "-o", self.work.root, stdin=f"{JBHI}\tliu2022jbhi\n{REFLEXION}\n10.9999/html\n")
+        run_(identify, "identify", "-o", self.work.root, "-", stdin=f"{JBHI}\tliu2022jbhi\n{REFLEXION}\n10.9999/html\n")
         reflexion = self.work.results / "shinn2023reflexion.json"
-        run_(identify, "--redraft", NEURIPS, reflexion)
+        run_(identify, "redraft", NEURIPS, reflexion)
         title, author = CSL[JBHI]["title"], "Heng Liu"
-        run_(claim, "--dir", self.work.root, "--file", fake_pdf(inbox / "liu.pdf", [f"{title}\n{author}"]), "--slug", "liu2022jbhi")
+        run_(claim, "claim", fake_pdf(inbox / "liu.pdf", [f"{title}\n{author}"]), self.work.results / "liu2022jbhi.json")
         label("liu2022jbhi", "liu2022jbhi.pdf", "Published-IEEE", "the volume and issue")
         pre = fake_pdf(inbox / "shinn.preprint.pdf", ["Reflexion: Language Agents with Verbal Reinforcement Learning\nNoah Shinn"])
-        run_(claim, "--dir", self.work.root, "--file", pre, "--slug", "shinn2023reflexion")
+        run_(claim, "claim", pre, reflexion)
         label("shinn2023reflexion", "shinn2023reflexion.preprint.pdf", "Accepted-arXiv-v4", "v4's comment")
         supp = fake_pdf(inbox / "shinn.supplement.pdf", ["Appendix A"])
-        held = run_(claim, "--dir", self.work.root, "--file", supp, "--slug", "shinn2023reflexion").lines[0]
-        run_(answer, self.work.handoffs / f"{held['handoff']}.json", "accept", "--reason", "the appendix", "--version",
+        held = run_(claim, "claim", supp, reflexion).lines[0]
+        run_(answer, self.work.handoffs / f"{held['handoff']}.json", "accept", "--reason", "the appendix", "--as",
              "supplement", "--label", "Supplement-NeurIPS", "--why", "the venue's appendix", "--by", "paper_agent")
         stub = next(p.stem for p in self.work.results.glob("*.json") if p.stem not in ("liu2022jbhi", "shinn2023reflexion"))
-        run_(claim, "--dir", self.work.root, "--file", fake_pdf(inbox / "stub.pdf", ["Some paper"]), "--slug", stub)
-        run_(settle, "--dir", self.work.root)
+        run_(claim, "claim", fake_pdf(inbox / "stub.pdf", ["Some paper"]), self.work.results / f"{stub}.json")
+        run_(settle, *sorted(self.work.results.glob("*.json")))
         return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted(self.work.results.glob("*.json"))}
 
     def test_the_fixtures_are_what_paper_fetch_writes(self):

@@ -283,3 +283,14 @@ p2z 的 `have -` 现在只读一行一个路径，所以中间要 `jq -r .source
 - **`todo` 列东西却在有内容时退出 1**：§3 的 1 是"有要处理的"，开着的交接单正是；流程的完成条件靠它（"todo 退出 0"），照旧。
 - **`ready` 不写目录时有默认**：照旧 `${TMPDIR:-/tmp}/paper-fetch`，它不是非写不可的东西，空的 `$(…)` 也不会落到"整个库"上。
 - **p2z 的 `ready` 一起改成写在后面**：样板 skill 里的改动，因为 import.md 里两行并排，一个 `--dir`、一个写在后面会让人混。
+
+## 10. 实施时的改正（2026-11-06）
+
+- `pflib/cli.py` 没拷 `summarize`、`finish`、`output`、`document`：paper-fetch 没有脚本用它们（§3 *General and simple*）。
+- `todo` 只要 `results/` 在，不查 `.started`："给手上已有的 PDF 打标签"那条路（identify → claim → todo）不跑 `ready`。`scan`、`watch`、`downloads` 两样都查。
+- `identify -o` 写什么都当目录，没有就建；产物总是目录，`-h` 写 `DIR/`。
+- `ready` 用 `opencli -V` 问版本：约定检查不许 skill 的字符串里出现 `--version`，OpenCLI 认 `-V`（核过）。
+- `fetch` 的汇总多一个 `failed?`：从上游原样转来的行要有地方计数。
+- `tests/helpers.py` 去掉 `SHEBANG`，`smoke()` 经 `pf.py <词>` 跑。
+- 行数：脚本 5,379 → 5,746（拷来的 `cli.py` 层 +114，man 页：claim +86、identify +59、fetch +32、pf.py +28、check +28）；文档 635 → 632 行，词数 15,593 → 15,423。
+- 实测时看到另一个会话正用已装的旧版跑 `claim --dir … --watch`：重装新版后，这种写法就不认了。

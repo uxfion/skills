@@ -1,9 +1,9 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Wait at a gate: look at the result's file and the browser's current tab every 10 seconds, and nothing else.
+"""Wait at a gate for one paper, up to about ten minutes: its file and the browser's tab, every 10 seconds.
 
 It ends on whichever comes first:
   arrived   the paper has its file (run.satisfied: the watcher filed it, or this wait while no watcher runs; whoever
@@ -13,14 +13,16 @@ It ends on whichever comes first:
 It records nothing and requests nothing of any site: it reads the tab and the file only. A login from another window
 leaves the tab as it was, so a timeout is not yet a verdict: what the paper's agent does then is references/gate.md's.
 --file-only leaves the page alone (the last pass, with the user at it). The session is --session (a paper's agent:
-pf-<slug>), else run.json's. When it ends it folds the result (and any other its scan of Downloads filed a file for)
-into their files and outcome, as settle.py does.
+pf-<slug>), else run.json's. When it ends, the result (and any other its scan of Downloads filed a file for) is
+brought in line with the log, as pf.py sync does. This is one paper's wait; the run's own look at Downloads, the
+whole run long, is pf.py watch.
 
-stdout: one line {slug, code, file? (arrived), url?, title? (passed), waited?, hint? (timeout)}. Exit 0 = arrived or
-passed; 1 = timeout.
+One line: {slug, code, file? (arrived), url?, title? (passed), waited?, hint? (timeout)}.
+Exit 0 = arrived or passed; 1 = timeout, or the result is not one (result_invalid), the line says so.
 
-Example:
-  uv run scripts/wait.py <dir>/results/<slug>.json --until "Access provided by"
+Examples:
+  pf.py wait <dir>/results/<slug>.json --session pf-<slug> --until "Access provided by"
+  pf.py wait <dir>/results/<slug>.json --file-only
 """
 import time
 from pathlib import Path
@@ -38,7 +40,7 @@ def main(argv=None):
     p.add_argument("--timeout", type=float, default=570.0, metavar="SECONDS", help="(default: %(default)s)")
     p.add_argument("--file-only", action="store_true", help="wait for the file alone; the page is not read")
     p.add_argument("--session", metavar="NAME", help="the opencli session whose tab is read (default run.json's)")
-    args = p.parse_args(argv)
+    args = cli.parse(p, argv)
 
     def watch(res, work, filed):
         b, first = Browser(args.session or work.settings().get("session") or "pf"), None

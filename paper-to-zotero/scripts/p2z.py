@@ -77,7 +77,7 @@ steps: {word: its code}}. `decide` comes from the record and its result, each en
                   library items carrying the paper's identifier come this way too, as candidates with matched_by
   tags            the paper's tags file (tags/<slug>.json) is not written yet, and its item is still to be created:
                   whoever tags it writes it (references/tagging.md); save creates nothing for the paper until then
-  published_versions  a preprint item whose result lists published versions: paper-fetch's identify --redraft and
+  published_versions  a preprint item whose result lists published versions: paper-fetch's pf.py redraft and
                   p2z.py draft --redraft, or keep_preprint with the reason
   checks, warnings    check's flags (mapped:publicationTitle, missing_minimum:date, ...) and draft's warnings that
                   `accepted` does not hold: revise the item, or accept them

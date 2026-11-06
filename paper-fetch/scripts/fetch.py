@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
@@ -34,37 +34,43 @@ Every file goes through the check (run.claim): pass -> filed; refused -> the nex
 `file` handoff, and the paper waits. Where fetch cannot get a PDF from a page — a sign-in, a challenge, no PDF link,
 no record in the discovery search — it judges nothing: it writes a `page` handoff with what it saw, the paper waits on
 that route, and the walk goes on with the others. The paper's agent works the page and hands back with
-`--start <url> --session pf-<slug>`, or answers with a verdict (pf.py answer; run.VERDICTS). The bulk walk skips a
-paper with an open page or file handoff, and a paper an answer holds on its route this pass (blocked, gate_timeout);
-a run with --session or --start does not skip its paper. When the command ends, the fold gives each filed file
-without a label a `label` handoff (settle.py) holding the host's word recorded at download — the page's title,
-metadata and words around the paper's title, the link taken, arXiv's comment on the version — then the file's (page
-1). The browser itself failing (OpenCLI's BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs:
+`pf.py fetch --start <url> --session pf-<slug> <result>`, or answers with a verdict (pf.py answer; run.VERDICTS).
+The bulk walk skips a paper with an open page or file handoff, and a paper an answer holds on its route this pass
+(blocked, gate_timeout); a run with --session or --start does not skip its paper. When the command ends, each filed
+file without a label gets a `label` handoff (as pf.py sync gives it) holding the host's word recorded at download —
+the page's title, metadata and words around the paper's title, the link taken, arXiv's comment on the version — then
+the file's (page 1). The browser itself failing (OpenCLI's BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs:
 pflib/run.py; pf.py todo lists them, pf.py answer answers them.
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, held, wrong_file,
 error — or an agent's verdict on its page handoff. A page handoff is no try, so the paper's agent's rerun asks that
 page again.
-  --start URL [--version V]  one result: a candidate the paper's agent found or opened the way to (a page past a
-                         sign-in, a PMC page, a repository); never the route's try
+--start URL takes one result: a candidate the paper's agent found or opened the way to (a page past a sign-in, a
+PMC page, a repository), never the route's try; --as names its version when it is not the one the result wants.
 Before each candidate the result's file is looked for (the watcher may have filed it; while no watcher runs, this
 command scans Downloads itself). Requests to one host keep their gap (web.GAPS; full text through the institution
 15 s), in the machine's pace file.
 
-stdout: the try and skip lines as they happen, one short line per page, file or browser_down handoff ({handoff, slug,
-kind, path}), then {"summary": {results, satisfied, handoffs: {kind: n}, routes}}: every open handoff of these
-results, label handoffs included (pf.py todo lists them; --start prints no summary). When it ends it folds the
-results it was given (and any other its scan of Downloads filed a file for) into their files and outcome, as
-settle.py does. Exit 0 = the pass went through with nothing open; 1 = handoffs are open for the agent (or the browser
-failed, or a file named is not a result); 2 = cannot run (no opencli, results of two directories, no pdftotext).
+Results come after the options; - reads their paths from stdin, a path a line or our JSON lines by `path` (a line
+without one that reports a failure upstream is passed on as it is, and counts as not done). The lines, as they
+happen, are the pass's record and its progress: each try {event: try, slug, route, url, version, result, code: the
+try's result, ...}, a skip, one short line per page, file or browser_down handoff ({handoff, slug, kind, code:
+handoff, path}), not_prepared (no links yet: pf.py locate), no_discovery, browser_down. When it ends, the results it
+was given (and any other its scan of Downloads filed a file for) are brought in line with the log, as pf.py sync does.
+Exit 0 = the pass went through with nothing open; 1 = handoffs are open for an agent, the browser failed, or a file
+named is not a result, then stderr's last line is {"summary": {results, satisfied, handoffs: {kind: n}, routes,
+invalid?, failed?}}, every open handoff of these results counted, label handoffs included (pf.py todo lists them;
+--start prints no summary); 2 = cannot run (no opencli, results of two directories, no pdftotext), then each result
+still without its file is not_run and stderr's last line is {code, hint}.
 
 Examples:
-  uv run scripts/fetch.py --pass 1 <dir>/results/*.json
-  uv run scripts/fetch.py --pass 1 --session pf-<slug> --start https://pmc.ncbi.nlm.nih.gov/articles/PMC123/ <dir>/results/<slug>.json
-  uv run scripts/fetch.py --pass 3 --route snapshot <dir>/results/<slug>.json
+  pf.py fetch --pass 1 <dir>/results/*.json
+  pf.py fetch --pass 1 --session pf-<slug> --start https://pmc.ncbi.nlm.nih.gov/articles/PMC123/ <dir>/results/<slug>.json
+  pf.py fetch --pass 3 --route snapshot <dir>/results/<slug>.json
 """
 import os
 import re
+import sys
 import time
 import urllib.parse
 from pathlib import Path
@@ -110,7 +116,7 @@ class Pass:
 
     def log(self, event, **fields):
         line = self.work.append({"event": event, "pass": self.args.pass_, **fields})
-        cli.emit(line)
+        cli.emit({**line, "code": line.get("result")})  # the printed line's code; the log keeps the event as it is
         return line
 
     def scan(self):
@@ -147,7 +153,7 @@ class Pass:
         url = self.arxiv_url(url) if url and self.route != "snapshot" else url
         seen = {k: page[k] for k in ("href", "title", "meta", "words") if page.get(k)} if page else None
         page = self.arxiv_page(url) or seen
-        return {"route": self.route, "url": url, "given": self.args.version if self.route == "start" else None,
+        return {"route": self.route, "url": url, "given": self.args.as_ if self.route == "start" else None,
                 "page": page or None,
                 "link": {k: link[k] for k in ("url", "why", "text", "near") if link.get(k)} if link else None}
 
@@ -168,7 +174,8 @@ class Pass:
                 pass
 
     def announce(self, hid, slug, kind):
-        cli.emit({"handoff": hid, "slug": slug, "kind": kind, "path": str(self.work.handoffs / f"{hid}.json")})
+        cli.emit({"handoff": hid, "slug": slug, "kind": kind, "code": "handoff",
+                  "path": str(self.work.handoffs / f"{hid}.json")})
 
     # ---- one candidate ----------------------------------------------------------------------------------------
 
@@ -421,7 +428,7 @@ class Pass:
         for res in self.results:
             if not run.satisfied(self.work, res, events) and run.links_of(res) is None:
                 cli.emit({"slug": res.slug, "code": "not_prepared", "hint": "Its links are missing or were found for "
-                          "other ids: run pf.py fulltext_links on it; until then only the page routes try it."})
+                          "other ids: run pf.py locate on it; until then only the page routes try it."})
         mine = bool(self.args.session)  # an agent's run on its own paper: open handoffs do not hold it
         paused = set()
         try:
@@ -430,7 +437,7 @@ class Pass:
                 if route == "discovery" and not (self.discovery and "{title}" in self.discovery):
                     cli.emit({"route": route, "code": "no_discovery", "hint": "The config's institution.discovery is "
                               "missing, or holds no {title}: ask the user once for their library's discovery search "
-                              "page and write it as a search URL with {title} where the title goes (ready.py says how)."})
+                              "page and write it as a search URL with {title} where the title goes (pf.py ready says how)."})
                     continue
                 events = self.work.events()
                 todo = [r for r in self.results if r.slug not in paused and not run.satisfied(self.work, r, events)
@@ -519,19 +526,19 @@ def request_url(link, page_href, proxy):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("results", nargs="+", metavar="RESULT", help="result files: <dir>/results/<slug>.json")
+    p.add_argument("results", nargs="*", metavar="RESULT", help=cli.RESULTS_HELP)
     p.add_argument("--pass", dest="pass_", type=int, default=1, choices=(1, 2, 3), help="which pass of the chain")
     p.add_argument("--route", choices=ROUTES + ("snapshot",), help="this route only")
     p.add_argument("--start", metavar="URL", help="one result: a candidate the agent found or opened the way to")
-    p.add_argument("--version", choices=list(paper.KINDS), help="with --start: the version it is")
+    p.add_argument("--as", dest="as_", choices=list(paper.KINDS), help="with --start: the version it is")
     p.add_argument("--session", metavar="NAME", help="the opencli session (a paper's agent: pf-<slug>); default run.json's")
     p.add_argument("--window", choices=("background", "foreground"), default="background",
                    help="where pages open (foreground: the last pass, with the user)")
-    args = p.parse_args(argv)
-    if args.start and len(args.results) != 1:
-        p.error("--start takes exactly one result")
-    if args.version and not args.start:
-        p.error("--version goes with --start")
+    args = cli.parse(p, argv)
+    if not args.results:
+        p.error("name the result files: <dir>/results/*.json, or - to read their paths from stdin")
+    if args.as_ and not args.start:
+        p.error("--as goes with --start")
 
     def one_pass(walk, results):
         verify.require_pdftotext()
@@ -540,7 +547,7 @@ def main(argv=None):
         walk.route, res = "start", results[0]
         url = walk.arxiv_url(args.start)
         try:
-            result, extra = walk.get(res, {"url": url, "version": args.version, "needs_browser": None})
+            result, extra = walk.get(res, {"url": url, "version": args.as_, "needs_browser": None})
         except Stopped as s:
             walk.hand_page(res, url, s)
             return cli.ACT
@@ -548,34 +555,59 @@ def main(argv=None):
             record = run.handoff(walk.work, "browser_down", note=str(e), pass_=args.pass_, route="start")
             walk.announce(record["id"], None, "browser_down")
             return cli.ACT
-        walk.log("try", slug=res.slug, route="start", url=url, version=args.version, result=result, **extra)
+        walk.log("try", slug=res.slug, route="start", url=url, version=args.as_, result=result, **extra)
         return cli.OK
 
+    def not_run(results, work=None):
+        """The pass cannot go on: each result still without its file is not_run."""
+        for r in results:
+            if work is None or not run.satisfied(work, r):
+                cli.emit({"slug": r.slug, "code": "not_run"})
+
     def go():
-        results, invalid = [], 0
-        for path in args.results:
+        named = cli.paths(args.results)
+        if args.start and sum(isinstance(e, str) for e in named) != 1:
+            p.error("--start takes exactly one result")
+        results, invalid, failed = [], 0, 0
+        for e in named:
+            if isinstance(e, dict):  # a line passed on from upstream
+                cli.emit(e)
+                failed += cli.outcome(e) == "failed"
+                continue
             try:
-                results.append(run.read(path))
+                results.append(run.read(e))
             except cli.Stop as stop:  # a file that is no result is its own line; the others go on
-                cli.emit(stop.line(slug=Path(path).stem))
+                cli.emit(stop.line(slug=Path(e).stem))
                 invalid += 1
         if not results:
-            return cli.ACT
-        walk = Pass(args, results)
+            return cli.ACT if invalid or failed else cli.OK
+        try:
+            walk = Pass(args, results)
+        except cli.Stop as stop:
+            if stop.exit == cli.CANNOT:
+                not_run(results)
+            raise
         try:
             code = one_pass(walk, results)
+        except cli.Stop as stop:
+            if stop.exit == cli.CANNOT:
+                not_run(results, walk.work)
+            raise
         finally:  # whatever the pass did, a handoff included, the results it touched say it (their labels asked for)
             run.settle(walk.work, walk.touched())
         slugs, counts = {r.slug for r in results}, {}
         for h in run.open_handoffs(walk.work):
             if h.get("slug") in slugs or h.get("slug") is None:
                 counts[h["kind"]] = counts.get(h["kind"], 0) + 1
+        if not (code or counts or invalid or failed):
+            return cli.OK
         if not args.start:  # the walk's summary; --start's line is its try
             cli.emit({"summary": {"results": len(results),
                                   "satisfied": sum(1 for r in results if run.satisfied(walk.work, r)),
                                   **({"handoffs": counts} if counts else {}), "routes": walk.routes,
-                                  **({"invalid": invalid} if invalid else {})}})
-        return cli.ACT if code or counts or invalid else cli.OK
+                                  **({"invalid": invalid} if invalid else {}), **({"failed": failed} if failed else {})}},
+                     sys.stderr)
+        return cli.ACT
 
     return cli.run(go)
 

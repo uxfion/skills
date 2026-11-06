@@ -45,7 +45,7 @@ class AttachFile(unittest.TestCase):
                                         "saved": {"key": PARENT, "version": 1, "citationKey": None, "created_at": "x"}}))
 
     def settle(self, *files, status="got"):
-        """The result as paper-fetch's settle leaves it: files [(name, bytes, kind, label title, check)]."""
+        """The result as paper-fetch's pf.py sync leaves it: files [(name, bytes, kind, label title, check)]."""
         entries = []
         for name, body, kind, title, check in files:
             (self.results / name).write_bytes(body)

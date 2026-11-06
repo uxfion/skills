@@ -1,16 +1,16 @@
-#!/usr/bin/env -S uv run --script
+#!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Fold fetch.jsonl into each result's `files` and `outcome`: what a caller reads to know what was got.
+"""Bring results' files and outcome in line with the run's log, <dir>/fetch.jsonl: what a caller reads to know what was got.
 
-fetch, claim, answer and wait fold the results they touched when they end; run this after the background watcher
-filed a file (a `claimed` event in fetch.jsonl), or to see the state of every result. Each fold starts from the
-whole log, so whoever folds last is right.
+fetch, claim, answer and wait do this for the results they touched when they end; run it after the background
+watcher filed a file (a `claimed` event in fetch.jsonl), or to see the state of every result. Each run starts from
+the whole log, so whoever runs it last is right.
 
-Before folding, each filed file without a label (a snapshot needs none) gets a `label` handoff, unless one is open
-for it, whichever command filed the file (pflib/run.py, Handoffs; who answers it: SKILL.md, Handoffs).
+Before that, each filed file without a label (a snapshot needs none) gets a `label` handoff, unless one is open for
+it, whichever command filed the file (pflib/run.py, Handoffs; who answers it: SKILL.md, Handoffs).
 
 files: one entry per file beside the result {name, md5, kind, label, check, accepted_reason?, url, evidence}, every
 version side by side. The label is the last `label` event for that file's md5 (pf.py answer), else Unknown-<Source>
@@ -23,31 +23,24 @@ handoffs; last its last try, handoff or answer {event, route, result, url}. set_
 unverified/ that are not among its files, each {name, md5, why: refused | held | withdrawn, code?} (pflib/run.py);
 absent when there is none.
 
-stdout: one line per result {slug, code ok, status, files: [label titles], changed}, then {"summary"}.
-Exit 0 = every result folded; 1 = a file named is not a result.
+One line per result as it is done: {slug, code: ok, status, files: [label titles], changed}.
+Exit 0 = every result in line; 1 = a file named is not a result (its line), then stderr's last line is {"summary":
+{total, ok, skipped, failed}}.
 
 Examples:
-  uv run scripts/settle.py <dir>/results/*.json
-  uv run scripts/settle.py --dir <dir>          every result there
+  pf.py sync <dir>/results/*.json
+  pf.py sync <dir>/results/*.json | jq -c 'select(.status != "got")'
 """
-from pathlib import Path
-
 from pflib import cli, run
 
 
+def one(res, _):
+    [(res, changed)] = run.settle(res.work, [res])
+    return {"status": res["outcome"]["status"], "files": [f["label"]["title"] for f in res["files"]], "changed": changed}
+
+
 def main(argv=None):
-    p = cli.results_parser(__doc__)
-    p.add_argument("--dir", metavar="DIR", help="fold every result in DIR (<dir>/results/*.json)")
-    args = p.parse_args(argv)
-    if args.dir:
-        args.results = [str(f) for f in sorted((Path(args.dir) / "results").glob("*.json"))]
-
-    def one(res, _):
-        [(res, changed)] = run.settle(res.work, [res])
-        return {"status": res["outcome"]["status"], "files": [f["label"]["title"] for f in res["files"]],
-                "changed": changed}
-
-    return cli.run(lambda: cli.each_result(args, one))
+    return cli.main_results(__doc__, one, argv)
 
 
 if __name__ == "__main__":

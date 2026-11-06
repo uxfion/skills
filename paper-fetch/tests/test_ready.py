@@ -2,9 +2,10 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Tests for scripts/ready.py: the facts, the directory, what cannot be checked. opencli and poppler are stubs on
+"""Tests for pf.py ready (scripts/ready.py): the facts, the directory, what cannot be checked. opencli and poppler are stubs on
 PATH, and the Downloads folder is a temporary one, given by flag or $PAPER_FETCH_DOWNLOADS (never detected)."""
 import os
+import shutil
 import tempfile
 import time
 import unittest
@@ -15,10 +16,10 @@ from pflib import run
 
 ready = load("ready")
 
-# opencli --version and opencli doctor, as 2.x answers them; $OPENCLI_STUB_VERSION gives another version
+# opencli -V and opencli doctor, as 2.x answers them; $OPENCLI_STUB_VERSION gives another version
 OPENCLI_STUB = """#!/bin/sh
 case "$1" in
-  --version) echo "${OPENCLI_STUB_VERSION:-2.1.0}" ;;
+  -V) echo "${OPENCLI_STUB_VERSION:-2.1.0}" ;;
   doctor) echo '{"data": {"cliVersion": "2.1.0", "extensionConnected": true, "issues": []}}' ;;
   *) exit 1 ;;
 esac
@@ -38,7 +39,7 @@ class Ready(unittest.TestCase):
         self.env = {"PATH": f"{self.bin}:/usr/bin:/bin", "HOME": str(self.tmp), "PAPER_FETCH_DOWNLOADS": str(self.dl)}
 
     def run_(self, *argv, env=None):
-        return call(ready, "--dir", self.work.root, *argv, config=self.config, env={**self.env, **(env or {})})
+        return call(ready, self.work.root, *argv, config=self.config, env={**self.env, **(env or {})})
 
     def test_ready_and_the_directory(self):
         r = self.run_()
@@ -89,22 +90,24 @@ class Ready(unittest.TestCase):
 
     def test_cannot_check(self):
         r = self.run_(env={"PATH": "/nonexistent"})
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "no_pdftotext"))
+        self.assertEqual((r.code, r.lines[0]["code"], r.err), (1, "no_pdftotext", ""), "checked: not ready yet")
         self.assertTrue(self.work.started.exists(), "the directory is made all the same")
         (self.tmp / "afile").write_text("")
-        r = call(ready, "--dir", self.tmp / "afile" / "pf", config=self.config, env=self.env)
+        r = call(ready, self.tmp / "afile" / "pf", config=self.config, env=self.env)
         self.assertEqual((r.code, r.lines[0]["code"]), (1, "dir_unwritable"))
         self.config.write_text("{broken")
         r = self.run_()
-        self.assertEqual((r.code, r.lines[0]["code"]), (2, "config_unreadable"))
+        self.assertEqual((r.code, r.out, r.last["code"]), (2, "", "config_unreadable"))
 
     def test_help(self):
-        r = call(ready, "--help")
+        r = call(ready, "-h")
         self.assertEqual(r.code, 0)
         self.assertIn(ready.__doc__.strip().splitlines()[0], r.out)
 
     def test_smoke(self):
-        r = smoke("ready", "--dir", self.work.root, "--downloads", self.dl, config=self.config, env=self.env)
+        uv = os.path.dirname(shutil.which("uv"))   # pf.py runs the word's script through uv, found on PATH
+        r = smoke("ready", "--downloads", self.dl, self.work.root, config=self.config,
+                  env={**self.env, "PATH": f"{self.env['PATH']}:{uv}"})
         self.assertEqual((r.code, r.lines[0]["code"]), (0, "ok"), r)
 
 
