@@ -27,6 +27,7 @@ The user's words behind [design-principles.md](design-principles.md), verbatim a
 - 2026-10-18: 「这些比较简单的问题可以直接改吧，不用spec这种复杂的流程吧，记得使用Writing for agents」
 - 2026-10-29, note commands proposed before the round trips and the installed plugin were checked: 「我不理解，你之前开发之前都不去做一些详尽的调研的吗？」, 「直接 web search 就行了，这种都应该在确定方案之前做好详细的调研的」
 - 2026-10-30: 「关键节点你需要停下来思考……当前方案是否是最优的？有没有更好更聪明的解法」
+- A mismatch changed on evidence — 2026-11-06, a writing pass over five skills listed a dozen mismatches with §3's conventions; six were set to be built as decided by the principles alone (an exit code for a response never met, reading by field where one `jq` works, a guard against an empty key list that never happened); re-sorted by evidence from use, two stayed. The user: 「我有一个担心，你有没有过度去设计，或者过度去遵守，有一些是没必要的，这个需要注意一下」, then 「你可能要更新一下规则」
 
 ## §3 What a good design looks like
 - Patchwork — 2026-10-12, a review round that grew a skill from ~11.5k to ~19k lines with a guard per finding: 「我们并不崇尚复杂、多条件的、不断补充、东补一块西补一块的」; 2026-10-19: 「我整体希望一个比较通用的方法，而不是很专业、针对某一领域的或者修修补补的」; 2026-10-31, on keeping it simple without patching: 「不要从一开始就把系统做得很复杂，我感觉是没必要的」, then 「在整个设计的过程中，你不能修修补补。我最忌讳的就是修修补补，加了一堆条件或者修修补补的东西。如果能从顶层、从根源、从设计、从全局去解决，能用更优雅的方式去解决，那就用这种方式。我担心的点在于，你刚才说只会遇到问题找机制，又说从简单的起步。如果问题越多，你修补得也就越多，最后就会变成一个非常糟糕、修修补补的状态。这是我不希望看到的，我希望是从顶层、从全局观念去解决大部分问题的。整一套都是比较高质量、优雅、高效的，这才是我想要的东西」; 2026-10-31, vllm-serve, after hypothetical guards from a review were set to be dropped: 「A 但是有一些必要的你还是要考虑的，不要过度防御性，你懂我意思吧。有一些基本上都会遇到的，或者本身就该考虑的，你就应该考虑进去。」

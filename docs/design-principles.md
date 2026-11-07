@@ -55,6 +55,7 @@ Every run, a test run included, follows the SKILL.md: at each stop, read the ste
 3. **Review before building**: independent reviewers with distinct lenses — fidelity to the requirements, technical correctness against sources, usability for a fresh agent — on a tight budget, then the advisor.
 4. **Stop and think at key points** — research back, design written, review back: is this the best solution, is there a smarter one?
 5. **Small fixes the user agreed to** go straight into code and docs, without a spec round, written per §4.
+6. **A mismatch is changed on evidence from use.** Checking a skill against these principles — a review, a writing pass — turns up mismatches. Change one when its use shows the cost: calls that worked around it, a failure it caused. Leave the rest as it is; the review's report names them.
 
 ## 3. What a good design looks like
 
