@@ -179,7 +179,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 
 - [20261104-paddleocr-pdftotext-region-offset-crop-box](../issues/archive/20261104-paddleocr-pdftotext-region-offset-crop-box-fixed.md)：**留到以后**。是 `show` 打印的 pdftotext 命令和框从哪个角量的行为问题，不是命令写法。这次只把 "PDF points (as pdftotext -x -y -W -H takes them)" 那句原样搬进 `show -h`、`cut -h`，修的时候在那里改准。
 - `20261105-paddleocr-checks-miss-word-misreads`：**留到以后**。是检查的本事（逐页单词对比、拒答句式），要按原则 §3 *Heuristics validated blind* 单独做。
-- `20261105-paddleocr-settle-workflow-gaps`：**第 2 条这次做**，因为 §3 要求：读的命令不写东西，commit 的日志也不是 `show` 的数据 → `show`、`findings` 只读，有没记的改动时警告。**第 3 条这次只做说明**：`show -h` 和 settle.md 写明图片在 `$TMPDIR/paddleocr-show/`、由用了 `show` 的那方在结束时删；`show -o` 留在 issue 里以后再定。第 1、4 条是 settle.md 的说法，第 5 条归 p2z 的 `package put`，**留到以后**。issue 带着第 1、3（`-o`）、4、5 条继续开着。
+- [20261105-paddleocr-settle-workflow-gaps](../issues/archive/20261105-paddleocr-settle-workflow-gaps-fixed.md)：**第 2 条这次做**，因为 §3 要求：读的命令不写东西，commit 的日志也不是 `show` 的数据 → `show`、`findings` 只读，有没记的改动时警告。**第 3 条这次只做说明**：`show -h` 和 settle.md 写明图片在 `$TMPDIR/paddleocr-show/`、由用了 `show` 的那方在结束时删；`show -o` 留在 issue 里以后再定。第 1、4 条是 settle.md 的说法，第 5 条归 p2z 的 `package put`，**留到以后**。issue 带着第 1、3（`-o`）、4、5 条继续开着。
 
 ## 9. 待定
 

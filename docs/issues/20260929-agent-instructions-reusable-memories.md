@@ -43,7 +43,7 @@
 ### 1. git：提交、推送与分支
 
 - 要点：到里程碑自己 commit，一件完整的事一次；小改动留在工作区，跟下一次里程碑一起提交，也不专门问；push 和任何对外发布必须用户当轮明说，任务里说过"上 GitHub"不算；简单的个人项目直接在 main 上做。
-- 来源：★`skills:commit-at-milestones`、★`skills:only-push-on-explicit-instruction`、★`wx:only-push-on-explicit-instruction`、`fin:commit-granularity`、`tmp:git-commit-milestones-push-on-request`（合并版，最全）、`skills:simple-project-main-branch`
+- 来源：★`skills:git-and-release`、★`wx:only-push-on-explicit-instruction`、`fin:commit-granularity`、`tmp:git-commit-milestones-push-on-request`（合并版，最全）
 - 为什么：3 个项目纠正 5 次以上，两个方向都有：提交太碎，该提交时不提交。
 - harness 现状：Claude Code 写的是 "Commit or push only when the user asks. If on the default branch, branch first"，提交和分支两点都和用户偏好相反，不写每个新项目都会重犯。Codex、Hermes 待核实。
 - 状态：候选
@@ -61,7 +61,7 @@
 - 要点：
   - 何时问：只在真定不了、或方向需要用户定时才问；其余自己选最好的，说明理由。反馈逐条判断采纳、改形还是不采纳，三类都报告。用户以前的否决是当时的担忧，不是硬约束：先按证据找最优，再说明它触及哪条旧担忧。别因个别事实把整体设计拉保守。
   - 怎么问：给带推荐的选项；一次只问一个，按依赖顺序；核心问题问得直白，用户表了态就照办；编号见决定 2。
-- 来源：`skills:ask-only-when-undecidable`、★`skills:own-judgement-on-feedback`、★`skills:past-constraints-not-binding`、`tmp:design-boldly-not-from-single-facts`、`tmp:communication-chinese-options`（选项、一次一问、编号）、`fin:plain-numbering`
+- 来源：★`skills:own-judgement`、`tmp:design-boldly-not-from-single-facts`、`tmp:communication-chinese-options`（选项、一次一问、编号）、`fin:plain-numbering`
 - 为什么：爱问、全盘采纳反馈、拿旧否决当约束、一次抛多个问题、绕着推自己的推荐，都被纠正过。
 - harness 现状：Claude Code 的 AskUserQuestion 说明有 "only when you are blocked on a decision that is genuinely the user's to make"，部分覆盖"何时问"。选项工具只有 Claude Code 有，措辞要中性。
 - 张力：`fin:design-before-execute` 要求架构改动先确认整套设计。调和：小事自己定，方向和整体设计交给用户。
@@ -70,7 +70,7 @@
 ### 4. 授权范围
 
 - 要点：给过的授权管到任务结束，范围内不反复问；建目录、移动已有文件、下载或 clone、系统级变更（装包、改系统配置、启停服务、cron）、删除、push 各自要授权，情况紧急也一样；问"能不能"不等于让做；同意一个点不等于开工；只做被要求的那一步（整理记忆不顺手调查，建系统不顺手跑全量内容）。
-- 来源：`skills:authorization-carries-over`、`proj:confirm-project-archive-scope`、`skills:capability-question-is-not-a-request`、`fin:design-before-execute`、`fin:system-vs-content-work`、`tmp:memory-tidy-is-not-investigation`、`tmp:no-system-changes-without-consent`
+- 来源：`skills:authorization-scope`、`proj:confirm-project-archive-scope`、`fin:design-before-execute`、`fin:system-vs-content-work`、`tmp:memory-tidy-is-not-investigation`、`tmp:no-system-changes-without-consent`
 - 为什么：这些纠正分布在 4 个项目。
 - harness 现状：Claude Code 有 "confirm first unless durably authorized … approval in one context doesn't extend to the next"，和"授权管到任务结束"有张力；全局写一句正好定义对用户来说什么算 durably authorized。装包、改系统配置未必算"难撤销"，要单独写。
 - 张力：授权管到任务结束 vs 不同动作各自确认。调和：范围内的不再问，超出范围的动作类型再问。
@@ -88,7 +88,7 @@
 ### 6. 求证纪律
 
 - 要点：一手来源优先于二手归纳，报告里的归纳结论比原始数据更容易错；两个说法矛盾先解开再下结论；对自己的建议问一句"这步能删吗"；分情况的事实别说成铁律；让用户做的界面操作先核实；用户指定了来源就用它；用户知道的配置直接问，不靠探测推断；调研按主流穷尽、先看官方。
-- 来源：`asr:verify-dont-anchor-on-first-source`、`asr:apk-source-is-first-hand-gold-standard`、`wx:verify-wechat-ui-steps`、`skills:use-sources-user-names`、`tmp:ask-user-for-known-config`、`tmp:research-mainstream-first`
+- 来源：`asr:verify-dont-anchor-on-first-source`、`asr:apk-source-is-first-hand-gold-standard`、`wx:verify-wechat-ui-steps`、`skills:answer-from-the-source`、`tmp:ask-user-for-known-config`、`tmp:research-mainstream-first`
 - 为什么：6 条来源分布在 4 个项目，每条都有具体的出错现场。
 - harness 现状：都没有。
 - 待定：条目多、偏思维习惯，要压成几句能照着做的话，否则违背精简。
@@ -98,7 +98,7 @@
 
 - 要点（通用部分）：访问被拦或缺信息时，先把能用的途径都试过，再说"做不到"；只有用户能过的关口（登录、验证码、授权），先通知用户、保留现场、给时间，不关页面、不绕开。
 - 留在 skill 的部分：OpenCLI 适配器、web read、浏览器的具体顺序，推送通知、等 5 分钟。
-- 来源：★`skills:web-access-fallback-ladder`（`tmp` 有副本）、`skills:gate-login-wait`、`skills:gate-alert-must-push`
+- 来源：★`skills:web-access-fallback-ladder`（`tmp` 有副本）、`skills:gate-rule`
 - 为什么：09-21 至 09-22 在 paper-to-zotero 里纠正过多次：见到登录页就关、提醒没送到用户、被拦就放弃。
 - harness 现状：都没有。
 - 以前的决定：09-21 用户否决过把梯子放进全局（`skills:skill-design-conductor-principle` 第 9 条：梯子只设计进 skill，不落到只是用 skill 的人身上）。09-29 用户又挑了它。
@@ -151,10 +151,10 @@
 
 | 记忆 | 原因 |
 |---|---|
-| ★`skills:memory-save-judgment`（`tmp` 有副本） | `AGENTS.md` 的 Auto memory 段已经写了；Claude Code 的记忆由 harness 管，按设计不往 `CLAUDE.md` 补 |
-| `skills:memory-dir-is-not-file-storage` | 属于 Auto memory 段，要加按 `auto-memory-update.md` 走 |
+| ★`skills:memory-practice` 的保存判断（`tmp` 有副本） | `AGENTS.md` 的 Auto memory 段已经写了；Claude Code 的记忆由 harness 管，按设计不往 `CLAUDE.md` 补 |
+| `skills:memory-practice` 的「不是放文件的地方」 | 属于 Auto memory 段，要加按 `auto-memory-update.md` 走 |
 | `skills:issue-draft-workflow` | 已在本仓库根 `AGENTS.md` |
-| `skills:lean-claude-md-preference`、`explicit-python-c-prohibition`、`instruction-wording-workflow`、`harness-grounded-instruction-adaptation`、`skill-design-conductor-principle`、`norms-are-living` | 讲怎么写指令和 skill，留在本仓库 |
+| `skills:instruction-wording-workflow`、`skill-design-conductor-principle`、`norms-are-living` | 讲怎么写指令和 skill，留在本仓库 |
 | `tmp:hx90-host-environment`（时区陷阱、同步目录）、`skills:paper-access-environment` | 个人环境，公开仓库不能写；可以只写进本机的全局文件 |
 | `wx` 的只读原则和版本号规则、`fin` 的项目边界等 | 只属于某个项目 |
 

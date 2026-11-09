@@ -1,7 +1,12 @@
 # paddleocr：settle 流程里几处没写清的行为
 
+已解决（2026-11-09 核对后关闭）：
+- 第 1–3 条已由 Unix 改造解决，见 [paddleocr Unix 约定 spec](../../specs/20261106-paddleocr-unix-conventions-spec.md)：settle.md 写明修好的 finding 不用判、commit 后自己消失；`show` 改为只读，有没记的改动时 stderr 警告；`show -h` 和 settle.md 写明图片在 `$TMPDIR/paddleocr-show/`，由用了 `show` 的一方结束时删。当时留待以后定的 `show -o` 不做：位置和清理都已写明，之后没再出过问题。
+- 第 4 条不改：合并后的结果本来就对，加一句说明，agent 并不会因此少犯错。
+- 第 5 条不成立：`p2z.py package put` 上传新包后会把新包的 key 写回 `<stem>.zotero.json`（`paper-to-zotero/scripts/structured.py` 的 `put_one`，2026-10-28 起就是这样）。
+
 - 来源：2026-11-05 全流程试用，三个读论文 agent 报告。最后一条主 agent 看过 `/tmp/paddleocr-show/` 核实了。用户没有提。
-- 状态：open。
+- 状态：fixed（2026-11-09）。
 
 ## 经过
 
