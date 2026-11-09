@@ -50,6 +50,7 @@
 ## 还没跑过的
 
 1. **更正**（spec §3.5）：改笔记里一条事实，留更正标记；本项目依据它的决定当场重判；别的项目在汇报里告诉用户。
+   - 2026-11-09 跑了一半：ALADYNOULLI 拿到补充材料后，读论文的 subagent 把读图得到的数字换成 Supplementary Table 14 的确切值，又改了 Q6 几处说法，每处都留了更正标记。另一半没跑：还没有哪个项目的决定是依据这些数字做的，所以没有要重判的。
 2. **换版本**（issue 已定 51，spec §12 第 14 条）：
    - 库里进了比笔记那份更好的 PDF 时，`pr.py take` 报 `better_pdf`；用 `--title` 取新版，`previous` 带出旧版的 PDF 和包；
    - 读论文的 subagent 按 reading.md *Moving to another version* 逐段对比两份包，处理每一处差别，回报里列出。
