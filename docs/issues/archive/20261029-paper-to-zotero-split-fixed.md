@@ -5,7 +5,7 @@
 - 来源：用户 · 2026-10-29。在设计论文笔记的读法时提出，那张 issue 是 [20261028-paper-to-zotero-paper-notes-fixed.md](20261028-paper-to-zotero-paper-notes-fixed.md)。当时问题树刚定下来（那张 issue 的已定 28），用户说「A。 先不要在问了。有个设计上的非常重要的问题」，接着说了下面这段话。
 - 参考资料：原在 `20261029-paper-to-zotero-split-reference/`（git 不跟踪），2026-11-01 结案时删了。下文提到的报告文件名只是当时的出处，结论都记在对应条目和 spec 里。还要用的挪到了别处：
   - Node 裁判：后来放在 `20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`，2026-11-04 跑过一次检查后随那张 issue 关闭删了，结果见 [20261102-paper-to-zotero-note-front-matter-fields-fixed.md](20261102-paper-to-zotero-note-front-matter-fields-fixed.md)；
-  - 元数据改进的做法：issue `20261101-paper-fetch-metadata-from-zotero.md`；
+  - 元数据改进的做法：issue [20261101-paper-fetch-metadata-from-zotero](20261101-paper-fetch-metadata-from-zotero-fixed.md)；
   - 库里有毛病的条目：记忆 `zotero-library-todo`。
 
   笔记格式、Better Notes 源码、实测结果一直放在论文笔记那张 issue 的参考资料文件夹里（2026-11-03 那张关闭时，笔记和 Better Notes 的调研挪到了 `20261103-paper-read-note-images-reference/`）。

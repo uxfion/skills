@@ -1,9 +1,16 @@
 # paper-fetch：把 Zotero 做得更好的几处搬过来——元数据字段和找 PDF 的做法
 
+已解决（2026-11-09 核对后关闭，用户同意：「你自己过一遍后，没问题的话就开始做吧」）。只有第 4 条要动手，其余或已修好，或对用户没用：
+- **第 4 条，LNCS 丛书名当论文集名**：错的只有 2026-10-07、10-10 用旧代码建的 7 条；10-22 以后新建的 70 多条 Springer 章节都对，现在的 `identify.py`（`proceedings_from_crossref`）从 Crossref 取论文集名。按现在的代码重新识别这 7 篇，用 `p2z.py update` 改了 `proceedingsTitle`（6 条 MICCAI 2024–2026、1 条 ACCV 2024），其中 2 条补上 `series`；读回和 BibTeX 导出都核对过。问题不会再产生，所以不加 lint 规则。
+- **第 1 条**：期刊缩写、会议地点、ISBN 不进用户的 BibTeX（Zotero 导出只写 `journal` 全称，用户写稿用 LaTeX），不做。LNCS 卷号会进 BibTeX，但 Crossref 的章节和书的记录里都没有（`volume: null`），只能逐个抓 Springer 网页，违背"不在代码里认具体网站"；某份稿件真要时再针对它补。
+- **第 2 条**：arXiv 完整日期已在 2026-11-06（`425559a`）修好。
+- **第 3 条**：会议全名库里 396/444 篇已有，不做。
+- **第 5 条**：publishers.md 已写了 PMC 的 JS 验证页、reCAPTCHA 和 ScienceDirect 的验证页；MDPI、WorldCat 我们还没遇到过，遇到再写。
+
 - 来源 · 日期：拆分 issue（`archive/20261029-paper-to-zotero-split-fixed.md`）第 34 条 · 2026-11-01 记录。2026-10-29 只读对照了 Zotero 10.0.6 的翻译器和“Find Available PDF”，结论在拆分 spec `docs/specs/20261030-paper-to-zotero-split-spec.md` §9、§13。
 - 为什么记在这里：2026-11-01 拆分结案，比较报告随参考文件夹删掉，还要做的活和做法挪到这里。
 - 为什么要紧：几处字段 Zotero 填得出、我们填不出；有一条错误（LNCS 丛书名当论文集名）lint 查不出来。
-- 状态：open，还没排期。spec §13 定的是拆完以后单独做，不和拆分混在一起，免得没法对比拆分前后的结果。
+- 状态：fixed（2026-11-09）。spec §13 定的是拆完以后单独做，不和拆分混在一起。
 - 不在这里的：库里受影响的条目列在记忆 `zotero-library-todo`；作者关键词已经在重新分工第二期做了（`identify.py` 的 `author_keywords`）。
 
 ## 要做的

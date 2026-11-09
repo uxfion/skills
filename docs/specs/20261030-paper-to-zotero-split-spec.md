@@ -9,7 +9,7 @@
 >
 > 依据放在两张 issue 旁边的参考资料文件夹里，git 不跟踪。拆分这张的文件夹 2026-11-01 结案时删了：要点已经写进本文，下文提到的报告文件名只是当时的出处。还要用的两样挪到了别处：
 > - Node 裁判：后来放在 `20261102-paper-to-zotero-note-front-matter-fields-reference/node-judge/`，2026-11-04 跑过一次检查后删了，结果见 issue [archive/20261102-paper-to-zotero-note-front-matter-fields-fixed.md](../issues/archive/20261102-paper-to-zotero-note-front-matter-fields-fixed.md)；
-> - 元数据改进的做法：issue `20261101-paper-fetch-metadata-from-zotero.md`。
+> - 元数据改进的做法：issue [20261101-paper-fetch-metadata-from-zotero](../issues/archive/20261101-paper-fetch-metadata-from-zotero-fixed.md)。
 >
 > 论文笔记那张的文件夹里有 `zotero-notes-storage.md`、`better-notes.md`、`note-roundtrip-test.md`。
 >
@@ -742,7 +742,7 @@ note.py list [--cite C | --key K | --collection K] [--q 文字]
 
 ## 13. 留到以后的事
 
-- **元数据的改进**（做法见 issue `20261101-paper-fetch-metadata-from-zotero.md`）：把 Zotero 做得更好的几处搬进 paper-fetch，包括 arXiv 的完整日期、期刊缩写、会议地点、论文集 ISBN、LNCS 卷号、作者关键词；另外把 Zotero 处理 ScienceDirect、PMC、MDPI 的办法写进 `publishers.md`。拆完以后单独做，不和拆分混在一起，免得没法对比拆分前后的结果。
+- **元数据的改进**（做法见 issue [20261101-paper-fetch-metadata-from-zotero](../issues/archive/20261101-paper-fetch-metadata-from-zotero-fixed.md)）：把 Zotero 做得更好的几处搬进 paper-fetch，包括 arXiv 的完整日期、期刊缩写、会议地点、论文集 ISBN、LNCS 卷号、作者关键词；另外把 Zotero 处理 ScienceDirect、PMC、MDPI 的办法写进 `publishers.md`。拆完以后单独做，不和拆分混在一起，免得没法对比拆分前后的结果。
 - **论文笔记那张 issue 还没定的**：
   - 防止发散：哪些子问题可以加到树上，树最多几层；
   - 读论文的 subagent 能不能再派 subagent；
