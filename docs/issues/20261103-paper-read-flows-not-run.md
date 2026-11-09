@@ -21,38 +21,50 @@
 - 项目索引的标题行由 `index_heading.py` 生成，给用户看过样例，没写进任何项目。
 - 读论文时修库里的问题：主 agent 给 T-CACE 补了 `aka/T-CACE`。
 
+## 2026-11-05、11-06 又跑过的（2026-11-09 对照运行记录核对）
+
+这三次都没更新本 issue，11-09 补记。运行记录：本仓库上一个会话的主对话和 subagent 记录，以及颈动脉三维重建项目 11-06 的会话记录。
+
+- **11-05 全流程测试**：新导入 3 篇（SonoWorld、UIV-US、FSCG），各派一个 subagent 自己当读论文的 subagent 跑完整个流程。取出都是 `ok`，包导入时就有了。
+- **11-06 批量精读 16 篇**：UNSB 先试读一篇，取回逐字对比、标注框逐个看过；再分 8 篇、5 篇两轮并行。下面三项因此算跑过：
+  - 同时派几个读论文的 subagent：第一轮 8 个，是用户那次说的「最多8个subagent」；SKILL.md 写的是最多 5 个。
+  - 要问用户的事攒成一条消息：旧笔记要不要进回收站（11 篇上 23 条）、用户自己的两篇读不读。旧笔记那一问用户还没答。
+  - 读论文的 subagent 报库里的问题，主 agent 核实后改：补了 9 个 `aka/`、`dataset/`、`venue/` 标签；MINIM"缺摘要"一说核实是过时的，没改。
+  - 16 篇取出都是 `ok`：没碰上 `no_package`、`two_notes`、`better_pdf`；主 agent 没有退回过读论文的 subagent（MINIM 两处表名漏了前缀，主 agent 自己改了再存）。
+- **11-06 颈动脉三维重建项目里第一次真用**：项目的 agent 新导入 5 篇高斯泼溅论文，自己当读论文的 subagent 写了 5 条笔记，`check --full` 都是 `complete`，存进了 Zotero。
+  - `prepare_note`（现在的 `pr.py take`）对 5 篇都报 `no_package`。它没按提示去解析，直接读 PDF。理由是用户在那个项目里说过「训练不要用本机上面的 GPU」，它把这句套到了解析上，判断"没有 GPU 可用"。其实 paddleocr 可以用 vllm-serve 在远程服务器上起模型。结果：5 篇没有结构化包，笔记里的图表没有链接，以后查这 5 篇也没有包可读。这算第 5 条"没装 paddleocr，只读 PDF"跑过，不算 `no_package` 跑过。
+  - 项目里没有建论文索引：它把 5 条笔记的 key 列进了自己的调研文档。
+
 ## 还没跑过的
 
 1. **更正**（spec §3.5）：改笔记里一条事实，留更正标记；本项目依据它的决定当场重判；别的项目在汇报里告诉用户。
 2. **换版本**（issue 已定 51，spec §12 第 14 条）：
-   - 库里进了比笔记那份更好的 PDF 时，`prepare_note` 报 `better_pdf`；用 `--title` 取新版，`previous` 带出旧版的 PDF 和包；
+   - 库里进了比笔记那份更好的 PDF 时，`pr.py take` 报 `better_pdf`；用 `--title` 取新版，`previous` 带出旧版的 PDF 和包；
    - 读论文的 subagent 按 reading.md *Moving to another version* 逐段对比两份包，处理每一处差别，回报里列出。
    - 要看的：两份包的 Markdown 结构差得大时，逐段对比会不会满是噪音；"新版删去了这段"的标记写得顺不顺；正文的「读的版本」一段改对没有（这是唯一的一处，元数据区的 `pdf:` 2026-11-04 去掉了，见下面「已定 49 改了」）。
    - 2026-11-04 出处链接实测时跑过取和存这两头（CycleGAN 的一条测试笔记，从 arXiv v7 换到 Published-CVF）：`--title` 取新版、`previous` 带出旧版；改「读的版本」后 `put_note` 存，链接全部换成新 PDF 的 key、新 PDF 上建了框，旧 PDF 上的框留着。读论文的 subagent 逐段对比两份包这一段没跑。
+   - 2026-11-09 查过：库里 24 条论文笔记逐条 `pr.py take`，`better_pdf` 都是空的，没有现成的场合。
 3. **主题笔记**（spec §3.6）：一条都没建过。
    - 要先在 Zotero 里建"主题笔记"分类。
    - 原验证清单里有一项还没做：p2z `note put` 写 `related` 以后，论文条目那一侧的"相关"里能不能看到这条主题笔记。
 4. **项目论文索引在真项目里落地**（spec §3.4、§5；各项目的现状见参考资料 `project-*.md`）：
    - 第一个索引可以是 ceus 的：它考虑过 T-CACE 能不能作 B-only 方案（spec §2 的例子）。
    - T-CACE 的旧笔记"精读要点 2026-09-23"（key `4I8PKU67`）里"现在可用 / 未来可用"两节是某个项目（看起来是 ceus）的结论。这两节搬进那个项目的索引或文档以后，问用户能不能把旧笔记移进回收站。用户 2026-11-03 同意先留着。
-5. **几条分支**：
+5. **几条分支**（同时派几个、问题攒成一条、报库里的问题，11-06 已跑过，见上）：
    - `two_notes`（一篇论文有两条"论文笔记"）；
-   - `no_package`：用 paddleocr 解析、`structured put`、再跑 `prepare_note`；
-   - 没装 paddleocr，只读 PDF；
-   - 同时派几个读论文的 subagent（最多 5 个），要问用户的事攒成一条消息；
-   - 读论文的 subagent 没过检查，退回同一个 subagent（Claude Code `SendMessage`），或者接不上时另派一个；
-   - 读论文的 subagent 在回报里报出库里的问题，由主 agent 核实后去改。
-6. **按问题查阅其他版本和补充材料**（2026-11-09 加的 SKILL.md *Additional sources*，见 [archive/20261106-paper-read-elsewhere-in-library-fixed.md](archive/20261106-paper-read-elsewhere-in-library-fixed.md)）：
-   - 读者用 `p2z.py package take <paper> --title "<附件标题>"` 取另一个附件来查，笔记的主要版本不变；
-   - 补充事实注明各自的文件和位置，其他附件的图表写成显式页链接，`pr.py put` 不会把它们误链到主要 PDF；
-   - 库里没有的资料，由主 agent 经 paper-fetch 取来，再让读者接着读。
-   - 要看的：读者会不会该查的时候真去查（CycleGAN 那类，正式版指向 arXiv 版的附录）；`pr.py quotes` 报的其他附件引文，读者有没有对照那份 PDF 核对后标上「已核对」。
+   - `no_package`：用 paddleocr 解析、`p2z.py package put`、再 `pr.py take`（11-06 项目里碰上过，但没解析，见上）；
+   - 没装 paddleocr，只读 PDF（11-06 项目里实际走了这条，见上）；
+   - 读论文的 subagent 没过检查，退回同一个 subagent（Claude Code `SendMessage`），或者接不上时另派一个。
+6. **按问题查阅其他版本和补充材料**（2026-11-09 加的 SKILL.md *Additional sources*，见 [archive/20261106-paper-read-elsewhere-in-library-fixed.md](archive/20261106-paper-read-elsewhere-in-library-fixed.md)）。分两半，各自核对：
+   - **主 agent 单独查一处**（精读以外）：主 agent 自己用 `p2z.py package take <paper> --title "<附件标题>"` 取另一个附件来查，笔记的主要版本不变。
+   - **读论文的 subagent 精读时查**：要看它会不会该查的时候真去查（CycleGAN 那类，正式版指向 arXiv 版的附录），而且主 agent 的说明里不提示。
+   - 两半都要看：补充事实注明各自的文件和位置，其他附件的图表写成显式页链接，`pr.py put` 不会把它们误链到主要 PDF；`pr.py quotes` 报的其他附件引文，有没有对照那份 PDF 核对后标上「已核对」；库里没有的资料，由主 agent 经 paper-fetch 取来。
 
 ## 已定 49 改了（2026-11-04）
 
 已定 49 原来是"读的是哪份 PDF，元数据区和正文各记一份"。元数据区里自己加的字段存不进 Zotero，用户选了不去修存储、而是不再往元数据区记：「第一个问题，你根据我们的设计原则想一下，我感觉还是会选 A，就是去掉在笔记里面存它的原数据。因为本身我的笔记里面已经提到了主动提取。」
 
-- 现在只在正文的「读的版本」一段记，`prepare_note` 本来就只读这一段；新建的笔记不再写 `pdf:`。
+- 现在只在正文的「读的版本」一段记，`pr.py take`（当时的 `prepare_note`）本来就只读这一段；新建的笔记不再写 `pdf:`。
 - p2z `note put` 遇到 Zotero 存不下的字段直接拒绝（`bad_front_matter`，列出字段），不再悄悄丢掉。
 - p2z 那张 issue 随之关闭：[archive/20261102-paper-to-zotero-note-front-matter-fields-fixed.md](archive/20261102-paper-to-zotero-note-front-matter-fields-fixed.md)。
 
@@ -79,8 +91,9 @@
 
 还留着的：
 
-- **要用户定的一条**（审阅第 9 条）："读的版本"现在只记 PDF 的标题，标题会被整理改掉。如果同时记下附件 key，改名以后 `prepare_note` 能按 key 找回同一份 PDF。这要改已定 49。
-  - 2026-11-04 设计出处链接时查到的两条事实（[source-links spec](../specs/20261104-paper-read-source-links-spec.md) §4.3，那份设计不碰这件事）：出处链接存进 Zotero 后，每个链接里都带着 PDF 的附件 key；`read_library pdf --cite` 已经列出每份 PDF 的 `attachment` 和现在的标题，按 key 找回不用给 p2z 加新路径。还缺的：找回后谁改「读的版本」那一行；包按 PDF 标题挂，PDF 不经 p2z 改名时包会找不到。
+- **要用户定的一条**（审阅第 9 条）："读的版本"现在只记 PDF 的标题，标题会被整理改掉。如果同时记下附件 key，改名以后 `pr.py take` 能按 key 找回同一份 PDF。这要改已定 49。
+  - 2026-11-04 设计出处链接时查到的两条事实（[source-links spec](../specs/20261104-paper-read-source-links-spec.md) §4.3，那份设计不碰这件事）：出处链接存进 Zotero 后，每个链接里都带着 PDF 的附件 key；`p2z.py pdf`（当时的 `read_library pdf --cite`）已经列出每份 PDF 的 `attachment` 和现在的标题，按 key 找回不用给 p2z 加新路径。
+  - 2026-11-09 补：`pr.py take` 对改了名的 PDF 现在报 `no_such_title`，带出库里各份 PDF 的标题，由主 agent 判断是不是同一份改了名（SKILL.md *Every change to a note* 第 1 步）。还缺的：找回后谁改「读的版本」那一行；包按 PDF 标题挂，PDF 不经 p2z 改名时包会找不到。
 - **引文比对的规范形式修过 bug 以后，在新论文上再盲测一次**：原来那两篇已经用过，修完以后的重跑只算回归检查。
 
 ## 相关的 issue（各自开着，不在这里做）
