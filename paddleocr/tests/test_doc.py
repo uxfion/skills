@@ -99,7 +99,7 @@ class Markdown(unittest.TestCase):
 
     def test_manifest_and_pages(self):
         first = self.text.split("\n", 1)[0]
-        self.assertTrue(first.startswith("<!-- paddleocr render=5 source=synthetic.pdf "))
+        self.assertTrue(first.startswith("<!-- paddleocr render=6 source=synthetic.pdf "))
         self.assertIn("pages=1-3,5/5", first)
         self.assertEqual([p["text"] for p in self.pieces if p["kind"] == "page"],
                          ["<!-- page 1 -->", "<!-- page 2 -->", "<!-- page 3 -->", "<!-- page 5 -->"])
@@ -156,6 +156,15 @@ class Markdown(unittest.TestCase):
         D.commit(r, text.replace("and mask", "and the mask"))
         self.assertEqual([(c["was"], c["now"]) for c in changes(r, "p1-11")], [("mask", "the mask")])
         self.assertIn("Scan $x_{NC}$ and the mask $x_{TM}$", D.render_text(r)[0])
+
+    def test_tight_math_keeps_the_words_between_from_layout_6(self):
+        r = record()
+        given = "Map $x$ and returns $ \\hat{y} $; then $y$ and $ z $ cost $5 and $10."
+        next(b for b in r["blocks"] if b["id"] == "p1-11")["text"] = given
+        self.assertIn("Map $x$ and returns $\\hat{y}$; then $y$ and $z$ cost $5 and $10.", D.render_text(r)[0])
+        old = D.render_text(r, 5)[0]                              # layout 5 paired a closing dollar with an opening one
+        self.assertIn("$x$and returns$", old)
+        self.assertEqual(D.commit(r, old), [])                    # and a file in it still reads back as unedited
 
 
 class PageOrder(unittest.TestCase):

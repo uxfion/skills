@@ -28,7 +28,7 @@ from ocrlib import checks, cli, conventions, figures  # noqa: E402
 from ocrlib.cli import Stop  # noqa: E402
 
 FORMAT = 3               # the record's layout; a record of another format is parsed anew
-RENDER = 5               # the Markdown's layout; commit reads an edited Markdown in the layout its first line names
+RENDER = 6               # the Markdown's layout; commit reads an edited Markdown in the layout its first line names
 REFINE = 1               # bump when processing changes, so stored records are processed again (no GPU)
 CROP_DPI = 300
 IGNORED = {"number", "header", "header_image", "footer", "footer_image"}   # page furniture: in the record, not the Markdown
@@ -590,12 +590,31 @@ def _normalize(t: str) -> str:
 
 # PaddleOCR-VL writes inline math as "$ x $"; Markdown renderers, and a Zotero note through paper-to-zotero, read math
 # only where the dollars hug it (so that "$5 and $10" stays money).
-_SPACED_MATH = re.compile(r"(?<![\\$])\$[ \t]+([^$\n]*?[^\s$])[ \t]+\$(?!\$)")
+_SPACED_MATH = re.compile(r"(?<![\\$])\$[ \t]+([^$\n]*?[^\s$])[ \t]+\$(?!\$)")   # layout 5's
+_DOLLAR = re.compile(r"(?<![\\$])\$(?!\$)")
 
 
-def hug_math(text: str) -> str:
-    """Inline math with its dollars hugging the formula: "$ x_{i} $" -> "$x_{i}$"; display math as it is."""
-    return _SPACED_MATH.sub(r"$\1$", text)
+def hug_math(text: str, layout: int = RENDER) -> str:
+    """Inline math with its dollars hugging the formula: "$ x_{i} $" -> "$x_{i}$"; display math as it is.
+    The dollars of each line are paired in order, and a pair is hugged only when blanks pad both ends of its formula;
+    a line with an odd number of dollars stays as it is. Layout 5 matched a pattern instead, which could take the
+    closing dollar of one formula and the opening one of the next for a pair: "$x$ and $ y $" -> "$x$and$ y $"."""
+    if layout == 5:
+        return _SPACED_MATH.sub(r"$\1$", text)
+    lines = []
+    for line in text.split("\n"):
+        at = [m.start() for m in _DOLLAR.finditer(line)]
+        if len(at) % 2:
+            lines.append(line)
+            continue
+        out, last = [], 0
+        for a, b in zip(at[::2], at[1::2]):
+            inner = line[a + 1:b]
+            if inner[:1] in (" ", "\t") and inner[-1:] in (" ", "\t") and inner.strip(" \t"):
+                out += [line[last:a + 1], inner.strip(" \t")]
+                last = b
+        lines.append("".join(out) + line[last:])
+    return "\n".join(lines)
 
 
 FORMAT_TEXT = {
@@ -693,8 +712,8 @@ def pieces(record: dict, layout: int = RENDER) -> list[dict]:
     markers), image (a figure's image line), block (owners: the block, then any formula numbers joined to it), note
     (a finding's), fixed (the reason for an edit), info (a table's continuation). Every figure shown has its image
     line: with its first image block, else right after its opening marker (layout 4; layout 3 wrote none for a
-    figure whose blocks hold no image). Layout 5 writes inline math with its dollars hugging the formula (hug_math);
-    earlier layouts as PaddleOCR gives it."""
+    figure whose blocks hold no image). Layout 5 writes inline math with its dollars hugging the formula (hug_math),
+    layout 6 without joining two formulas across the words between them; earlier layouts as PaddleOCR gives it."""
     options = record["run"]["options"]
     view = blocks_view(record)
     by_id = {b["id"]: b for b in view}
@@ -825,7 +844,7 @@ def pieces(record: dict, layout: int = RENDER) -> list[dict]:
                 text, owners = format_block(b, options), [b["id"]]
             text = piece_text(text)
             if layout >= 5 and b["label"] not in FORMULAS:
-                text = hug_math(text)
+                text = hug_math(text, layout)
             if not text:
                 continue
             out += notes.pop(("block", b["id"]), [])

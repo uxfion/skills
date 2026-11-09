@@ -1,4 +1,4 @@
-<!-- paddleocr render=5 source=synthetic.pdf sha256=00000000 pages=1-3,5/5 checks=skipped:no_source coverage=none figures=2 figures_checked=0 open=0 unresolved=0 body=bfda0ca6ad35 -->
+<!-- paddleocr render=6 source=synthetic.pdf sha256=00000000 pages=1-3,5/5 checks=skipped:no_source coverage=none figures=2 figures_checked=0 open=0 unresolved=0 body=bfda0ca6ad35 -->
 
 <!-- page 1 -->
 
