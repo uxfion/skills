@@ -35,7 +35,7 @@ A read-through, a looked-up answer written back, a check mark, a correction: eac
 1. **Take**: `pr.py take <citation key> -o <scratch>/`, which puts the note file, its PDF, the package and the paper's other notes there (`pr.py take -h`).
    - `no_such_title`: the PDF the note was read in is no longer in the library under that title. If one of its `titles` is the same file renamed, take again with `--title` that title and name it in the 读的版本 paragraph; nothing needs reading again. Otherwise it goes to the user.
    - any other code but `ok` (`no_package`, `two_notes`, or paper-to-zotero's own line, `step` naming its command): follow its `hint`.
-   - `better_pdf`: the library holds a higher-ranked PDF. Decide whether the task calls for a move of the primary version (*Read a paper*) or a lookup in that PDF (*Additional sources*).
+   - `better_pdf`: the library holds a better version than the one the note was read in. A lookup reads on in the note's version, consulting the better one when the question needs it (*Additional sources*); a read-through moves the note onto it (*Read a paper*).
 2. **Edit** the note file by note-format.md, *Changing a note*.
 3. **Check**: `pr.py check <note>` (`--full` after a read-through) prints `complete`, and `pr.py quotes <note>` exits 0. `missing_numbers` lists questions lost since the take: put them back.
 4. **Put**: `pr.py put <note>`, run by you alone, since it writes Zotero. Its `code` is note put's:
@@ -61,9 +61,9 @@ If a needed source is missing, you obtain it through paper-fetch and continue th
 
 ## Read a paper
 
-**Whether to read a paper through is yours to judge.** Read through a paper that matters to the project: one its decisions will lean on, or one close to its problem. A paper from a strong journal or conference weighs more. For the rest, look up what you need. Papers are read when a task needs them, never in bulk at import. A note `pr.py check --full` already finds `complete` needs lookups for what it lacks. When adopting another primary version, read through on it to move the note.
+**Whether to read a paper through is yours to judge.** Read through a paper that matters to the project: one its decisions will lean on, or one close to its problem. A paper from a strong journal or conference weighs more. For the rest, look up what you need. Papers are read when a task needs them, never in bulk at import. A note `pr.py check --full` already finds `complete` is not read again: look up what it lacks. A better version in the library (`better_pdf`) is the exception: reading the paper through on it is how the note moves there.
 
-1. **Take** (*Every change to a note*, step 1). When moving to another primary PDF, take again into a new scratch directory with `--title <chosen title>`: `previous` then holds the version the note was read in, for the reader to compare (reading.md, *Moving to another version*).
+1. **Take** (*Every change to a note*, step 1). With `better_pdf`, take again into a new scratch directory with `--title <better_pdf>`: `previous` then holds the version the note was read in, for the reader to compare (reading.md, *Moving to another version*).
 2. **Send the reader** (*Handoffs*). A subagent running this flow is its own reader: it reads by references/reading.md, then goes on from step 3 with its own findings, and keeps what would be `report.md` in its reply.
 3. **Check what comes back**, against the files:
    - the checks of *Every change to a note*, step 3, with `--full`;

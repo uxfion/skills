@@ -38,7 +38,7 @@ parent: <citation key>
 A note started for one looked-up answer (`--bare`) holds the title and the 读的版本 paragraph; you add that one question, numbered under the trunk question (one of the eight) it belongs to, `### Q3.1`, without that trunk heading. A later read-through adds the trunk around it, and its number stays.
 
 - **The summary**, the first paragraph under the title: one sentence on what the paper does. Written last, from the answers already there; read first.
-- **读的版本**, the second paragraph: the title of the note's primary PDF. Choose it for the task; the library's best PDF is the default for a new note. A source without a version named refers to this PDF, with pages counted from 1 as the package's `<!-- page N -->` does. Other versions and supplementary material are read when a question needs them (*Evidence*). Adopting a different primary PDF is a version move (reading.md, *Moving to another version*).
+- **读的版本**, the second paragraph: the title of the note's primary PDF. A new note is read in the library's best PDF, and later reads keep it as the primary; when the library gains a better version, a read-through moves the note onto it (reading.md, *Moving to another version*). A source without a version named refers to this PDF, with pages counted from 1 as the package's `<!-- page N -->` does. Other versions and supplementary material are read when a question needs them (*Evidence*).
 
 ## The eight questions
 
