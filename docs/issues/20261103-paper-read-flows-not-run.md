@@ -35,6 +35,18 @@
   - `prepare_note`（现在的 `pr.py take`）对 5 篇都报 `no_package`。它没按提示去解析，直接读 PDF。理由是用户在那个项目里说过「训练不要用本机上面的 GPU」，它把这句套到了解析上，判断"没有 GPU 可用"。其实 paddleocr 可以用 vllm-serve 在远程服务器上起模型。结果：5 篇没有结构化包，笔记里的图表没有链接，以后查这 5 篇也没有包可读。这算第 5 条"没装 paddleocr，只读 PDF"跑过，不算 `no_package` 跑过。
   - 项目里没有建论文索引：它把 5 条笔记的 key 列进了自己的调研文档。
 
+## 2026-11-09 又跑过的（用户让从各项目挑 6–8 篇精读）
+
+精读了 7 篇：athreya 2024、MIRAGE、Pseudo-CEUS、TISA、POCUS-IQ、ALADYNOULLI、DualTrack（新导入）。每篇都按 SKILL.md 走完取出、派读论文的 subagent、核对、存回，笔记和整理过的包都在 Zotero 里。运行记录和每篇对项目的启发在 issue [20261109-paper-read-reading-for-project-insight.md](20261109-paper-read-reading-for-project-insight.md) 的参考资料里。下面几条因此算跑过：
+
+- **第 6 条，主 agent 单独查**：CycleGAN 笔记里标着"要看别处"的 5 问（λ、identity loss 权重、训练超参、消融数字、AMT 细节），主 agent 用 `p2z.py package take --title Preprint-arXiv-v7` 取库里的 arXiv 版查到了，各条带显式页链接和「已核对」，存回 Zotero。
+- **第 6 条，读论文的 subagent 精读时查**：athreya 那篇，主 agent 的说明里没有提示，读论文的 subagent 自己去查了库里的 arXiv 预印本，每条事实用那份文件自己的页码写成显式页链接，并判断预印本的设置和数字不适用于正式版。
+- **第 6 条，库里没有的资料由主 agent 取来**：两篇卡在补充材料上。ALADYNOULLI 的 Nature 补充材料取到了，挂成 Supplement-Nature；Pseudo-CEUS 的 RSNA 补充材料卡在网站的人机验证上，等用户。两个 skill 都没写"给已有论文补一份补充材料"怎么做，记在 [20261109-paper-fetch-supplement-for-a-library-paper.md](20261109-paper-fetch-supplement-for-a-library-paper.md)。
+- **第 5 条，退回同一个读论文的 subagent**：拿到 Nature 补充材料后，用 Claude Code `SendMessage` 让 ALADYNOULLI 的读论文的 subagent 接着补那两问（不是因为检查没过，是拿到了它要的资料）。
+- **第 2 条换版本还是没跑成**：本来给 SDEdit 补 ICLR 正式版来跑，OpenReview 的人机验证挡着，等用户。
+
+这一轮碰到的工具问题各自记了 issue（paddleocr 两张、paper-to-zotero 两张，其中 `create` 那张已修）。我自己 11-09 加的 paddleocr 版式 5 有个 bug，会把两个公式之间的正文吞掉，也是这一轮读论文的 subagent 发现的，已改成版式 6。
+
 ## 还没跑过的
 
 1. **更正**（spec §3.5）：改笔记里一条事实，留更正标记；本项目依据它的决定当场重判；别的项目在汇报里告诉用户。
@@ -54,8 +66,8 @@
    - `two_notes`（一篇论文有两条"论文笔记"）；
    - `no_package`：用 paddleocr 解析、`p2z.py package put`、再 `pr.py take`（11-06 项目里碰上过，但没解析，见上）；
    - 没装 paddleocr，只读 PDF（11-06 项目里实际走了这条，见上）；
-   - 读论文的 subagent 没过检查，退回同一个 subagent（Claude Code `SendMessage`），或者接不上时另派一个。
-6. **按问题查阅其他版本和补充材料**（2026-11-09 加的 SKILL.md *Additional sources*，见 [archive/20261106-paper-read-elsewhere-in-library-fixed.md](archive/20261106-paper-read-elsewhere-in-library-fixed.md)）。分两半，各自核对：
+   - 读论文的 subagent 没过检查，退回同一个 subagent（Claude Code `SendMessage`），或者接不上时另派一个（11-09 用 `SendMessage` 让同一个 subagent 接着读过一次，原因是补来了资料，不是没过检查；没过检查的情形和另派一个都还没碰上）。
+6. **按问题查阅其他版本和补充材料**（2026-11-09 加的 SKILL.md *Additional sources*，见 [archive/20261106-paper-read-elsewhere-in-library-fixed.md](archive/20261106-paper-read-elsewhere-in-library-fixed.md)）。11-09 两半都跑过了（见上）。其他附件的原句也引过：ALADYNOULLI 的读论文的 subagent 从补充材料引了 5 句，各自对照那份 PDF 核过、标了「已核对」，`pr.py quotes` 照设计跳过这几行。分两半，各自核对：
    - **主 agent 单独查一处**（精读以外）：主 agent 自己用 `p2z.py package take <paper> --title "<附件标题>"` 取另一个附件来查，笔记的主要版本不变。
    - **读论文的 subagent 精读时查**：要看它会不会该查的时候真去查（CycleGAN 那类，正式版指向 arXiv 版的附录），而且主 agent 的说明里不提示。
    - 两半都要看：补充事实注明各自的文件和位置，其他附件的图表写成显式页链接，`pr.py put` 不会把它们误链到主要 PDF；`pr.py quotes` 报的其他附件引文，有没有对照那份 PDF 核对后标上「已核对」；库里没有的资料，由主 agent 经 paper-fetch 取来。
