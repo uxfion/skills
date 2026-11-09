@@ -6,6 +6,7 @@
 - **实测**：先在 5 个包上调规则（Lambe、Wang 两篇没整理过，SonoWorld、UIV-US、FSCG 三篇已整理过），已知的 10 处真错全部列出，如 satisficing 读成 satisfying、diagnosticians 读成 diagnostics、表格方法名 STP-BCR 读成 STP-OCR。规则冻结后，换 3 个没看过的包（Bertalanic 2026、Chen 2025、Esteva 2021）检验：共 82 行，约三成是真错，如 instantiating 读成 differentiating、MMLU 读成 MMLI、AI 读成 Al；其余多为表格里合并单元格的顺序差异。拿不去噪的逐页比对做对照，没有漏掉真错。
 - **拒答句式不单独设代码**：SonoWorld 那句"作为 AI 语言模型……"已经被 `foreign_script` 加 `extra_text` 抓到。
 - **顺带改的**：生成 Markdown 时把行内公式写成紧贴的 `$x$`（版式 render=5），JSON 里的原值不动。PaddleOCR 原样输出 `$ x $`，进了 Zotero 笔记只是普通文字，读者原来每抄一个公式都要手工去空格。
+- **顺带修的库**（2026-11-09，用户授权修 skill 时顺手修库）：Lambe 2016、Wang 2024、Huang 2026 三个包里核实过的 15 处读错，按 PDF 文字层和页面图改正、`ocr.py commit` 记录，再 `p2z.py package put` 放回 Zotero。另外发现分词把表格单元格里的字面 `\n` 连同后面的词当成 LaTeX 命令抹掉（Lambe 表格的 Graber、Ilgen），已在 9aaba82 修正。
 
 - 来源：2026-11-05 全流程试用，三个只看 skill 文档的读论文 agent 在整理（settle）结构化包时报告。用户没有提。
 - 状态：fixed（2026-11-09）。

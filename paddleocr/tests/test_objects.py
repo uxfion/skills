@@ -203,7 +203,7 @@ class ShowRegion(unittest.TestCase):
 class Diff(unittest.TestCase):
     # (what the PDF says, what the parse says)
     LINES = [("Search satisficing calls off the search early.", "Search satisfying calls off the search early."),
-             ("Novice decision-making improves with feedback.", "Novice decision making improves with feedback."),
+             ("Ultrasound images of novice decision-making.", "Ultra sound images of novice decision making."),
              ("Features are aligned to f cur via min(i, n) here.", "Features are aligned to $ f_{cur} $ via $\\min(i, n)$ here."),
              ("Risk < 5% for groups A&B alike.", "Risk &lt; 5% for groups A&amp;B alike."),
              ("It is not fast, and not slow.", "It is fast, and not slow.")]
