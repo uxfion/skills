@@ -35,7 +35,7 @@ A read-through, a looked-up answer written back, a check mark, a correction: eac
 1. **Take**: `pr.py take <citation key> -o <scratch>/`, which puts the note file, its PDF, the package and the paper's other notes there (`pr.py take -h`).
    - `no_such_title`: the PDF the note was read in is no longer in the library under that title. If one of its `titles` is the same file renamed, take again with `--title` that title and name it in the 读的版本 paragraph; nothing needs reading again. Otherwise it goes to the user.
    - any other code but `ok` (`no_package`, `two_notes`, or paper-to-zotero's own line, `step` naming its command): follow its `hint`.
-   - `better_pdf`: the library holds a better version than the one the note was read in. A lookup reads on in the note's version; a read-through moves the note onto the better one (*Read a paper*).
+   - `better_pdf`: the library holds a higher-ranked PDF. Decide whether the task calls for a move of the primary version (*Read a paper*) or a lookup in that PDF (*Additional sources*).
 2. **Edit** the note file by note-format.md, *Changing a note*.
 3. **Check**: `pr.py check <note>` (`--full` after a read-through) prints `complete`, and `pr.py quotes <note>` exits 0. `missing_numbers` lists questions lost since the take: put them back.
 4. **Put**: `pr.py put <note>`, run by you alone, since it writes Zotero. Its `code` is note put's:
@@ -48,16 +48,22 @@ Done when both checks pass, `pr.py put` answers `ok` or `skipped`, and every `un
 ## Look it up
 
 1. Take the note (`pr.py take --bare …`) and see whether it answers the question. If it does, that is your answer; a fact a decision or a manuscript will rest on is checked first (references/notes.md, *A project uses a paper*).
-2. If not, or not enough: read the parts of the package that bear on it, by the paddleocr skill's *3. Read and report*, and check against the PDF the numbers you use and any spot still marked open or unresolved; settling the whole package is a read-through's work.
+2. If not, or not enough: read the parts of the package that bear on it, by the paddleocr skill's *3. Read and report*, and check against the PDF the numbers you use and any spot still marked open or unresolved; settling the whole package is a read-through's work. Follow other versions or supplementary material when the question calls for them (*Additional sources*).
 3. Write back what is about the paper (*The subject decides where a sentence goes*), under the question it belongs to, by *Every change to a note*. With nothing to write back, put nothing and delete the scratch directory.
 
 Done when the answer rests on the note or the paper's text, and what belongs in the note is in Zotero.
 
+## Additional sources
+
+The primary PDF gives the default page numbers and automatic figure links. To answer a question, follow the paper's references to another version or supplement, and use other relevant attachments as needed. The reader does these lookups during a read-through; outside one, you do them. Follow references/reading.md, *Additional sources*, and cite each file by references/note-format.md, *Evidence*.
+
+If a needed source is missing, you obtain it through paper-fetch and continue the lookup or resume the reader with the source and its original brief. Keep a question as 要看别处 only with the source still needed and what prevents checking it; material already in hand is used now. Any library write follows paper-to-zotero's authorization rules.
+
 ## Read a paper
 
-**Whether to read a paper through is yours to judge.** Read through a paper that matters to the project: one its decisions will lean on, or one close to its problem. A paper from a strong journal or conference weighs more. For the rest, look up what you need. Papers are read when a task needs them, never in bulk at import. A note `pr.py check --full` already finds `complete` is not read again: look up what it lacks. A better version in the library (`better_pdf`) is the exception: reading the paper through on it is how the note moves there.
+**Whether to read a paper through is yours to judge.** Read through a paper that matters to the project: one its decisions will lean on, or one close to its problem. A paper from a strong journal or conference weighs more. For the rest, look up what you need. Papers are read when a task needs them, never in bulk at import. A note `pr.py check --full` already finds `complete` needs lookups for what it lacks. When adopting another primary version, read through on it to move the note.
 
-1. **Take** (*Every change to a note*, step 1). With `better_pdf`, take again into a new scratch directory with `--title <better_pdf>`: `previous` then holds the version the note was read in, for the reader to compare (reading.md, *Moving to another version*).
+1. **Take** (*Every change to a note*, step 1). When moving to another primary PDF, take again into a new scratch directory with `--title <chosen title>`: `previous` then holds the version the note was read in, for the reader to compare (reading.md, *Moving to another version*).
 2. **Send the reader** (*Handoffs*). A subagent running this flow is its own reader: it reads by references/reading.md, then goes on from step 3 with its own findings, and keeps what would be `report.md` in its reply.
 3. **Check what comes back**, against the files:
    - the checks of *Every change to a note*, step 3, with `--full`;
@@ -70,7 +76,7 @@ Done when the answer rests on the note or the paper's text, and what belongs in 
    - the PDF is not this paper: stop; it goes to the user;
    - a settled package: `p2z.py package put <package>`, which trashes the package it replaces (a derived copy: no question for the user);
    - a library error it names, such as a common name the paper goes by without its `aka/` tag: read the item, and if the error is real, fix it by paper-to-zotero's rules and list it in your report. Deleting or merging items waits for the user;
-   - questions marked 要看别处: they stay open until the user asks;
+   - questions marked 要看别处: check what source is missing and obtain it when needed for the task (*Additional sources*); resume the reader with what you obtain. Report what remains blocked;
    - answers to a project's questions: write back what *Look it up* step 3 says belongs in the note;
    - the reader could not finish: supply what it says is missing and send it back, or take it to the user.
 5. **Check and put** (*Every change to a note*, steps 3 and 4): step 4 may have changed the note.

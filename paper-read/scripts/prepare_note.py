@@ -20,6 +20,8 @@ Into DIR, through paper-to-zotero's own commands, where <name> is <citation key>
   - notes/, the paper's other child notes, left as leads.
 pr.py check, quotes and put find these beside the note. A rerun into the same directory, after a parse for instance,
 keeps the note file and its .taken as they are.
+For a lookup in another attachment while keeping this primary PDF, use p2z.py package take --title instead;
+references/reading.md, Additional sources, describes that flow.
 
 stdout: one JSON object.
   ok          {note, taken, created, input, pdf_title, package, better_pdf, previous, old_notes, open_findings, paper}:

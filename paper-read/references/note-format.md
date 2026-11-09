@@ -38,7 +38,7 @@ parent: <citation key>
 A note started for one looked-up answer (`--bare`) holds the title and the 读的版本 paragraph; you add that one question, numbered under the trunk question (one of the eight) it belongs to, `### Q3.1`, without that trunk heading. A later read-through adds the trunk around it, and its number stays.
 
 - **The summary**, the first paragraph under the title: one sentence on what the paper does. Written last, from the answers already there; read first.
-- **读的版本**, the second paragraph: the title of the PDF the note was read in. Every page number in the note counts that PDF's pages from 1, as the package's `<!-- page N -->` does. A new note is read in the library's best PDF, and every later read uses the same one. When the library gains a better version, a read-through moves the note onto it (reading.md, *Moving to another version*).
+- **读的版本**, the second paragraph: the title of the note's primary PDF. Choose it for the task; the library's best PDF is the default for a new note. A source without a version named refers to this PDF, with pages counted from 1 as the package's `<!-- page N -->` does. Other versions and supplementary material are read when a question needs them (*Evidence*). Adopting a different primary PDF is a version move (reading.md, *Moving to another version*).
 
 ## The eight questions
 
@@ -72,7 +72,7 @@ A fixed item of Q5 or Q6 the paper says nothing about keeps its bold word, follo
 The headings are the question tree, which Zotero's Better Notes outline shows as one.
 
 - A question is a heading: its number, the question, its state in brackets: `## Q3 论文如何解决这个问题？ [已答]`. The trunk questions are `##`; a question one of them raises is `###` (`### Q3.1 推理时也要输入肿瘤 mask 吗？`); one level further is `####`. The answer is written under its heading.
-- **States**: 待答 (not yet), 进行中 (being answered), 已答, 论文没有说明 (the paper does not say; never guessed), 要看别处 (the answer is outside the paper: the code, the supplement), 等 Qn (waits for another answer, asked again under it: `### Q3.2 对比方法也给了 mask 吗？ [等 Q5] → Q5.1`; once Q5.1 is answered, `[已答] → Q5.1`).
+- **States**: 待答 (not yet), 进行中 (being answered), 已答, 论文没有说明 (the relevant text does not say; never guessed), 要看别处 (the answer needs a source not yet consulted: name it, why it is needed, and what prevents the lookup; another version or supplement already available is read now when it bears on the question), 等 Qn (waits for another answer, asked again under it: `### Q3.2 对比方法也给了 mask 吗？ [等 Q5] → Q5.1`; once Q5.1 is answered, `[已答] → Q5.1`).
 - A heading without a number is a section and has no state.
 - A heading is plain text in Zotero: it shows no math, and TeX in it does not come back as a heading. Write a symbol there in Unicode (ŷᵢ, fθ) and the formula in the answer.
 - A blank line before every block you write: Better Notes cuts its outline by them. Taken from Zotero, a block nested in a list item or a quote sits right under the line before it, and a table's rule reads `| --- |`: the same note.
@@ -81,6 +81,7 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
 ## Evidence
 
 - **The source** says where in the paper a fact is: a section, a figure, a table, an algorithm, an equation, with the page when it helps: (Sec. III-A), (Table III, p.11). An answer about the paper's whole idea, or a fact that cannot be pinned to one place, carries none.
+- **Other versions and supplementary material** can answer a question without changing the primary PDF. Name the attachment and the section, figure or table, with that file's page number, beside each fact drawn from it. Link to that attachment's page when it is in Zotero, for example `[Preprint-arXiv-v7 · Sec. 7.2, p.15](zotero://open-pdf/library/items/ABCDEFGH?page=15)`. Material not yet in the library names its document and URL. Check what it actually says: an earlier version's setting is not automatically the published version's setting; distinguish differences and leave uncertain applicability explicit.
 - **A quotation** is the sentence an answer rests on, copied verbatim in English, one line, unbroken, with any double quotes inside it as they are and its source after it; then a line holding only `>`; then its Chinese rendering. Formulas as `$x_{NC}$`, with no space inside the dollars:
 
   ```markdown
@@ -89,19 +90,19 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
   > 给定平扫肝脏 MRI 和对应的肿瘤 mask，模型同时合成临床上相关的三个时相
   ```
 
-  `pr.py quotes` searches the PDF's text layer, which holds no LaTeX: of the sentences an answer could rest on, quote one in plain words. A line it reports `unparsed` is rewritten in the quotation form. Any other short of `ok` (often a table cell, a figure label or a formula the text layer garbles) is compared with the page image, corrected if need be, and marked （已核对 <source> · <date>）; where the package misread the words, the quotation takes the PDF's words and that spot is settled in the package (`ocr.py commit`).
+  `pr.py quotes` searches the primary PDF and its package. It cannot verify a quotation against another attachment: compare that quotation with its own PDF, then mark it （已核对 <attachment title and location> · <date>）. The mark records a completed comparison. The text layer holds no LaTeX: of the sentences an answer could rest on, quote one in plain words. A line reported `unparsed` is rewritten in the quotation form. Any other reported quotation (often a table cell, a figure label or a formula the text layer garbles) is compared with its source page image, corrected if need be, and marked as checked; where the package misread the words, the quotation takes the PDF's words and that spot is settled in the package (`ocr.py commit`).
 - **An inference** is marked （推断）; knowledge from outside the paper （论文外）; what the paper does not say is written as 论文没有说明.
 - **Judgements about the paper** (Q6, Q7) are written as judgements, with what they rest on. "Not stated" is a fact and is written plainly; "possibly unfair" is a judgement and says why. Falling short of SOTA, closed code and honestly stated limits are not failures in themselves.
 
 **Marks**, in the text (never a heading) after the fact they concern:
 
-- `（已核对 <source> · <date>）`: someone compared this fact with the PDF. One per fact, the latest only; a table checked cell by cell takes one, after the sentence that presents it.
+- `（已核对 <source> · <date>）`: someone compared this fact with its cited source. One per fact, the latest only; a table checked cell by cell takes one, after the sentence that presents it.
 - `（更正 <date>：原写"…"，按 <evidence and its source> 改）`: what was there before a correction, and why it changed. It stays.
 - `（<new PDF title> 删去了这段，原见 <previous PDF title> <source>）`: a later version dropped what this sentence rests on. It stays.
 
 ## Clickable figures and tables
 
-`pr.py put` turns each figure and table the note names in one of these forms into a link to a box on it in the PDF, so a reader of the note sees it in one click. The links live in Zotero only; the note file you edit stays without them.
+`pr.py put` turns an unlinked figure or table in one of these forms into a box link in the primary PDF. These automatic links live in Zotero only; the file you edit keeps their plain text. For another attachment, write its figure or table name inside an explicit page link, such as `[Supplement · Fig. S2, p.4](zotero://open-pdf/library/items/ABCDEFGH?page=4)`; that link stays in the working note and through take/put, so it keeps the right PDF. For a source not yet in Zotero, use a link to its document and name the page.
 
 - Linked: `Fig. 9`, `Fig.9`, `Figure 9`, `Fig. 2(b)` (the link is `Fig. 2`), `Table III`, `Supplementary Fig. 3`, `Extended Data Table 1`.
 - Not linked: `p.11`, `Sec. III-A`, `Eq. (3)`, `图 4`, and any name in a heading: `### Q5.1 Table III 说明什么？`.
