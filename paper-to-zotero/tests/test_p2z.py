@@ -13,8 +13,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from helpers import config_file, load
+from helpers import call, config_file, load, smoke
 from fake_zotero import FakeZotero
 
 from p2zlib import run as work_run
@@ -113,13 +114,17 @@ class PrepareAndSave(unittest.TestCase):
         work.records.mkdir()
         pdf = results / "new.pdf"
         pdf.write_bytes(b"%PDF-1.4 a new paper")
+        unchecked = results / "extra.pdf"
+        unchecked.write_bytes(b"%PDF-1.4 a file not yet checked")
         got = {"status": "got", "tried": [], "last": None}
         author = [{"creatorType": "author", "firstName": "Wei", "lastName": "Liu"}]
         papers = {
             "new": ({"itemType": "journalArticle", "title": "A New Paper", "DOI": "10.1000/new.1", "date": "2024"},
                     {"record_of": "published", "outcome": got, "files": [
                         {"name": "new.pdf", "md5": work_run.md5_of(pdf), "kind": "published", "check": "ok",
-                         "label": {"title": "Published-Example"}}]}),
+                         "label": {"title": "Published-Example"}},
+                        {"name": "extra.pdf", "md5": work_run.md5_of(unchecked), "kind": "supplement",
+                         "check": "cannot_judge", "label": {"title": "Supplement-Example"}}]}),
             "dup": ({"itemType": "journalArticle", "title": "Paper Near Something", "date": "2024"},
                     {"record_of": "published", "outcome": {"status": "not_got", "tried": [], "last": None}, "files": []}),
             "pre": ({"itemType": "preprint", "title": "Reflexion: Language Agents with Verbal Reinforcement",
@@ -133,7 +138,7 @@ class PrepareAndSave(unittest.TestCase):
             (results / f"{slug}.json").write_text(json.dumps({"slug": slug, **res}))
             (work.records / f"{slug}.json").write_text(json.dumps({
                 "fetched": str(results / f"{slug}.json"), "item": {**item, "creators": author}, "collection": "COLL0001",
-                "tags": ["method/x"]}))
+                "tags": ["method/x"], **({"citationKey": "liu_2024"} if slug == "new" else {})}))
         records = [str(work.records / f"{s}.json") for s in papers]
         env = {**os.environ, "PAPER_TO_ZOTERO_CONFIG": str(config_file())}
 
@@ -154,34 +159,91 @@ class PrepareAndSave(unittest.TestCase):
         self.assertIn({"tags": str(work.tags / "new.json")}, by["new"]["decide"], "a paper to create needs its tags file")
         self.assertNotIn("tags", json.dumps(by["lib"].get("decide", [])), "a paper the library holds is not tagged")
         code, again = p2z("prepare")
-        self.assertTrue(all(v.startswith("skipped") for v in again[0]["steps"].values()), again[0])
+        self.assertTrue(all(v["code"] == "skipped" for v in again[0]["steps"].values()), again[0])
+        self.assertEqual(again[0]["steps"]["have"]["reason"], "done")
         pre = work_run.read(records[2])
         pre["keep_preprint"] = "the user wants the preprint"
         pre.save()
         code, lines = p2z("save")
         by = {line["slug"]: line for line in lines}
-        self.assertEqual((by["new"]["steps"]["create"], by["new"]["failed"]), ("untagged", ["create", "attach"]),
+        self.assertEqual((by["new"]["steps"]["create"]["code"], by["new"]["failed"]), ("untagged", ["create", "attach"]),
                          "no item before its curated tags, and save says so")
+        self.assertEqual(by["new"]["steps"]["create"]["tags_file"], str(work.tags / "new.json"))
+        self.assertIn("tags file", by["new"]["steps"]["create"]["hint"])
         work.tags.mkdir()
         for slug in ("new", "pre"):
             (work.tags / f"{slug}.json").write_text(json.dumps(["method/x", "venue/Example"]))
         writes = len(zot.writes())
         code, lines = p2z("save", "-n")
-        self.assertEqual(({line["slug"]: line for line in lines}["new"]["steps"], len(zot.writes())),
+        self.assertEqual(({name: step["code"] for name, step in
+                           {line["slug"]: line for line in lines}["new"]["steps"].items()}, len(zot.writes())),
                          ({"create": "ok", "attach": "ok"}, writes), "save -n on a new record: both steps would go, nothing written")
         code, lines = p2z("save")
         by = {line["slug"]: line for line in lines}
-        self.assertEqual(by["new"]["steps"], {"create": "ok", "attach": "ok"}, lines)
+        self.assertEqual({name: step["code"] for name, step in by["new"]["steps"].items()},
+                         {"create": "ok", "attach": "ok"}, lines)
+        created, attached = by["new"]["steps"]["create"], by["new"]["steps"]["attach"]
+        self.assertEqual(created["key"], work_run.read(records[0])["saved"]["key"])
+        self.assertEqual(created["citation_key_hint"]["suggested"], "liu2024")
+        self.assertEqual(attached["unchecked"], ["extra.pdf"], "an ok step can still name files left unchecked")
+        self.assertEqual(attached["files"][0]["attachment"], work_run.read(records[0])["attach"][0]["attachment"])
         self.assertEqual(zot.data(work_run.read(records[0])["saved"]["key"])["tags"],
                          [{"tag": "method/x", "type": 0}, {"tag": "venue/Example", "type": 0}])
         self.assertEqual(work_run.read(records[0])["attach"][0]["title"], "Published-Example")
-        self.assertEqual(by["dup"]["steps"]["create"], "possible_duplicate")
+        self.assertEqual(by["dup"]["steps"]["create"]["code"], "possible_duplicate")
         self.assertEqual(by["dup"]["failed"], ["create"])
-        self.assertEqual(by["pre"]["steps"]["attach"], "unsettled", "a result never settled attaches nothing")
-        self.assertEqual((by["lib"]["steps"]["attach"], by["lib"].get("failed")), ("skipped: library_has_pdf", None),
+        self.assertEqual(by["pre"]["steps"]["attach"]["code"], "unsettled", "a result never settled attaches nothing")
+        self.assertEqual((by["lib"]["steps"]["attach"]["code"], by["lib"]["steps"]["attach"]["reason"],
+                          by["lib"].get("failed")), ("skipped", "library_has_pdf", None),
                          "the library's own PDF: nothing to fetch, nothing to settle")
         self.assertNotIn({"published_versions": 1}, by["pre"].get("decide", []), "keep_preprint settles it")
         self.assertEqual(self.last["summary"]["decide"], 4)
+        writes = len(zot.writes())
+        code, lines = p2z("save")
+        again = {line["slug"]: line for line in lines}["new"]["steps"]
+        self.assertEqual((again["create"]["code"], again["create"]["reason"]), ("skipped", "saved"))
+        self.assertEqual((again["attach"]["code"], again["attach"]["reason"]), ("skipped", "attached"))
+        self.assertEqual(again["attach"]["unchecked"], ["extra.pdf"], "skipped steps keep their other fields too")
+        self.assertEqual(len(zot.writes()), writes, "a rerun adds neither an item nor an attachment")
+
+    def test_save_keeps_the_first_creation_readback_diagnostic(self):
+        zot = FakeZotero()
+        self.addCleanup(zot.close)
+        zot.add_collection("COLL0001", "Inbox")
+        zot.on_write = lambda item: item["data"].update(tags=[])
+        with tempfile.TemporaryDirectory(prefix="p2z-mismatch-") as tmp:
+            work = work_run.Work(tmp)
+            work.records.mkdir()
+            work.tags.mkdir()
+            result = work.root / "result.json"
+            result.write_text(json.dumps({"record_of": "published", "files": [],
+                                          "outcome": {"status": "not_got", "tried": [], "last": None}}))
+            record = work.records / "mismatch.json"
+            record.write_text(json.dumps({"item": {"itemType": "journalArticle", "title": "Readback Example",
+                                                    "creators": [{"creatorType": "author", "lastName": "Liu"}]},
+                                          "collection": "COLL0001", "fetched": str(result)}))
+            (work.tags / "mismatch.json").write_text(json.dumps(["method/x"]))
+            config = config_file(work.root)
+            first = call(ENTRY, "save", record, "--base-url", zot.base_url, config=config)
+            created = first.lines[0]["steps"]["create"]
+            self.assertEqual((first.code, created["code"], created["wrong"]),
+                             (1, "readback_mismatch", {"tags": True}))
+            self.assertIn(created["key"], created["hint"])
+            again = smoke("create", record, "--base-url", zot.base_url, config=config)
+            self.assertEqual(again.lines[0]["reason"], "saved", "a rerun cannot recover the original diagnostic")
+
+    def test_a_step_that_exits_without_a_result_still_has_an_object(self):
+        with tempfile.TemporaryDirectory(prefix="p2z-no-result-") as tmp:
+            record = Path(tmp) / "example.json"
+            record.write_text("{}")
+            stop = {"code": "step_failed", "hint": "The child could not start."}
+            child = subprocess.CompletedProcess([], 2, stdout="", stderr=json.dumps(stop))
+            with mock.patch.object(ENTRY.subprocess, "run", return_value=child) as child_run:
+                result = call(ENTRY, "save", record)
+            self.assertEqual(result.code, 2)
+            self.assertEqual(result.lines[0]["steps"], {"create": {"code": "step_failed", "exit": 2}})
+            self.assertEqual(result.last, stop)
+            self.assertEqual(child_run.call_count, 1, "attach never runs after a step cannot go on")
 
 
 if __name__ == "__main__":

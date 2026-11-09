@@ -92,15 +92,14 @@ Done when paper-fetch's chain is done for every result handed to it, and `pf.py 
 p2z.py save <imp>/records/*.json
 ```
 
-Run it after every pass of step 4: it skips what is done, and `no_file_yet` is not a failure. On its lines (each step's code under `steps`):
+Run it after every pass of step 4: it skips what is done, and `no_file_yet` is not a failure. Read the complete results under `steps.create` and `steps.attach`, including fields on `ok` and `skipped` results:
 - `possible_duplicate`: an item came into the library since `prepare`; its handoff goes to same-paper judges as in step 3.
 - `untagged`: the paper's tags file is not written yet (step 3), so no item was created; `save` again once it is.
-- `readback_mismatch` from `create`: the item exists but a tag or a collection did not stick; `p2z.py tag <citation key> --add-tag … --add-collection …` sets it right.
+- `readback_mismatch` from `create`: the item exists; `wrong` names the tags, collections or citation key that did not stick. Follow its `hint` to fix them with `p2z.py tag` or `p2z.py update`.
 - `unsettled` or `file_changed`: `pf.py sync <imp>/fetch/results/*.json`, then `save` again.
-- `unchecked`: a stub's PDF, which paper-fetch had nothing to check against; [no-doi-record.md](no-doi-record.md) identifies the paper from it.
-- Any other failure creates nothing: run that step alone on the record (`p2z.py create <record>` or `p2z.py attach <record>`) for its hint, fix the record as it says and rerun — a rerun is always safe, a run cut off mid-POST included. A file that still cannot be attached goes to the user with its path.
-
-`save` keeps step codes only. Check new items with `p2z.py lint <their keys>`: a `citation_key` finding with `problem: tex_special` carries the suggestion that `create` alone would print as `citation_key_hint`. Ask the user before setting it with `p2z.py update <key> --set citationKey=<suggested>`. If a result has files missing from the record's `attach`, run `p2z.py attach <record>` alone for their names and hints, including `unchecked` files mixed with attached ones; handle those by no-doi-record.md.
+- `unchecked`, as the attachment step's code or a list beside `ok` or `skipped`: files paper-fetch could not check, including a stub's PDF; [no-doi-record.md](no-doi-record.md) identifies the paper from them.
+- `citation_key_hint` from `create`: ask the user before setting the suggested key with `p2z.py update <key> --set citationKey=<suggested>`.
+- Other failures: follow the step's `hint`, fix what it names and rerun `save` — a rerun is safe, a run cut off mid-POST included. A file that still cannot be attached goes to the user with its path.
 
 Then the structured packages of the PDFs this run attached, which the paddleocr skill parses (SKILL.md, *Sibling skills*): `p2z.py package take <their items' keys> --missing -o <imp>/structured/ | ocr.py parse -o <imp>/structured/ -` in the background, then `p2z.py package put <imp>/structured/*/`. Their findings stay open: a paper is settled when a task first reads it. A PDF left without its package (no GPU, a failed parse) is archived all the same: name it in the report, and the next reader makes it.
 

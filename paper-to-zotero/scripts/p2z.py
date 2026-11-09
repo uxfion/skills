@@ -71,7 +71,9 @@ PREPARE = """Fill the blocks computed from records: have (found, near_matches), 
 
 Each script skips a block that is done, so after any change to a record run prepare again. One line per record:
 {slug, code: decide | failed | ok, decide?: [what is still open], failed?: [the words whose line for it is not done],
-steps: {word: its code}}. `decide` comes from the record and its result, each entry naming who settles it:
+steps: {word: {code, ...}}}. Each step keeps its complete output object except the repeated slug; a failed step
+that printed no result is {code: step_failed, exit: N}. `decide` comes from the record and its result, each entry
+naming who settles it:
   same_paper      the open handoff's path and waiting_on: judge (it answers with p2z.py answer) | user (a judge
                   answered pair or unknown; the agent records the user's word with p2z.py answer --by user). Several
                   library items carrying the paper's identifier come this way too, as candidates with matched_by
@@ -93,7 +95,10 @@ Examples:
 SAVE = """Create the records' items, then attach their files: create, then attach.
 
 Each skips what it has done, so save can run after every pass of paper-fetch's fetch. One line per record, as
-prepare's: {slug, code: decide | failed | ok, decide?, failed?, steps: {word: its code}}.
+prepare's: {slug, code: decide | failed | ok, decide?, failed?, steps: {word: {code, ...}}}.
+Each step keeps its complete output object except the repeated slug; a failed step that printed no result is
+{code: step_failed, exit: N}. Read the step results even when ok or skipped: they can carry citation_key_hint,
+unchecked, unconfirmed, and files with attachment keys or suggested titles. Each step's help defines its fields.
 Exit 0 = every record saved; 1 = something is to settle or failed, then stderr's last line is {"summary": ...}; 2 = a
 step could not go on (the next did not run), then stderr's last line is that step's {code, hint}.
 
@@ -171,13 +176,12 @@ def compound(word, argv):
                 continue
             slug = line.get("slug") if isinstance(line, dict) else None
             if slug in steps:
-                code = line.get("code")
-                steps[slug][name] = f"skipped: {line.get('reason')}" if code == "skipped" else code
+                steps[slug][name] = {k: v for k, v in line.items() if k != "slug"}
                 if "hint" in line:  # a script gives a hint only on a line that is not done (cli.tidy)
                     steps[slug].setdefault("_failed", []).append(name)
         for got in steps.values():
             if name not in got and done.returncode:  # the script ended without a line for it
-                got[name] = f"exit {done.returncode}"
+                got[name] = {"code": "step_failed", "exit": done.returncode}
                 got.setdefault("_failed", []).append(name)
         if done.returncode == cli.CANNOT:
             last = (done.stderr.strip().splitlines() or [""])[-1]
