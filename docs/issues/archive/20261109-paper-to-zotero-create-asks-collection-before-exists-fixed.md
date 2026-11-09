@@ -1,7 +1,9 @@
 # paper-to-zotero：给库里已有的论文补一个版本，`create` 先要分类才肯认出它已在库里
 
+> **已解决（2026-11-09）**：`create` 先查库里有没有这篇，有就 `skipped: exists`；只有要新建条目时才要分类（`no_collection`）。测试在 `paper-to-zotero/tests/test_create_item.py` 的 `test_the_library_has_it`。
+
 - 来源：2026-11-09 精读那一轮，主 agent 派导入 subagent 给 SDEdit（`meng2022sdedit`，库里已有，只有 Preprint-arXiv-v2）补 ICLR 2022 正式版 PDF。subagent 回报，主 agent 读了代码核实。用户没有提。
-- 状态：open。
+- 状态：已解决（见上）。
 
 ## 经过
 

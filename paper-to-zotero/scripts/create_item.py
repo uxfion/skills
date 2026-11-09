@@ -24,7 +24,8 @@ lists the item's collections, each {key, path}.
   untagged             the paper's tags file (`tags_file`) is not written yet: tag it (references/tagging.md), then
                        run this again; nothing created meanwhile
   no_item | item_invalid | no_collection | collection_not_found | invalid_tags    the record's fault (invalid_tags:
-                       the record's tags or the tags file's): nothing written
+                       the record's tags or the tags file's; no_collection only for a paper the library does not
+                       hold): nothing written
   write_denied | write_failed      Zotero did not take it (nothing created; the pending mark is gone)
   readback_mismatch    created (`saved` written) but not filed, tagged or keyed as sent: fix it with p2z.py tag
                        or p2z.py update
@@ -60,9 +61,7 @@ def payload_of(rec, ctx):
     if problems:
         raise cli.Stop("item_invalid", problems=problems, hint="Fix the record's item (p2z.py check shows what Zotero "
                                                                "makes of each field), then run this again.")
-    named = rec.keys_of("collection")
-    if not named:
-        raise cli.Stop("no_collection", hint="Put the destination in the record's collection: its key, path or name.")
+    named = rec.keys_of("collection")    # none is asked for only once the library is known not to hold the paper
     if ctx["tree"] is None:
         ctx["tree"] = ctx["zot"].collections()
     collections = list(dict.fromkeys(ctx["zot"].collection(value, ctx["tree"]) for value in named))
@@ -118,6 +117,8 @@ def process(rec, ctx):
                             "created_at": saved.get("at")}
             return {"code": "ok", "recovered": True, **saved_line(rec["saved"], refs)}
         return cli.skipped("exists", key=found["key"], matched_by=found["matched_by"])
+    if not collections:
+        raise cli.Stop("no_collection", hint="Put the destination in the record's collection: its key, path or name.")
     if run.unsettled(rec):
         return {"code": "possible_duplicate", "near_matches": run.near_lines(near), "handoff": run.ask_same_paper(rec),
                 "hint": run.HINT_NEAR}

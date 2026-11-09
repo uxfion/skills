@@ -119,6 +119,9 @@ class CreateItem(unittest.TestCase):
                          [("skipped", "exists", "HAVE0001"), ("possible_duplicate", None, None)])
         self.assertEqual(r.lines[1]["near_matches"][0]["key"], "LIKE0001")
         self.assertEqual(self.posts(), [])
+        again = self.run_(self.record("again", collection=None, item={"itemType": "journalArticle", "title": "x", "DOI": DOI}))
+        self.assertEqual([(o["code"], o.get("reason")) for o in again.lines[:1]], [("skipped", "exists")],
+                         "a record that only adds a file to a paper the library holds needs no collection")
         call(answer, r.lines[1]["handoff"], "distinct", "--key", "LIKE0001", "--by", "judge")
         self.assertEqual(self.run_(self.work.records / "near.json").lines[0]["code"], "ok", "another paper: created")
 
