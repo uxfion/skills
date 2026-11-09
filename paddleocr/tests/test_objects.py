@@ -2,7 +2,7 @@
 # requires-python = ">=3.9"
 # dependencies = ["numpy", "opencv-python-headless", "pypdfium2", "reportlab"]
 # ///
-"""Tests for `doc.py objects`: the figures and tables a note links to, placed in the PDF.
+"""Tests for ocr.py objects and show's region command: positions in a PDF with distinct page boxes.
 
 The PDF is made here with reportlab: page 1 has a crop box offset from the media box, page 2 is rotated. The record's
 boxes are where poppler finds the words inside the crop box (`pdftotext -bbox -cropbox`, the page as PaddleOCR saw it),
@@ -13,12 +13,14 @@ import hashlib
 import io
 import json
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -133,6 +135,53 @@ class Objects(unittest.TestCase):
         before = {p.name: p.read_bytes() for p in self.folder.iterdir()}
         self.objects()
         self.assertEqual({p.name: p.read_bytes() for p in self.folder.iterdir()}, before)
+
+
+@unittest.skipUnless(shutil.which("pdftotext"), "needs poppler's pdftotext")
+class ShowRegion(unittest.TestCase):
+    def test_printed_command_reads_the_block_in_media_coordinates(self):
+        import pypdfium2 as pdfium
+        from reportlab.pdfgen import canvas
+        from reportlab.pdfbase import pdfdoc
+
+        # The expected text and the block boxes come from the PDF and Poppler, never our conversion.
+        cases = [(0, False, False)] + [(r, True, inherited) for r in (0, 90, 180, 270)
+                                      for inherited in (False, True)]
+        for rotation, cropped, inherited in cases:
+            with self.subTest(rotation=rotation, cropped=cropped, inherited=inherited), tempfile.TemporaryDirectory() as tmp:
+                folder = Path(tmp)
+                path = folder / "paper.pdf"
+                c = canvas.Canvas(str(path), pagesize=(612, 792))
+                c.drawString(150, 650, "TARGET")
+                c.drawString(150, 600, "LOWER")
+                c.showPage()
+                page = c._doc.Pages.pages[0]
+                page.Rotate = rotation
+                if cropped:
+                    page.MediaBox = pdfdoc.PDFArray([20, 30, 632, 822])
+                    page.CropBox = pdfdoc.PDFArray([61, 77, 573, 769])
+                if inherited:
+                    # A valid /Pages MediaBox is invisible to PDFium's direct page-box getter.
+                    page.check_format(c._doc)
+                    c._doc.Pages.MediaBox = page.MediaBox
+                    c._doc.Pages.__NoDefault__ = [*c._doc.Pages.__NoDefault__, "MediaBox"]
+                    page.MediaBox = None
+                    page.Override_default_compilation = True
+                c.save()
+                box = words(path, "-cropbox")["TARGET"]
+                pdf = pdfium.PdfDocument(str(path))
+                size = pdf[0].get_size()
+                record = {"source": {"sha256": "test"}, "pages": [{"page": 1, "scale": SCALE,
+                          "image_size": [round(v * SCALE) for v in size]}],
+                          "blocks": [{"id": "p1-1", "label": "text", "text": "TARGET",
+                                      "box": [round(v * SCALE) for v in box]}], "figures": [], "findings": []}
+                with patch.object(tempfile, "tempdir", tmp):
+                    out = D.show(folder, record, {"kind": "pdf", "path": path, "pdf": pdf}, "p1-1")
+                line = next(line for line in out if line.startswith("text layer (pdftotext"))
+                command = shlex.split(line.removeprefix("text layer (").removesuffix("):"))
+                got = subprocess.run([*command, str(path), "-"], capture_output=True, text=True, check=True)
+                self.assertEqual(got.stdout.strip(), "TARGET")
+                pdf.close()
 
 
 if __name__ == "__main__":

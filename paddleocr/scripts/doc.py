@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -1337,6 +1338,22 @@ def not_parsed(page: int) -> Stop:
                 hint="The Markdown's first line lists the pages parsed (pages=).")
 
 
+def media_box(page, src: dict, number: int):
+    """The MediaBox, including one inherited from /Pages that PDFium's box getter cannot read."""
+    box = page.get_mediabox(fallback_ok=False)
+    if box is not None:
+        return box
+    try:
+        info = subprocess.run(["pdfinfo", "-f", str(number), "-l", str(number), "-box", str(src["path"])],
+                              capture_output=True, text=True, check=True, env={**os.environ, "LC_ALL": "C"})
+        line = next(line for line in info.stdout.splitlines() if "MediaBox:" in line)
+        return tuple(float(v) for v in line.split("MediaBox:", 1)[1].split())
+    except (OSError, subprocess.CalledProcessError, StopIteration, ValueError):
+        cli.log("[paddleocr] pdfinfo could not read the inherited MediaBox; no pdftotext region command is shown. "
+                "Check the region in the page image below.")
+        return None
+
+
 def show(folder: Path, record: dict, src: dict | None, what: str, box=None, dpi: int = 300) -> list[str]:
     """What show prints; images go to a scratch folder named in the output."""
     import cv2
@@ -1439,10 +1456,19 @@ def show(folder: Path, record: dict, src: dict | None, what: str, box=None, dpi:
         x1, y1, x2, y2 = to_source(info, b["box"])
         if src["kind"] == "pdf" and not info.get("photo"):
             x, y, w, h = int(x1) - 4, int(y1) - 4, int(x2 - x1) + 8, int(y2 - y1) + 8
-            out.append(f"text layer (pdftotext -layout -f {info['page']} -l {info['page']} -x {x} -y {y} -W {w} -H {h}):")
             pdf = pdf_of(src)
             pg = pdf[info["page"] - 1]
-            left, _, _, top = pg.get_cropbox()
+            left, bottom, right, top = pg.get_bbox()
+            media = media_box(pg, src, info["page"])
+            if media is not None:
+                ml, mb, mr, mt = media
+                dl, db, dr, dt = left - ml, bottom - mb, mr - right, mt - top
+                dx, dy = ((dl, dt), (db, dl), (dr, db), (dt, dr))[pg.get_rotation() // 90]
+                px, py = int(x1 + dx) - 4, int(y1 + dy) - 4
+                out.append(f"text layer (pdftotext -layout -f {info['page']} -l {info['page']} -x {px} -y {py} "
+                           f"-W {w} -H {h}):")
+            else:
+                out.append("text layer:")
             out.append(pg.get_textpage().get_text_bounded(left=left + x, bottom=top - (y + h), right=left + x + w, top=top - y)
                        or "(none)")
         image = page_image(src, folder, info)
@@ -1678,9 +1704,10 @@ WHAT is a finding id (missing_text@p3), a block id (p4-12), a figure id (p6-4, p
   figure   its box, image, members, caption and changes, and the page image with it boxed
   page     every block with its id, label, box and first words, the page's figures, and the page image with the
            block ids drawn on it; --box crops that region at --dpi instead
-Boxes, given and shown, are in source units from the page's top left: PDF points (as pdftotext -x -y -W -H takes
-them), image pixels, or for --photo the pixels of pages/. Coordinates start at 0, and a box past the page's edge is
-cut to the page, so no box needs a negative number.
+Boxes, given and shown, are in source units from the rendered page's top left: PDF points within the crop box,
+image pixels, or for --photo the pixels of pages/. Use these boxes for --box. The printed pdftotext region command
+converts to that tool's media-box coordinates; its -x/-y values are not --box coordinates. Coordinates start at 0,
+and a box past the page's edge is cut to the page, so no box needs a negative number.
 
 Images go to $TMPDIR/paddleocr-show/<stem>-<hash>/, named in the output; whoever runs show deletes that folder when
 done. Read-only: when the Markdown holds edits not committed yet, stderr says so, and the output leaves them out;
