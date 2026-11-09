@@ -38,6 +38,11 @@ class Tokens(unittest.TestCase):
     def test_parsed_html_and_latex_stripped(self):
         self.assertEqual(C.tokens("<td>Spine</td><td>34,248</td> $\\mathbb{E}$ ok"), ["spine", "34,248", "ok"])
 
+    def test_a_cell_line_break_keeps_the_word_after_it(self):
+        # PaddleOCR's literal \n in a table cell (2026-11, Lambe 2016); in math, \nabla stays a command
+        self.assertEqual(C.tokens("<td>Workplace Checklist\\nGraber, 2014</td> $\\nabla f$"),
+                         ["workplace", "checklist", "graber", "2014"])
+
     def test_ligatures_and_case(self):
         self.assertEqual(C.tokens("Ef" + chr(0xFB01) + "cient"), ["efficient"])
 

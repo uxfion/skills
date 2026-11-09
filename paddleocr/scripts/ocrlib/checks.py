@@ -37,7 +37,7 @@ from collections import Counter
 
 from . import conventions
 
-VERSION = 7              # bump when the checks change, so stored parses are checked again
+VERSION = 8              # bump when the checks change, so stored parses are checked again
 
 NOISE_LABELS = ["number", "header", "header_image", "footer", "footer_image"]
 FIGURE_LABELS = {"image", "chart", "seal", "header_image", "footer_image"}
@@ -101,12 +101,17 @@ def blank(pattern: re.Pattern, text: str) -> str:
 def token_matches(text: str, layer: bool = False) -> tuple[str, list[re.Match]]:
     """The text tokens() reads and the matches of its tokens in it. The text is NFKC-normalised, then has line-end
     hyphenation joined (layer=True) or HTML tags and LaTeX commands blanked in place, so that in a parse a match
-    also locates its token in the normalised text as written."""
+    also locates its token in the normalised text as written. Outside math, a parse's backslash-n is PaddleOCR's line
+    break inside a table cell ("Checklist\\nGraber"), not a LaTeX command that would take the word after it along."""
     text = unicodedata.normalize("NFKC", text)
     if layer:
         text = _HYPHEN_BREAK.sub("", text)
     else:
-        text = blank(_LATEX_CMD, blank(_HTML_TAG, text))
+        breaks, last = [], 0
+        for m in _MATH.finditer(text):
+            breaks.append(text[last:m.start()].replace("\\n", "  ") + m.group())
+            last = m.end()
+        text = blank(_LATEX_CMD, blank(_HTML_TAG, "".join(breaks) + text[last:].replace("\\n", "  ")))
     return text, [m for m in _TOKEN.finditer(text) if not _GREEK.search(m.group())]
 
 
