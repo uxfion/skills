@@ -386,10 +386,11 @@ def from_page(s, url, warnings, body=None):
                                 "browser, then pf.py redraft <url> <result> --html <file>.") from None
     m = web.page_meta(body, final, headers)
     if not web.first_meta(m["meta"], "citation_title", "dc.title"):
-        raise cli.Stop("no_citation_meta", url=final, hint="The page has no citation_title tag. A page behind a challenge "
-                                                           "(OpenReview): save its HTML from the browser, then pf.py "
-                                                           "redraft <url> <result> --html <file>; a site without the tags "
-                                                           "leaves the result a stub.")
+        raise cli.Stop("no_citation_meta", url=final,
+                       hint="Read the page: behind a challenge, save its HTML from the browser and redraft with "
+                            "--html. A normal article page without standard metadata: confirm its DOI from the page "
+                            "or pf.py search <title> --author <surname>, then pf.py redraft <DOI> <result>. "
+                            "No confirmed identifier: keep the stub for fetching its PDF.")
     if not m["venue_kind"]:
         warnings.append("the page names no venue (citation_conference_title / citation_journal_title): made a "
                         "paper-conference, check the type and the venue")

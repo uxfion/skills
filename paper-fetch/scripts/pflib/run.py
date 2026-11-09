@@ -353,7 +353,7 @@ def results_of(work):
 
 def links_inputs(res):
     sub = res.subject
-    return [sub.doi, sub.arxiv, sub.url]
+    return [sub.doi, sub.arxiv, sub.url, (res.get("request") or {}).get("given")]
 
 
 def links_of(res):

@@ -63,7 +63,8 @@ class FulltextLinks(unittest.TestCase):
 
     def test_every_source_one_link_per_url_by_version(self):
         preprint = {"ids": {"arxiv": "2212.00001", "doi": "10.48550/arXiv.2212.00001"}}
-        path = self.result("nat", "10.1000/NAT.1", versions={"preprint": preprint, "published": [], "incomplete": []})
+        path = self.result("nat", "10.1000/NAT.1", versions={"preprint": preprint, "published": [], "incomplete": []},
+                           request={"given": "https://doi.org/10.1000/NAT.1"})
         r = self.run_(path)
         self.assertEqual(r.code, 0, r)
         self.assertTrue((self.work.links / "nat.json").is_file(), "the links go to <dir>/links/<slug>.json")
@@ -118,7 +119,7 @@ class FulltextLinks(unittest.TestCase):
 
     def test_an_arxiv_result_needs_no_request(self):
         path = self.result("ddpm", "10.48550/arXiv.2006.11239", type="article", url="https://arxiv.org/abs/2006.11239",
-                           ids={"arxiv": "2006.11239"})
+                           ids={"arxiv": "2006.11239"}, request={"given": "https://arxiv.org/abs/2006.11239"})
         r = self.run_(path)
         self.assertEqual(self.items(path), [("https://arxiv.org/pdf/2006.11239", "preprint")])
         self.assertEqual(r.lines[0]["sources"], {"arxiv": "ok", "openalex": "no_identifier", "europepmc": "no_identifier",
@@ -135,6 +136,51 @@ class FulltextLinks(unittest.TestCase):
         self.web.route("/paper/43.html", "no", status=403)
         r = self.run_(self.result("shut", type="paper-conference", url=self.web.url("/paper/43.html")))
         self.assertEqual((r.lines[0]["code"], r.lines[0]["sources"]["page"]), ("ok", "refused"), "an answer, not incomplete")
+
+    def test_the_original_page_remains_a_candidate_after_redraft(self):
+        page = self.web.page("/conference/paper.html", "A Conference Paper", meta={"og:title": "A Conference Paper"},
+                             body='<a href="/paper/42.pdf">Main Paper (Open Access Version)</a>')
+        path = result_file(self.work.root, "conference", csl=None, request={"given": page})
+        self.assertEqual(self.run_(path).code, 0)
+        self.assertEqual(self.items(path), [(page, "unknown")])
+        doi = "10.1000/nat.1"
+        self.web.doi(doi, {"type": "journal-article", "source": "Crossref", "title": "A Conference Paper",
+                           "author": [{"family": "Liu", "given": "Wei"}], "issued": {"date-parts": [[2026]]},
+                           "DOI": doi, "URL": "https://doi.org/" + doi, "abstract": "A paper."})
+        redraft = call(load("identify"), "redraft", doi, path, config=self.config, env=self.web.env())
+        self.assertEqual(redraft.code, 0, redraft)
+        res = run.read(path)
+        self.assertEqual((res.slug, res["request"]), ("conference", {"given": page, "redraft": doi}))
+        r = self.run_("-n", path)
+        self.assertEqual((r.code, r.lines[0]["reason"], r.lines[0]["sources"]["request"]), (0, "stale", "ok"))
+        self.assertIsNone(self.links_of(path), "dry run leaves the old cache untouched")
+        r = self.run_(path)
+        requested = [link for link in self.links_of(path)["items"] if link["source"] == "request"]
+        self.assertEqual(requested, [{"url": page, "source": "request", "version": "unknown", "needs_browser": None}])
+        self.web.requests.clear()
+        self.assertEqual(self.run_(path).lines[0]["code"], "skipped")
+        self.assertEqual(self.web.requests, [], "unchanged inputs reuse the cache")
+        other = self.web.url("/conference/other.html")
+        res = run.read(path)
+        res["request"]["given"] = other
+        res.save()
+        self.assertIsNone(self.links_of(path), "changing the original page invalidates the links")
+        r = self.run_(path)
+        self.assertEqual(r.lines[0]["reason"], "stale")
+        urls = [link["url"] for link in self.links_of(path)["items"]]
+        self.assertIn(other, urls)
+        self.assertNotIn(page, urls)
+
+    def test_a_known_original_page_is_usable_when_metadata_sources_do_not_answer(self):
+        self.web.route("/openalex/*", status=503)
+        self.web.route("/epmc/*", status=503)
+        page = "https://conference.example/paper/42"
+        path = self.result("given", "10.1000/nat.1", url="https://doi.org/10.1000/nat.1",
+                           request={"given": page, "redraft": "10.1000/nat.1"})
+        r = self.run_(path)
+        self.assertEqual((r.code, r.lines[0]["code"], r.lines[0]["sources"]["request"]), (0, "ok", "ok"))
+        self.assertEqual(self.items(path), [(page, "unknown")])
+        self.assertEqual(self.links_of(path)["incomplete"], ["europepmc", "openalex"], "failed sources can still be retried")
 
     def test_done_stale_and_incomplete(self):
         path = self.result("nat", "10.1000/nat.1")

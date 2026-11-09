@@ -268,7 +268,7 @@ p2z 的 `have -` 现在只读一行一个路径，所以中间要 `jq -r .source
 - `20261101-paper-fetch-metadata-from-zotero`：补期刊缩写、会议名、arXiv 完整日期等字段，是元数据的内容。
 - `20261105-paper-fetch-arxiv-abstract-latex`：摘要里的 LaTeX 转义怎么规整，是 `identify` 的内容。
 - `20261105-paper-fetch-arxiv-date-year-only`：用 arXiv 的 `published` 补日期，是 `identify` 的内容。
-- `20261105-paper-fetch-miccai-pages`：没有 `citation_*` 的页面、站点自己的开放获取版、PDF 地址的论文标记，是认论文和取全文的做法。这次 `search`、`redraft` 改了名，它第 1 条里"按标题搜 DOI 再 redraft"写进 SKILL.md 时用新名字，但没解决它。
+- [20261105-paper-fetch-miccai-pages](../issues/archive/20261105-paper-fetch-miccai-pages-fixed.md)：没有 `citation_*` 的页面、站点自己的开放获取版、PDF 地址的论文标记，是认论文和取全文的做法。这次 `search`、`redraft` 改了名，它第 1 条里"按标题搜 DOI 再 redraft"写进 SKILL.md 时用新名字，但没解决它。
 - `20261105-paper-fetch-trial-import-web-notes`：学校登录这条路上的现象，等真跑核实；第 5 条（"不等的门"没有回答）是交接单的回答词，属于流程。
 
 ## 9. 偏离和理由

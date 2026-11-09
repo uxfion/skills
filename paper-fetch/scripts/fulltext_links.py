@@ -17,6 +17,8 @@ links: {items: [{url, source, version: published | accepted | preprint | unknown
   page       the result's URL (csl.URL) when it is the venue's own page for the paper (not doi.org, not a preprint
              server: a NeurIPS, PMLR or OpenReview page): the PDF the page declares (citation_pdf_url), the published
              version
+  request    the original paper page (request.given), also after redraft: a candidate of unknown version. DOI and
+             preprint-server URLs use their identifier's sources; a stub with only a URL keeps that URL as its link
 Library discovery systems and aggregators are not asked here: pf.py fetch's routes use them.
 
 A link's version, the first rule that applies: arxiv.org, biorxiv.org, medrxiv.org -> preprint; a PMC or Europe PMC
@@ -30,8 +32,8 @@ browser-only ones. needs_browser comes from NEEDS_BROWSER below (a host or a par
 institution.proxy is true) and is null for an unlisted host, which HTTP is tried on first; add a host once a run has
 shown which way it goes.
 
-The links are found again only when they are not done: absent, stale (found for another DOI, arXiv id or URL of
-the result: those links are dropped), or incomplete (a source did not answer: a network error, a 5xx, a 429); each
+The links are found again only when they are not done: absent, stale (found for another DOI, arXiv id, CSL URL or
+original request: those links are dropped), or incomplete (a source did not answer: a network error, a 5xx, a 429); each
 line says why (`reason`). A source that did not answer is named in `incomplete`, and its links from the last time
 are kept. A host that answers 429 is asked by no script on this machine until its Retry-After, else for an hour
 (source_blocked; the machine's pace file, pflib/web.py); requests to a host keep their gap.
@@ -290,7 +292,8 @@ def process(res, ctx):
         return {"code": "no_identifier",
                 "hint": "The result has no DOI, arXiv id or venue page: identify the paper by its DOI or arXiv id "
                         "(pf.py identify), or look for copies in the browser."}
-    statuses, answers = {}, {}
+    requested = venue_page(given) if re.match(r"https?://", given, re.I) else None
+    statuses, answers = ({"request": "ok"} if requested else {}), {}
     for name in SOURCES:
         try:
             answers[name] = SOURCE_FUNCS[name](ids, ctx)
@@ -299,6 +302,8 @@ def process(res, ctx):
             statuses[name] = stop.code
     unanswered = sorted(name for name, code in statuses.items() if code not in ANSWERED)
     raws = [r for answer in answers.values() for r in answer["links"]]
+    if requested:
+        raws.append(raw_link(requested, "request"))
     if reason == "incomplete":  # the links a source gave last time stay while it does not answer
         raws += [{**o, "claim": None, "repository": False} for o in run.links_of(res).get("items") or []
                  if isinstance(o, dict) and o.get("source") in unanswered]
