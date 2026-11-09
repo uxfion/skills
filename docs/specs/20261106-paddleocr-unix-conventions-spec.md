@@ -1,6 +1,6 @@
 # paddleocr 对接 Unix 约定
 
-- 日期：2026-11-05。来源：[docs/issues/20261104-skills-unix-conventions.md](../issues/20261104-skills-unix-conventions.md)。状态：已定（2026-11-06）：用户同意了 §3 补的几处（issue 第 14 条）和实施计划；实施中，这期间可以改正。
+- 日期：2026-11-05。来源：[Unix 约定 issue（已归档）](../issues/archive/20261104-skills-unix-conventions-fixed.md)。状态：已冻结（2026-11-09）。用户于 2026-11-06 同意了 §3 补的几处（issue 第 14 条）和实施计划；实施及收尾已完成，实施时的更正记在本 spec。
 - 约定只有一个出处：`docs/design-principles.md` §3 *The Unix/Linux philosophy*。这份只写 paddleocr 自己的：入口和短词、东西怎么指定、要跟着改的地方。样板是 p2z（`paper-to-zotero/scripts/p2z.py`、`p2zlib/cli.py`），需要的部分拷过来。
 - 范围：一遍约定整理。解析流程、检查、settle 的做法、输出里的信息都不变；变的是输出的样子（第 5 节）和一处行为：`show` 不再顺手记改动（§3 要求，见第 10 节）。记录的格式和版本号（`FORMAT`、`REFINE`、各模块的 `VERSION`）不动，库里已有的结构化包照旧算最新，不会被重新处理。
 - 落地顺序：第一批 vllm-serve 和 paper-fetch，第二批 paddleocr 和 paper-read。跨 skill 的改动各有一个归属（第 6 节）。
@@ -13,7 +13,7 @@
 set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scripts:$PATH";
 ```
 
-下面按 `usage.md` 的次数排（真项目 / 本仓库）。"现在"一栏都要先 `cd` 到 skill 目录。
+下面按 [`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 的次数排（真项目 / 本仓库）。"现在"一栏都要先 `cd` 到 skill 目录。
 
 ```
 # 解析（parse，26 / 372）
@@ -28,7 +28,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 
 # 还开着的 finding（doc show，1 / 9；settle 和 paper-read 的完成条件）
 现在  uv run scripts/doc.py show out/paper           # 打 "no open findings" 或定宽的几列
-改后  ocr.py findings out/paper                     # 一行一个 JSON；完成条件：没有 status 为 open 的行，且退出 0
+改后  ocr.py findings out/paper                     # 一行一个 JSON；完成条件：退出 0
 
 # 看一处（finding、块、图、页）和截一块
 现在  uv run scripts/doc.py show out/paper missing_text@p3
@@ -69,7 +69,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 - `cut` 不叫 `figure`：`figure` 是名词，读起来像"列出图"；文档里本来就说"cut it anew""cut figures"。不叫 `crop`：`show --box` 截的也叫 crop，容易混。
 - `findings` 单列：一个词只有一种输出，列表是 JSON 行，`show` 是给人读的文本。
 - **不是命令的**：`checks.py`、`conventions.py`、`figures.py` 是 doc.py 导入的模块，挪进 `scripts/ocrlib/`（照 `p2zlib/`、`pflib/`，paper-read 的 `sources.py` 也挪进 `prlib/`）。约定检查要求 `scripts/*.py` 除入口外都有短词、带 uv 开头、可执行，模块留在原处过不了。
-- `usage.md` 里算到 paddleocr 名下、上表没有的：`doc`（40，全在本仓库）是 `doc.py` 后面没跟子命令的命令行：`usage.py` 按路径数，读、改这个文件的命令（`sed`、`git diff`）和 `--help` 都落在这里，`--help` 换成 `ocr.py -h`；`doc paddleocr`（4）、`checks`（6）、`conventions`（4）、`figures`（8）同样是本仓库开发时按路径碰到的文件，不是调用；`figcheck`（22）是 `figures.py` 以前的名字，脚本早已没有，只剩 `__pycache__`。
+- [`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 里算到 paddleocr 名下、上表没有的：`doc`（40，全在本仓库）是 `doc.py` 后面没跟子命令的命令行：[`usage.py`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 按路径数，读、改这个文件的命令（`sed`、`git diff`）和 `--help` 都落在这里，`--help` 换成 `ocr.py -h`；`doc paddleocr`（4）、`checks`（6）、`conventions`（4）、`figures`（8）同样是本仓库开发时按路径碰到的文件，不是调用；`figcheck`（22）是 `figures.py` 以前的名字，脚本早已没有，只剩 `__pycache__`。
 
 ## 3. 东西怎么指定
 
@@ -81,7 +81,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 
 ## 4. 选项
 
-`usage.md` 只按命令计数，没有 paddleocr 各选项的次数；下表按代码列出全部选项（`inventory.md` 的那几列，加上 `show` 的 `--box`、`--dpi`）。
+[`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 只按命令计数，没有 paddleocr 各选项的次数；下表按代码列出全部选项（[`inventory.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 的那几列，加上 `show` 的 `--box`、`--dpi`）。
 
 | 现在 | 改后 | 说明 |
 |---|---|---|
@@ -112,7 +112,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
   - 有一篇没做成（含从 `-` 原样转出的上游失败行）：退出 1，标准错误最后一行 `{"summary": {total, ok, skipped, failed}}`。
   - 做不下去：`paddleocr_missing`、`vl_server_failed`、`vl_server_unreachable` 从标准输出挪到标准错误最后一行，退出 2；每篇在标准输出记一行 `{input, code: not_run}`。
 - **`commit`、`render`、`cut`**：现在是几行散文（"p3-12: 'teh' -> 'the'"、"findings gone: …"、"rendered <路径>"、"figure p6-4: <路径> — view it"）。§3 "stdout is data"：改成一行 JSON，说的是处理的那个目录：`{folder, code: ok, recorded: [原来的那几句], gone, new, reopened}`；没东西可记是 `code: skipped, reason: nothing_to_commit`；`cut` 加 `figure`、`image`；`render` 的行就是 `parse` 那一行（`rendered: true`）。改动的说法原样放进 `recorded`，文字不重写。
-- **`findings`**：一行一个 JSON `{id, status, page, note}`，列的就是现在不带参数的 `show` 列的（开着的和判为 unresolved 的），`-a` 再加判为 ok 的；`page` 对整篇文档是 `null`；`note` 对开着的是 Markdown 里那条注释的文字，对判过的是理由，不再截到 110 字。列表为空也退出 0。只读：不记改动、不加锁。完成条件从"打出 `no open findings`"改成"`ocr.py findings <folder>` 没有 `status` 为 `open` 的行，且退出 0"（半路死掉的一次运行，标准输出也是空的）。
+- **`findings`**：一行一个 JSON `{id, status, page, note}`，列的就是现在不带参数的 `show` 列的（开着的和判为 unresolved 的），`-a` 再加判为 ok 的；`page` 对整篇文档是 `null`；`note` 对开着的是 Markdown 里那条注释的文字，对判过的是理由，不再截到 110 字。有 `open` 项退出 1，标准错误最后一行 `{summary: {total, open, unresolved, ok}}`；全部已有判定（包括 `unresolved`）或列表为空退出 0。只读：不记改动、不加锁。完成条件从"打出 `no open findings`"改成"`ocr.py findings <folder>` 退出 0"（半路死掉的一次运行，标准输出也是空的）。
 - **`show`**：产物是给人读的文本，照旧。只读（不再先 commit、不加锁，像 `objects`）；Markdown 里有没 commit 的改动时，标准错误打一句警告（`ocr.py commit DIR` 记下它们），退出 0。图片照旧写到 `$TMPDIR/paddleocr-show/<stem>-<hash>/`，`show -h` 写明。
 - **`objects`**：输出照旧。
 - **doc.py 各词处理的目录有问题，退出 1**（只处理一个目录，不打汇总）：目录不在 `{folder, code: file_not_found}`；目录里没有记录或读不了 `no_record`；旧格式 `old_format`（提示重新解析）；commit 拒收的 Markdown 改动 `edit_refused`（标记被改、图片行被改、段落拆不开，什么都没记；`detail` 说哪里、`hint` 说怎么改，文字取现在的提示；`render`、`cut` 先 commit 时同样）；记录里的源文件路径不在了 `source_not_found`（提示 `--source`）、那里换了一份 `source_mismatch`（这两条说的是这个目录的记录，没给 `--source` 时）；`objects` 的记录是从图片解析的 `not_a_pdf`（原 `refused` 退出 1，同 p2z `annotate`）；`show` 查不到第二个参数（或那页没解析）`not_found`，`cut` 找不到那张图、那页没解析、或写的块不是图 `not_found`（第 3 节）。这一行在标准输出；`show` 的标准输出是文本，它的这一行写在标准错误（第 10 节）。
@@ -128,7 +128,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 - `doc.py:156-165` 的 `source_of` 要修：记录里源文件路径为空（`tests/fixtures/synthetic.json` 就是）时，`Path("")` 成了当前目录 `.`，它存在，`sha256_of` 去读一个目录就抛 `IsADirectoryError`，`show`、`commit` 带着 traceback 退出 1（审阅时在副本上复现过）。路径为空、又没给 `--source`，就当没有源文件。
 - `doc.py`：第 1 行加 `--quiet`；6–44 行的说明拆到各词的 man 页（目录里有什么 → `ocr.py -h` 和 `parse -h`；改 Markdown 的规矩 → `commit -h`；框的单位、图片写到哪 → `show -h`、`cut -h`）；61–64 行导入改 `ocrlib`；1421 行提示里的 "`show DIR p<page>` … `--page N`" → `ocr.py show DIR p<page>`、`ocr.py cut DIR p<page>`；1487–1552 行 `main`（子命令改名、`findings`、`cut` 的第二个参数、`--box` 一个值、`--why` → `--reason`、`show` 只读、各错误码和两条带专门 hint 的用法错误）；1533 行 `--page` 那条拒绝去掉。`render -h` 照旧在 `ensure_engine` 之前返回。
 - `ocrlib/figures.py` 第 9 行 "parse.py's crops" 改说法（约定检查会扫到）。
-- `SKILL.md`：第 10 行换成 *Calling* 一段（照 p2z SKILL.md 第 10 行：PATH 那一句、`ocr.py -h` 列短词、`<词> -h` 是各自的说明、标准错误别丢）；19 行；28 行（`serve.py` 经 PATH 找到，`VLLM_SERVE` 那半句留在 install.md）；38 行 "without `error`" → `code` 是 `ok` 或 `skipped`；40 行；42 行 `--force` → `-f`；62 行 `show` → `findings`；64 行 → "`ocr.py findings <outdir>/<stem>` 没有 `status` 为 `open` 的行，且退出 0"；75、81 行 `doc.py show` → `ocr.py show`；报告一步加一句：任务结束时删掉自己 `show` 过的那几篇在 `$TMPDIR/paddleocr-show/` 下的文件夹。
+- `SKILL.md`：第 10 行换成 *Calling* 一段（照 p2z SKILL.md 第 10 行：PATH 那一句、`ocr.py -h` 列短词、`<词> -h` 是各自的说明、标准错误别丢）；19 行；28 行（`serve.py` 经 PATH 找到，`VLLM_SERVE` 那半句留在 install.md）；38 行 "without `error`" → `code` 是 `ok` 或 `skipped`；40 行；42 行 `--force` → `-f`；62 行 `show` → `findings`；64 行 → "`ocr.py findings <outdir>/<stem>` 退出 0"；75、81 行 `doc.py show` → `ocr.py show`；报告一步加一句：任务结束时删掉自己 `show` 过的那几篇在 `$TMPDIR/paddleocr-show/` 下的文件夹。
 - `references/settle.md`：10、11 行；17 行照旧自己定位（`<skill>` 是放这份 brief 的目录的上一级），句子换成 "Start every shell call with `set -o pipefail; export PATH="<skill>/scripts:<skill>/../vllm-serve/scripts:$PATH";`"；19 行 → `ocr.py findings <folder>`；20–22 行 `show`、`--box` 逗号写法，加一句图片写在 `$TMPDIR/paddleocr-show/<stem>-<hash>/`、报告前删掉；37、39 行 `commit`；65 行完成条件 → `ocr.py findings <folder>` 退出 0，`open` 的只剩 `figure_check`；80 行；82 行 `figure … --box X1 Y1 X2 Y2 --why …` → `cut … --box X1,Y1,X2,Y2 --reason …`；83 行 `--page N` → `cut <folder> p<N>`。
 - `references/papers.md`：3、36 行 `scripts/conventions.py` → `scripts/ocrlib/conventions.py`，36 行 `doc.py render` → `ocr.py render`。
 - `references/install.md`：3、44、58 行 `parse.py` → `ocr.py parse`；33 行 → `ocr.py parse <a PDF> --pages 1 -o <scratch dir>/`；70 行 `VLLM_SERVE` 指 vllm-serve 的入口。29 行检查 tool 环境的 `uv run --no-project --python …` 不是我们的脚本，不动。
@@ -145,7 +145,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 
 **别人那一遍改的**
 
-- paper-read 的文件（`put_note.py`、`sources.py`、测试、SKILL.md、reading.md 里调 paddleocr 的地方）归 paper-read 的 spec；它和 paddleocr 同在第二批，paddleocr 先落地，它用这里的词：入口 `<paddleocr>/scripts/ocr.py`；`objects <包> --source <pdf>` 参数不变，非 0 照旧记 `objects_failed`；完成条件 "`ocr.py findings <包>` 没有 `status` 为 `open` 的行，且退出 0"；`ocr.py commit`、`ocr.py show`；派 reader 时它要整理包的话，PATH 那一句里有 `<paddleocr>/scripts`。
+- paper-read 的文件（`put_note.py`、`sources.py`、测试、SKILL.md、reading.md 里调 paddleocr 的地方）归 paper-read 的 spec；它和 paddleocr 同在第二批，paddleocr 先落地，它用这里的词：入口 `<paddleocr>/scripts/ocr.py`；`objects <包> --source <pdf>` 参数不变，非 0 照旧记 `objects_failed`；完成条件 "`ocr.py findings <包>` 退出 0"；`ocr.py commit`、`ocr.py show`；派 reader 时它要整理包的话，PATH 那一句里有 `<paddleocr>/scripts`。
 - `tests/check_conventions.py`：落地时主 agent 把 paddleocr 从 `NOT_YET` 拿掉。
 - `.memory/paddleocr-skill-status.md:27` 和 `MEMORY.md:47` 的 `doc.py objects`：实现后主 agent 更新。
 - 不改：已冻结的 spec；开着的 issue 里的 `doc.py`，用到时再改（同 p2z 那次）。
@@ -156,7 +156,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 
 - `HELP_ENV = {"PADDLEOCR_PYTHON": "/no/such/python"}`：哪个词的 `-h` 若走到了换 tool 环境那一步，就退出 2，帮助那一节就红。
 - `REMOVED = {"--page": (), "--why": ()}`；没有 `SELECTS`。
-- `env(tmp)`：上下文管理器。在 `tmp` 下用 `tests/fixtures/synthetic.json` 和 `.md` 造两个解析目录（记录里源文件路径为空，靠第 6 节 `source_of` 的修正当作没有源文件）：`small`，Markdown 里改一个词（同 `test_doc.py` 的 "after the formula" → "following the formula"）；`big`，往记录里写约 200 条开着的 finding（fixture 本身一条没有），id 按 `code@块` 不重，每条 `items` 约 500 字，`findings` 的输出过 64 KiB（检查会量），Markdown 原样（正文的哈希对得上，不出警告）。yield `{"TMPDIR": tmp}`，`show` 之类的东西都落在 `tmp` 里；没有服务要起，`finally` 里无事可做。
+- `env(tmp)`：上下文管理器。在 `tmp` 下用 `tests/fixtures/synthetic.json` 和 `.md` 造两个解析目录（记录里源文件路径为空，靠第 6 节 `source_of` 的修正当作没有源文件）：`small`，Markdown 里改一个词（同 `test_doc.py` 的 "after the formula" → "following the formula"）；`big`，往记录里写约 200 条判为 `unresolved` 的 finding（fixture 本身一条没有），id 按 `code@块` 不重，每条判定理由 `why` 约 500 字，`findings` 的输出过 64 KiB（检查会量），Markdown 原样（正文的哈希对得上，不出警告）。yield `{"TMPDIR": tmp}`，`show` 之类的东西都落在 `tmp` 里；没有服务要起，`finally` 里无事可做。
 - `quiet`：`{"run": "ocr.py commit <tmp>/small", "lines": 1}` → 退出 0，标准错误空。（核实过：commit 经过的 `check`、`merge_findings` 和三个模块都不往标准错误写东西；审阅时在源文件路径缺失的副本上 commit 也是退出 0、标准错误空。）
 - `reader`：`{"run": "ocr.py findings <tmp>/big"}`，检查接上 `| head -1` → 退出 0，标准错误空。
 - `writer`：一句话说明为什么没有——"边做边打的写命令只有 parse，它离不开 paddleocr 的 tool 环境，放进这里在别的机器上就永远失败不了；doc.py 的写命令写完才打一行。parse 被截断后照常做完，由 tests/test_parse.py 的单元测试管"。那条单元测试：把处理一篇的函数换成假的，标准输出接一个已经关掉的管道，断言每篇都处理了、退出码照常。
@@ -203,3 +203,7 @@ set -o pipefail; export PATH="<paddleocr>/scripts:<paddleocr>/../vllm-serve/scri
 - 行数：代码 3,398 → 3,924（入口 66、`ocrlib/cli.py` 219，`doc.py` +229，其中约 100 行是 man 页）；文档 315 → 310 行。
 - GPU 实测（2026-11-06，8128 端口）全过，`objects` 新旧输出逐字节相同。第 1 节"库里已有的结构化包照旧算最新"不对：888 个包里 881 个的检查版本是 5，现在的代码（改造前也一样）是 6，下次解析会不用 GPU 重处理一遍（12 页约 4 秒），结果和旧代码重处理的逐字相同。这是更早那次升级检查版本带来的，不是这次改造。
 - 解析加载模型时，PaddleX 往标准错误打四行例行日志（"Creating model …"、"Model files already exist …"），改造前就有，不合 §3：另记 issue。
+
+## 收尾时的已定调整（2026-11-07 决定，2026-11-09 完成）
+
+用户选择 `findings` 有 `open` 时退出 1：实际调用都把它当完成关卡，退出码可直接表达结果。列出的记录、`-a`、只读行为不变；paddleocr 和 paper-read 的最终完成条件统一为退出 0。整理包中途仍允许图片项未完成，这时退出 1，下一步继续处理图片。测试分别覆盖未完成、已有判定、空列表及断管；未改其他检测规则。

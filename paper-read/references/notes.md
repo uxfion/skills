@@ -1,6 +1,6 @@
 # Notes in use
 
-What happens around a paper note once it exists: a project builds on it and records why, a correction changes it, topic notes tie papers together, and the library's older notes are folded in. Every change to a note goes through SKILL.md, *Every change to a note*.
+Every change to a note below goes through SKILL.md, *Every change to a note*.
 
 ## A project uses a paper
 
@@ -13,7 +13,7 @@ Done when every fact the project builds on is marked as checked in the note, and
 
 ## The project's paper index
 
-One file per project: `research/paper-index.md`, or the project's own paper index if it has one. Chinese, since the user reads it when looking back. A heading per paper the project used, one line per decision under it:
+One file per project: `research/paper-index.md`, or the project's own paper index if it has one. A heading per paper the project used, one line per decision under it:
 
 ```markdown
 ## xiaoTCACETimeConditionedAutoregressive2026 · T-CACE: A Time-Conditioned Autoregressive … Diagnosis（JBHI 2026）
@@ -21,7 +21,7 @@ One file per project: `research/paper-index.md`, or the project's own paper inde
 - 借鉴期相 token + 连续时间编码的双条件写法（论文笔记 Q3） · research/… · 2026-11-02
 ```
 
-- **The heading** is `citation key · title · common names（venue year）`, printed by `pr.py heading <citation key>… | jq -r 'select(.code=="ok").heading'` from the item's `aka/` and `venue/` tags; paste it as printed. A citation key it cannot resolve prints paper-to-zotero's own line instead, which has no `heading` (the filter drops it, and the call exits 1): follow its `hint`. Most papers have no common name; one the field does call by a name but that prints without it is missing its `aka/` tag: add the tag by paper-to-zotero's references/tagging.md, *Common name*, and print again.
+- **The heading** is printed by `pr.py heading <citation key>… | jq -r 'select(.code=="ok").heading'` from the item's `aka/` and `venue/` tags; paste it as printed. A citation key it cannot resolve prints paper-to-zotero's own line, which the filter drops (the call exits 1): follow its `hint`. A paper the field calls by a name its heading lacks is missing its `aka/` tag: add the tag by paper-to-zotero's references/tagging.md, *Common name*, and print again.
 - **A line** is `decision: the point it rests on (论文笔记 Qn) · the document and section holding the reasoning · date`. A reason that fits in the line needs no document.
 - Record what was used and what was weighed and turned down, each with its reason. When the project changes a decision, rewrite its line: git keeps the history.
 - Write only your own project's index. Which projects used a paper: search their indexes for its citation key.

@@ -3,16 +3,14 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""paddleocr: PDFs and page images into Markdown an agent can read whole and trust. `ocr.py WORD ...`; each word has its -h.
+"""paddleocr: PDFs and page images into Markdown an agent can read whole and trust.
 
 parse writes one folder per document, <outdir>/<stem>/ (parse -h says what it holds); every other word works on such a
-folder, named after the word. Each word runs one script of scripts/ through uv, its exit code passed through. An
-unknown word exits 2 with this list.
+folder, named after the word. An unknown word exits 2 with this list.
 
-Exit codes, every word: 0 done (stderr holds no more than progress); 1 something is yours to act on: a line's code
-says what, and parse, over several documents, ends stderr with {"summary": ...}; 2 cannot go on (no paddleocr tool
-environment, no VL server, a folder another process is writing, a usage error): stderr's last line is {code, hint},
-and parse lists each document not done as not_run.
+Exit codes, every word: 0 done; 1 something is yours to act on: a line's code says what; 2 cannot go on (no paddleocr
+tool environment, no VL server, a folder another process is writing, a usage error): stderr's last line is
+{code, hint}.
 
 Examples:
   ocr.py parse paper.pdf -o /abs/out/

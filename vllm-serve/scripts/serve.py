@@ -6,11 +6,10 @@
 """vllm-serve: models as OpenAI-compatible vLLM servers on this machine's GPUs, one server per model profile.
 
 A start is one job of a supervisor process: it downloads the weights when the cache lacks them, starts vLLM and
-writes all their output to the profile's log. Its phases: downloading, starting, running, stopping; with no
-supervisor the profile is stopped. A vLLM that has not answered 30 min after its start is stopped (the download
-does not count). Once it has answered, a server stops by itself after idle_minutes without a request, so the GPUs
-are free for other work. The log's last line says how the start ended; the next start keeps the log as
-<profile>.prev.log and says so when that start failed.
+writes all their output to the profile's log. A vLLM that has not answered 30 min after its start is stopped (the
+download does not count); once it has answered, the server stops by itself after idle_minutes without a request.
+The log's last line says how the start ended; the next start keeps the log as <profile>.prev.log and says so when
+that start failed.
 
 Profiles: <name>.toml in ~/.config/vllm-serve/profiles/ (XDG_CONFIG_HOME), then in the skill's profiles/; a
 profile is named, never a path. Keys: model (Hugging Face id or local directory; clients use it as the model
@@ -786,11 +785,10 @@ def status(name: str) -> dict:
 
 UP = """Start the profile's server unless it runs, wait until it answers, and print where it is.
 
-up waits, with no deadline, until the server answers or its start fails; concurrent ups share one server, and each
-counts as a request. What follows the profile goes to `vllm serve` as it is, for this start only, as timeout or
-torchrun hand on their command's arguments (a -- right after the profile is allowed); the caller's environment reaches
-the server too (CUDA_VISIBLE_DEVICES picks the GPUs), except variables the profile's env sets. A server already
-running is used as it is.
+up waits with no deadline of its own, until the server answers or its start fails; concurrent ups share one server,
+and each counts as a request. What follows the profile goes to `vllm serve` as it is, for this start only, as
+timeout or torchrun hand on their command's arguments (a -- right after the profile is allowed); so does the
+caller's environment (CUDA_VISIBLE_DEVICES picks the GPUs), except variables the profile's env sets.
 
 stdout, one line: {profile, code: ok, url, model, started}. Clients speak the OpenAI API at url, with model as the
 model name; started says whether this up started the server. The line may add
@@ -882,7 +880,7 @@ def at_profile(argv: list[str]) -> tuple[list[str], list[str]]:
 def up_word(argv: list[str]) -> int:
     left, extra = at_profile(argv)
     p = parser(UP, "up", usage=f"{SELF} up [-h] PROFILE [VLLM_ARG ...]")
-    p.add_argument("profile", nargs="?", metavar="PROFILE", help="a profile's name; what follows it goes to vLLM")
+    p.add_argument("profile", nargs="?", metavar="PROFILE", help="a profile's name")
     args = p.parse_args(left)
     if args.profile is None:
         p.error("name a profile")

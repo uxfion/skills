@@ -1,14 +1,14 @@
 # paper-read 对接 Unix 约定
 
-- 日期：2026-11-05。来源：[docs/issues/20261104-skills-unix-conventions.md](../issues/20261104-skills-unix-conventions.md)。
-- 状态：已定（2026-11-06）：用户同意了 §3 补的几处（issue 第 14 条）和实施计划；实施中，这期间可以改正。三轮审阅（忠于需求、技术、好不好用）和主 agent 的决定已改进来。
+- 日期：2026-11-05。来源：[Unix 约定 issue（已归档）](../issues/archive/20261104-skills-unix-conventions-fixed.md)。
+- 状态：已冻结（2026-11-09）。用户于 2026-11-06 同意了 §3 补的几处（issue 第 14 条）和实施计划；实施及收尾已完成，实施时的更正记在本 spec。三轮审阅（忠于需求、技术、好不好用）和主 agent 的决定已改进来。
 - 约定只有一个出处：`docs/design-principles.md` §3 *The Unix/Linux philosophy*。这份只写 paper-read 自己的：入口和短词、东西怎么指定、要跟着改的地方。样板是 p2z（`paper-to-zotero/scripts/p2z.py`、`p2zlib/cli.py`、`tests/conventions_fixture.py`）。
 - 范围：一遍约定整理。流程、交接、输出的内容都不动，动的是怎么调用、选项、报错写在哪、退出码，和 §3 要求的提示。
 - 落地：第二批，和 paddleocr 一起。paper-read 的文件全由这份 spec 改，调 paddleocr 的地方也是，用 paddleocr 已定的写法（入口 `ocr.py`）；paddleocr 不碰 paper-read 的文件。
 
 ## 1. 改完是什么样
 
-用得最多的几种（`usage.md`，2026-11-04：`prepare_note` 47 次、`put_note` 44、`check_quotes` 24、`check_note` 22、`index_heading` 6，全在本仓库，真项目 0 次）。下面 `<名>` 是 `take` 起的文件名主干，`<引用键>.<PDF 的附件标题>`，如 `xiaoTCACE2026.Published-IEEE`。
+用得最多的几种（[`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料)，2026-11-04：`prepare_note` 47 次、`put_note` 44、`check_quotes` 24、`check_note` 22、`index_heading` 6，全在本仓库，真项目 0 次）。下面 `<名>` 是 `take` 起的文件名主干，`<引用键>.<PDF 的附件标题>`，如 `xiaoTCACE2026.Published-IEEE`。
 
 改一条笔记的四步：
 
@@ -61,7 +61,7 @@ ocr.py findings <scratch>/<名>
 |---|---|---|---|---|
 | `take` | prepare_note | 把一篇论文的笔记、PDF、结构化包取进 scratch 目录（改笔记第 1 步） | 一篇论文（`-` 读清单，只能一篇） | 和 p2z 的 `note take`、`package take` 同一个词，也是 SKILL.md 第 1 步的名字 |
 | `check` | check_note | 按 note-format 查笔记的问题树（第 3 步） | 一个笔记文件 | 和 p2z 的 `check`（按 schema 查草稿）同类 |
-| `quotes` | check_quotes | 列出笔记里每条引文，各在 PDF 或包里找没找到（第 3 步） | 一个笔记文件 | 名词：它列出每条引文和它的状态，有一条没过就退出 1；换成 `verify`，和 `check` 分不出哪个查什么 |
+| `quotes` | check_quotes | 只列仍需核对的引文，每条一行（第 3 步） | 一个笔记文件 | 名词：它列出未通过的引文，有一条没过就退出 1；换成 `verify`，和 `check` 分不出哪个查什么 |
 | `put` | put_note | 给图表加链接、存回 Zotero（第 4 步） | 一个笔记文件 | 和 `note put` 同一个词，也是第 4 步的名字 |
 | `heading` | index_heading | 每篇论文在项目论文索引里的标题行 | 论文…（`-` 读清单） | 名词：打出的是一行行标题；`index` 会读成"建索引" |
 
@@ -80,7 +80,7 @@ ocr.py findings <scratch>/<名>
 
 ## 4. 选项
 
-次数：写这份 spec 时只读扫了 Claude Code 的会话记录（到 2026-11-05，含当天的全流程试用），`usage.md` 没有 paper-read 各选项的行。全在本仓库，真项目 0 次。
+次数：写这份 spec 时只读扫了 Claude Code 的会话记录（到 2026-11-05，含当天的全流程试用），[`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 没有 paper-read 各选项的行。全在本仓库，真项目 0 次。
 
 | 命令 | 现在 | 改后 | 次数 | 为什么 |
 |---|---|---|---|---|
@@ -102,17 +102,17 @@ ocr.py findings <scratch>/<名>
 
 一条规矩，和 pilot spec 第 9 节、p2z 的代码一样：
 
-- **退出 1**：命令要处理的那样东西有问题（不在、不是该有的那种、格式旧、改它被拒），写在那样东西自己的那一行，在标准输出。处理好几样的命令（`heading`）再在标准错误最后打一行汇总；只处理一样的（`take`、`check`、`quotes`、`put`）不打。
+- **退出 1**：命令要处理的那样东西有问题（不在、不是该有的那种、格式旧、改它被拒），写在那样东西自己的那一行，在标准输出。处理好几样的命令（`heading`、`quotes`）再在标准错误最后打一行汇总；只处理一样的（`take`、`check`、`put`）不打。
 - **退出 2**：调用本身或它要靠的东西有问题（用法、选项的值不对、服务不应、读不了的清单），标准错误最后一行 `{code, hint, …}`。用法错误是 `{code: usage, detail, hint}`（拷 p2z 的 `Parser`）；p2z 做不下去（Zotero 没开、本地 API 关着）时原样转出 p2z 那一行，加上 `step`（哪个 p2z 命令）；没装 pdftotext 也在这一类。
-- **提示**，照 p2z：ok、skipped 和各命令的回答（`check` 的 `complete`、`open`，`quotes` 的 `pass`、`open`）以外，每个 code 都带一句 `hint`。SKILL.md 讲到这些 code 时指向 `hint`，不再复述。
-- 标准输出照旧：`take`、`check`、`quotes`、`put` 各打一个 JSON 对象，`heading` 每篇一行；每一行都带 `code`（今天已经都带）。字段不变，下表列的除外。
+- **提示**，照 p2z：ok、skipped 和各命令的回答（`check` 的 `complete`、`open`）以外，每个 code 都带一句 `hint`。SKILL.md 讲到这些 code 时指向 `hint`，不再复述。
+- 标准输出：`take`、`check`、`put` 各打一个 JSON 对象，`heading` 每篇一行，均带 `code`。`quotes` 只列未通过、且未标已核对的引文，每条 `{line, result, text}`；有问题时退出 1，标准错误最后一行 `{summary: {total, ok, checked, open}}`，`ok` 计 PDF 匹配，`checked` 计其余已核对引文。全部通过时两流为空、退出 0。其余字段变更如下表。
 - 下游关掉管道：拷 p2z 的 `write`、`emit`，不再打印、不报错，照常做完，退出码照实。
 
 | 命令 | 现在 | 改后 |
 |---|---|---|
 | take | p2z 的任何失败都包成 `{code: failed, step, detail: [p2z 的行], stderr}`，在标准输出，退出 1；`no_package`、`two_notes` 没有 `hint`；成功的行里 scratch 里那个 PDF 链接叫 `pdf` | p2z 做不下去：退出 2，标准输出空，标准错误最后一行是 p2z 的 `{code, hint}` 加 `step`。p2z 对这篇论文的回答直接提上来：`code` 就是 p2z 的（`not_found`、`ambiguous`、`no_such_title`、`no_pdf`、`not_on_disk`），带 p2z 的 `hint` 和它别的字段（`keys`、`titles` 等），加 `step` 和 `version`（笔记记的读的版本），退出 1；`failed`、`detail`、`stderr` 不再有。`no_package` 带 `hint`，写好路径：`ocr.py parse <input> -o <scratch>/`，再 `p2z.py package put <scratch>/<名>`，再跑一次 `take`（试用里 agent 走偏的就是这一步）。`two_notes` 带一句 `hint`：留哪条由用户定。PDF 链接改叫 `input`，`pdf` 去掉（同一个路径两个名字）；`previous` 里的 `pdf` 也改叫 `input`。名字照 p2z `package take`，`ok` 和 `no_package` 的行都有它，所以 `pr.py take … \| ocr.py parse -o <scratch>/ -` 读得到 |
 | check | 读不了笔记：`{code: unreadable, path, detail}`，退出 2 | `{file, code: file_not_found \| file_unreadable, hint}`，标准输出，退出 1。`complete` 0、`open` 1 不变，都不带 `hint` |
-| quotes | 读不了笔记或 PDF、包里没有 `.md`、没装 pdftotext，都是 `unreadable`，退出 2 | 笔记、旁边的 PDF、包：`{file, code: file_not_found \| file_unreadable, path, hint}`，`file` 是笔记，`path` 是出问题的那一份，标准输出，退出 1。没装 pdftotext 改叫 `no_pdftotext`（同 `put` 的 `no_paddleocr`），退出 2、在标准错误最后一行。`pass` 0、`open` 1 不变 |
+| quotes | 读不了笔记或 PDF、包里没有 `.md`、没装 pdftotext，都是 `unreadable`，退出 2 | 笔记、旁边的 PDF、包：`{file, code: file_not_found \| file_unreadable, path, hint}`，`file` 是笔记，`path` 是出问题的那一份，标准输出，退出 1。没装 pdftotext 改叫 `no_pdftotext`（同 `put` 的 `no_paddleocr`），退出 2、在标准错误最后一行。无待核对引文退出 0，否则退出 1 |
 | put | 读不了笔记：`{code: failed, detail}`，退出 1；`annotate` 失败一律算进 `unmatched` 的 `annotate_failed`，接着 `note put`；`note put` 做不下去：`code` 是 p2z 的，退出 1；`unmatched` 各条只有 `why` | 读不了笔记：`{file, code: file_not_found \| file_unreadable, hint}`，标准输出，退出 1。p2z 做不下去：`annotate`（`put_note.py:122`，先跑）退出 2 时整个命令就停，不跑 `note put`、笔记文件不动；`note put`（`:188`）退出 2 也一样；都是退出 2，标准错误最后一行那个 p2z 命令的 `{code, hint}` 加 `step`，已建的批注下次 `put` 会找回。`code` 不是 ok、skipped 时，行里提上 `note put` 的 `hint`。`unmatched` 每条按 `why` 带一句 `hint`。"links could not be taken off" 那句警告照旧在标准错误。`ok`、`skipped` 0，其余 1 不变 |
 | heading | 解析不出的写成 `{cite, code, hint}`（把 p2z 的 `item` 改了名）；p2z 做不下去时 `{code: failed, detail}` 在标准输出，退出 2 | 解析不出的原样是 p2z 那一行 `{item, code: not_found \| ambiguous, keys?, hint}`：写的可能是 key，叫 `cite` 不对；退出 1 时标准错误最后一行 `{"summary": {total, failed}}`（新加）。p2z 做不下去：每篇一行 `{item, code: not_run}`，标准错误最后一行 p2z 的 `{code, hint}`，退出 2 |
 
@@ -140,7 +140,7 @@ ocr.py findings <scratch>/<名>
 
 - note-format.md 7、11：`prepare_note.py`、`put_note.py` → `pr.py take`、`pr.py put`；70：`check_note.py --full` → `pr.py check --full`；95：`check_quotes.py` → `pr.py quotes`。
 - notes.md 24：`uv run scripts/index_heading.py --cite <citation key>…` → `pr.py heading <citation key>… | jq -r 'select(.code=="ok").heading'`（解析不出的那一行没有 `heading`），"A citation key it cannot resolve prints paper-to-zotero's own line" 不变；56：`prepare_note.py` → `pr.py take`。
-- reading.md 12、14：输入里加上"每次 shell 调用开头的那一句"，14 的 "how to run its `doc.py`" 随之去掉；`<paper-read>` 照旧用来指文档路径（如 73 的 tagging.md）。39、54：`doc.py commit` → `ocr.py commit`。61：`uv run <paper-read>/scripts/check_note.py <note> --full` → `pr.py check --full <note>`；62：`check_quotes.py <note> --pdf … --package …` 和括号里那句 → `pr.py quotes <note>`。63：`doc.py show <package folder>` prints `no open findings` → `ocr.py findings <package folder>` prints no line with status `open`。72：`doc.py show` → `ocr.py findings`。
+- reading.md 12、14：输入里加上"每次 shell 调用开头的那一句"，14 的 "how to run its `doc.py`" 随之去掉；`<paper-read>` 照旧用来指文档路径（如 73 的 tagging.md）。39、54：`doc.py commit` → `ocr.py commit`。61：`uv run <paper-read>/scripts/check_note.py <note> --full` → `pr.py check --full <note>`；62：`check_quotes.py <note> --pdf … --package …` 和括号里那句 → `pr.py quotes <note>`。63：`doc.py show <package folder>` prints `no open findings` → `ocr.py findings <package folder>` exits 0。72：`doc.py show` → `ocr.py findings`。
 
 **脚本**
 
@@ -187,14 +187,14 @@ ocr.py findings <scratch>/<名>
 
 1. 已量（2026-11-05）：`p2z.py items <条目 key>` 和 `p2z.py items <引用键>` 打出同一行。`take` 先解析就靠它。
 2. 用现在的 `prepare_note.py` 取 T-CACE，存下输出和文件；实现后 `pr.py take xiaoTCACE2026`、`pr.py take <条目 key>` 各取一次，除路径和 `pdf` 改叫 `input` 外一样。
-3. 同一条笔记上，现在的 `check_note --full`、`check_quotes --pdf --package` 和改后的 `pr.py check --full`、`pr.py quotes` 结果一样。
+3. 同一条笔记上，现在的 `check_note --full`、`check_quotes --pdf --package` 和改后的 `pr.py check --full`、`pr.py quotes` 通过与否一样（`quotes` 输出改为只列待核对引文）。
 4. 已量（2026-11-05）：`prepare_note` 把 `<名>.pdf`、`<名>/`（包）、`.note.md`、`.note.md.taken`、`.zotero.json` 放在一起。从笔记旁边找就靠它。
 5. 刚关掉的端口下：`pr.py take`、`pr.py heading`、没有包的笔记上的 `pr.py put` 都马上退出 2，标准错误最后一行 `zotero_unreachable`；有包的笔记上，`put` 先跑完 `ocr.py objects` 才碰 Zotero，不算"马上"，但同样退出 2、不跑 `note put`。
 6. `p2z.py search T-CACE | pr.py heading -` 打出标题行；一个不存在的引用键 → p2z 的 `{item, code: not_found}`，退出 1，标准错误最后一行是汇总；`p2z.py items <不存在的> | pr.py heading -` 把那行失败原样转出，退出 1。
 
 **实测写入**（要用户点头）：在一条测试笔记上走一遍 `take` → `check` → `quotes` → `put`。
 
-**全流程试用**（推送、重装后）：照 2026-11-05 那次，派一个只看已装 skill 文档的 subagent 读一篇论文，用 `trial.py` 数：没有 `cd` 进 paper-read 或 p2z、没有 `uv run`、没有 `2>/dev/null`，paper-read、p2z、paddleocr 都经 PATH 调。那次试用里经 paper-read 调 p2z 新旧混用，就是这条要验的。
+**全流程试用**（推送、重装后）：照 2026-11-05 那次，派一个只看已装 skill 文档的 subagent 读一篇论文，用 [`trial.py`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 数：没有 `cd` 进 paper-read 或 p2z、没有 `uv run`、没有 `2>/dev/null`，paper-read、p2z、paddleocr 都经 PATH 调。那次试用里经 paper-read 调 p2z 新旧混用，就是这条要验的。
 
 **行数**：文档（SKILL.md 加 `references/`，现在 392 行）要变短：`cd` 那段、`--package` 的括号、`failed` 和 `put` 里 Zotero 没开的那半句、`unmatched` 各种 `why` 的做法都去掉（后者进了 `hint`），`-h` 已写的不在文档里重写。脚本多出的只有入口、拷来的 `cli` 部分、man 页帮助和提示，三份调兄弟 skill 的小函数并成一份（pilot spec 第 9 节的口径）。文档里没有 `cd`、`uv run`、`2>/dev/null`。
 
@@ -233,3 +233,7 @@ ocr.py findings <scratch>/<名>
 - 例子里的 `xiaoTCACE2026` 是简写，真引用键是 `xiaoTCACETimeConditionedAutoregressive2026`（条目 `9ZFX6QP6`）。
 - 行数：代码 932 → 1203（入口 64、`prlib/cli.py` 193，三份调兄弟 skill 的代码合成一个 `sibling()`）；文档 392 → 389。
 - 在 paddleocr 合进来之前，`put` 把每个图表列为 `unmatched`，why 是 `no_paddleocr`。
+
+## 12. 收尾时的已定调整（2026-11-07 决定，2026-11-09 完成）
+
+用户同意 `quotes` 只输出待核对引文：此前 124 次调用中约 73 次附加过滤，目的都是挑出问题。按新的设计原则，直接给出调用者所需，保留原有引文判断和读错误处理；改动限于输出、使用处和相应验证。`take` 的 stdin、`heading` 输出保持原样。

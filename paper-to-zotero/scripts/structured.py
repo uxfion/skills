@@ -137,12 +137,12 @@ def take(zot, args, p):
 
 For each PDF picked, into -o DIR/: <cite>.<title>.pdf, a link to the PDF in Zotero's storage (paddleocr's input: it
 names its output after it), <cite>.<title>.zotero.json, where it came from (put reads it), and, when the PDF has a
-package, <cite>.<title>/ unzipped from it (under today's name, should the key or title have changed since): read it.
-No package (`package: null`): the paddleocr skill's `ocr.py parse <input> -o DIR/` writes that same folder,
-then put. The PDFs of the items named (keys or citation keys; - reads a list from stdin): by default the best
-(p2z.py pdf's first row); --title the one with that attachment title; --every all of them; --missing those without a
-package. With no item named, --missing and --every cover the whole library: the PDFs without a package (links only),
-for a batch parse; every PDF, for reprocessing them all after the paddleocr skill changed.
+package, <cite>.<title>/ unzipped from it (under today's name, should the key or title have changed since): read it. No
+package (`package: null`): the paddleocr skill's `ocr.py parse <input> -o DIR/` writes that same folder, then put. The
+PDFs of the items named: by default the best (p2z.py pdf's first row); --title the one with that attachment title;
+--every all of them; --missing those without a package. With no item named, --missing and --every cover the whole
+library: the PDFs without a package (links only), for a batch parse; every PDF, for reprocessing them all after the
+paddleocr skill changed.
 
 stdout: one line per PDF {cite, key, title, code ok, pdf, input, folder, package: its key | null}; skipped
 already_taken: DIR already holds that folder (read it, or delete it and take again); no_pdf (the item has none),
@@ -239,11 +239,10 @@ def put_one(zot, folder, args):
 def put(zot, args, p):
     """Folders take prepared, zipped back onto their items as their PDFs' packages.
 
-After a parse, after edits (settling a parse), after a new paddleocr processed it again. The folders follow the
-options (DIR/<cite>.<title>/; - reads their paths from stdin). The zip is built the same way every time, so an
-unchanged folder gives the bytes the item already holds: skipped. A package the PDF has is replaced only when it is
-the one take unzipped: the new zip is attached and read back, then the old one goes to the trash (a derived copy,
-undoable for 30 days; no confirmation asked).
+After a parse, after edits (settling a parse), after a new paddleocr processed it again. The zip is built the same way
+every time, so an unchanged folder gives the bytes the item already holds: skipped. A package the PDF has is replaced
+only when it is the one take unzipped: the new zip is attached and read back, then the old one goes to the trash (a
+derived copy, undoable for 30 days; no confirmation asked).
 
 stdout: one line per folder {folder, cite, key, title, code ok, package, md5, replaced?: [old package keys]};
 skipped already_current: the item holds this very zip; not_taken (no <folder>.zotero.json beside the folder),
@@ -272,9 +271,8 @@ Examples:
 def names(zot, args, p):
     """Each package of the items named (none named: the library's) renamed in place to <cite>.<title>.zip.
 
-As Zotero renames a file (no upload): for a citation key changed in Zotero itself. The items are keys or citation
-keys (- reads a list from stdin). stdout: one line per item {key, code ok, renamed: [{key, from, to}]} | skipped
-all_named; not_found, ambiguous.
+As Zotero renames a file (no upload): for a citation key changed in Zotero itself. stdout: one line per item {key, code
+ok, renamed: [{key, from, to}]} | skipped all_named; not_found, ambiguous.
 
 Examples:
   p2z.py package names zhuUnpairedImagetoImageTranslation2017

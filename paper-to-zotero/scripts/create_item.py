@@ -5,17 +5,15 @@
 # ///
 """Create each record's Zotero item, filed and tagged in one POST: the record's `saved`.
 
-The item is the record's `item`; it goes into the record's `collection` (one or several, each a key, a path from
-p2z.py collections or a name one collection has) with its `citationKey`, which Zotero then keeps, and with its
-tags: the record's `tags` (else the item's own), p2z.py draft's
-automatic ones, together with the curated tags of the paper's tags file, <scratch>/paper-to-zotero/tags/<slug>.json
-(a tag in both takes the file's type). Before anything is posted the library is looked up again (the lookup that
-writes `found` and `near_matches`, p2z.py have's): a paper added since the last prepare is caught here. A paper
-whose tags file is not written yet gets no item (untagged), so no item goes in before its curated tags. Right before
-the POST the record gets `saved: {pending: true, at}`; then `saved: {key, version, citationKey, created_at}`. A run
-cut off between the two leaves the pending mark: the next run's lookup finds the item that POST created and records
-it, or creates it when there is none, so a rerun is always safe. What comes back is compared with what was sent
-(collections, tags, citation key).
+The item is the record's `item`; it goes into the record's `collection` (one or several, each a key, a path from p2z.py
+collections or a name one collection has) with its `citationKey`, which Zotero then keeps, and with its tags: the
+record's `tags` (else the item's own), p2z.py draft's automatic ones, together with the curated tags of the paper's tags
+file, <scratch>/paper-to-zotero/tags/<slug>.json (a tag in both takes the file's type). Before anything is posted the
+library is looked up again (the lookup that writes `found` and `near_matches`, p2z.py have's): a paper added since the
+last prepare is caught here. Right before the POST the record gets `saved: {pending: true, at}`; then `saved: {key,
+version, citationKey, created_at}`. A run cut off between the two leaves the pending mark: the next run's lookup finds
+the item that POST created and records it, or creates it when there is none, so a rerun is always safe. What comes back
+is compared with what was sent (collections, tags, citation key).
 
 stdout: one line per record {slug, code, key?, version?, citationKey?, collection?, citation_key_hint?}; collection
 lists the item's collections, each {key, path}.
@@ -31,9 +29,10 @@ lists the item's collections, each {key, path}.
   readback_mismatch    created (`saved` written) but not filed, tagged or keyed as sent: fix it with p2z.py tag
                        or p2z.py update
 citation_key_hint: the key holds a character TeX treats specially (^ _ & % $ # { } ~ \\), and the key without them.
-Exit 0 = every record created or skipped; 1 = not, then stderr's last line is {"summary": {total, ok, skipped, failed}}; 2 = cannot go on (Zotero not running, local API
-off, no key, the key rejected, another Zotero than the key's), then stderr's last line is {code, hint}. A file that is not a record stops the run
-before anything is written.
+Exit 0 = every record created or skipped; 1 = not, then stderr's last line is {"summary": {total, ok, skipped,
+failed}}; 2 = cannot go on (Zotero not running, local API off, no key, the key rejected, another Zotero than the
+key's), then stderr's last line is {code, hint}. A file that is not a record stops the run before anything is
+written.
 
 Example:
   p2z.py create <scratch>/paper-to-zotero/records/*.json

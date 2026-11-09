@@ -53,8 +53,7 @@ Problem codes (each problem is {"code", ...}: a fact and its evidence; what it m
                           proxy, a venue's own page - is the judge's
 
 What it checks: the items named (keys or citation keys; - reads a list from stdin, a value a line or our JSON
-lines, their `key`), else the items of --collection (-r: and the collections under it), else the whole library;
-the library is read once in every case, for the duplicates and the citation keys.
+lines, their `key`), else the items of --collection (-r: and the collections under it), else the whole library.
 
 stdout: one compact JSON line per item with problems {key, citationKey, title, itemType, collections (paths from the
 root, "/" between names), problems}. A name that is not one top-level item prints its line first: {item, code:

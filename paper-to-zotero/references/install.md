@@ -8,7 +8,7 @@ The scripts share one library, `scripts/p2zlib/`, a subdirectory the skill insta
 
 ## Zotero
 
-Zotero 10 or newer, running, with the local API on: Settings → Advanced → "Allow other applications on this computer to communicate with Zotero" (`local_api_disabled` otherwise). The write key comes from `p2z.py ready --authorize`: Zotero shows a dialog and the user must click **Always Allow** ("Allow" gives a single-use key). Tell the user before running it.
+Zotero 10 or newer, running, with the local API on: Settings → Advanced → "Allow other applications on this computer to communicate with Zotero" (`local_api_disabled` otherwise). The write key comes from `p2z.py ready --authorize`; tell the user first, as `ready`'s `no_key` hint says.
 
 ## The config file
 
@@ -18,4 +18,4 @@ Zotero 10 or newer, running, with the local API on: Settings → Advanced → "A
 {"zotero": {"key": "…", "serverID": "…", "created": "…"}, "automatic_tags": false}
 ```
 
-`p2z.py ready --authorize` writes the key and keeps any other field. `automatic_tags` is the user's: `true` gives drafted items the source's own keywords as automatic tags (references/tagging.md); absent or `false`, none. An older version kept the OpenAlex key and the institution's proxy and discovery page here too; paper-fetch reads them from its own config now, and `ready` names them under `config.moved` while they remain; it also warns when others can read the file.
+`automatic_tags` is the user's: `true` gives drafted items the source's own keywords as automatic tags ([tagging.md](tagging.md)); absent or `false`, none.

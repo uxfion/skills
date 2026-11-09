@@ -1,6 +1,6 @@
 # Sizing and tuning a model server
 
-Take the mainstream, cheap wins and stop there: what the model card and the vLLM recipe recommend, and what vLLM turns on with one switch (its attention kernels, prefix caching, a model's own MTP head). Confirm each with one quick comparison on the real workload. Leave niche tuning alone: external draft models, hand-set batch and chunk sizes, performance modes. Options that change the numbers (FP8 KV cache, quantised weights) stay out of runs whose results must compare with earlier ones. `serve.py` runs as SKILL.md's *Calling* says, after `set -o pipefail; export PATH="<vllm-serve's directory>/scripts:$PATH";`.
+Take the mainstream, cheap wins and stop there: what the model card and the vLLM recipe recommend, and what vLLM turns on with one switch (its attention kernels, prefix caching, a model's own MTP head). Confirm each with one quick comparison on the real workload. Leave niche tuning alone: external draft models, hand-set batch and chunk sizes, performance modes. Options that change the numbers (FP8 KV cache, quantised weights) stay out of runs whose results must compare with earlier ones. `serve.py` runs as SKILL.md's *Calling* says.
 
 The figures below are Qwen3.8-27B (BF16, 55.6 GB on disk) on vLLM 0.32 in 2026-10, a worked example of each method.
 
@@ -30,7 +30,7 @@ Multi-turn sessions (agents) live on the prefix cache: each turn resends the who
 
 - Keep the KV cache below ~70% at peak: sessions ≈ 0.7 × cache tokens ÷ the tokens one session holds, counting once what sessions share (a common system prompt). Here 25–35k per session.
 - `--max-num-seqs` caps the requests running at once on each data-parallel rank (two ranks at 16 run 32); the caller limits the sessions it keeps in flight.
-- Watch `status`'s `load`: `kv_cache_usage`, `waiting`, `preemptions`, `prefix_cache_hit_rate`, `generation_tokens_per_s`.
+- Watch `status`'s `load`, `kv_cache_usage` first.
 - A hybrid model (Mamba or gated-delta-net layers) holds one Mamba cache block per running request, and vLLM refuses to start when `--max-num-seqs` exceeds the blocks it has (its default is 1024 on GPUs of 70 GiB or more, else 256). It enlarges the attention block to the Mamba state's size (784 tokens here), so blocks ≈ cache tokens ÷ that size: 680 on one RTX PRO 6000 at 0.92.
 
 ## Parallel layout
@@ -40,7 +40,7 @@ Multi-turn sessions (agents) live on the prefix cache: each turn resends the who
 
 ## Speculative decoding
 
-- A recipe's version notes go stale: check a "needs a fix no release carries yet" against the installed version (`gh api repos/vllm-project/vllm/compare/v<version>...<merge commit>` shows `behind` when the release has it). The Qwen3.8 recipe's MTP note was stale by 0.32.0.
+- Check a recipe's "needs a fix no release carries yet" against the installed release: `gh api repos/vllm-project/vllm/compare/v<version>...<merge commit>` shows `behind` when the release has it (the Qwen3.8 recipe's MTP note was stale by 0.32.0).
 - Try it once on the real workload: off against the recipe's value, nothing in between. Acceptance is `vllm:spec_decode_num_accepted_tokens_total` ÷ `vllm:spec_decode_num_draft_tokens_total` from `/metrics`.
 - Gains shrink with long contexts, sampling at high temperature and many concurrent requests. On 12 concurrent ~26k-token thinking requests at temperature 1.0: 202 tok/s off, 205 with 3 draft tokens (42% accepted), 198 with 5 (31%), against the recipe's 92% acceptance on short prompts. Left off.
 

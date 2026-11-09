@@ -5,21 +5,21 @@
 # ///
 """Take a paper's note, PDF and structured package out of Zotero into a scratch directory: step 1 of every change to a note.
 
-The paper is its citation key or item key, resolved first by p2z.py items; - reads it from stdin, as a list that
-names one paper (a value a line, or paper-to-zotero's JSON lines by `key`, else `cite`): several are `ambiguous` and
-nothing is taken, a line reporting a skip or a failure upstream is passed on as it is, an empty list does nothing.
+PAPER is resolved by p2z.py items; - reads a list that names one paper (a value a line, or paper-to-zotero's JSON
+lines by `key`, else `cite`): several are `ambiguous` and nothing is taken; a line reporting a skip or a failure
+upstream is passed on as it is; an empty list does nothing.
 Into DIR, through paper-to-zotero's own commands, where <name> is <citation key>.<PDF title>:
   - <name>.pdf, the PDF the note was read in (its "读的版本：" line), or the best one for a new note (by the order
-    `p2z.py pdf -h` gives); --title takes another PDF of the paper, and for a note read in another one, that one's
-    PDF and package too, to compare the two versions;
+    `p2z.py pdf -h` gives); with --title, a note read in another PDF brings that one's PDF and package too, to
+    compare the two versions;
   - <name>/, the PDF's structured package, and <name>.zotero.json, which PDF it is;
   - <name>.note.md, the note titled 论文笔记 without the links pr.py put added to its figures and tables, or, when
     the paper has none, a new note from the skeleton in references/note-format.md, its version in the 读的版本
-    paragraph; --bare leaves the eight questions out, for a note that starts with one looked-up answer;
+    paragraph;
   - <name>.note.md.taken, the note as taken, which pr.py check compares question numbers against;
   - notes/, the paper's other child notes, left as leads.
 pr.py check, quotes and put find these beside the note. A rerun into the same directory, after a parse for instance,
-picks up what is already there.
+keeps the note file and its .taken as they are.
 
 stdout: one JSON object.
   ok          {note, taken, created, input, pdf_title, package, better_pdf, previous, old_notes, open_findings, paper}:

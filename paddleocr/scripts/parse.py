@@ -5,9 +5,9 @@
 # ///
 """Parse documents, PDFs or page images, with PaddleOCR-VL into a record, Markdown and figures.
 
-Each INPUT is one document: a PDF, an image, or a directory of page images (natural order); - reads a list of paths
-from stdin, a path a line or our JSON lines by `input` (parse's own, p2z.py package take's). Each document goes to
-DIR/<stem>/, the folder every other ocr.py word works on:
+Each INPUT is one document (a directory: its page images in natural order); - reads their paths from stdin, a path a
+line or our JSON lines by `input` (parse's own, p2z.py package take's). Each document goes to DIR/<stem>/, the folder
+every other ocr.py word works on:
   <stem>.json   the record: what the models gave, as given (PaddleOCR's blocks, with ids p<page>-<block_id>; the
                 second layout model's boxes on each page), every change made to it since, in order ("auto:<step>"
                 by processing, "agent" / "user" by settling, each with its reason), the figures, and the findings
@@ -22,24 +22,22 @@ from their panels by the second layout model's whole-figure boxes and the captio
 PP-DocLayout_plus-L, run on every page; when it cannot load, captions alone, and stderr says so); then the checks
 against the PDF's text layer and of each figure against its caption, whose findings ocr.py findings lists.
 
-A document whose record holds the same source (sha256, pages) and options is not parsed again: when the code that
-processes or checks a record has changed since, it is processed again from the stored model output, with no GPU
-(rendered: true); else it is skipped, reason up_to_date. -f parses it again; the edits an agent or the user made
+A document whose record holds the same source (sha256, pages) and options is processed again from the stored model
+output, without the GPU, when the code that processes or checks a record has changed since (rendered: true), else
+skipped (reason up_to_date). -f parses it again; the edits an agent or the user made
 carry over to the new parse (matched by block id and the text they changed), and those that no longer fit become
 stale_edit findings. A folder holding a parse of an older format is moved aside to <stem>.format2/ and the document
 parsed anew (archived). Markdown edits not recorded yet are committed first.
 
 The VL model runs natively (one block at a time, about 10-15 s a page) or in a vLLM server (continuous batching,
-0.5-1 s a page). --backend auto, the default, asks the vllm-serve skill (installed beside this one, or VLLM_SERVE =
-its serve.py) for the server whenever a run has pages to parse, however few: `serve.py up paddleocr-vl` starts it
-unless it runs, and it stops by itself once idle. Without vllm-serve, without vLLM, or with too little free GPU memory
-for the server, the run goes native and stderr says why. --backend vllm insists on the server, --backend native
-avoids it, and --vl-server URL uses a given vLLM server.
+0.5-1 s a page). --backend auto asks the vllm-serve skill (installed beside this one, or VLLM_SERVE = its serve.py)
+for the server whenever a run has pages to parse, however few: `serve.py up paddleocr-vl` starts it unless it runs,
+and it stops by itself once idle. Without vllm-serve, without vLLM, or with too little free GPU memory for the server,
+the run goes native and stderr says why. --backend vllm insists on the server; native avoids it.
 
 The models run in the Python of the `paddleocr` uv tool (PADDLEOCR_PYTHON overrides): the command re-executes itself
-there, with CUDA_MODULE_LOADING=EAGER set before CUDA initialises (lazy loading hung the VL model on WSL2 + RTX 50,
-2026-10) and LD_LIBRARY_PATH stripped of CUDA toolkit directories when the environment ships its own CUDA runtime, so
-that Paddle loads those libraries rather than a system toolkit's.
+there with CUDA_MODULE_LOADING=EAGER and, when that environment ships its own CUDA runtime, without the CUDA toolkit
+directories in LD_LIBRARY_PATH (the skill's references/install.md says why).
 
 stdout: one line per document as it is done, {input, code, folder, md, json, ...}:
   ok         parsed (backend, seconds, pages_per_minute, load_seconds, edits_carried, archived) or rendered: true;

@@ -1,13 +1,13 @@
 # paper-fetch 改成 Unix 约定
 
-- 日期：2026-11-05，草稿第二稿。来源：[docs/issues/20261104-skills-unix-conventions.md](../issues/20261104-skills-unix-conventions.md)（已定 7：`--version` 改 `--as`；已定 13：从 p2z 拷要用的代码，不另立共用层；「铺开到其余 skill 时」的 10 步）。约定只有一个出处：`docs/design-principles.md` §3 *The Unix/Linux philosophy*，这里只写 paper-fetch 自己的：短词、东西怎么指定、`-` 读什么。样板是已实现的 p2z（`p2z.py`、`p2zlib/cli.py`）。
-- 状态：已定（2026-11-06）：用户同意了 §3 补的几处（issue 第 14 条）和实施计划；实施中，这期间可以改正。第一稿的三条待定主 agent 已定（2026-11-05，都按推荐）；四份 spec 共用的几条也是主 agent 定的（运行时检查的 fixture、退出码规则、每行带 `code`、跨 skill 改动谁来改、PATH 那一句、路径清单读 JSON 行、去掉的选项不另给提示）。这份 spec 没有待定。原先和 §3 字面对不上的三处（`-o` 指目录、只处理一样东西的命令退出 1 不打汇总、`-` 把上游的跳过和失败行原样转出），用户 2026-11-06 同意写进了 §3。
+- 日期：2026-11-05，草稿第二稿。来源：[Unix 约定 issue（已归档）](../issues/archive/20261104-skills-unix-conventions-fixed.md)（已定 7：`--version` 改 `--as`；已定 13：从 p2z 拷要用的代码，不另立共用层；「铺开到其余 skill 时」的 10 步）。约定只有一个出处：`docs/design-principles.md` §3 *The Unix/Linux philosophy*，这里只写 paper-fetch 自己的：短词、东西怎么指定、`-` 读什么。样板是已实现的 p2z（`p2z.py`、`p2zlib/cli.py`）。
+- 状态：已冻结（2026-11-09）。用户于 2026-11-06 同意了 §3 补的几处（issue 第 14 条）和实施计划；实施及收尾已完成，实施时的更正记在本 spec。第一稿的三条待定主 agent 已定（2026-11-05，都按推荐）；四份 spec 共用的几条也是主 agent 定的（运行时检查的 fixture、退出码规则、每行带 `code`、跨 skill 改动谁来改、PATH 那一句、路径清单读 JSON 行、去掉的选项不另给提示）。这份 spec 没有待定。原先和 §3 字面对不上的三处（`-o` 指目录、只处理一样东西的命令退出 1 不打汇总、`-` 把上游的跳过和失败行原样转出），用户 2026-11-06 同意写进了 §3。
 - 范围：一遍约定整理。流程、交接单、结果文件都不动；变的是怎么调用、选项、汇总放在哪、退出码、帮助。输出的字段只加不改：每行补 `code`（第 5 节），两种跳过行补 `path`（第 3 节）。另有两处小改：`downloads` 不再往 `fetch.jsonl` 记事件（第 2 节），`todo`、`answer` 的 `--slug` 修好（第 3 节）。
 - 跨 skill 的改动分批落地：第一批 paper-fetch 和 vllm-serve，第二批 paddleocr 和 paper-read。paper-to-zotero 里调 paper-fetch 的每一行（文档和脚本帮助）、p2z `ready` 的改动都归这份 spec；p2z `SKILL.md` 的 PATH 那一句和 `import.md` 里解析的几行归 paddleocr，这里不碰。
 
 ## 1. 改完是什么样
 
-每次调用开头单独一句（下面"改后"都省掉它）：`set -o pipefail; export PATH="<paper-fetch 目录>/scripts:$PATH";`。paper-fetch 不调别的 skill，所以这一句只列它自己；接到 `p2z.py` 的管道写在 p2z 的文档里，那边的 PATH 带着两个 skill。"现在"的写法都要先 `cd` 到 paper-fetch 目录。次数取自 `usage.md`，全在本仓库，真项目 0 次；括号里是拆分前同一批命令记在 paper-to-zotero 名下的次数。
+每次调用开头单独一句（下面"改后"都省掉它）：`set -o pipefail; export PATH="<paper-fetch 目录>/scripts:$PATH";`。paper-fetch 不调别的 skill，所以这一句只列它自己；接到 `p2z.py` 的管道写在 p2z 的文档里，那边的 PATH 带着两个 skill。"现在"的写法都要先 `cd` 到 paper-fetch 目录。次数取自 [`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料)，全在本仓库，真项目 0 次；括号里是拆分前同一批命令记在 paper-to-zotero 名下的次数。
 
 ```
 # identify，99 次。认一篇，带引用键
@@ -101,7 +101,7 @@ p2z 的 `have -` 现在只读一行一个路径，所以中间要 `jq -r .source
 
 ## 4. 选项
 
-字母只用 §3 表里的：`-h`、`-n`、`-o`。每个选项只带一个值。"粗数"是按 `usage.md` 同一批会话记录数的 paper-fetch 调用里各选项出现的次数（含开发时的旧写法，只看多少）；issue 记的全系统总数：`--dir` 33、`--file` 20、`--out` 22、`--version` 4、`--dry-run` 14、`-o` 93。
+字母只用 §3 表里的：`-h`、`-n`、`-o`。每个选项只带一个值。"粗数"是按 [`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 同一批会话记录数的 paper-fetch 调用里各选项出现的次数（含开发时的旧写法，只看多少）；issue 记的全系统总数：`--dir` 33、`--file` 20、`--out` 22、`--version` 4、`--dry-run` 14、`-o` 93。
 
 | 命令 | 现在 | 改后 | 粗数 | 说明 |
 |---|---|---|---|---|

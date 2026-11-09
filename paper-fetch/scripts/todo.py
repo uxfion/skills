@@ -7,7 +7,7 @@
 
 A handoff is open until answered (pf.py answer), or until what it waited for happened: a file filed for its paper
 (page, file), a label on its file (label), its download filed (left). Its record, with the evidence files to read,
-is the `path` printed (pflib/run.py, Handoffs). --slug takes a paper's slug or its citation key as given.
+is the `path` printed (pflib/run.py, Handoffs).
 
 One line per open handoff, {id, slug, kind, route?, url?, path}, by kind in the order the loop takes them up
 (browser_down, page, file, label, left; SKILL.md, Get the file), oldest first within a kind. Who takes each kind:

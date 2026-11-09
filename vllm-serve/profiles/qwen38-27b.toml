@@ -7,10 +7,9 @@
 # --max-num-seqs 256: vLLM 0.32's default, 1024 on GPUs of 70 GiB or more, exceeds the Mamba cache blocks one 96 GB
 # GPU holds (680) and the start fails; 256 starts wherever one GPU holds the whole context.
 # One copy needs ~84 GB of a GPU at vLLM's default 0.92 of it: one RTX PRO 6000, H20 or H200 holds it, smaller GPUs
-# use --tensor-parallel-size 2, 4 or 8. Sizing, concurrency for long sessions, and the MTP head (measured, left off):
-# references/tuning.md, whose figures are this model's.
+# use --tensor-parallel-size 2, 4 or 8. Sizing, concurrency for long sessions, the MTP head (measured, left off) and
+# the sampling defaults: references/tuning.md, whose figures are this model's.
 # Start-up: 2-7 min cold, so idle_minutes is 30 rather than 10.
-# Sampling: clients that send none get generation_config.json's temperature 1.0, top_p 0.95, top_k 20.
 model = "Qwen/Qwen3.8-27B"
 port = 8238
 idle_minutes = 30

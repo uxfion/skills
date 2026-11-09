@@ -10,8 +10,8 @@ The paper is what pr.py take put beside the note <name>.note.md: the PDF <name>.
 
 A quotation is a line `> "<the paper's words>"` (or `> “…”`), followed by nothing but an optional source in brackets,
 such as (Sec. III-A) or (Table III, p.11), and an optional check mark （已核对 …）; the words run to the line's last
-double quote of its kind, so double quotes inside them are copied as they are. Where it says it is in the paper is not
-checked: only whether its words are.
+double quote of its kind, so double quotes inside them are copied as they are. Only the words are checked, not the
+source.
 
 Both sides are brought to one form before they are compared: Unicode-normalised, LaTeX commands removed (and the
 package's HTML tags and comments), lowercased, letters and digits kept, and a point or comma kept between two digits
@@ -26,9 +26,10 @@ Each quotation, in order:
   unparsed       a line opening with `> "` or `> “` that is not in this form, so its words could not be told apart
 A quotation whose line carries （已核对 …） counts as checked whatever the result: someone compared it with the page.
 
-stdout: one JSON object {code, quotes: [{line, result, checked, text}], counts}.
-  pass   every quotation is ok or checked
-  open   some are not: look at the page image, correct the quotation, mark it （已核对 <source> · <date>）, run again
+stdout: one JSON line {line, result, text} per quotation still to check; ok and checked quotations are omitted.
+For each reported quotation, look at the page image, correct it, mark it （已核对 <source> · <date>）, and run again.
+When any remain, stderr ends with {summary: {total, ok, checked, open}}; ok counts PDF matches, checked counts
+the other quotations already checked against the page. When all pass, both streams are empty.
   file_not_found, file_unreadable    {file, code, path, hint}: the note, the PDF beside it or the package (path)
          cannot be read
 Exit 0 = pass; 1 = anything else; 2 = cannot go on: no_pdftotext, or a usage error.
@@ -118,7 +119,8 @@ def package_text(folder):
 
 
 def check(note, pdf_texts, package_text):
-    quotes, counts = [], {}
+    quotes = []
+    counts = {"total": 0, "ok": 0, "checked": 0, "open": 0}
     for n, text, checked, line in quotations(note):
         pieces = [p for p in (canon(x) for x in CUT.split(text or "")) if p]
         if text is None:
@@ -131,10 +133,11 @@ def check(note, pdf_texts, package_text):
             result = "package_only"
         else:
             result = "not_found"
-        counts[result] = counts.get(result, 0) + 1
-        quotes.append({"line": n, "result": result, "checked": checked, "text": (text or line)[:80]})
-    passed = all(q["result"] == "ok" or q["checked"] for q in quotes)
-    return {"code": "pass" if passed else "open", "quotes": quotes, "counts": counts}
+        counts["total"] += 1
+        counts["ok" if result == "ok" else "checked" if checked else "open"] += 1
+        if result != "ok" and not checked:
+            quotes.append({"line": n, "result": result, "text": (text or line)[:80]})
+    return quotes, counts
 
 
 def main(argv=None):
@@ -150,9 +153,13 @@ def main(argv=None):
                             path=args.note)
         stem = Path(args.note).name.removesuffix(".note.md")
         beside = Path(args.note).with_name(stem)
-        out = check(note, pdf_text(beside.with_name(f"{stem}.pdf")), package_text(beside))
-        cli.emit(out)
-        return cli.OK if out["code"] == "pass" else cli.ACT
+        quotes, counts = check(note, pdf_text(beside.with_name(f"{stem}.pdf")), package_text(beside))
+        for quote in quotes:
+            cli.emit(quote)
+        if quotes:
+            cli.emit({"summary": counts}, sys.stderr)
+            return cli.ACT
+        return cli.OK
 
     return cli.run(run, file=args.note)
 

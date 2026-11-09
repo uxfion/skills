@@ -5,8 +5,8 @@
 # ///
 """Change the tags and collections of existing Zotero items: set them, or add to and take from them; re-running is a no-op.
 
-With change options, what follows them is the items: keys or citation keys (- reads a list from stdin: a value a
-line, or our JSON lines, their `key`), all given the same change:
+With change options, the operands are the items, all given the same change: keys or citation keys (- reads a list
+from stdin: a value a line, or our JSON lines, their `key`):
   --add-tag TAG, --remove-tag TAG            a tag added (type 0, manual) or taken off, whatever its type
   --add-tags-file FILE, --set-tags-file FILE  a JSON list of tags, "name" or {"tag": "name", "type": 0|1} (1
                                               automatic): added to the item's tags, or its complete tag set
@@ -14,8 +14,10 @@ line, or our JSON lines, their `key`), all given the same change:
                                               a collection the item joins or leaves, or exactly these (--set-collection
                                               none: in none); COLL is a key, a path from p2z.py collections, or a name
                                               one collection has
-Each option takes one value; repeat it for more. Without change options, what follows is change lists: files of JSON
-lines (- reads one from stdin), a change per line naming its item by "key" or "cite", with any of
+Each option takes one value; --add-tag, --remove-tag and the collection options are repeated for more. Each
+tags-file option takes one file. Without change options, the
+operands are change lists: files of JSON lines (- reads one from stdin), a change per line naming its item by
+"key" or "cite", with any of
   collection         its collections become exactly these: a collection or a list; null, "none" or [] clears
   add_collection     add it to these (a collection or a list), keeping its others
   remove_collection  take it out of these, keeping its others; one it is not in is a no-op
@@ -28,10 +30,10 @@ excludes add_tags and remove_tags, which combine the same way. An item named twi
 the same; two different changes for one item are invalid_changes. A field outside these is ignored, with a warning
 on stderr.
 
-Nothing is written unless every change passes its checks: each name is one item, only top-level items change
-collections (tags go on attachments and notes too), each collection named is one outside the trash (this command
-never creates one: p2z.py mkcol does). Then one POST per 50 items, each sent with its version (an item that changed
-meanwhile is read again, planned again and sent once more), and each item is checked in Zotero's reply.
+Nothing is written unless every change passes its checks: each name is one item, only top-level items change collections
+(tags go on attachments and notes too), each collection named is one outside the trash (p2z.py mkcol creates one). Then
+one POST per 50 items, each sent with its version (an item that changed meanwhile is read again, planned again and sent
+once more), and each item is checked in Zotero's reply.
 
 stdout: one line per item {key, cite?, code, title, collection?: {from, to}, tags_added?, tags_removed?, version}
 (from, to: the item's collections before and after, each {key, path}):
@@ -342,8 +344,8 @@ def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("items", nargs="*", metavar="ITEM|CHANGES",
                    help="with change options, the items (- reads a list); without, change list files (- reads one)")
-    p.add_argument("--add-tag", action="append", default=[], metavar="TAG", help="add this tag (repeat for more)")
-    p.add_argument("--remove-tag", action="append", default=[], metavar="TAG", help="take this tag off (repeat for more)")
+    p.add_argument("--add-tag", action="append", default=[], metavar="TAG", help="add this tag")
+    p.add_argument("--remove-tag", action="append", default=[], metavar="TAG", help="take this tag off")
     p.add_argument("--add-tags-file", metavar="FILE", help="a JSON list of tags to add")
     p.add_argument("--set-tags-file", metavar="FILE", help="a JSON list of tags: the items' complete tag set")
     p.add_argument("--add-collection", action="append", default=[], metavar="COLL", help="add the items to this collection")

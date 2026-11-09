@@ -1,6 +1,6 @@
 # Several papers
 
-Read before step 0 of [import.md](import.md) when the request covers two or more papers — a list, a .bib, a search result, "these three". This file says how import.md's steps run over many papers at once; paper-fetch's own `references/batch.md` says the same for its part: read it too.
+How [import.md](import.md)'s steps run over two or more papers at once — a list, a .bib, a search result, "these three"; paper-fetch's own `references/batch.md` says the same for its part: read it too.
 
 ## A paper's files, each with one writer
 
@@ -8,11 +8,11 @@ A paper is a result in `<imp>/fetch/results/<slug>.json`, written by paper-fetch
 
 ## The run
 
-**1. Triage** (you, the main agent, in minutes): identify every paper (import.md step 1; a .bib through `p2z.py ids`, a list as `id<TAB>citation key` lines piped to `pf.py identify … -`), choose the versions (step 2), then draft and prepare (step 3): its `decide` lists say what is still open. Send the same-paper judges and the tagging subagents (step 3), who work beside the passes. Put every question in one message (below).
+**1. Triage** (you, the main agent, in minutes): identify every paper (import.md step 1; a list as `id<TAB>citation key` lines piped to `pf.py identify … -`), choose the versions (step 2), then draft and prepare (step 3): its `decide` lists say what is still open. Send the same-paper judges and the tagging subagents (step 3), who work beside the passes. Put every question in one message (below).
 
 **2. First pass**: paper-fetch's chain over the results of the records that need a file (import.md step 4).
 
-**3. Save what is in hand:** `p2z.py save <imp>/records/*.json`. Every paper gets its item now, with or without a file, once its tags file is there (`untagged` until then); run it again after each pass.
+**3. Save what is in hand:** `p2z.py save <imp>/records/*.json`. Every paper gets its item now, with or without a file, once its tags file is there (`untagged` until then).
 
 **4. Second pass**, then **save** again.
 

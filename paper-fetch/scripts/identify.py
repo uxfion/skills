@@ -924,16 +924,15 @@ def identify_main(argv):
 
 Nothing is downloaded. Each paper gets <dir>/results/<slug>.json (pflib/run.py has the format), <dir> being -o's,
 else ${TMPDIR:-/tmp}/paper-fetch/. An ID is a DOI, a doi.org url, an arXiv id or arxiv.org url, or a paper's page.
-- reads a list from stdin: an ID a line, a TAB and a citation key after it optional (p2z.py ids prints these), or one
-of our JSON lines by `id` (identify's own; a judge's pin lines, the null ones dropped: jq -c 'select(.id)'); blank and
-'#' lines are skipped. A JSON line without `id` that reports a skip or a failure is passed on as it is; any other (a
-search line, a pin line whose id is null) makes the list unreadable: nothing is done (invalid_list).
+- reads a list from stdin: an ID a line, optionally a TAB and a citation key after it (p2z.py ids prints these), or
+one of our JSON lines by `id` (identify's own, a judge's pin lines); blank and '#' lines are skipped. A JSON line
+without `id` is passed on as it is when it reports a skip or a failure; any other (a search line, a pin line whose id
+is null: drop those with jq -c 'select(.id)') makes the list unreadable, and nothing is done (invalid_list).
 
 --slug KEY is a citation key (a .bib's, as it is): the result keeps it verbatim in `cite`, and its file-safe form
 (unsafe characters as _) is the slug; without one the slug is <first author's surname><year><first title word of 4+
-letters> (liu2022progressive), -2, -3 ... when another paper has it. --wanted is the version the caller wants (a
-caller that keeps the preprint passes preprint). A result identified again keeps its slug_given, cite and wanted
-unless given anew.
+letters> (liu2022progressive), -2, -3 ... when another paper has it. A result identified again keeps its slug_given,
+cite and wanted unless given anew.
 
 Metadata. A DOI's CSL-JSON comes from doi.org and is normalized into CSL's own vocabulary, which Crossref's records
 do not use: types (journal-article -> article-journal, proceedings-article -> paper-conference, book-chapter ->
@@ -1057,9 +1056,8 @@ def redraft_main(argv):
 The result's metadata becomes TARGET's; the preprint stays in versions.preprint, its title joins alt_titles, files
 already got stay; warnings when the page and the preprint list different numbers of authors, and when the result had
 no arXiv id (no preprint route to its text, no arXiv line for the item). The operand ending in .json is the result,
-the other TARGET, in either order. --html FILE reads the page from FILE, its HTML as the browser saved it, through
-the same parser, TARGET then the url it came from: for a page that refuses plain HTTP. A stub result
-(page_unreachable) is filled the same way.
+the other TARGET, in either order. --html reads the page through the same parser: for a page that refuses plain
+HTTP. A stub result (page_unreachable) is filled the same way.
 
 One line: {slug, code, redraft?, path?, title?, alt_titles?, incomplete?, warnings?}.
   ok                written

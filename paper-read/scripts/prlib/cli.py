@@ -1,11 +1,12 @@
 """The skeleton paper-read's scripts share: the parser and help, what comes after the options, how a line is printed
 and a command stops with a code, and how the sibling skills' entries are run.
 
-stdout carries data only: take, check, quotes and put print one JSON object about the one thing they handle, heading
-one line per paper; `hint` appears only when the code is not ok, skipped or one of the command's answers.
+stdout carries data only: take, check and put print one JSON object about the one thing they handle, heading
+one line per paper, quotes one line per quotation still to check; `hint` appears only when the code is not ok,
+skipped or one of the command's answers.
   exit 0  done; stderr stays empty
   exit 1  the thing handled is the agent's to act on: its line's code says what (heading, over several papers, then
-          ends stderr with {"summary": {total, failed}})
+          ends stderr with {"summary": {total, failed}}; quotes with {"summary": {total, ok, checked, open}})
   exit 2  the command cannot go on (a usage error, a list it cannot read, Zotero not running, no pdftotext); stderr's
           last line is {code, hint, ...}
 A reader that closes the pipe early (`| head`) ends the printing, not the work: the exit code is the same.

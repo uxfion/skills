@@ -507,12 +507,15 @@ class Commands(unittest.TestCase):
         self.edit_markdown("after the formula", "following the formula")
         before = self.files()
         code, out, err = self.run_word("findings", str(self.folder))
-        self.assertEqual(code, 0, err)
+        self.assertEqual(code, 1, err)
         self.assertEqual([json.loads(line) for line in out.splitlines()], [
             {"id": "missing_text@p1", "status": "open", "page": 1, "note": "the right column ends here"},
             {"id": "table_mismatch@p2-9", "status": "unresolved", "page": 2, "note": "illegible"}])
         self.assertIn("not committed", err)
+        self.assertEqual(json.loads(err.splitlines()[-1]),
+                         {"summary": {"total": 3, "open": 1, "unresolved": 1, "ok": 1}})
         code, out, _ = self.run_word("findings", "-a", str(self.folder))
+        self.assertEqual(code, 1)
         self.assertEqual(json.loads(out.splitlines()[-1]), {"id": "no_text_layer", "status": "ok", "page": None,
                                                             "note": "a scan"})
         code, out, err = self.run_word("show", str(self.folder), "p3")
@@ -520,6 +523,19 @@ class Commands(unittest.TestCase):
         self.assertIn("p3-5", out)
         self.assertIn("not committed", err)
         self.assertEqual(self.files(), before)            # nothing recorded, the Markdown untouched
+
+    def test_findings_pass_with_only_verdicts_or_no_findings(self):
+        for found in ([finding("no_text_layer", status="ok", why="a scan"),
+                       finding("table_mismatch@p2-9", ["0.95"], "unresolved", why="illegible")], []):
+            with self.subTest(findings=found):
+                (self.folder / "paper.json").write_text(json.dumps(record(found)), encoding="utf-8")
+                code, out, err = self.run_word("findings", str(self.folder))
+                self.assertEqual((code, err), (0, ""))
+                self.assertEqual([json.loads(line) for line in out.splitlines()],
+                                 [{"id": "table_mismatch@p2-9", "status": "unresolved", "page": 2,
+                                   "note": "illegible"}] if found else [])
+                code, out, err = self.run_word("findings", "-a", str(self.folder))
+                self.assertEqual((code, err, len(out.splitlines())), (0, "", len(found)))
 
     def test_usage_errors_name_the_way(self):
         code, _, err = self.run_word("show", str(self.folder))
@@ -593,7 +609,7 @@ class Commands(unittest.TestCase):
         r["run"]["versions"] = {**D.versions(), "checks": D.checks.VERSION - 1}
         (self.folder / "paper.json").write_text(json.dumps(r), encoding="utf-8")
         code, _, err = self.run_word("findings", str(self.folder))
-        self.assertEqual(code, 0)
+        self.assertEqual(code, 1)
         self.assertIn(f"checks {D.checks.VERSION - 1}, now {D.checks.VERSION}", err)
         self.assertIn(f"render {self.folder.resolve()}", err)
         r["run"]["versions"] = D.versions()

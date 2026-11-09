@@ -1,6 +1,6 @@
 # skills 对接 Unix 哲学：全系统约定与 p2z 样板
 
-- 日期：2026-11-04。来源：[docs/issues/20261104-skills-unix-conventions.md](../issues/20261104-skills-unix-conventions.md)（目标、已定的决策、现状数据都在那里，这里不重复）。
+- 日期：2026-11-04。来源：[Unix 约定 issue（已归档）](../issues/archive/20261104-skills-unix-conventions-fixed.md)（目标、已定的决策、现状数据都在那里，这里不重复）。
 - 状态：已冻结（2026-11-05）。定稿 2026-11-04；p2z 样板已实现（提交 `1e81c30`）并通过第 5 节的验收，实测写入在第 9 节末尾；实现时的修正见第 9 节。经三路审阅（忠于需求和原则、技术、换个 agent 试用）和 advisor 改过；第 8 节两个问题用户都定了；第 6 节的规则文字用户同意，已改进原则、AGENTS.md 和 README。实现时修正，实现完冻结。
 - 范围：一遍约定整理。流程不动，输出的内容不动（字段照旧），不重新设计。定两件事：所有 skill 都照的**全系统约定**（第 1 节），和先做的**样板：整个 paper-to-zotero**（第 2–5 节）。
 - 第 1 节只有一个出处：定稿后，其中必须遵守的规矩改写成英文并进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，做法上的放进 AGENTS.md 和各 skill 自己的文档（第 6 节）；这份 spec 和以后各 skill 的 spec 都只引用它们。其余四个 skill 在样板用过一阵后照它改，各自的 spec 只写自己的短词表、各种东西怎么指定、要跟着改的地方。用户：「设计原则尽量是统一的，因为后续我们同样会扩展到其他的skill上，如果设计原则上或者比较顶层方面不一致，到时候会非常的混乱」。
@@ -181,7 +181,7 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
 
 ## 3. 读库内部的减法
 
-不改用法，只删用不着的代码。依据 `existing-tools.md`，本机 Zotero 10.0.7 上验证过：
+不改用法，只删用不着的代码。依据 [`existing-tools.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料)，本机 Zotero 10.0.7 上验证过：
 
 - 读库的列表一次请求拿全部：本地 API 不带 `limit` 就返回全部（实测 921 条，`Total-Results` 也是 921）。`--limit` 去掉，要前几条用 `| head`（`head` 只是截断打印，请求还是一次）。共用的 `pages()` 还有别的用处（按 50 个 key 一组取条目、按 md5 找到就停），这些不在本节里动。
 - 去掉"扫全库"那一步：快速搜索按 `citationKey` 精确命中。删之前先对一遍：拿库里每个引用键，走和命令一样的编码（`+` 编成 `%2B`）搜一次，全都命中自己那一条再删。
@@ -213,7 +213,7 @@ p2z.py tag -n --add-tag method/diffusion madhusoodananPOCUSNetBeamformingInclusi
 - 实测写入：用户指定一篇论文，走完整的导入（`ready`、`draft`、`prepare`、`save`、`report`），再做一次 `tag -n` 和用户点头后的 `tag`。论文由用户定，写入要用户点头。
 - p2z 的文档变短：SKILL.md 加 `references/` 现在 554 行，改完要更短。脚本多出的只能是 1.6 要的帮助和只写一次、各命令共用的机制，没有一样在几个脚本里各写一遍（原写"不变长"，见第 9 节；用户 2026-11-05 选 A）。
 - p2z 的文档里没有 `cd`、`uv run`、`2>/dev/null`。
-- 用一阵之后：重跑 `usage.py`，看 p2z 的调用里 `cd`、`2>/dev/null`、接 heredoc 的 Python 是否消失，新写法出错几次，用之前查 `-h` 几次；结果写进 issue，再决定铺开。
+- 用一阵之后：重跑 [`usage.py`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料)，看 p2z 的调用里 `cd`、`2>/dev/null`、接 heredoc 的 Python 是否消失，新写法出错几次，用之前查 `-h` 几次；结果写进 issue，再决定铺开。
 
 ## 6. 规则文字（用户已同意，已改）
 

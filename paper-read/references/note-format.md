@@ -1,10 +1,8 @@
 # The paper note
 
-What a paper note holds and how it is written. Read it before writing in a note, whether you read the paper through or add one answer.
+Read all of it before writing in a note, whether you read the paper through or add one answer.
 
-A paper has one **paper note**: a child note of its item in Zotero whose first line is 论文笔记. It holds the paper alone: what the paper says, each fact with its **source** (where in the paper it is), and judgements about the paper, marked as judgements. A project never appears in it; what a project decided goes into that project's paper index (references/notes.md). A note is never finished or final: every task that reads the paper may add to it or correct it (*Changing a note*).
-
-Outside Zotero the note is a Markdown file, `<scratch>/<package folder name>.note.md`, which `pr.py take` writes and `pr.py put` puts back into Zotero.
+A paper has one **paper note**: a child note of its item in Zotero whose first line is 论文笔记. It holds the paper alone: what the paper says, each fact with its source (*Evidence*), and judgements about the paper, marked as judgements; what a project decided goes into that project's paper index (references/notes.md). Every task that reads the paper may add to the note or correct it (*Changing a note*).
 
 ## The skeleton
 
@@ -37,7 +35,7 @@ parent: <citation key>
 ## Q8 总结一下论文的主要内容 [待答]
 ```
 
-A note started for one looked-up answer (`--bare`) holds the title, the 读的版本 paragraph and that one question: no `[待答]` summary and no empty questions. The question is numbered under the trunk question (one of the eight) it belongs to, `### Q3.1`, without that trunk heading; a later read-through adds the trunk around it, and its number stays.
+A note started for one looked-up answer (`--bare`) holds the title and the 读的版本 paragraph; you add that one question, numbered under the trunk question (one of the eight) it belongs to, `### Q3.1`, without that trunk heading. A later read-through adds the trunk around it, and its number stays.
 
 - **The summary**, the first paragraph under the title: one sentence on what the paper does. Written last, from the answers already there; read first.
 - **读的版本**, the second paragraph: the title of the PDF the note was read in. Every page number in the note counts that PDF's pages from 1, as the package's `<!-- page N -->` does. A new note is read in the library's best PDF, and every later read uses the same one. When the library gains a better version, a read-through moves the note onto it (reading.md, *Moving to another version*).
@@ -67,7 +65,7 @@ A note started for one looked-up answer (`--bare`) holds the title, the 读的�
 7. 有什么可以进一步探索的点？
 8. 总结一下论文的主要内容 A descriptive summary the authors would agree with, built only from the answers above, with one sentence on why the paper matters.
 
-A fixed item of Q5 or Q6 the paper says nothing about keeps its bold word, followed by 论文没有说明; one that does not apply says 不适用 and why. `pr.py check --full` checks that every bold word is there.
+A fixed item of Q5 or Q6 the paper says nothing about keeps its bold word, followed by 论文没有说明; one that does not apply says 不适用 and why.
 
 ## The tree
 
@@ -78,8 +76,7 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
 - A heading without a number is a section and has no state.
 - A heading is plain text in Zotero: it shows no math, and TeX in it does not come back as a heading. Write a symbol there in Unicode (ŷᵢ, fθ) and the formula in the answer.
 - A blank line before every block you write: Better Notes cuts its outline by them. Taken from Zotero, a block nested in a list item or a quote sits right under the line before it, and a table's rule reads `| --- |`: the same note.
-- **A question's number never changes** once written: a project's index points at it. A new question takes the next free number under its parent. A question that turns out to be wrongly asked keeps its number and heading; its answer says why it was wrong.
-- Marks (below) go in the text, never in a heading.
+- **A question keeps its number** once written: a project's index points at it. A new question takes the next free number under its parent; one that turns out to be wrongly asked keeps its number and heading, and its answer says why it was wrong.
 
 ## Evidence
 
@@ -92,11 +89,11 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
   > 给定平扫肝脏 MRI 和对应的肿瘤 mask，模型同时合成临床上相关的三个时相
   ```
 
-  `pr.py quotes` looks for every quotation in the PDF's text layer, then in the package. The text layer holds no LaTeX: of the sentences an answer could rest on, quote one in plain words. One it cannot find (a table cell, a figure label, a formula the text layer garbles) is compared with the page image, corrected if need be, and marked as checked; one found only in the package (`package_only`) likewise, and where the package misread the words, quote the PDF and settle that spot in the package (`ocr.py commit`).
+  `pr.py quotes` searches the PDF's text layer, which holds no LaTeX: of the sentences an answer could rest on, quote one in plain words. A line it reports `unparsed` is rewritten in the quotation form. Any other short of `ok` (often a table cell, a figure label or a formula the text layer garbles) is compared with the page image, corrected if need be, and marked （已核对 <source> · <date>）; where the package misread the words, the quotation takes the PDF's words and that spot is settled in the package (`ocr.py commit`).
 - **An inference** is marked （推断）; knowledge from outside the paper （论文外）; what the paper does not say is written as 论文没有说明.
 - **Judgements about the paper** (Q6, Q7) are written as judgements, with what they rest on. "Not stated" is a fact and is written plainly; "possibly unfair" is a judgement and says why. Falling short of SOTA, closed code and honestly stated limits are not failures in themselves.
 
-**Marks**, in the text after the fact they concern:
+**Marks**, in the text (never a heading) after the fact they concern:
 
 - `（已核对 <source> · <date>）`: someone compared this fact with the PDF. One per fact, the latest only; a table checked cell by cell takes one, after the sentence that presents it.
 - `（更正 <date>：原写"…"，按 <evidence and its source> 改）`: what was there before a correction, and why it changed. It stays.
@@ -104,7 +101,7 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
 
 ## Clickable figures and tables
 
-When the note is put into Zotero, each figure and table it names in one of these forms becomes a link to a blue box on it in the PDF the note was read in, so a reader of the note sees it in one click. The links live in Zotero only: the note file you edit has none.
+`pr.py put` turns each figure and table the note names in one of these forms into a link to a box on it in the PDF, so a reader of the note sees it in one click. The links live in Zotero only; the note file you edit stays without them.
 
 - Linked: `Fig. 9`, `Fig.9`, `Figure 9`, `Fig. 2(b)` (the link is `Fig. 2`), `Table III`, `Supplementary Fig. 3`, `Extended Data Table 1`.
 - Not linked: `p.11`, `Sec. III-A`, `Eq. (3)`, `图 4`, and any name in a heading: `### Q5.1 Table III 说明什么？`.

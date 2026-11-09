@@ -56,12 +56,11 @@ def dir_parser(fn, sub):
 def claim_main(argv):
     """Check files against a result and file each by the verdict: the one way a file reaches a result.
 
-The operand ending in .json is the result, <dir>/results/<slug>.json; the others are the files, in any order; -
-reads the files' paths from stdin, a path a line or our JSON lines by `source` (downloads and claim print it). Each
-file is checked against the paper: pass -> filed beside the result; certainly not the paper -> <dir>/unverified/;
-uncertain -> held there, with a `file` handoff (pf.py answer; who takes it: SKILL.md, Handoffs). A file of this run
-(in <dir>, or one of this run's downloads) is moved; any other (a PDF in Zotero's storage, the user's own) is copied
-and left where it was.
+The operand ending in .json is the result; the others are the files, in any order; - reads their paths, a path a
+line or our JSON lines by `source` (downloads and claim print it). Each file is checked against the paper: pass ->
+filed beside the result; certainly not the paper -> <dir>/unverified/; uncertain -> held there, with a `file` handoff
+(pf.py answer; who takes it: SKILL.md, Handoffs). A file of this run (in <dir>, or one of this run's downloads) is
+moved; any other (a PDF in Zotero's storage, the user's own) is copied and left where it was.
 
 A file's name says its kind, the version it was wanted as: <slug>.pdf published, .accepted.pdf, .preprint.pdf,
 .supplement.pdf, .html snapshot; --as names it, and is the version proposed for its attachment title. What the file

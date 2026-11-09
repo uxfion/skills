@@ -7,8 +7,7 @@
 
 Operands: results, <dir>/results/<slug>.json (- reads their paths from stdin, a path a line or our JSON lines by
 `path`), each checked by the paper's own file beside it; or files and one result (the operand ending in .json), each
-file checked against that result. pf.py claim runs this check itself; this shows why a file passed or not. A file
-the check could not be sure of is held with a `file` handoff, which its agent answers (pf.py answer).
+file checked against that result. pf.py claim runs this check itself; this shows why a file passed or not.
 
 One line per result, or per file named: {slug, code, file, kind, md5, evidence, hint?}, the codes and the evidence
 below; no_file: the result has no file yet.

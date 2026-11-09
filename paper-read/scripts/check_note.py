@@ -13,8 +13,7 @@ that came back from Zotero as HTML, <h3>…</h3>, counts as a heading too.
 Every change (default):
   - the note holds at least one question, and every question heading ends in a state, none of them 待答, 进行中
     or 等 Qn;
-  - no question heading holds TeX ($…$): Zotero shows a heading as plain text, and TeX there does not come back
-    from Zotero as a heading; a symbol goes in Unicode (ŷᵢ, fθ), the formula in the answer;
+  - no question heading holds TeX ($…$) (references/note-format.md, *The tree*);
   - the 读的版本 paragraph is there; a summary paragraph before it, if any, is not [待答];
   - every question number in the note as taken (<note>.taken beside it, which pr.py take wrote) is still there.
 A read-through (--full) also needs:

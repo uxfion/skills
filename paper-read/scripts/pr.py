@@ -3,10 +3,9 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""paper-read: a library paper's note, taken out of Zotero, checked and put back; a project paper index's headings. `pr.py WORD ...`; each word has its -h.
+"""paper-read: a library paper's note, taken out of Zotero, checked and put back; a project paper index's headings.
 
-Each word runs one script of scripts/ (through uv, so the script's own dependencies load), its exit code passed
-through. An unknown word exits 2 with this list.
+Each word runs one script of scripts/, its exit code passed through; an unknown word exits 2 with this list.
 
 Exit codes, every word: 0 done (stderr empty); 1 something is yours to act on: the line's code says what, and
 heading, over several papers, ends stderr with {"summary": ...}; 2 cannot go on (Zotero not running, no pdftotext, a
@@ -33,7 +32,7 @@ SELF = Path(__file__).name
 WORDS = {
     "take": ("prepare_note", "a paper's note, PDF and structured package out of Zotero into a scratch directory"),
     "check": ("check_note", "a note's question tree, checked by note-format.md"),
-    "quotes": ("check_quotes", "each quotation of a note: found in the PDF, in the package, or not"),
+    "quotes": ("check_quotes", "list quotations still to check against the paper"),
     "put": ("put_note", "a note's figures and tables linked, and the note put into Zotero"),
     "heading": ("index_heading", "each paper's heading line in a project's paper index"),
 }

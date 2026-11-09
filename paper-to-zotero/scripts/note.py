@@ -126,11 +126,11 @@ def take_name(meta):
 def take(zot, args, p):
     """Notes out of Zotero as Markdown: the note named, or the child notes of the item named.
 
-The item or note is named by its key or citation key; one note of several: p2z.py note list shows their keys and
-titles, then take it by its key. One note goes to stdout (the Markdown alone; a block kept as HTML is named on stderr) or -o FILE;
-several need -o DIR/, one file each, <cite>.<key>.note.md (a standalone note: <key>.note.md), and with none the
-notes are named on stderr. A file there already is written over only when its front matter names the same note:
-after a version_conflict, take again into the same directory.
+One note of several: p2z.py note list shows their keys and titles; take it by its key. One note goes to stdout (the
+Markdown alone; a block kept as HTML is named on stderr) or -o FILE; several need -o DIR/, one file each,
+<cite>.<key>.note.md (a standalone note: <key>.note.md), and with none the notes are named on stderr. A file there
+already is written over only when its front matter names the same note: after a version_conflict, take again into the
+same directory.
 
 stdout to files: one line per note {key, cite?, title, code ok, file, version, kept_html?: [[block, tag]]}; no_notes
 (the item has none), not_a_parent, not_found, ambiguous.
@@ -308,13 +308,12 @@ def read_back(zot, key, html, action, retried=False):
 def put(zot, args, p):
     """Markdown files into Zotero as notes, new or changed.
 
-Each file (- reads one from stdin): with a key, Zotero's note is updated (its HTML, and parent, collections and
-related where the front matter names them) unless its version moved since the take, and left alone when it already
-holds the same note; without one, a note is created under `parent` (unless a child note there has its title
-already), else as a standalone note in `collections`, related both ways to the papers in `related`. A note without
-text is refused. Every write is read back and compared in the editor's model, as an editor showing the note saves
-it again at once in its own HTML. -i writes the new key and version into the file's front matter, so the next put
-follows on.
+Each file: with a key, Zotero's note is updated (its HTML, and parent, collections and related where the front matter
+names them) unless its version moved since the take, and left alone when it already holds the same note; without one, a
+note is created under `parent` (unless a child note there has its title already), else as a standalone note in
+`collections`, related both ways to the papers in `related`. A note without text is refused. Every write is read back
+and compared in the editor's model, as an editor showing the note saves it again at once in its own HTML. -i writes the
+new key and version into the file's front matter, so the next put follows on.
 
 stdout: one line per file {file, code ok, key, version, action: created | updated, kept?: [fields Zotero already held
 as written]}; skipped unchanged: Zotero already holds this note as written; not_a_note, not_a_parent, not_found,
@@ -380,8 +379,8 @@ def lines_of(zot, rows):
 def list_(zot, args, p):
     """One line per note: the child notes of the items named, the notes in --collection, or every note.
 
-The items are named by key or citation key (- reads a list from stdin). Each line: {key, parent?, title, code ok,
-version, dateModified, collections}; not_found, ambiguous, collection_not_found.
+Each line: {key, parent?, title, code ok, version, dateModified, collections}; not_found, ambiguous,
+collection_not_found.
 
 Examples:
   p2z.py note list ronneberger2015unet
@@ -418,7 +417,7 @@ def configure_put(p):
 
 
 def configure_list(p):
-    cli.add_items(p, help="an item whose child notes to list: its key or citation key; - reads a list from stdin")
+    cli.add_items(p, help="an item whose child notes to look among: its key or citation key; - reads a list from stdin")
     p.add_argument("--collection", metavar="COLL", help="the notes in this collection: its key, path or name")
 
 

@@ -4,21 +4,11 @@ This brief is for paper-read's **reader**: one subagent reading one paper of the
 
 ## Inputs
 
-Your prompt gives:
-
-- the statement every shell call starts with, which puts paper-read's `pr.py`, paper-to-zotero's `p2z.py` and paddleocr's `ocr.py` on PATH;
-- the note file, which you edit in place; the PDF; the package folder (the paddleocr skill's parse of that PDF), or none;
-- the paper's title, first author, year, venue and DOI, and the common names it is tagged with (`aka/`);
-- the scratch directory these sit in;
-- `<paper-read>`, this skill's directory, and the path of `note-format.md`, which says how a note is written: read it first;
-- the older notes on this paper, if any;
-- when the package has open findings: paddleocr's `settle.md` and `papers.md`;
-- when this read moves the note to a better version: the previous version's PDF and package;
-- a project's questions about the paper, if any.
+Your prompt names the paper, its note file (which you edit in place), its PDF, its package (the paddleocr skill's parse of that PDF) or none, and the scratch directory they sit in; and, when they apply, the older notes, the package's open findings, a previous version and a project's questions. Read note-format.md first: it says how a note is written.
 
 Before anything else, check that the PDF is this paper: its first page against the title and first author given. A different year or venue is normal, since the preprint and the published version differ. A different paper: stop and report.
 
-The package is the PDF's text, page by page, with its tables and formulas. The PDF is the authority wherever the package carries one of these notes:
+The package is the PDF's text, page by page, with its tables and formulas. The PDF is the authority wherever the package flags a spot:
 
 - `<!-- open … -->`: never checked;
 - `<!-- unresolved … -->`: known wrong;
@@ -32,9 +22,9 @@ Older notes are leads: a fact in one enters the note once you have found it in t
 
 - Read the whole paper first, figures, tables and appendix included.
 - Answer one question at a time, and write the answer into the file before starting the next. Any answer may draw on any part of the paper.
-- Grow the tree as you go. An answer raises questions about the paper ("the input includes a tumour mask" → "is the mask needed at test time too?"). One whose evidence is in the paper now is asked and answered now, under the question it belongs to. One that waits on a later answer is marked 等 Qn. Nothing is listed ahead.
+- Grow the tree as you go. An answer raises questions about the paper ("the input includes a tumour mask" → "is the mask needed at test time too?"). One whose evidence is in the paper now is asked and answered now, under the question it belongs to. One that waits on a later answer is marked 等 Qn. Each is written when it arises.
 - After each answer, look back: which questions it settled, which it raised, whether it overturns an earlier answer. If it does, set that answer back to 进行中 and correct it.
-- The summaries come last (Q8, then the one-sentence summary), built only from the answers written. A fact they need that no answer holds means that answer is short: complete it.
+- The summaries come last (note-format.md). A fact they need that no answer holds means that answer is short: complete it.
 - A project's questions are answered in your report, with sources, not in the note. Whatever they lead you to find about the paper itself goes into the note like any other answer.
 
 **Settling the package.** When your prompt names open findings, settle them as you reach them in the reading. Follow settle.md §1–3 and record with `ocr.py commit`. You check those spots against the PDF anyway, and you know what the text is saying. Where settle.md and this brief differ, this brief wins: you write the note file as well as the package folder, and of settle.md's report only what *Report* below asks for goes into yours.
@@ -60,14 +50,14 @@ Write only these, plus any drafts of yours in the scratch directory. Putting the
 
 1. The PDF's first page shows the title and first author given; otherwise you stopped and reported.
 2. `pr.py check --full <note>` prints `complete`.
-3. `pr.py quotes <note>` prints `pass`. A quotation short of `ok` is settled: an `unparsed` line rewritten in the quotation form; any other compared with the page image, corrected if need be, and marked （已核对 <source> · <date>）.
-4. With a settled package, `ocr.py findings <package folder>` prints no line with status `open`, and exits 0.
-5. Then the self-review: split each answer into its claims, check every claim against the paper, correct what is wrong, and run the checks again.
-6. Your reply ends with the report (*Report*): every project question answered in it, and after a move, every difference listed.
+3. `pr.py quotes <note>` exits 0, each reported quotation settled by note-format.md, *Evidence*.
+4. When your prompt named open findings: `ocr.py findings <package folder>` exits 0.
+5. The self-review is done: each answer split into its claims, every claim checked against the paper, what was wrong corrected; 2–4 then hold again.
+6. Your reply is the report (*Report*), with every project question answered and, after a move, every difference listed.
 
 ## Report
 
-Your reply is the report; the main agent saves it. Exceptions only:
+The main agent saves your reply and reads the rest from the files and the checks, so the report holds only the items below that have something to say:
 
 - the PDF is not this paper;
 - **package**: what settle.md's report lists under **open**, and each `unresolved` verdict; the main agent checks the rest with `ocr.py findings`;

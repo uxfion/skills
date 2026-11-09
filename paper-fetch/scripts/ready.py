@@ -10,11 +10,9 @@ images; without it the handoff carries text only); what the config file holds (p
 missing discovery search URL is config.ask_user, one without {title} config.discovery_template); where the browser
 puts downloads; is opencli there and its Chrome extension connected (opencli's own `doctor`: its version, the issues
 it names). It makes <dir> with results/, links/, handoffs/, inbox/, unverified/, scratch/ and the .started marker
-(an existing marker is left alone: a resumed run), writes <dir>/run.json (downloads, session: what the later scripts
-read), and lists what already lies in <dir>, deleting nothing: a PDF that never reached anyone belongs to the user.
+(an existing marker is left alone: resumed), writes <dir>/run.json (downloads, session: what the later scripts read),
+and lists what already lies in <dir> as leftovers, deleting nothing.
 
-<dir>, after the options: <scratch>/paper-fetch with <scratch> the session's scratchpad; an import names its own,
-<scratch>/paper-to-zotero/fetch; none, ${TMPDIR:-/tmp}/paper-fetch.
 Config: $PAPER_FETCH_CONFIG or ~/.config/paper-fetch/config.json, mode 600, every field optional:
 {"openalex_key", "institution": {"proxy", "discovery"}}.
 Downloads: --downloads > $PAPER_FETCH_DOWNLOADS > under WSL the Windows Downloads folder (powershell.exe, then

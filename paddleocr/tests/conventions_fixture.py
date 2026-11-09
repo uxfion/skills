@@ -25,7 +25,7 @@ def folder(tmp, name, record):
 
 @contextlib.contextmanager
 def env(tmp):
-    """small: one word edited in its Markdown. big: 200 open findings, each quoting 500 characters, in its record;
+    """small: one word edited in its Markdown. big: 200 unresolved findings, each with a 500-character verdict;
     its Markdown as generated, so no edit is pending."""
     record = json.loads((FIXTURES / "synthetic.json").read_text(encoding="utf-8"))
     small = folder(tmp, "small", record)
@@ -34,7 +34,7 @@ def env(tmp):
     codes = ("missing_text", "missing_numbers", "extra_text", "foreign_script", "table_mismatch")
     places = [(code, b["id"]) for code in codes for b in record["blocks"]][:200]      # code@block: no id twice
     record["findings"] = [{"id": f"{code}@{block}", "code": code, "page": int(block[1:].split("-")[0]), "block": block,
-                           "items": [f"{i:03d} " + "w" * 496], "detail": "", "status": "open"}
+                           "items": [], "detail": "", "status": "unresolved", "why": f"{i:03d} " + "w" * 496}
                           for i, (code, block) in enumerate(places)]
     folder(tmp, "big", record)
     yield {"TMPDIR": str(tmp)}   # show's images, were any made, stay in tmp

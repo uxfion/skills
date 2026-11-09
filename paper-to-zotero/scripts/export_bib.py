@@ -6,13 +6,13 @@
 """Export Zotero items as BibTeX keyed by their citationKey, from a collection, items or records.
 
 What it exports: --collection (its top-level items: a key, a path from p2z.py collections or a name; -r adds the
-collections under it, those in the trash left out), and what follows the options: items (keys or citation keys; -
-reads a list from stdin, a value a line or our JSON lines, their `key`; a failure upstream passed on in such a list is
-listed under `unresolved`) and record files (a value with a "/" or
-ending in .json is a path: the item the record created, `saved.key`, else the one it found, `found.key`; a near match
-names another item, so such a record has none). An item named twice is exported once. Each 50 keys are one GET
-/items/top?itemKey=...&format=bibtex (the local API drops unknown keys silently, hence the JSON read that also gives
-each item's citationKey). Entries are written ordered by their BibTeX key, to stdout or -o.
+collections under it, those in the trash left out), and the operands: items (keys or citation keys; - reads a list from
+stdin, a value a line or our JSON lines, their `key`; a failure upstream passed on in such a list is listed under
+`unresolved`) and record files (a value with a "/" or ending in .json is a path: the item the record created,
+`saved.key`, else the one it found, `found.key`; a near match names another item, so such a record has none). An item
+named twice is exported once. Each 50 keys are one GET /items/top?itemKey=...&format=bibtex (the local API drops unknown
+keys silently, hence the JSON read that also gives each item's citationKey). Entries are written ordered by their BibTeX
+key, to stdout or -o.
 
 Exit 0 = exported, every item with its own clean citationKey; stderr stays empty. Exit 1 = the BibTeX is written
 all the same, and stderr's last line is {"summary": {count, output?, collections?, ...}} with each list below that

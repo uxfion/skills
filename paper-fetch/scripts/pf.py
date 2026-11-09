@@ -3,10 +3,10 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""paper-fetch: which paper it is, what is known about it, and its full text, checked and labelled. `pf.py WORD ...`; each word has its -h.
+"""paper-fetch: which paper it is, what is known about it, and its full text, checked and labelled.
 
-Each word runs one script of scripts/ (through uv, so the script's own dependencies load), its exit code passed
-through. An unknown word exits 2 with this list.
+Each word runs its script of scripts/ through uv, which loads the script's own dependencies, and passes on its exit
+code. An unknown word exits 2 with this list.
 
 Exit codes, every word: 0 done (stderr empty); 1 something is yours to act on: a line's code says what, and a word
 over several things ends stderr with {"summary": ...}; 2 cannot go on (a service that does not answer, no

@@ -1577,7 +1577,8 @@ def command(name: str, doc: str, argv: list, configure=None, source: bool = True
     p.add_argument("folder", metavar="DIR", help="the parse's folder, <outdir>/<stem>")
     if source:
         p.add_argument("--source", metavar="FILE",
-                       help="the PDF or page images the parse was made from, when they left the record's path")
+                       help="the PDF or page images the parse was made from, when they are neither at the record's "
+                            "path nor beside the folder")
     if configure:
         configure(p)
     for i, a in enumerate(argv):          # --box X1 Y1 X2 Y2, four values: the box as one value is the way
@@ -1616,7 +1617,7 @@ def warn_unrecorded(folder: Path, record: dict) -> None:
 
 
 def cmd_findings(argv):
-    """The findings of a parse still open, and those judged unresolved: one JSON line each; -a adds those judged ok.
+    """The findings of a parse still open, and those judged unresolved: one JSON line each.
 
 A finding is a place where the checks against the source suspect the parse lost, garbled or invented something, or cut
 a figure wrong. Each open one is a note in the Markdown, <!-- open <id>: ... -->, before its block, figure or page;
@@ -1641,8 +1642,9 @@ stdout: {id, status: open | unresolved | ok, page, note}, open ones first; page 
 is the open note's text, or the reason given with the verdict. Read-only: when the Markdown holds edits not committed
 yet, stderr says so, and the lines leave them out; when older code processed or checked the parse, stderr says so and
 names the render that brings it up to date.
-Exit 0 = listed, none or many; 1 = the folder is no parse: one line {folder, code, hint}, code file_not_found,
-no_record or old_format.
+Exit 0 = no open findings (including an empty list); unresolved findings have a verdict and do not block it.
+Exit 1 = open findings remain, with {summary: {total, open, unresolved, ok}} on stderr; or the folder is no parse:
+one line {folder, code, hint}, code file_not_found, no_record or old_format.
 
 Example:
   ocr.py findings /abs/out/paper
@@ -1655,6 +1657,12 @@ Example:
         warn_unrecorded(folder, record)
         for row in finding_rows(record, args.all):
             cli.emit(row)
+        counts = {"total": len(record.get("findings", [])), "open": 0, "unresolved": 0, "ok": 0}
+        for finding in record.get("findings", []):
+            counts[finding["status"]] += 1
+        if counts["open"]:
+            cli.emit({"summary": counts}, sys.stderr)
+            return cli.ACT
         return cli.OK
     return cli.run(go, folder=str(folder))
 
@@ -1721,8 +1729,7 @@ Each edit becomes a change of its block, each verdict keeps its reason; the chec
 it is at hand, and the Markdown is generated anew from the record.
 
 stdout: one line {folder, code: ok, recorded, gone, new, reopened}: recorded holds a sentence per change, the others
-finding ids, each only when not empty; a finding still there after a fix means the fix missed. Nothing to record:
-code skipped, reason nothing_to_commit.
+finding ids, each only when not empty. Nothing to record: code skipped, reason nothing_to_commit.
 Exit 0 = recorded, or nothing to; 1 = the line's code says what is wrong: edit_refused (detail says where, hint what
 to change; nothing was recorded), source_mismatch, or the folder is no parse (file_not_found, no_record, old_format);
 2 = stderr's last line {code, hint}: locked (another process is writing the folder), or --source names no file
@@ -1754,17 +1761,15 @@ WHAT is a figure id (p6-4), cut anew to --box, or a page (p6), on which --box ma
 read as text or missed. The image blocks inside the box become part of the figure, so a figure split into several
 crops is whole again once any of them is cut to the whole box; the text the model read from it stays. A figure id
 takes --box, --caption or both; a page takes --box. Markdown edits not recorded yet are committed first.
-Boxes are in source units from the page's top left: PDF points (as pdftotext -x -y -W -H takes them), image pixels,
-or for --photo the pixels of pages/; ocr.py show gives them.
+Boxes are in source units, as ocr.py show gives them (show -h).
 
 A figure's caption, and the number it gives the figure, is found by place: the caption nearest the figure, which can
 be another figure's. --caption names it instead: a caption block, or a caption you restored from the text layer as a
 paragraph of its own and committed (commit's line gives its block id). No other figure is paired with a named caption.
 
 stdout: one line {folder, code: ok, figure, image, caption, number, recorded, gone, new, reopened}, the last four as
-commit's; caption is the block id of the figure's caption (null when it has none), number the figure number it
-gives. View the image, and cut again until it holds the whole figure and no caption or body text; when caption or
-number is another figure's, name the right one with --caption.
+commit's; image is the new crop, caption the block id of the figure's caption (null when it has none), number the
+figure number it gives.
 Exit 0 = cut; 1 = the line's code says what is wrong: not_found (no such figure, a block that is no figure, no block
 --caption names, or a page not parsed), edit_refused, source_not_found, source_mismatch, or the folder is no parse
 (file_not_found, no_record, old_format); 2 = stderr's last line {code, hint}: usage (no --box nor --caption, or a page

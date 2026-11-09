@@ -13,10 +13,10 @@ import os
 from p2zlib import cli, paper, zotero
 from p2zlib.zotero import LIB
 
-ITEM_LINE = """An item's line is its data, flat ({key, version, itemType, title, creators, ..., collections, tags}; no `data`
-wrapper: jq '.title'). An item is named by its key or its citation key; - reads a list from stdin, a value a line or
-our own JSON lines (their `key`, else `cite`). A name that is not one item prints {item, code: not_found |
-ambiguous (keys), hint} in its place."""
+ITEM_DATA = """An item's line is its data, flat ({key, version, itemType, title, creators, ..., collections, tags}; no
+`data` wrapper: jq '.title')."""
+ITEM_LINE = ITEM_DATA + """ - reads a list from stdin: a value a line, or our own JSON lines (their `key`, else
+`cite`). A name that is not one item prints {item, code: not_found | ambiguous (keys), hint} in its place."""
 EXIT_READ = """Exit 0; 1 = a name is not one item, then stderr's last line is {"summary": {total, failed}}; 2 = cannot read
 (zotero_unreachable, local_api_disabled), then stderr's last line is {code, hint}."""
 
@@ -24,7 +24,7 @@ EXIT_READ = """Exit 0; 1 = a name is not one item, then stderr's last line is {"
 def shared(text):
     """A command's help: text with the paragraphs several commands share filled in."""
     def put(fn):
-        fn.__doc__ = text.format(item_line=ITEM_LINE, exit_read=EXIT_READ)
+        fn.__doc__ = text.format(item_line=ITEM_LINE, item_data=ITEM_DATA, exit_read=EXIT_READ)
         return fn
     return put
 
@@ -128,12 +128,12 @@ def items(zot, args, p):
 
 @shared("""Items a quick search finds, one JSON line each, as Zotero's search box finds them.
 
-The words after the options make one query, each word somewhere in the item (search speckle reduction = search
+The operands make one query, each word somewhere in the item (search speckle reduction = search
 "speckle reduction"). The mode is the search box's: by default Title, Creator, Year (the citation key too);
 --all-fields: All Fields & Tags (notes and annotations too); --everything: and the PDFs' full text. A hit on an
 attachment or note counts for its parent; with -a it prints as itself. The filters keep the hits that pass.
 
-{item_line}
+{item_data}
 
 Exit 0 = some hit; 1 = none (as grep); 2 = cannot read (zotero_unreachable, local_api_disabled), then stderr's last
 line is {{code, hint}}.

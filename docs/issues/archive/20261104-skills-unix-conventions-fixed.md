@@ -1,7 +1,9 @@
 # skills：整套系统对接 Unix 哲学
 
-- 来源：用户 · 2026-11-04。讨论库里搜索结果太长时（见 [archive/20261104-paper-to-zotero-search-output-compact-wontfix.md](archive/20261104-paper-to-zotero-search-output-compact-wontfix.md)），用户先问：「或者你有没有办法能通过 Linux 的那种概念理论，像管道服务，grep/rg 那样支持」，「那有没有可能通过外部工具去调用呢？因为Unix的哲学就是通过各种工具、接工具或者管道或者数据流去传递嘛」；然后：「我倒是想把这整套系统都和UNIX哲学给对接好,这样的话也方便使用，因为现在我感觉还是用 Python 的思维多一点，但实际上我更喜欢 UNIX 哲学,包括以其他数据流的方式，它的管道符，还有它使用的各种键值，以及简称之类的」；又说明范围：「短选项，标准选项,反正就是一切涉及到UNIX的哲学，Linux那套操作逻辑…我还是挺欣赏 UNIX、Linux 那一套操作逻辑或者展现形式，还有它的文件base的思路，可能还不止，就是它的一整套系统」。
-- 状态：open。设计都已定（下面「已定」），spec 是 [docs/specs/20261104-skills-unix-conventions-spec.md](../specs/20261104-skills-unix-conventions-spec.md)，经三路审阅和 advisor；规则文字已改进 `docs/design-principles.md` §3 *The Unix/Linux philosophy*，新命令从第一版设计起照它做。p2z 样板已实现（2026-11-05）：p2z、paper-read、paper-fetch 的测试和根目录的约定检查全过，真库只读验收通过；实现时的修正记在 spec 第 9 节。删扫全库前的核对：921 个引用键全部按默认快速搜索精确命中，0 歧义。实现已提交（`1e81c30`），真写入验收 2026-11-05 通过（spec 第 9 节末尾），spec 已冻结，已推送（`934be16`）、重装。铺开进行中：paper-fetch、paper-read、paddleocr、vllm-serve 四份 spec（`docs/specs/20261106-*-unix-conventions-spec.md`）过了保真、可用性、技术三路审阅，主 agent 按原则验收，2026-11-06 已定；§3 补的几处见第 14 条；实施计划用户同意。共用部分已做：p2z 读 `-` 清单时把上游的跳过、失败行原样转出，`trash` 停下时每样记 `not_run`。下一步按批实施（下面「铺开」一节）。
+已解决：实施于五个 skill 的脚本与文档；设计见 `docs/specs/20261104-skills-unix-conventions-spec.md` 及四份 `20261106-*-unix-conventions-spec.md`。
+
+- 来源：用户 · 2026-11-04。讨论库里搜索结果太长时（见 [archive/20261104-paper-to-zotero-search-output-compact-wontfix.md](20261104-paper-to-zotero-search-output-compact-wontfix.md)），用户先问：「或者你有没有办法能通过 Linux 的那种概念理论，像管道服务，grep/rg 那样支持」，「那有没有可能通过外部工具去调用呢？因为Unix的哲学就是通过各种工具、接工具或者管道或者数据流去传递嘛」；然后：「我倒是想把这整套系统都和UNIX哲学给对接好,这样的话也方便使用，因为现在我感觉还是用 Python 的思维多一点，但实际上我更喜欢 UNIX 哲学,包括以其他数据流的方式，它的管道符，还有它使用的各种键值，以及简称之类的」；又说明范围：「短选项，标准选项,反正就是一切涉及到UNIX的哲学，Linux那套操作逻辑…我还是挺欣赏 UNIX、Linux 那一套操作逻辑或者展现形式，还有它的文件base的思路，可能还不止，就是它的一整套系统」。
+- 状态：fixed（2026-11-09）。五个 skill 已完成 Unix 约定改造和试用，最后的文案核对及两项已确认行为调整已完成。设计和实施更正见五份 Unix spec，现均冻结；验证与收尾记录见下。
 
 ## 目标
 
@@ -54,13 +56,13 @@
 
 ## 全流程试用（2026-11-05）
 
-用户：「你自己找几个，全流程测试一下呗」。主 agent 在 papers.cool 上挑了 3 篇和方向相近的新论文，故意用三种写法交给 agent：会议页面链接、arXiv 号、只给标题。全程交给只看已安装 skill 文档的普通 subagent：1 个导入 3 篇，3 个各读一篇、写论文笔记。主 agent 从 Zotero 读回核对，再用参考资料文件夹里的 `trial.py` 数每个 agent 的调用。
+用户：「你自己找几个，全流程测试一下呗」。主 agent 在 papers.cool 上挑了 3 篇和方向相近的新论文，故意用三种写法交给 agent：会议页面链接、arXiv 号、只给标题。全程交给只看已安装 skill 文档的普通 subagent：1 个导入 3 篇，3 个各读一篇、写论文笔记。主 agent 从 Zotero 读回核对，再用当时的统计工具 `trial.py` 数每个 agent 的调用。
 
 - **导入**（91 次调用）：调 p2z 时 45 次都先设了 PATH，没有一次 `cd` 进 p2z、`uv run` p2z 或用已删的选项；查了 12 次 `-h`；3 处 `2>/dev/null` 都加在别的工具上（opencli、nvidia-smi）。只看文档的新 agent 把 p2z 的新写法用对了。
 - **读论文**（每个约 30 次调用）：FSCG 那个 agent 照 paper-read 文档的写法调 p2z（先 `cd` 到 paper-read，再 `uv run ../paper-to-zotero/scripts/p2z.py`）。另外两个 agent 是 `cd` 进 p2z 的目录再 `uv run scripts/p2z.py`，这是改造前的老写法，两份文档里都没这么写，还各有几处 `2>/dev/null`。它们从 paper-read 过来，只读了 p2z 的 tagging.md，没读到 SKILL.md *Calling*。所以 paper-read 改造之前，经它调 p2z 的写法会新旧混着用：这是铺开时先改 paper-read 的一条理由。
 - **结果**：3 篇都进了库，各有 PDF、结构化包和标签；3 篇都有了论文笔记，`check_note --full` complete、`check_quotes` pass、`put_note` ok。
 - **记下的 issue**（都是 2026-11-05 的）：p2z 的 `save-dry-run-attach`、`record-docs-lag`、`preprint-wanted-version`；paper-fetch 的 `miccai-pages`、`arxiv-abstract-latex`、`trial-import-web-notes`，以及 `arxiv-date-year-only` 补了两例；paddleocr 的 `checks-miss-word-misreads`、`settle-workflow-gaps`；paper-read 的 `report-when-main-is-subagent`、`note-format-trial-notes`。
-- **统计工具**：`usage.py` 现在认得出新写法（`p2z.py <词>`），也读 subagent 的记录；`trial.py` 按调用记录分项数：PATH、`cd` 进 p2z、paper-read 自己的写法（单列，不算旧习惯）、`2>/dev/null`、管道接 heredoc、`-h`、已删的选项。
+- **统计工具**：当时的 `usage.py` 认得出新写法（`p2z.py <词>`），也读 subagent 的记录；`trial.py` 按调用记录分项数：PATH、`cd` 进 p2z、paper-read 自己的写法（单列，不算旧习惯）、`2>/dev/null`、管道接 heredoc、`-h`、已删的选项。
 
 ## 铺开完成和第二次试用（2026-11-06）
 
@@ -68,7 +70,16 @@
 - **原则 §3 补了一句**（`82a0109`，用户「可以，加进去吧」）：约定按命令的实际用法、同类工具的通行写法来选；启动另一个程序的命令把目标后面的参数原样交下去。起因是 `up` 必须写 `--`，用户问「是不是绕路了」。
 - **第二次试用**：读 15 篇论文（用户：「你可以去读部分重要的论文」），14 个只看文档的 reader 调我们的 skill 301 次，299 次带 PATH 那一句；`cd` 进 skill 目录、`uv run` skill 的脚本、对我们的命令 `2>/dev/null`、用旧脚本名，都是 0 次。笔记全部写进 Zotero，第一篇取回来逐字相同。
 - **读的过程中修的**：包的源 PDF 被 Zotero 改名后找不到（`4c166ae`）、PaddleX 例行日志（`8b1876c`）、`cut` 配标题和图片行（`d191c2f`）。这些都不是调用方式的问题，是 skill 的行为。
-- **收尾**：五个 skill 的 writing-for-agents 通读进行中；之后关这张 issue、冻结五份 spec。
+- **收尾**：2026-11-09 完成，见下节。
+
+## 收尾完成（2026-11-09）
+
+- 按用户 2026-11-07 的选择实施两项调整：`ocr.py findings` 有 `open` 时退出 1，全部已有判定退出 0；`pr.py quotes` 只输出待核对引文，有问题时退出 1 并在 stderr 汇总，全通过时两流为空、退出 0。完成条件、帮助和测试同步，详情记入对应 spec。
+- 五个 skill 的文案按 writing-for-agents 完成通读，必要的调用、判断和交接信息保留在使用处或明确的引用中。旧审查意见逐条对照实现：修正 p2z 改标题预览所需的信息、`save` 提示字段的说明、tag 选项重复性和 search 的 stdin 说明；其余不增加重复规则。
+- paper-read 6/6、paper-to-zotero 30/30、paper-fetch 12/12 个测试文件通过；vllm-serve 28 项通过；paddleocr 的命令测试 60 项完成，其中 2 项需 PaddleOCR 引擎的测试跳过。本轮未修改 OCR 引擎或 GPU 服务实现，沿用前述真实流程试用，不重复导入、读写论文或启动 GPU。
+- 根目录约定检查通过（6 项，其中 2 项不适用的批量写入断管检查跳过）；`git diff --check` 通过。
+- `save` 吞子步骤字段、读论文时查库中其他附件、图中量测值的三个问题分别留在 2026-11-06 的独立 issue。本轮只改正 `save` 的文档，不改变它的输出结构。`lint` 坏响应、stdin 字段扩展、全库保护开关等未纳入；不以约定不一致本身扩大范围。
+- 来源中的中间统计、试验脚本和草稿随结项删除；仍使用的事实保留在本 issue 和五份 spec。
 
 ## 现状（2026-11-04 盘点）
 
@@ -79,9 +90,9 @@
 - 输出接 `head` 这类提前收工的命令时，p2z 的脚本在标准错误打出一整段 BrokenPipeError，退出码 120（`p2zlib/cli.py` 的 `emit`，所有 p2z 脚本共用；实测 `read_library.py tags | head -1`）。
 - uv 平时不往标准错误打东西，但带依赖的脚本第一次跑会打一行 `Installed 1 package`；`uv run --quiet` 就没有了，依赖装不上和脚本自己的报错照样会打（实测）。44 个脚本开头都是 `uv run --script`，没带 `--quiet`。
 - agent 爱把标准错误丢掉：真项目里 45 条不重复的 `read_library` 命令行，27 条加了 `2>/dev/null`，其中 22 条后面还接着管道。文档里一处都没有，是 agent 自己的习惯。报错挪到标准错误以后这样一丢，agent 只看到空结果（侧边 agent 提出）；现在报错写在标准输出里也挡不住，一接 `grep`、`jq` 就被滤掉了。
-- 使用统计（`usage.md`）大多出自 p2z 11-01 改版（95cea41）之前：真项目会话在 10-19 到 11-02 之间，排在前面的 `check_pdf`（28 次）、`doi_to_item`（14 次）改版时已删。`read_library` 改版前后一样；现在的导入流程（`prepare`、`save`）在真项目里几乎没跑过。
+- 使用统计（见本 issue 的统计口径）大多出自 p2z 11-01 改版（95cea41）之前：真项目会话在 10-19 到 11-02 之间，排在前面的 `check_pdf`（28 次）、`doi_to_item`（14 次）改版时已删。`read_library` 改版前后一样；现在的导入流程（`prepare`、`save`）在真项目里几乎没跑过。
 - 真项目里各选项被敲的次数（同一来源）：`--key` 40、`--cite` 34、`--dir` 33、`--collection` 23、`--out` 22、`--file` 20、`--dry-run` 14、`--batch` 10、`--limit` 10、`--all` 7、`--q` 5、`--version` 4、`--recursive` 4、`--force` 1；`-o` 93。
-- 查现成工具（`existing-tools.md`，关键几条本机验证过）：这台机器是 Zotero 10.0.7，本地 API 不带 `limit` 一次返回全部（921 条），默认的快速搜索能按引用键和条目 key 精确命中，`/file/view/url` 直接给文件地址；Better BibTeX 遇到重复引用键默默取第一个，pyzotero 的命令行没有引用键寻址和 PDF 路径，都不替换我们的读库。
+- 查现成工具（调研出处见下，关键几条在当时的本机验证过）：这台机器是 Zotero 10.0.7，本地 API 不带 `limit` 一次返回全部（921 条），默认的快速搜索能按引用键和条目 key 精确命中，`/file/view/url` 直接给文件地址；Better BibTeX 遇到重复引用键默默取第一个，pyzotero 的命令行没有引用键寻址和 PDF 路径，都不替换我们的读库。
 
 ## 为什么值得做
 
@@ -96,4 +107,6 @@
 
 ## 参考资料
 
-`20261104-skills-unix-conventions-reference/`，git 不跟踪：`inventory.md`（每个命令的盘点）、`conventions.md`（Unix 约定的出处摘录）、`taoup-ch10s05.html`、`usage.md` 和 `usage.py`（各命令在真项目里的使用统计）、`existing-tools.md`（现成工具调研）、`principle-draft.md`。
+统计口径：2026-11-04 从 57 份 Claude Code 会话记录粗数，区分本仓库和外部项目。路径匹配会混入源码读取等操作，各 spec 已在使用处更正；两次端到端试用的结果见上文。历史工具 `usage.py`、`trial.py` 与盘点、调研和草稿所在的参考目录已随结项删除，不再作为可执行入口。
+
+约定出处：[POSIX 12.2](https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap12.html)、[TAOUP 命令行选项](http://www.catb.org/esr/writings/taoup/html/ch10s05.html)、[clig.dev](https://clig.dev/)。现成工具比较的出处：[Zotero 本地 API](https://www.zotero.org/support/dev/web_api/v3/local_api)、[实现](https://github.com/zotero/zotero/blob/main/chrome/content/zotero/xpcom/server/server_localAPI.js)、[Better BibTeX](https://retorque.re/zotero-better-bibtex/)、[源码](https://github.com/retorquere/zotero-better-bibtex)、[pyzotero](https://github.com/urschrei/pyzotero)、[papis](https://github.com/papis/papis)、[pubs](https://github.com/pubs/pubs)。关键实测结论见上文“现状”，未在本轮重新调研外部工具。

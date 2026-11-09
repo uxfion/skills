@@ -9,13 +9,11 @@ It ends on whichever comes first:
   arrived   the paper has its file (run.satisfied: the watcher filed it, or this wait while no watcher runs; whoever
             downloaded it)
   passed    the page shows --until (text, or a CSS selector), or without --until its url or title changed
-  timeout   --timeout seconds (default 570: just under ten minutes, so that one shell call holds it) went by
+  timeout   --timeout seconds went by
 It records nothing and requests nothing of any site: it reads the tab and the file only. A login from another window
 leaves the tab as it was, so a timeout is not yet a verdict: what the paper's agent does then is references/gate.md's.
---file-only leaves the page alone (the last pass, with the user at it). The session is --session (a paper's agent:
-pf-<slug>), else run.json's. When it ends, the result (and any other its scan of Downloads filed a file for) is
-brought in line with the log, as pf.py sync does. This is one paper's wait; the run's own look at Downloads, the
-whole run long, is pf.py watch.
+When it ends, the result (and any other its scan of Downloads filed a file for) is brought in line with the log, as
+pf.py sync does. This is one paper's wait; the run's own look at Downloads, the whole run long, is pf.py watch.
 
 One line: {slug, code, file? (arrived), url?, title? (passed), waited?, hint? (timeout)}.
 Exit 0 = arrived or passed; 1 = timeout, or the result is not one (result_invalid), the line says so.
@@ -37,9 +35,9 @@ def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("result", metavar="RESULT", help="the result file: <dir>/results/<slug>.json")
     p.add_argument("--until", metavar="TEXT", help="text or CSS selector only the page past the gate shows")
-    p.add_argument("--timeout", type=float, default=570.0, metavar="SECONDS", help="(default: %(default)s)")
-    p.add_argument("--file-only", action="store_true", help="wait for the file alone; the page is not read")
-    p.add_argument("--session", metavar="NAME", help="the opencli session whose tab is read (default run.json's)")
+    p.add_argument("--timeout", type=float, default=570.0, metavar="SECONDS", help="how long to wait (default: %(default)s, just under ten minutes, so that one shell call holds it)")
+    p.add_argument("--file-only", action="store_true", help="wait for the file alone, the page left to the user (the last pass)")
+    p.add_argument("--session", metavar="NAME", help="the opencli session whose tab is read (a paper's agent: pf-<slug>; default run.json's)")
     args = cli.parse(p, argv)
 
     def watch(res, work, filed):

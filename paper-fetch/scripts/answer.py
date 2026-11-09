@@ -5,8 +5,7 @@
 # ///
 """Answer a handoff: the one way an agent's conclusion reaches the run's directory.
 
-HANDOFF is the handoff's file, <dir>/handoffs/<id>.json, the `path` fetch, claim and todo print. What each kind takes
-(pflib/run.py, Handoffs):
+HANDOFF is the `path` fetch, claim and todo print. What each kind takes (pflib/run.py, Handoffs):
   page          a verdict (run.VERDICTS): no_access, no_pdf, not_public, proxy_unconfigured, skipped_by_user — the
                 paper goes on to its next route; blocked, gate_timeout — it waits on this route until the next pass.
                 A page the agent got past needs no answer: hand it back with `pf.py fetch --start <url> --session …`,
@@ -19,7 +18,7 @@ HANDOFF is the handoff's file, <dir>/handoffs/<id>.json, the `path` fetch, claim
   left          claim --slug S (the download is that paper's: its slug, or its citation key) | not_ours
   browser_down  resolved
 Every answer is logged ({event: answer, id, slug, kind, answer, reason, by}) with what it did (accept, label, try),
-and the paper's result brought in line with the log (as pf.py sync does). --reason says what the answer rests on.
+and the paper's result brought in line with the log (as pf.py sync does).
 
 One line per event written, the answer last, each with `code`: the event's result (an accept's claimed, a page
 verdict's word), else ok.
@@ -40,7 +39,7 @@ BY = ("agent", "paper_agent", "judge", "user")
 def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("handoff", metavar="HANDOFF", help="the handoff's file: <dir>/handoffs/<id>.json")
-    p.add_argument("answer", metavar="ANSWER", help="what the kind takes (above)")
+    p.add_argument("answer", metavar="ANSWER", help="what the handoff's kind takes (below)")
     p.add_argument("--reason", help="what the answer rests on")
     p.add_argument("--label", metavar="TITLE", help="file / label: the attachment title")
     p.add_argument("--why", help="with --label: what on the file or its page says so")

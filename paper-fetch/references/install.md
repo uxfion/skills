@@ -19,16 +19,16 @@ brew install poppler                # macOS
 
 ## OpenCLI and Chrome
 
-Fetching drives the user's own Chrome — headed, signed in to their library — through OpenCLI: a CLI, a local daemon, and the Browser Bridge extension in Chrome. A direct request comes first everywhere; the browser takes what needs the user's login or a human check. `ready` reports `opencli` (path, version, extension connected) and the issues `opencli doctor` names.
+Fetching drives the user's own Chrome — headed, signed in to their library — through OpenCLI: a CLI, a local daemon, and the Browser Bridge extension in Chrome.
 
 - **OpenCLI 2.x.** The scripts call `opencli browser <command> --session <name>` and read its `{"ok", "data"}` results, which OpenCLI 1.x does not have: there every browser step fails. Install or upgrade it the way it was installed — `npm install -g @jackwener/opencli@latest`, `bun add -g @jackwener/opencli@latest`, or the OpenCLI app (opencli.info) — a system tool, so show the user the command and run it on their word. The `opencli-usage` skill covers the details.
 - **After an upgrade**, `opencli daemon restart` (doctor: "Stale daemon"). The Chrome extension is updated apart from the CLI, by the user: from the Chrome Web Store, or by hand from the OpenCLI releases (doctor: "Extension update available").
 - **The `opencli-usage` and `opencli-browser` skills** come from `jackwener/opencli` and describe the installed CLI only when updated with it: `skills update -g`. `opencli skills read opencli-browser -f plain` prints the one bundled with the CLI, to compare.
-- **Chrome's downloads.** Every file reaches the run through Chrome's download folder. Two Chrome settings are the user's to set (automation cannot open `chrome://` pages): PDFs download rather than open, and no Save As prompt — references/publishers.md, first section. `ready` finds the folder (on WSL, the Windows user's Downloads) and writes it to `run.json` as `downloads`; `ready --downloads DIR` names another. The watcher files only what lands there.
+- **Chrome's downloads.** Every file reaches the run through Chrome's download folder. Two Chrome settings are the user's to set (automation cannot open `chrome://` pages): PDFs download rather than open, and no Save As prompt — references/publishers.md, first section. `ready` finds the folder, or `ready --downloads DIR` names another (`pf.py ready -h`).
 
 ## The config file
 
-One file holds every setting and secret: `~/.config/paper-fetch/config.json` (`$PAPER_FETCH_CONFIG` points elsewhere, for tests), mode 600, outside any repository. Every field is optional; a missing one turns its feature off, and `ready` says which are set without printing any value.
+One file holds every setting and secret: `~/.config/paper-fetch/config.json` (`$PAPER_FETCH_CONFIG` points elsewhere, for tests), mode 600 (`chmod 600`), outside any repository. Every field is optional; a missing one turns its feature off.
 
 ```json
 {
@@ -39,6 +39,4 @@ One file holds every setting and secret: `~/.config/paper-fetch/config.json` (`$
 
 - `openalex_key` — the user's OpenAlex API key (openalex.org, free): `locate` sends it with each lookup, which makes single-DOI lookups free of the daily budget. Without it the lookups run unkeyed.
 - `institution.proxy` — the domain of the institution's EZproxy-style proxy, so that pages behind it are recognised (`fetch`) and links under it are marked as needing the browser.
-- `institution.discovery` — the library's discovery search page as a search URL with `{title}` where the title goes (a Primo search URL with its `vid`): `fetch`'s discovery route searches titles there. `ready` asks for it when it is missing (`config.ask_user`) and reports it without `{title}` (`config.discovery_template`).
-
-Write the file with `chmod 600`; `ready` warns when others can read it.
+- `institution.discovery` — the library's discovery search page as a search URL with `{title}` where the title goes (a Primo search URL with its `vid`): `fetch`'s discovery route searches titles there.

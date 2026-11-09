@@ -1,6 +1,6 @@
 # Publisher sites: what the tools will not tell you
 
-Context for the chain in [`paper-fetch`](../SKILL.md) (*Get the file*), learned from real runs: what to do when a `page` handoff is yours to work. Commands belong to the `opencli-browser` skill; this file holds only what is specific to fetching paper PDFs. Add a publisher once a run has verified it, and mark guesses as unverified; when a site behaves differently from what is written here, follow the page and say so in the report's skill notes. Every file from any source — an open-access link, a discovery system, a click — is the paper only once it has gone through `claim` (which checks it): a correction notice, another paper and a proxy's error page all arrived looking right (2026-10).
+Context for the chain in [`paper-fetch`](../SKILL.md) (*Get the file*), learned from real runs: what to do when a `page` handoff is yours to work. Commands belong to the `opencli-browser` skill; this file holds only what is specific to fetching paper PDFs. Add a publisher once a run has verified it, and mark guesses as unverified; when a site behaves differently from what is written here, follow the page and say so in the report's skill notes. Every file, from any source, is the paper only once `claim` has checked it: a correction notice, another paper and a proxy's error page all arrived looking right (2026-10).
 
 ## Chrome's PDF setting decides everything
 
@@ -18,7 +18,7 @@ Downloads: the watcher (SKILL.md, *Ready*) files a download that passes the chec
 
 ## Getting the bytes (verified 2026-10)
 
-`fetch` does these in order for each PDF candidate a page offers (its declared PDF, an embedded document or viewer, a link saying PDF; three at most), and looks once more through an HTML page a link opens; on a page it hands over, do the same by hand where the page needs it (a button it could not see, a gate), or hand the address back with `fetch --start`:
+`fetch` does these in order for each PDF candidate a page offers (`pf.py fetch -h`); on a page it hands over, do the same by hand where the page needs it (a button it could not see, a gate), or hand the address back with `fetch --start`:
 
 1. **In-page request.** `fetch(<PDF link>, {credentials: 'include'})` inside the article page, the bytes taken out base64-encoded in chunks through `browser eval`. A `content-type` of PDF is the file; HTML means no access, or a gate the session has not passed. Nothing lands in Downloads. Take the link from the page (`citation_pdf_url`, the "Download PDF" anchor), never from a pattern.
 2. **Open the link in the tab**, as a click would, when the in-page request is refused (403, HTML, a cross-origin `TypeError`). With the download setting on, Chrome downloads it; the watcher (`pf.py watch`) files it from Downloads.
@@ -32,14 +32,12 @@ The user's Zotero Connector sends publisher hosts it has associated with the ins
 
 ## Gates that do not look like login pages
 
-All of these are solved by the user in seconds — alert them and wait at the gate instead of working around it:
+Each is the user's to pass in seconds: alert them and wait at the gate (references/gate.md).
 
-- Chrome not running, or the OpenCLI bridge extension not connected (every `opencli browser` call fails to attach).
 - A purchase / "Get access" page with no login prompt: the subscription is not recognised. Click the site's institutional sign-in entry ("Institutional Sign In", "Access through your institution") first; the login page that follows is the gate.
 - A CAPTCHA or "verify you are human" page, on the publisher or on a search engine — sometimes only on the PDF link, after the article page loaded fine (PMC).
-- A Cloudflare check ("请稍候…" / "Just a moment…"). In the automation tab it usually passes by itself within 10–15 s (NEJM AI, Lancet, JAMA, OUP; 2026-10); one morning it looped on "verification successful, waiting for response" on several publishers and passed in the afternoon. It is a gate all the same: alert first, then wait (references/gate.md); a check that keeps looping needs the user's click.
+- A Cloudflare check ("请稍候…" / "Just a moment…"). In the automation tab it usually passes by itself within 10–15 s (NEJM AI, Lancet, JAMA, OUP; 2026-10); one morning it looped on "verification successful, waiting for response" on several publishers and passed in the afternoon. It is a gate all the same; a check that keeps looping needs the user's click.
 - A cookie wall ("Cookies must be enabled"): the user allows cookies and reloads.
-- The Save As dialog above.
 
 ## Pages nobody can pass
 
@@ -141,7 +139,5 @@ Hints for a file's label ([attachment-titles.md](attachment-titles.md)), each se
 | `attach_failed … chrome-extension://` | built-in PDF viewer is on | PDF setting above |
 | downloaded "PDF" is HTML, or its text is a login / access-denied page | the gate was not really passed | wait at the gate again |
 | in-page request of the PDF link returns HTML on a proxied host | cross-origin request without the proxy's cookies | request the link's path on the current origin |
-| "Host Needed", a 404 on the proxy host, "Sorry, you have been blocked" | a page nobody can pass | table above: answer the verdict, report it, leave the host alone this run |
 | paywalled page without "Access provided by", offering purchase | no subscription, or the login expired | institutional sign-in entry, then the gate; still nothing → answer `no_access`, and the paper goes on to its next route |
-| institution logo shown *and* a "does not subscribe" banner, URL contains `/abs/` | no subscription to this journal — not a gate | answer `no_access`, and the paper goes on to its next route; purchase is never one |
 | every `opencli browser` call fails to attach | Chrome closed or the bridge extension disconnected | `fetch` writes a `browser_down` handoff: `opencli doctor`, else ask the user to open Chrome |

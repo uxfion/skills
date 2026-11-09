@@ -17,46 +17,41 @@
 A paper stops at the first file that settles it (run.satisfied): a file of the version the result wants, or a file
 whose version is not labelled yet; once labelled another version, or Unknown, the paper goes on down the chain when
 the pass is run again. A candidate that needs no browser (needs_browser false or unknown) is first asked over plain
-HTTP; what is not a PDF goes to the browser (the opencli session: --session, else run.json's; a background window,
---window foreground for the last pass). On a page the browser takes the PDF the page itself offers
+HTTP; what is not a PDF goes to the browser. On a page the browser takes the PDF the page itself offers
 (pflib/browser.py: the declared PDF, an embedded document or viewer, and a link saying PDF only when its address
 carries a mark of the paper: its DOI, arXiv id or PMCID, or the article page's own identifier, own_marks; three at
 most, the next one tried when a file is refused). Any other PDF-looking link may be another paper's (a recommended
 article's) and is never requested: it goes to the paper's agent in the `page` handoff (evidence.links). A link is
 requested inside the page with its cookies (through the institution's proxy: the same path on the proxied host), else
-opened as a click would — a download, a pdf.js viewer, or an HTML page that is looked
-through once more (IEEE's stamp.jsp). The discovery route takes the search's links whose text is the title (0.9
-alike, arXiv records last) and works each page. Each candidate's version goes along to the check and the file's
-name: the version it was wanted as. An arXiv link is fetched as its latest version (https://arxiv.org/pdf/<id>v<N>:
-the vN identify recorded, versions.preprint.latest, else one request to arXiv's API for all of the pass's arXiv links).
+opened as a click would — a download, a pdf.js viewer, or an HTML page that is looked through once more (IEEE's
+stamp.jsp). The discovery route takes the search's links whose text is the title (0.9 alike, arXiv records last) and
+works each page. Each candidate's version goes along to the check and the file's name: the version it was wanted as.
+An arXiv link is fetched as its latest version (https://arxiv.org/pdf/<id>v<N>: the vN identify recorded,
+versions.preprint.latest, else one request to arXiv's API for all of the pass's arXiv links).
 
 Every file goes through the check (run.claim): pass -> filed; refused -> the next candidate; uncertain -> held, with a
 `file` handoff, and the paper waits. Where fetch cannot get a PDF from a page — a sign-in, a challenge, no PDF link,
 no record in the discovery search — it judges nothing: it writes a `page` handoff with what it saw, the paper waits on
-that route, and the walk goes on with the others. The paper's agent works the page and hands back with
-`pf.py fetch --start <url> --session pf-<slug> <result>`, or answers with a verdict (pf.py answer; run.VERDICTS).
-The bulk walk skips a paper with an open page or file handoff, and a paper an answer holds on its route this pass
-(blocked, gate_timeout); a run with --session or --start does not skip its paper. When the command ends, each filed
-file without a label gets a `label` handoff (as pf.py sync gives it) holding the host's word recorded at download —
-the page's title, metadata and words around the paper's title, the link taken, arXiv's comment on the version — then
-the file's (page 1). The browser itself failing (OpenCLI's BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs:
-pflib/run.py; pf.py todo lists them, pf.py answer answers them.
+that route, and the walk goes on with the others. The bulk walk skips a paper with an open page or file handoff, and
+a paper an answer holds on its route this pass (blocked, gate_timeout); a run with --session or --start does not skip
+its paper. When the command ends, each filed file without a label gets a `label` handoff (as pf.py sync gives it)
+holding the host's word recorded at download — the page's title, metadata and words around the paper's title, the
+link taken, arXiv's comment on the version — then the file's (page 1). The browser itself failing (OpenCLI's
+BROWSER_CONNECT) ends the pass with a `browser_down` handoff. Handoffs: pflib/run.py; pf.py todo lists them, pf.py
+answer answers them.
 
 A candidate is tried once a pass: a try is (paper, pass, route, candidate) with its result — ok, held, wrong_file,
 error — or an agent's verdict on its page handoff. A page handoff is no try, so the paper's agent's rerun asks that
-page again.
---start URL takes one result: a candidate the paper's agent found or opened the way to (a page past a sign-in, a
-PMC page, a repository), never the route's try; --as names its version when it is not the one the result wants.
+page again. A --start candidate (a page past a sign-in, a PMC page, a repository) is tried as route `start`.
 Before each candidate the result's file is looked for (the watcher may have filed it; while no watcher runs, this
 command scans Downloads itself). Requests to one host keep their gap (web.GAPS; full text through the institution
 15 s), in the machine's pace file.
 
-Results come after the options; - reads their paths from stdin, a path a line or our JSON lines by `path` (a line
-without one that reports a failure upstream is passed on as it is, and counts as not done). The lines, as they
-happen, are the pass's record and its progress: each try {event: try, slug, route, url, version, result, code: the
-try's result, ...}, a skip, one short line per page, file or browser_down handoff ({handoff, slug, kind, code:
-handoff, path}), not_prepared (no links yet: pf.py locate), no_discovery, browser_down. When it ends, the results it
-was given (and any other its scan of Downloads filed a file for) are brought in line with the log, as pf.py sync does.
+The lines, as they happen, are the pass's record and its progress: each try {event: try, slug, route, url, version,
+result, code: the try's result, ...}, a skip, one short line per page, file or browser_down handoff ({handoff, slug,
+kind, code: handoff, path}), not_prepared (no links yet: pf.py locate), no_discovery, browser_down. When it ends, the
+results it was given (and any other its scan of Downloads filed a file for) are brought in line with the log, as
+pf.py sync does.
 Exit 0 = the pass went through with nothing open; 1 = handoffs are open for an agent, the browser failed, or a file
 named is not a result, then stderr's last line is {"summary": {results, satisfied, handoffs: {kind: n}, routes,
 invalid?, failed?}}, every open handoff of these results counted, label handoffs included (pf.py todo lists them;
@@ -527,10 +522,10 @@ def request_url(link, page_href, proxy):
 def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("results", nargs="*", metavar="RESULT", help=cli.RESULTS_HELP)
-    p.add_argument("--pass", dest="pass_", type=int, default=1, choices=(1, 2, 3), help="which pass of the chain")
+    p.add_argument("--pass", dest="pass_", type=int, default=1, choices=(1, 2, 3), help="which pass of the chain (default: 1)")
     p.add_argument("--route", choices=ROUTES + ("snapshot",), help="this route only")
     p.add_argument("--start", metavar="URL", help="one result: a candidate the agent found or opened the way to")
-    p.add_argument("--as", dest="as_", choices=list(paper.KINDS), help="with --start: the version it is")
+    p.add_argument("--as", dest="as_", choices=list(paper.KINDS), help="with --start: its version, when not the one the result wants")
     p.add_argument("--session", metavar="NAME", help="the opencli session (a paper's agent: pf-<slug>); default run.json's")
     p.add_argument("--window", choices=("background", "foreground"), default="background",
                    help="where pages open (foreground: the last pass, with the user)")

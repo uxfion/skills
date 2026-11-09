@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""paper-to-zotero: put papers into Zotero, read the library, keep it tidy. `p2z.py WORD ...`; each word has its -h.
+"""paper-to-zotero: put papers into Zotero, read the library, keep it tidy.
 
 Each word runs one script of scripts/ (through uv, so the script's own dependencies load), its exit code passed
 through; prepare and save run two in turn. An unknown word exits 2 with this list.

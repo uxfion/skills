@@ -1,8 +1,7 @@
 """Whether a file is the paper a result describes, judged from its first pages: the verdict, its evidence, its kind.
 
 Text: pages 1-3 come from poppler's `pdftotext -f 1 -l 3 -enc UTF-8` (split at form feeds) and the page count from
-`pdfinfo`. Without pdftotext on PATH no PDF can be checked: no_pdftotext (exit 2); install poppler-utils
-(references/install.md).
+`pdfinfo` (poppler-utils: references/install.md).
 
 Two ways to pass. A: the whole title, normalized (NFKC, casefold, letters and digits only), or one of the result's
 `alt_titles`, occurs in a page's normalized text -> ok | ok_on_page_2 | ok_on_page_3. B: at least 80% of the words of
@@ -55,13 +54,12 @@ evidence: page_count, pages_scanned (<= 3), extractor (pdftotext | html), page_c
 matched_title, title_words ({share, found, total, missing} of the best title), doi_found (bool | null: item has no
 DOI), first_author_found (bool | null), first_author_in_byline (in the first 1500 characters of page 1),
 dois_on_page_1, erratum_marker, supplement_marker (str | null), doi_mismatch (bool | null: not checked), kind,
-arxiv_stamp, supplementary, encrypted, text_chars, size_bytes,
-pdf_version, pdf_dates ({created, modified} as pdfinfo -isodates prints them, each when the PDF has it), excerpt
-(page 1), excerpt_page_2, excerpt_title_page (when the title is on a later page); HTML also html_title.
-
-Use: check(path, result) -> {code, evidence, md5, kind}; with a cache, one file met by several results is read once.
-Underneath, extract(path) reads a file and judge(extraction, **subject(result), kind=...) gives one verdict.
+arxiv_stamp, supplementary, encrypted, text_chars, size_bytes, pdf_version, pdf_dates ({created, modified} as pdfinfo
+-isodates prints them, each when the PDF has it), excerpt (page 1), excerpt_page_2, excerpt_title_page (when the title
+is on a later page); HTML also html_title.
 """
+# Use: check(path, result) -> {code, evidence, md5, kind}; with a cache, one file met by several results is read once.
+# Underneath, extract(path) reads a file and judge(extraction, **subject(result), kind=...) gives one verdict.
 import hashlib
 import re
 import shutil

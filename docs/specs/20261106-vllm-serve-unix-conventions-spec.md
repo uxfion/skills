@@ -1,13 +1,13 @@
 # vllm-serve 对接 Unix 约定
 
-- 日期：2026-11-06（草稿 2026-11-05）。状态：已定（2026-11-06）：用户同意了 §3 补的几处（issue 第 14 条）和实施计划；实施中，这期间可以改正。
-- 来源：[docs/issues/20261104-skills-unix-conventions.md](../issues/20261104-skills-unix-conventions.md)（「铺开到其余 skill 时」那一节的步骤）。约定只有一个出处：`docs/design-principles.md` §3 *The Unix/Linux philosophy*，这里只写 vllm-serve 自己的：短词、东西怎么指定、`-` 读什么、要跟着改的地方。样板是 paper-to-zotero（[冻结的 spec](20261104-skills-unix-conventions-spec.md)）。
+- 日期：2026-11-06（草稿 2026-11-05）。状态：已冻结（2026-11-09）。用户于 2026-11-06 同意了 §3 补的几处（issue 第 14 条）和实施计划；实施及收尾已完成，实施时的更正记在本 spec。
+- 来源：[Unix 约定 issue（已归档）](../issues/archive/20261104-skills-unix-conventions-fixed.md)（「铺开到其余 skill 时」那一节的步骤）。约定只有一个出处：`docs/design-principles.md` §3 *The Unix/Linux philosophy*，这里只写 vllm-serve 自己的：短词、东西怎么指定、`-` 读什么、要跟着改的地方。样板是 paper-to-zotero（[冻结的 spec](20261104-skills-unix-conventions-spec.md)）。
 - 范围：一遍约定整理。服务怎么起、怎么等、怎么共用、怎么空闲自停都不动；profile 文件、状态文件、日志、锁都不动，所以新旧两份 `serve.py` 认得对方起的服务。字段的改动都在第 5 节：`up`、`down` 每行带 `code`，报错的 `error` 改名 `code`、多一个 `hint` 说下一步。
 - 落地：第 1 批，和 paper-fetch 一起；paddleocr `parse.py` 里调 vllm-serve 的那一处跟这一批一起改（第 6 节）。
 
 ## 1. 改完是什么样
 
-用得最多的三个（`usage.md`，本仓库里的调用；真项目里那 17 次 `serve` 多半是读 `serve.py` 源码和一个项目自己的部署脚本，不是命令）：`status` 40 次（26 次接了管道，多是 `| grep <profile>`、`| head -1`），`up` 29 次，`down` 26 次。
+用得最多的三个（[`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料)，本仓库里的调用；真项目里那 17 次 `serve` 多半是读 `serve.py` 源码和一个项目自己的部署脚本，不是命令）：`status` 40 次（26 次接了管道，多是 `| grep <profile>`、`| head -1`），`up` 29 次，`down` 26 次。
 
 开头那一句（之后每个例子都省略）：
 
@@ -100,7 +100,7 @@ ssh <host> '. <root>/env.sh && <root>/vllm-serve/scripts/serve.py status' | jq -
 
 ## 4. 选项
 
-`usage.md` 不按 skill 分开数选项；issue 里 `--all` 那 7 次是几个 skill 合起来的。vllm-serve 现在的全部选项和位置参数：
+[`usage.md`（历史材料，结项记录）](../issues/archive/20261104-skills-unix-conventions-fixed.md#参考资料) 不按 skill 分开数选项；issue 里 `--all` 那 7 次是几个 skill 合起来的。vllm-serve 现在的全部选项和位置参数：
 
 | 现在 | 改后 | 说明 |
 |---|---|---|

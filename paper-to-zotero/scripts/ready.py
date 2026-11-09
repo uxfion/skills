@@ -5,12 +5,11 @@
 # ///
 """Step 0 of work in Zotero: the facts it needs, and an import's directory when one is named.
 
-One call answers: is Zotero's local API up; is a usable write key stored (with --authorize and none usable, obtain
-one: Zotero shows a dialog and the user must click Always Allow); what the config file holds (presence only, never a
-value); and it prints the library's collection tree with paths ("自然图像/Diffusion"). Given DIR after the options
-(an import's: <scratch>/paper-to-zotero) it makes the directory's records/ and scratch/, lists what already lies there
-(deleting nothing) and names the records an older version left (old_format: their computed blocks are redone by
-p2z.py prepare). Fetching (Downloads, the browser, poppler) is paper-fetch's, checked by its own ready.
+One call answers: is Zotero's local API up; is a usable write key stored (--authorize obtains one); what the config file
+holds (presence only, never a value); and it prints the library's collection tree with paths ("自然图像/Diffusion"). Given
+DIR, it makes its records/ and scratch/, lists what already lies there (deleting nothing) and names the records an older
+version left (old_format: their computed blocks are redone by p2z.py prepare). Fetching (Downloads, the browser,
+poppler) is paper-fetch's, checked by its own ready.
 
 Config: $PAPER_TO_ZOTERO_CONFIG or ~/.config/paper-to-zotero/config.json, mode 600: {"zotero": {"key", "serverID"}};
 --authorize writes the "zotero" block and keeps the rest. The openalex key and institution an older version kept
@@ -143,8 +142,7 @@ def prepare_dir(work):
 
 def main(argv=None):
     p = cli.parser(__doc__)
-    p.add_argument("dir", nargs="?", metavar="DIR", help="an import's directory, <scratch>/paper-to-zotero: made with "
-                                                         "records/ and scratch/")
+    p.add_argument("dir", nargs="?", metavar="DIR", help="an import's directory, <scratch>/paper-to-zotero")
     p.add_argument("--authorize", action="store_true", help="when no usable key is stored, ask Zotero for one: the user "
                                                             "clicks Always Allow in its dialog; saved in the config (mode 600)")
     p.add_argument("--timeout", type=float, default=AUTHORIZE_WAIT, metavar="SECONDS",

@@ -5,16 +5,15 @@
 # ///
 """Attach each record's files, the ones paper-fetch got, to its Zotero item: the record's `attach`.
 
-The item is the one this run created (saved.key), else the one the lookup confirmed (found.key) — never a near
-match, nor one of several items with the paper's identifier until a same_paper handoff's answer names one. The
-files are the result's (the record's `fetched`) whose check is ok, accepted or unconfirmed: every version of the
-paper and any supplement, each under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which
-paper-fetch settled. An
-unconfirmed file (its agent could not tell it is the paper's) is attached all the same and named on the line: the
-report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A stub's file (check
+The item is the one this run created (saved.key), else the one the lookup confirmed (found.key) — never a near match,
+nor one of several items with the paper's identifier until a same_paper handoff's answer names one. The files are the
+result's (the record's `fetched`) whose check is ok, accepted or unconfirmed: every version of the paper and any
+supplement, each under its label's title (Preprint-arXiv-v7, Accepted-CVF, Unknown-IEEE, ...), which paper-fetch
+settled. An unconfirmed file (its agent could not tell it is the paper's) is attached all the same and named on the
+line: the report lists it for the user, and paper-fetch withdraws it once a confirmed file comes. A stub's file (check
 cannot_judge: paper-fetch had nothing to check it against) goes the connector path instead (p2z.py recognize), whose
-block in the record names it by md5: the item made from it, by the recognizer or, when the recognizer found nothing,
-by hand from its first page, has it as its file.
+block in the record names it by md5: the item made from it, by the recognizer or, when the recognizer found nothing, by
+hand from its first page, has it as its file.
 
 A result without an `outcome` was never settled, and its `files` may lack a file that came: nothing is attached until
 it is — unless the library item has a PDF of the paper already, and the result was never fetched for another. Each
@@ -27,8 +26,8 @@ file later (another md5) is attached afresh.
 
 stdout: one line per record {slug, code, reason?, status?, key?, files?: [{name, code, attachment?, title?,
 renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [names]}.
-  ok            a file attached, or renamed after its label (with -n: would be; nothing written. A record with no
-                item yet takes create's, which save runs first: its files are listed as they would go on it)
+  ok            a file attached, or renamed after its label (-n: would be, nothing written; a record with no item
+                yet, as in save -n, lists its files as they would go on the item create makes)
   skipped       reason no_file_yet (the result has no file to attach; `status` is its outcome's: got, waiting,
                 not_got. Not a failure, so save can run after every pass) | attached (every file is in `attach` under
                 its title, or the item had it: suggested_title when its title differs from the label's) |
@@ -41,8 +40,9 @@ renamed?: {from, to}, suggested_title?}], unconfirmed?: [names], unchecked?: [na
   no_item_key   the record has no item in Zotero yet (p2z.py create; library candidates: their same_paper handoff)
   not_found | not_a_parent | unsupported_file | readback_mismatch | unexpected_response | write_denied |
   write_failed    see the hint
-Exit 0 = every record attached or skipped; 1 = not, then stderr's last line is {"summary": {total, ok, skipped, failed}}; 2 = cannot go on (Zotero not running, local API
-off, no key, the key rejected, another Zotero than the key's), then stderr's last line is {code, hint}.
+Exit 0 = every record attached or skipped; 1 = not, then stderr's last line is {"summary": {total, ok, skipped,
+failed}}; 2 = cannot go on (Zotero not running, local API off, no key, the key rejected, another Zotero than the
+key's), then stderr's last line is {code, hint}.
 
 Example:
   p2z.py attach <scratch>/paper-to-zotero/records/*.json

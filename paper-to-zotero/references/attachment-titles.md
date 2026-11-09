@@ -1,6 +1,6 @@
 # Attachment titles: which of a paper's files an item keeps
 
-An item may hold several files of one paper side by side, and its attachment titles are the only place that says which is which: `p2z.py pdf`, the report and the next import all read them back. A title says the file's version and where it came from, `<Version>-<Source>-<detail>` (`Preprint-arXiv-v7`, `Accepted-CVF`, `Published-Elsevier-in_press`); the scheme, the versions and the evidence that settles a file's version are paper-fetch's, which labels every file (its `references/attachment-titles.md`; `scripts/p2zlib/titles.py` is its copy of the scheme). Read this before cleaning or renaming an item's files (organize.md, *Attachment titles*). A title outside the scheme (Zotero's "Full Text PDF", an older run's "Preprint (arXiv)") says nothing about the version.
+An item may hold several files of one paper side by side, and its attachment titles are the only place that says which is which: `p2z.py pdf`, the report and the next import all read them back. A title says the file's version and where it came from, `<Version>-<Source>-<detail>` (`Preprint-arXiv-v7`, `Accepted-CVF`, `Published-Elsevier-in_press`); the scheme, the versions and the evidence that settles a file's version are paper-fetch's, which labels every file (its `references/attachment-titles.md`; `scripts/p2zlib/titles.py` is its copy of the scheme). A title outside the scheme (Zotero's "Full Text PDF", an older run's "Preprint (arXiv)") says nothing about the version.
 
 ## Several files of one paper
 

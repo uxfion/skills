@@ -7,7 +7,7 @@ description: Keeps one paper note per Zotero library paper — what the paper sa
 
 Any task, in any project, that needs what a library paper says gets it fast from the paper's **paper note**, with sources to check it against the PDF, instead of reading the paper again. Two things hold this knowledge:
 
-- **The paper note**, in Zotero under the paper's item: the paper alone, what it says and judgements about it (references/note-format.md). There is one per paper, and it grows and gets corrected as tasks use it. No note is final, and none is taken on trust for a decision.
+- **The paper note**, in Zotero under the paper's item, one per paper: the paper alone, what it says and judgements about it (references/note-format.md).
 - **The project's paper index**, in the project: one line per decision the project based on a paper, pointing at the note's question and the project's own reasoning (references/notes.md).
 
 **The subject decides where a sentence goes.** About the paper → the note, whether or not a project needs it. About a project → that project.
@@ -26,32 +26,30 @@ Any task, in any project, that needs what a library paper says gets it fast from
 
 **Zotero is the one home** of a paper's note and structured package. Take them out whenever a task needs them, into a **scratch directory**: a new subdirectory of the session's scratchpad (else of `${TMPDIR:-/tmp}`), one per change, never in a project. Delete it once Zotero holds the result and no question for the user still rests on it. A file that did not reach Zotero is the user's: hand it over with its full path.
 
-**Language by reader.** Notes and indexes are the user's to read, in Chinese (note-format.md, *Language*). These instructions and what you tell a subagent are English.
+**Language by reader.** Notes and indexes are Chinese, for the user (note-format.md, *Language*); what you tell a subagent is English.
 
 ## Every change to a note
 
 A read-through, a looked-up answer written back, a check mark, a correction: each one changes the paper's one note, in four steps.
 
-1. **Take**: `pr.py take <citation key> -o <scratch>/ [--bare] [--title <PDF title>]`. It gives the note file (a new one from the skeleton when the paper has none; `--bare` starts it without the eight questions), the PDF the note was read in (`--title` takes another, note-format.md, *读的版本*), the package, and the paper's other notes.
-   - `no_package` (the PDF has not been parsed), `two_notes`: follow the line's `hint`.
-   - `no_such_title`: the PDF the note was read in is no longer in the library under that title. One of its `titles` that is the same file renamed: run again with `--title` it, and name it in the 读的版本 paragraph; nothing needs reading again. None: it goes to the user.
-   - any other code (a citation key that names no item, a PDF not on this machine) is paper-to-zotero's own line, `step` naming its command: follow its `hint`.
-   - `better_pdf`: the library holds a better version than the one the note was read in (by the order `p2z.py pdf -h` gives). A lookup reads on in the note's version; a read-through moves the note onto the better one (*Read a paper*).
+1. **Take**: `pr.py take <citation key> -o <scratch>/`, which puts the note file, its PDF, the package and the paper's other notes there (`pr.py take -h`).
+   - `no_such_title`: the PDF the note was read in is no longer in the library under that title. If one of its `titles` is the same file renamed, take again with `--title` that title and name it in the 读的版本 paragraph; nothing needs reading again. Otherwise it goes to the user.
+   - any other code but `ok` (`no_package`, `two_notes`, or paper-to-zotero's own line, `step` naming its command): follow its `hint`.
+   - `better_pdf`: the library holds a better version than the one the note was read in. A lookup reads on in the note's version; a read-through moves the note onto the better one (*Read a paper*).
 2. **Edit** the note file by note-format.md, *Changing a note*.
-3. **Check**: `pr.py check <note>` (`--full` after a read-through) prints `complete`, and `pr.py quotes <note>` prints `pass`. `missing_numbers` lists questions lost since the take: put them back.
-4. **Put**: `pr.py put <note>`, run by you alone, as it writes Zotero. It links each figure and table the note names to a box on it in the PDF (note-format.md, *Clickable figures and tables*), puts the note with `p2z.py note put -i`, and leaves the file without links. Its `code` is note put's.
-   - `version_conflict`: the note changed in Zotero meanwhile. Take it into a new scratch directory, carry this change over, check and put again. Taking into the old directory would overwrite the change.
-   - `same_title`: another session created the paper's note meanwhile. Take that one, merge this change in, put again.
-   - any other code (`readback_mismatch`, `write_denied`): follow its `hint`.
+3. **Check**: `pr.py check <note>` (`--full` after a read-through) prints `complete`, and `pr.py quotes <note>` exits 0. `missing_numbers` lists questions lost since the take: put them back.
+4. **Put**: `pr.py put <note>`, run by you alone, since it writes Zotero. Its `code` is note put's:
+   - `version_conflict`, `same_title`: the paper's note changed, or was created, in Zotero meanwhile. Take it into a new scratch directory (a take into this one keeps the file there), carry this change over, check and put again.
+   - any other code but `ok` and `skipped`: follow its `hint`.
    - `unmatched` lists the figures and tables left unlinked: look each one up in the PDF, then follow its `hint`.
 
-Done when both checks pass, `pr.py put` answers `ok` or `skipped` (Zotero already holds this note), and every `unmatched` entry has been looked up.
+Done when both checks pass, `pr.py put` answers `ok` or `skipped`, and every `unmatched` entry has been looked up.
 
 ## Look it up
 
 1. Take the note (`pr.py take --bare …`) and see whether it answers the question. If it does, that is your answer; a fact a decision or a manuscript will rest on is checked first (references/notes.md, *A project uses a paper*).
-2. If not, or not enough: read the parts of the package that bear on it, by the paddleocr skill's *3. Read and report*, and check the numbers you use against the PDF. A spot still marked open or unresolved is checked against the PDF; settling the whole package is a read-through's work.
-3. Write it back when it is about the paper, or when another project reading this paper would want it too. It goes under the question it belongs to, by *Every change to a note*. What only your project needs stays in your project; with nothing to write back, put nothing and delete the scratch directory.
+2. If not, or not enough: read the parts of the package that bear on it, by the paddleocr skill's *3. Read and report*, and check against the PDF the numbers you use and any spot still marked open or unresolved; settling the whole package is a read-through's work.
+3. Write back what is about the paper (*The subject decides where a sentence goes*), under the question it belongs to, by *Every change to a note*. With nothing to write back, put nothing and delete the scratch directory.
 
 Done when the answer rests on the note or the paper's text, and what belongs in the note is in Zotero.
 
@@ -59,11 +57,11 @@ Done when the answer rests on the note or the paper's text, and what belongs in 
 
 **Whether to read a paper through is yours to judge.** Read through a paper that matters to the project: one its decisions will lean on, or one close to its problem. A paper from a strong journal or conference weighs more. For the rest, look up what you need. Papers are read when a task needs them, never in bulk at import. A note `pr.py check --full` already finds `complete` is not read again: look up what it lacks. A better version in the library (`better_pdf`) is the exception: reading the paper through on it is how the note moves there.
 
-1. **Take** (*Every change to a note*, step 1). `open_findings` in the output counts the package's unsettled spots: the reader settles them as it reads. With `better_pdf`, take again into a new scratch directory with `--title <better_pdf>`: `previous` then holds the version the note was read in, for the reader to compare; when it has no PDF or package, its `code` says why, and the reader moves the note without that comparison (reading.md, *Moving to another version*).
-2. **Send the reader** (*Handoffs*). Several papers: one reader each, up to 5 at once. A subagent running this flow is its own reader: it reads by references/reading.md, then goes on from step 3 with its own findings, and keeps what would be `report.md` in its reply.
+1. **Take** (*Every change to a note*, step 1). With `better_pdf`, take again into a new scratch directory with `--title <better_pdf>`: `previous` then holds the version the note was read in, for the reader to compare (reading.md, *Moving to another version*).
+2. **Send the reader** (*Handoffs*). A subagent running this flow is its own reader: it reads by references/reading.md, then goes on from step 3 with its own findings, and keeps what would be `report.md` in its reply.
 3. **Check what comes back**, against the files:
    - the checks of *Every change to a note*, step 3, with `--full`;
-   - a package that had open findings: `ocr.py findings <package>` prints no line with status `open`, and exits 0;
+   - a package that had open findings: `ocr.py findings <package>` exits 0;
    - `git status` in the project shows nothing the reader left; remove what it did;
    - a move to a better version: `pr.py check` prints the new PDF as `version`, and the report's version section lists every difference between the two and what it became.
 
@@ -76,7 +74,7 @@ Done when the answer rests on the note or the paper's text, and what belongs in 
    - answers to a project's questions: write back what *Look it up* step 3 says belongs in the note;
    - the reader could not finish: supply what it says is missing and send it back, or take it to the user.
 5. **Check and put** (*Every change to a note*, steps 3 and 4): step 4 may have changed the note.
-6. **Questions for the user** — two notes, a PDF that is not the paper, the paper's older notes to trash (references/notes.md, *Older notes*) — wait for the batch's end and go out in one message.
+6. **Questions for the user** (*Handoffs*, the user's row; older notes: references/notes.md, *Older notes*) wait for the batch's end and go out in one message.
 
 Done when *Every change to a note* is done with `pr.py check --full`, and every item of `report.md` is acted on or waits in the user's message.
 
@@ -84,11 +82,11 @@ Done when *Every change to a note* is done with `pr.py check --full`, and every 
 
 The scripts settle what is certain and stop where judgement starts; the table lists those stops and who takes them.
 
-**The reader** is a background subagent on the session's own model (Claude Code: no `model`; Codex: its default), one per paper, up to 5 at once. It reads the paper, writes the note file and settles the package; Zotero is written only by you. Send it with every `<…>` filled in: each skill's directory as an absolute path, the files from `pr.py take`'s line:
+**The reader** is a background subagent on the session's own model (Claude Code: no `model`; Codex: its default), one per paper, up to 5 at once. Send it with every `<…>` filled in: each skill's directory as an absolute path, the rest from `pr.py take`'s line:
 
 ```text
-You are paper-read's reader. <paper-read> is <this skill's directory>. Start every shell call with: `set -o pipefail; export PATH="<paper-read>/scripts:<paper-to-zotero>/scripts:<paddleocr>/scripts:$PATH";` Your brief: <paper-read>/references/reading.md; the note format: <paper-read>/references/note-format.md. The paper: <title> · <first author> · <year> · <venue> · <DOI> · aka: <its aka/ names, or none>. Scratch: <scratch>. Note: <note>. PDF: <input>. Package: <package or none>. Older notes: <paths or none>.
-[Open findings: <counts by code>. <paddleocr> is <the paddleocr skill's directory>: settle by <paddleocr>/references/settle.md and <paddleocr>/references/papers.md, with ocr.py.]
+You are paper-read's reader. <paper-read> is <this skill's directory>. Start every shell call with: `set -o pipefail; export PATH="<paper-read>/scripts:<paper-to-zotero>/scripts:<paddleocr>/scripts:$PATH";` Your brief: <paper-read>/references/reading.md; the note format: <paper-read>/references/note-format.md. The paper: <title> · <first author> · <year> · <venue> · <DOI> · aka: <its aka/ names, or none>. Scratch: <scratch>. Note: <note>. PDF: <input>. Package: <package or none>. Older notes: <old_notes or none>.
+[Open findings: <open_findings>. <paddleocr> is <the paddleocr skill's directory>: settle by <paddleocr>/references/settle.md and <paddleocr>/references/papers.md, with ocr.py.]
 [Previous version: <its PDF title>; PDF <previous.input>; package <previous.package>. This read moves the note onto the PDF above.]
 [A project's questions: <the bare questions, without the project's background>.]
 ```
@@ -98,7 +96,7 @@ You are paper-read's reader. <paper-read> is <this skill's directory>. Start eve
 | a paper to read through (*Read a paper*, step 2) | the reader | references/reading.md | the note file, edited in place; the package, by `ocr.py commit`; its report, in its reply, which you save as `report.md`. You put the note and the package into Zotero |
 | `no_package` | you, with the paddleocr skill | the line's `hint`; paddleocr's SKILL.md | the parse, by `p2z.py package put`; then `pr.py take` again |
 | a quotation `pr.py quotes` cannot find, outside a read-through | you | references/note-format.md, *Evidence* | the quotation compared with the page image, marked （已核对 …） |
-| `two_notes`, a PDF that is not the paper, older notes to trash, deleting or merging items | the user, in the batch's one message | — | their answer, carried out by you |
+| `two_notes`, `no_such_title` with no renamed file, a PDF that is not the paper, older notes to trash, deleting or merging items | the user, in the batch's one message | — | their answer, carried out by you |
 
 ## Sibling skills
 

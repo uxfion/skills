@@ -1,6 +1,6 @@
 # Gates
 
-Read when a page asks for something only the user can give. A paper agent meets the gate on its page and brings it to the front; the main agent carries its line to the user.
+A paper agent meets the gate on its page and brings it to the front; the main agent carries its line to the user.
 
 ## What a gate is
 
@@ -17,19 +17,19 @@ The moment a marker shows, alert first — before any further `wait` or `state`,
 3. Wait, reading the page only — about ten minutes, in one shell call with a timeout above the wait's (Claude Code: `timeout: 600000`):
 
 ```bash
-pf.py wait <result> --session pf-<slug>   # --until "Access provided by": text or selector only the passed gate shows
+pf.py wait <result> --session pf-<slug>   # [--until "Access provided by"]
 ```
 
-`--until` names what only the page *after* the gate shows; a word the gate page itself carries (the Zotero Connector's proxy banner names the publisher's host) ends the wait at once. It reads the tab and the paper's file every 10 seconds and requests nothing of the site: a page reloaded over and over is what gets a whole browser blocked. Nobody tells you when the user is through; the wait sees it, and ends on whichever comes first:
-- `arrived` — the paper has its file (the user downloaded it): its `page` handoff has closed; `pf.py todo <dir> --slug <slug>` says what is left.
-- `passed` — the page shows `--until`, or, without it, its URL or title changed: go on where you stopped.
-- `timeout` after about ten minutes. A login from another window leaves the gate's tab as it was, so a sign-in page gets one fresh look: open its address once in your session — through → go on. A bot check is never reopened. Still at the gate: answer the `page` handoff `gate_timeout`, leave the gate tab as it is, and report; the paper is tried again at the next pass.
+`--until` names what only the page *after* the gate shows; a word the gate page itself carries (the Zotero Connector's proxy banner names the publisher's host) ends the wait at once. The wait requests nothing of the site — a page reloaded over and over is what gets a whole browser blocked — and sees for itself when the user is through. On each of its ends (`pf.py wait -h`):
+- `arrived`: its `page` handoff has closed; `pf.py todo <dir> --slug <slug>` says what is left.
+- `passed`: go on where you stopped.
+- `timeout`: a login from another window leaves the gate's tab as it was, so a sign-in page gets one fresh look: open its address once in your session — through → go on. A bot check is never reopened. Still at the gate: answer the `page` handoff `gate_timeout`, leave the gate tab as it is, and report; the paper is tried again at the next pass.
 
 ## The main agent at a gate
 
 On a paper agent's gate line, alert the user with a push notification (load the tool if it is deferred) and say in the conversation which paper waits, on which page, and what to do there; the page is in front of them already. They pass it in that tab (sign in, tick the box); a login holds for the whole of Chrome, so the other papers behind it pass too. Another paper agent that meets the same gate sends its own line: there is no list of gates to keep.
 
-Nothing goes back to the agent: its wait sees the gate pass in its tab, or a download arrive, and a sign-in page gets one fresh look at the end; it goes on by itself. The user need not say they are through; when they do after a `gate_timeout`, its agent may hand the page back at once (`pf.py fetch --start <url> --session pf-<slug> <result>`: a run on its own paper is never held) instead of waiting for the next pass. Record every gate (page, time, paper) for the report.
+The agent goes on by itself: its wait sees the gate pass in its tab, or a download arrive, and a sign-in page gets one fresh look at the end. The user need not say they are through; when they do after a `gate_timeout`, its agent may hand the page back at once (`pf.py fetch --start <url> --session pf-<slug> <result>`: a run on its own paper is never held) instead of waiting for the next pass. Record every gate (page, time, paper) for the report.
 
 ## Pages nobody can pass
 

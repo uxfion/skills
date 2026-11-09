@@ -44,7 +44,7 @@ and the first link; the links themselves are in the file.
   no_answer       no source answered; the links file is written with every source incomplete, so a rerun asks again
   skipped         reason done: links up to date
 Source codes: ok | not_found | no_identifier | refused (the page answered 401/403) | source_blocked | http_<n> |
-network_error | bad_response. -n writes no links file.
+network_error | bad_response.
 Exit 0 = every result ok or done; 1 = not, then stderr's last line is {"summary": {total, ok, skipped, failed}}; 2 =
 the config file is unreadable, then each result is not_run and stderr's last line is {code, hint}.
 
