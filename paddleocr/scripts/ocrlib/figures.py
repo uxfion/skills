@@ -38,7 +38,7 @@ import numpy as np
 
 from . import conventions as C
 
-VERSION = 2              # bump when figure grouping or the figure check changes, so stored parses are processed again
+VERSION = 3              # bump when figure grouping or the figure check changes, so stored parses are processed again
 COVER = 0.7              # share of a figure block's area inside a layout box that makes it one of the box's members
 SWALLOW = 0.2            # share of a blocker's area a figure may cover
 ROW = 0.0075             # share of the page height within which blocks sit in one row (12 px on a Letter page at scale 2)
@@ -277,11 +277,10 @@ def font_chars(pdf, page_no: int, size: tuple) -> list[tuple]:
     """One PDF page's text-layer characters as (x, y, size_pt, font), the centre in page-image pixels, the size
     scaled by the character's matrix and rounded to half a point, the font without its subset prefix."""
     import pypdfium2.raw as raw
+    from pypdfium2 import PdfPosConv
     page = pdf[page_no - 1]
     tp = page.get_textpage()
-    left, _, _, top = page.get_cropbox()
-    width_pt, height_pt = page.get_size()
-    sx, sy = size[0] / width_pt, size[1] / height_pt
+    convert = PdfPosConv(page, (0, 0, *size, 0))
     name, flags, out = ctypes.create_string_buffer(256), ctypes.c_int(), []
     for i in range(tp.count_chars()):
         if raw.FPDFText_GetUnicode(tp, i) <= 32:
@@ -291,7 +290,8 @@ def font_chars(pdf, page_no: int, size: tuple) -> list[tuple]:
         m = raw.FS_MATRIX()
         raw.FPDFText_GetMatrix(tp, i, ctypes.byref(m))
         pt = raw.FPDFText_GetFontSize(tp, i) * (m.c * m.c + m.d * m.d) ** 0.5
-        out.append((((l + r) / 2 - left) * sx, (top - (t + b) / 2) * sy, round(pt * 2) / 2,
+        x, y = convert.to_bitmap((l + r) / 2, (t + b) / 2)
+        out.append((x, y, round(pt * 2) / 2,
                     name.value.decode("latin-1", "replace").split("+")[-1]))
     return out
 

@@ -28,4 +28,4 @@ agent 整理这几份 PDF 的包时，照 `show` 给的命令截文字会偏一�
 - 新增一个端到端回归：Poppler 独立取得目标框，执行 show 打印的命令，核对目标文字。覆盖普通页面、非零纸张原点及不对称裁剪下的四种旋转，包含 MediaBox 继承，共 9 个场景。旧实现有 8 个场景失败，新实现全部通过。
 - `test_objects.py` 4 项通过；`test_doc.py` 60 项完成，其中 2 项依赖 OCR 引擎而跳过。本轮不需要启动模型。
 - 根目录 `tests/check_conventions.py` 通过（6 项，2 项不适用的批量写入断管检查跳过）；`git diff --check` 通过。
-- 另外核实了旋转页的 show 内嵌文字层提取问题，单独记录为 [旋转文字层坐标](../20261109-paddleocr-rotated-text-layer-coordinates.md)，未混入本次修复。
+- 另外核实了旋转页的 show 内嵌文字层提取问题，单独记录为 [旋转文字层坐标](20261109-paddleocr-rotated-text-layer-coordinates-fixed.md)，未混入本次修复。

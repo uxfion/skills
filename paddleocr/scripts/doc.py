@@ -489,11 +489,7 @@ def check(record: dict, src: dict | None, folder: Path) -> dict:
             layers = {p: figures.font_chars(pdf, p, s) for p, s in sizes.items()}
 
             def text_in(page, box):
-                pg, (w_pt, h_pt) = pdf[page - 1], pdf[page - 1].get_size()
-                left, _, _, top = pg.get_cropbox()
-                sx, sy = sizes[page][0] / w_pt, sizes[page][1] / h_pt
-                return pg.get_textpage().get_text_bounded(left=left + box[0] / sx, bottom=top - box[3] / sy,
-                                                          right=left + box[2] / sx, top=top - box[1] / sy)
+                return checks.bounded_text(pdf[page - 1], box, sizes[page])
         images = {}
 
         def image_of(page):
@@ -1455,7 +1451,7 @@ def show(folder: Path, record: dict, src: dict | None, what: str, box=None, dpi:
     if b.get("box") and src is not None:
         x1, y1, x2, y2 = to_source(info, b["box"])
         if src["kind"] == "pdf" and not info.get("photo"):
-            x, y, w, h = int(x1) - 4, int(y1) - 4, int(x2 - x1) + 8, int(y2 - y1) + 8
+            w, h = int(x2 - x1) + 8, int(y2 - y1) + 8
             pdf = pdf_of(src)
             pg = pdf[info["page"] - 1]
             left, bottom, right, top = pg.get_bbox()
@@ -1469,8 +1465,9 @@ def show(folder: Path, record: dict, src: dict | None, what: str, box=None, dpi:
                            f"-W {w} -H {h}):")
             else:
                 out.append("text layer:")
-            out.append(pg.get_textpage().get_text_bounded(left=left + x, bottom=top - (y + h), right=left + x + w, top=top - y)
-                       or "(none)")
+            pad = 4 * info["scale"]
+            region = [v + offset * pad for v, offset in zip(b["box"], (-1, -1, 1, 1))]
+            out.append(checks.bounded_text(pg, region, tuple(info["image_size"])) or "(none)")
         image = page_image(src, folder, info)
         bx = [int(v) for v in b["box"]]
         cv2.rectangle(image, (bx[0], bx[1]), (bx[2], bx[3]), (0, 0, 230), 3)

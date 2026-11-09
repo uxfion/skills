@@ -25,8 +25,8 @@ numbered column at the page edge, as in manuscripts under review) are ignored. E
 conventions, so a \\tag*{(n)} an agent writes closes a gap.
 
 Blocks are the document's current state in reading order: id ("p4-19", "p9-n1"), page, label, text, box (page-image
-pixels, or None), and merged_into where the block's content moved into another block. Pure Python but pdf_layer,
-which needs pypdfium2."""
+pixels, or None), and merged_into where the block's content moved into another block. The PDF helpers need
+pypdfium2; the checks themselves are pure Python."""
 from __future__ import annotations
 
 import re
@@ -35,7 +35,7 @@ from collections import Counter
 
 from . import conventions
 
-VERSION = 6              # bump when the checks change, so stored parses are checked again
+VERSION = 7              # bump when the checks change, so stored parses are checked again
 
 NOISE_LABELS = ["number", "header", "header_image", "footer", "footer_image"]
 FIGURE_LABELS = {"image", "chart", "seal", "header_image", "footer_image"}
@@ -427,23 +427,33 @@ def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]
 
 # ---------------------------------------------------------------- PDF
 
+def bounded_text(page, box, image_size: tuple) -> str:
+    """The text under an image-pixel box, converted to PDF user space by PDFium."""
+    from pypdfium2 import PdfPosConv
+    # PDFium applies the page's /Rotate; the final 0 adds no further rotation.
+    convert = PdfPosConv(page, (0, 0, *image_size, 0))
+    points = [convert.to_page(round(x), round(y)) for x in (box[0], box[2]) for y in (box[1], box[3])]
+    xs, ys = zip(*points)
+    return page.get_textpage().get_text_bounded(left=min(xs), bottom=min(ys), right=max(xs), top=max(ys))
+
+
 def layer_chars(pdf, page_no: int, image_size: tuple) -> list[tuple] | None:
     """One PDF page's text-layer characters as (ch, x, y), the centre in page-image pixels, line numbers blanked;
     None without a text layer."""
+    from pypdfium2 import PdfPosConv
     page = pdf[page_no - 1]
     tp = page.get_textpage()
     n = tp.count_chars()
     if n == 0:
         return None
-    left, _, _, top = page.get_cropbox()
-    width_pt, height_pt = page.get_size()
-    sx, sy = image_size[0] / width_pt, image_size[1] / height_pt
+    convert = PdfPosConv(page, (0, 0, *image_size, 0))
     chars = []
     for k in range(n):
         ch = tp.get_text_range(k, 1)
         if ch.strip():
             l, b, r, t = tp.get_charbox(k)
-            chars.append((ch, ((l + r) / 2 - left) * sx, (top - (b + t) / 2) * sy))
+            x, y = convert.to_bitmap((l + r) / 2, (b + t) / 2)
+            chars.append((ch, x, y))
         else:
             chars.append((ch, 0.0, 0.0))
     numbered = line_number_chars(chars, image_size[0])

@@ -139,7 +139,7 @@ class Objects(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("pdftotext"), "needs poppler's pdftotext")
 class ShowRegion(unittest.TestCase):
-    def test_printed_command_reads_the_block_in_media_coordinates(self):
+    def test_region_command_and_text_layer_read_the_same_block(self):
         import pypdfium2 as pdfium
         from reportlab.pdfgen import canvas
         from reportlab.pdfbase import pdfdoc
@@ -178,9 +178,21 @@ class ShowRegion(unittest.TestCase):
                 with patch.object(tempfile, "tempdir", tmp):
                     out = D.show(folder, record, {"kind": "pdf", "path": path, "pdf": pdf}, "p1-1")
                 line = next(line for line in out if line.startswith("text layer (pdftotext"))
+                self.assertEqual(out[out.index(line) + 1].strip(), "TARGET")
                 command = shlex.split(line.removeprefix("text layer (").removesuffix("):"))
                 got = subprocess.run([*command, str(path), "-"], capture_output=True, text=True, check=True)
                 self.assertEqual(got.stdout.strip(), "TARGET")
+                # Both checks use image pixels; character centres must fall in Poppler's word boxes.
+                layer = [c for c in D.checks.layer_chars(pdf, 1, tuple(record["pages"][0]["image_size"])) if c[0].strip()]
+                fonts = D.figures.font_chars(pdf, 1, tuple(record["pages"][0]["image_size"]))
+                self.assertEqual(len(layer), len("TARGETLOWER"))
+                self.assertEqual(len(fonts), len(layer))
+                word_boxes = words(path, "-cropbox")
+                for word in ("TARGET", "LOWER"):
+                    x1, y1, x2, y2 = [v * SCALE for v in word_boxes[word]]
+                    inside = lambda x, y: x1 - 1 <= x <= x2 + 1 and y1 - 1 <= y <= y2 + 1
+                    self.assertEqual("".join(ch for ch, x, y in layer if inside(x, y)), word)
+                    self.assertEqual(sum(inside(x, y) for x, y, *_ in fonts), len(word))
                 pdf.close()
 
 
