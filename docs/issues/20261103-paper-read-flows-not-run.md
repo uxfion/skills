@@ -42,6 +42,11 @@
    - 同时派几个读论文的 subagent（最多 5 个），要问用户的事攒成一条消息；
    - 读论文的 subagent 没过检查，退回同一个 subagent（Claude Code `SendMessage`），或者接不上时另派一个；
    - 读论文的 subagent 在回报里报出库里的问题，由主 agent 核实后去改。
+6. **按问题查阅其他版本和补充材料**（2026-11-09 加的 SKILL.md *Additional sources*，见 [archive/20261106-paper-read-elsewhere-in-library-fixed.md](archive/20261106-paper-read-elsewhere-in-library-fixed.md)）：
+   - 读者用 `p2z.py package take <paper> --title "<附件标题>"` 取另一个附件来查，笔记的主要版本不变；
+   - 补充事实注明各自的文件和位置，其他附件的图表写成显式页链接，`pr.py put` 不会把它们误链到主要 PDF；
+   - 库里没有的资料，由主 agent 经 paper-fetch 取来，再让读者接着读。
+   - 要看的：读者会不会该查的时候真去查（CycleGAN 那类，正式版指向 arXiv 版的附录）；`pr.py quotes` 报的其他附件引文，读者有没有对照那份 PDF 核对后标上「已核对」。
 
 ## 已定 49 改了（2026-11-04）
 
