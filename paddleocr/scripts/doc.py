@@ -28,7 +28,7 @@ from ocrlib import checks, cli, conventions, figures  # noqa: E402
 from ocrlib.cli import Stop  # noqa: E402
 
 FORMAT = 3               # the record's layout; a record of another format is parsed anew
-RENDER = 4               # the Markdown's layout; commit reads an edited Markdown in the layout its first line names
+RENDER = 5               # the Markdown's layout; commit reads an edited Markdown in the layout its first line names
 REFINE = 1               # bump when processing changes, so stored records are processed again (no GPU)
 CROP_DPI = 300
 IGNORED = {"number", "header", "header_image", "footer", "footer_image"}   # page furniture: in the record, not the Markdown
@@ -588,6 +588,16 @@ def _normalize(t: str) -> str:
     return t.replace("\n\n", "\n").replace("\n", "\n\n")
 
 
+# PaddleOCR-VL writes inline math as "$ x $"; Markdown renderers, and a Zotero note through paper-to-zotero, read math
+# only where the dollars hug it (so that "$5 and $10" stays money).
+_SPACED_MATH = re.compile(r"(?<![\\$])\$[ \t]+([^$\n]*?[^\s$])[ \t]+\$(?!\$)")
+
+
+def hug_math(text: str) -> str:
+    """Inline math with its dollars hugging the formula: "$ x_{i} $" -> "$x_{i}$"; display math as it is."""
+    return _SPACED_MATH.sub(r"$\1$", text)
+
+
 FORMAT_TEXT = {
     "paragraph_title": None,          # by level: format_block
     "abstract_title": _title, "reference_title": _title, "content_title": _title,
@@ -683,7 +693,8 @@ def pieces(record: dict, layout: int = RENDER) -> list[dict]:
     markers), image (a figure's image line), block (owners: the block, then any formula numbers joined to it), note
     (a finding's), fixed (the reason for an edit), info (a table's continuation). Every figure shown has its image
     line: with its first image block, else right after its opening marker (layout 4; layout 3 wrote none for a
-    figure whose blocks hold no image)."""
+    figure whose blocks hold no image). Layout 5 writes inline math with its dollars hugging the formula (hug_math);
+    earlier layouts as PaddleOCR gives it."""
     options = record["run"]["options"]
     view = blocks_view(record)
     by_id = {b["id"]: b for b in view}
@@ -813,6 +824,8 @@ def pieces(record: dict, layout: int = RENDER) -> list[dict]:
             else:
                 text, owners = format_block(b, options), [b["id"]]
             text = piece_text(text)
+            if layout >= 5 and b["label"] not in FORMULAS:
+                text = hug_math(text)
             if not text:
                 continue
             out += notes.pop(("block", b["id"]), [])
@@ -1690,6 +1703,47 @@ Example:
     return cli.run(go, folder=str(folder))
 
 
+def cmd_diff(argv):
+    """Where a parse's words and its PDF's text layer differ by one to three words, block by block: one JSON line each.
+
+The checks report runs of about ten words or more; a word read as another ("satisficing" as "satisfying"), a letter
+misread in a name or an acronym, a word dropped or added stays below them. diff compares each text block, tables,
+captions and references included, with the text-layer words inside its box, and lists every place where one to three
+words differ on a side. Left out, as the checks leave them: figures and text inside them, formulas, page furniture,
+blocks read from an image; and what is the same text: a compound split or joined ("decision-making", "decision
+making"), words the parse writes as inline math, numbers (findings' missing_numbers). Many lines are the text layer's
+own breaks (ligatures, glued words, small capitals): judge each line, and fix a misread in the Markdown as ocr.py
+commit -h says; the others need nothing. Each block is compared with its own box, so blocks put in the wrong order,
+text joined across columns, pass it.
+
+stdout: {page, block, layer, parse, around}: the text layer's words and the parse's, each as written ("" for words
+only dropped or only added), and the text-layer words around them, to find the place. A PDF without a text layer, or a
+--photo parse, lists nothing. Read-only: the Markdown's edits not committed yet are left out, and stderr says so.
+Exit 0 = listed, none or many; 1 = nothing listed, and stderr's last line {folder, code, hint} says why:
+source_not_found, source_mismatch, or the folder is no parse (file_not_found, no_record, old_format); 2 = --source
+names no file (file_not_found) or another file (source_mismatch).
+
+Examples:
+  ocr.py diff /abs/out/paper
+  ocr.py diff /abs/out/paper | jq -c 'select(.page == 7)'
+"""
+    _, args, folder = command("diff", cmd_diff.__doc__, argv)
+
+    def go():
+        record = load(folder)
+        src = source_of(record, args.source, need=True, folder=folder)
+        warn_unrecorded(folder, record)
+        if src["kind"] != "pdf" or record["run"]["options"].get("photo"):
+            return cli.OK
+        sizes = {p["page"]: tuple(p["image_size"]) for p in record["pages"]}
+        figs = [{"id": f"{f['id']}/figure", "page": f["page"], "label": "image", "text": "", "box": f["box"]}
+                for f in figures_view(record)]
+        for row in checks.word_differences(blocks_view(record) + figs, checks.pdf_layer(src["path"], sizes)):
+            cli.emit(row)
+        return cli.OK
+    return cli.run(go, folder=str(folder))
+
+
 def cmd_show(argv):
     """A finding, block, figure or page of a parse, for reading: its text, the text layer under it, a page image.
 
@@ -1898,8 +1952,8 @@ Example:
     return cli.run(go, folder=str(folder))
 
 
-COMMANDS = {"findings": cmd_findings, "show": cmd_show, "commit": cmd_commit, "cut": cmd_cut, "render": cmd_render,
-            "objects": cmd_objects}
+COMMANDS = {"findings": cmd_findings, "diff": cmd_diff, "show": cmd_show, "commit": cmd_commit, "cut": cmd_cut,
+            "render": cmd_render, "objects": cmd_objects}
 
 
 def main(argv=None) -> int:

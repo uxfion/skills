@@ -2,12 +2,15 @@
 # requires-python = ">=3.9"
 # dependencies = ["numpy", "opencv-python-headless", "pypdfium2", "reportlab"]
 # ///
-"""Tests for ocr.py objects and show's region command: positions in a PDF with distinct page boxes.
+"""Tests for ocr.py objects, show's region command and diff, on PDFs made here with reportlab.
 
-The PDF is made here with reportlab: page 1 has a crop box offset from the media box, page 2 is rotated. The record's
-boxes are where poppler finds the words inside the crop box (`pdftotext -bbox -cropbox`, the page as PaddleOCR saw it),
-and the rects expected are where poppler finds them in the media box, which starts at the origin of the PDF's user
-space (`pdftotext -bbox`): two readings that never pass through doc.py."""
+objects and show: page 1 has a crop box offset from the media box, page 2 is rotated. The record's boxes are where
+poppler finds the words inside the crop box (`pdftotext -bbox -cropbox`, the page as PaddleOCR saw it), and the rects
+expected are where poppler finds them in the media box, which starts at the origin of the PDF's user space
+(`pdftotext -bbox`): two readings that never pass through doc.py.
+
+diff: each line the PDF holds is a block whose box is where poppler finds its words, and whose text differs from the
+line only where the test says."""
 import contextlib
 import hashlib
 import io
@@ -194,6 +197,49 @@ class ShowRegion(unittest.TestCase):
                     self.assertEqual("".join(ch for ch, x, y in layer if inside(x, y)), word)
                     self.assertEqual(sum(inside(x, y) for x, y, *_ in fonts), len(word))
                 pdf.close()
+
+
+@unittest.skipUnless(shutil.which("pdftotext"), "needs poppler's pdftotext")
+class Diff(unittest.TestCase):
+    # (what the PDF says, what the parse says)
+    LINES = [("Search satisficing calls off the search early.", "Search satisfying calls off the search early."),
+             ("Novice decision-making improves with feedback.", "Novice decision making improves with feedback."),
+             ("Features are aligned to f cur via min(i, n) here.", "Features are aligned to $ f_{cur} $ via $\\min(i, n)$ here."),
+             ("Risk < 5% for groups A&B alike.", "Risk &lt; 5% for groups A&amp;B alike."),
+             ("It is not fast, and not slow.", "It is fast, and not slow.")]
+
+    def test_lists_only_words_read_otherwise(self):
+        from reportlab.pdfgen import canvas
+        with tempfile.TemporaryDirectory(prefix="diff-") as tmp:
+            pdf, folder = Path(tmp) / "paper.pdf", Path(tmp) / "paper"
+            c = canvas.Canvas(str(pdf), pagesize=(612, MEDIA_H))
+            c.setFont("Helvetica", 10)
+            for k, (layer, _) in enumerate(self.LINES):
+                c.drawString(72, 700 - 30 * k, layer)
+            c.save()
+            out = subprocess.run(["pdftotext", "-bbox", str(pdf), "-"], capture_output=True, text=True, check=True).stdout
+            boxes = [tuple(float(v) for v in m.group(1, 2, 3, 4)) for m in WORDS.finditer(out)]
+            blocks = []
+            for k, (layer, text) in enumerate(self.LINES):     # a line's words: those on its baseline
+                y = MEDIA_H - (700 - 30 * k)
+                line = [b for b in boxes if b[1] < y < b[3] + 2]
+                blocks.append({"id": f"p1-{k}", "label": "text", "text": text,
+                               "box": [round(v * SCALE) + d for v, d in zip(union(*line), (-2, -2, 2, 2))]})
+            folder.mkdir()
+            (folder / "paper.json").write_text(json.dumps({
+                "format": D.FORMAT,
+                "source": {"kind": "pdf", "path": str(pdf), "sha256": hashlib.sha256(pdf.read_bytes()).hexdigest(),
+                           "page_count": 1, "pages": [1]},
+                "run": {"options": {}}, "pages": [{"page": 1, "image_size": [612 * 2, MEDIA_H * 2], "scale": SCALE}],
+                "blocks": blocks, "figures": [], "findings": [], "checks": {}}), encoding="utf-8")
+            got, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(got), contextlib.redirect_stderr(err):
+                code = D.main(["diff", str(folder)])
+        self.assertEqual(code, 0, err.getvalue())
+        self.assertEqual([(d["block"], d["layer"], d["parse"]) for d in map(json.loads, got.getvalue().splitlines())],
+                         [("p1-0", "satisficing", "satisfying"),     # a word read as another
+                          ("p1-4", "not", "")])                       # a word dropped, though the block has it again
+        # not listed: a compound split, words the parse writes as inline math, HTML entities in its text
 
 
 if __name__ == "__main__":

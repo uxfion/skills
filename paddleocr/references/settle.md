@@ -11,6 +11,7 @@ In the folder, `<stem>.md` is the text you edit, with `<!-- page N -->` before e
 Start every shell call with `set -o pipefail; export PATH="<skill>/scripts:$PATH";`, where `<skill>` is the folder above the one holding this brief; `ocr.py <word> -h` is each word's reference.
 
 - `ocr.py findings <folder>`: open and unresolved findings, one JSON line each; exits 1 while any remain open.
+- `ocr.py diff <folder>`: each place where a block's words and the text layer inside its box differ by one to three words, one JSON line each (§3).
 - `ocr.py show <folder> <finding id>`: the finding in full, its block's text, the text layer under it, and a page image with the block boxed; for a `figure_check`, an overlay of the crops.
 - `ocr.py show <folder> p<N>`: every block of page N with its id and box, and a page image with the block ids drawn on it.
 - `ocr.py show <folder> p<N> --box X1,Y1,X2,Y2 --dpi 400`: that region enlarged, for small print and figure edges.
@@ -79,21 +80,25 @@ Done when every `figure_check` finding is gone or has a verdict, every named fig
 
 ## 3. Beyond the findings
 
-The checks see only what a text layer can prove. On every page, compare the last block and the first line of each column with the text layer (or, without one, the image), and fix what you find as in *Recording*. Where a page has a finding, read that page whole.
+The checks see only what a text layer can prove, and only runs of text. Two passes cover what they miss, and each misses what the other sees:
 
-What slips past the checks (2026-10, six papers):
+- **The joins.** On every page, compare the last block and the first line of each column with the text layer (or, without one, the image), and fix what you find as in *Recording*. Text joined across columns in the wrong order and a garbled line at a page or column start show here, where every word is present or the garble is too long for `diff`.
+- **The words.** Run `ocr.py diff <folder>` and judge every line it prints: a misread (a word, a letter in a name or an acronym, a word dropped or added) is fixed as in *Recording*; a break of the text layer's own (glued words, a ligature, an accent, table cells read in another order) needs nothing. It compares each block with the text layer inside its box, so blocks put in the wrong order pass it.
+
+Where a page has a finding, read that page whole.
+
+What slips past the checks (2026-10, six papers; 2026-11, eight more):
 
 - **A paragraph that ends early with an invented closing.** The block's box is far taller than its text needs; `missing_text` and `missing_numbers` on the same page are the trace.
 - **Text joined in the wrong order across columns.** Every word is present, so no check fires; look for a sentence that breaks off and continues with an unrelated one.
 - **A garbled first line at the top of a page or column**, numbers included.
-- **Digit and letter confusions** (1↔I, l↔I, 0↔O) in names, acronyms and identifiers. Once found, search the whole document for the same token.
-- **A real word in place of another** ("faintest" for "fairest"), which no coverage check notices.
+- **A word read as another**: a real word ("satisfying" for "satisficing", "faintest" for "fairest"), a digit-letter confusion in a name, an acronym or an identifier ("Al" for "AI", "MMLI" for "MMLU"). `diff` lists them; once found, search the whole document for the same token.
 - **Line-break hyphens kept or invented** in compound names ("Duck-DuckGo").
 - **Header cells merged** in a table whose values are right.
 - **Inline math garbled** in pseudo-code and tables.
 - **A long line cut by your reading tool** is not a truncated paragraph: check its length or its tail before calling it cut.
 
-Done when every page's last block and column starts have been compared; the report says how many pages that was.
+Done when every page's last block and column starts have been compared and every line `ocr.py diff` printed has been judged; the report says how many pages that was and how many lines were misreads.
 
 ## 4. Report
 
@@ -102,5 +107,5 @@ Commit a last time and delete the folder `show` wrote under `$TMPDIR/paddleocr-s
 - **fixed**: page, block or finding id, what changed.
 - **verdicts**: finding id, `ok` or `unresolved`, the reason.
 - **figures**: cut anew (figure id, what was wrong), kept (figure id), made (figure id), captions named (figure id, caption block id).
-- **read**: the pages compared in §3, and what you found there.
+- **read**: the pages compared in §3 and what you found there; how many `diff` lines were misreads you fixed, with a few of them.
 - **open**: anything you could not settle, and why; if you could not finish, what you tried, what you settled and what is left; the last commit's line unless its code is `skipped`.

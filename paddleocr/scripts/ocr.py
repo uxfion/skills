@@ -29,6 +29,7 @@ SELF = Path(__file__).name
 WORDS = {
     "parse": ("parse", False, "parse PDFs or page images with the models (needs the GPU)"),
     "findings": ("doc", True, "a parse's open findings, and those judged unresolved"),
+    "diff": ("doc", True, "where the parse's words and the PDF's text layer differ by one to three words"),
     "show": ("doc", True, "a finding, block, figure or page: its text, the text layer under it, a page image"),
     "commit": ("doc", True, "record the Markdown's edits and verdicts, check again, write the Markdown"),
     "cut": ("doc", True, "cut a figure anew from a box, or a new one on a page"),

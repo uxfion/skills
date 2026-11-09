@@ -29,6 +29,8 @@ pixels, or None), and merged_into where the block's content moved into another b
 pypdfium2; the checks themselves are pure Python."""
 from __future__ import annotations
 
+import difflib
+import html
 import re
 import unicodedata
 from collections import Counter
@@ -52,6 +54,7 @@ MIN_TABLE_TOKENS = 6     # fewer text-layer tokens in a table box: an image tabl
 TABLE_TOLERANCE = 0.03   # share of a table's text-layer tokens allowed to be absent
 MIN_LINE_TOKENS = 5      # text-layer lines shorter than this give no numbers to check
 MIN_LAYER_CHARS = 20     # a block over fewer text-layer characters was read from an image: no extra_text check
+MAX_CHANGE = 3           # words on a side of a listed word difference (the 2026-11-05 settling agents' own diff)
 REPEAT_RE = re.compile(r"(.{10,200}?)\1{4,}", re.S)
 MIN_LOOP_GRAMS = 30      # a block with this many word trigrams ...
 LOOP_DISTINCT = 0.30     # ... of which under this share are distinct is a loop (normal text: 0.56 and up, 2026-10)
@@ -77,6 +80,7 @@ _GREEK = re.compile(r"[\u0370-\u03ff\u1f00-\u1fff]")  # Greek in a text layer is
 _STYLE_CMD = re.compile(r"\\(?:math[a-z]+|text[a-z]*|operatorname\*?|boldsymbol|bm|hat|widehat|bar|overline"
                         r"|tilde|widetilde|vec|dot|ddot|check|breve)(?![A-Za-z])")
 _SYMBOL_CMD = re.compile(r"\\(?:[A-Za-z]+|.)")
+_MODIFIERS = re.compile(r"[ʰ-˿]")          # spacing modifier letters: ˆ ˜ ˙ ˚ ′ in a text layer's math
 
 
 def glue_math(text: str) -> str:
@@ -320,6 +324,55 @@ def in_order(missing: Counter, toks: list[str]) -> list[str]:
         if seen[t] < missing[t]:
             seen[t] += 1
             out.append(t)
+    return out
+
+
+def word_differences(blocks: list[dict], layer: dict[int, list[tuple] | None]) -> list[dict]:
+    """Places where a block's words and the text-layer words inside its box differ by one to MAX_CHANGE words on a
+    side, in reading order: [{page, block, layer, parse, around}], each side as it is written ("" when words were
+    only dropped or only added), around the text-layer words about it. Evidence for an agent to judge, below the run
+    length of missing_text and extra_text: a word read as another, a letter misread in a name, a word dropped or
+    added. Left out, as the checks leave them: figures (and blocks inside a figure's box), formulas, page furniture,
+    blocks read from an image; and what is the same text: a compound split or joined (the same letters), words the
+    parse writes in inline math, numbers (missing_numbers' part). `blocks` as check_document takes them."""
+    targets = {b["id"] for b in blocks}
+    parts: dict[str, list[dict]] = {}
+    for b in blocks:
+        if b.get("merged_into") in targets:
+            parts.setdefault(b["merged_into"], []).append(b)
+    figures = [b for b in blocks if b["label"] in FIGURE_LABELS and b["box"]]
+    out = []
+    for b in blocks:
+        if ("merged_into" in b or b["label"] in FIGURE_LABELS | FORMULA_LABELS | NOISE_SET or not b["text"].strip()
+                or not b["box"]):
+            continue
+        cx, cy = (b["box"][0] + b["box"][2]) / 2, (b["box"][1] + b["box"][3]) / 2
+        if any(f["page"] == b["page"] and inside(cx, cy, f["box"]) for f in figures):
+            continue
+        segs = [s for s in [b] + parts.get(b["id"], []) if s["box"] and layer.get(s["page"])]
+        if sum(1 for s in segs for c in layer[s["page"]] if c[0].strip() and inside(c[1], c[2], s["box"])) < MIN_LAYER_CHARS:
+            continue
+        ltext = "\n".join(layer_text(layer[s["page"]], lambda x, y, box=s["box"]: inside(x, y, box)) for s in segs)
+        ljoined, lm = token_matches(ltext, layer=True)
+        pjoined, pm = token_matches(blank(_MATH, unicodedata.normalize("NFKC", html.unescape(b["text"]))))
+        lm = [m for m in lm if not m.group()[0].isdigit()]
+        pm = [m for m in pm if not m.group()[0].isdigit()]
+        lw, pw = [m.group().lower() for m in lm], [m.group().lower() for m in pm]
+        # the words the parse's inline math holds, glued as a text layer prints them ("f_{cur}" -> "fcur") and apart,
+        # with operator names ("\min"): a text layer word among them was typeset as math
+        maths = " ".join(m.group(0) for m in _MATH.finditer(b["text"]))
+        in_math = set(tokens(glue_math(maths))) | set(tokens(re.sub(r"\\([A-Za-z]+)", r" \1 ", maths)))
+        for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, lw, pw, autojunk=False).get_opcodes():
+            if op == "equal" or max(i2 - i1, j2 - j1) > MAX_CHANGE or "".join(lw[i1:i2]) == "".join(pw[j1:j2]):
+                continue
+            # a hat or a prime a text layer prints as a letter of its own ("yˆi") is no part of the word; without it,
+            # a single letter is no word at all
+            if op == "delete" and all(len(w := _MODIFIERS.sub("", x)) < 2 or w in in_math for x in lw[i1:i2]):
+                continue
+            out.append({"page": b["page"], "block": b["id"],
+                        "layer": quote(ljoined, lm, i1, i2) if i2 > i1 else "",
+                        "parse": quote(pjoined, pm, j1, j2) if j2 > j1 else "",
+                        "around": quote(ljoined, lm, max(0, i1 - 4), min(len(lm), i2 + 4)) if lm else ""})
     return out
 
 

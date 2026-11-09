@@ -99,7 +99,7 @@ class Markdown(unittest.TestCase):
 
     def test_manifest_and_pages(self):
         first = self.text.split("\n", 1)[0]
-        self.assertTrue(first.startswith("<!-- paddleocr render=4 source=synthetic.pdf "))
+        self.assertTrue(first.startswith("<!-- paddleocr render=5 source=synthetic.pdf "))
         self.assertIn("pages=1-3,5/5", first)
         self.assertEqual([p["text"] for p in self.pieces if p["kind"] == "page"],
                          ["<!-- page 1 -->", "<!-- page 2 -->", "<!-- page 3 -->", "<!-- page 5 -->"])
@@ -144,6 +144,18 @@ class Markdown(unittest.TestCase):
         self.assertNotIn("extra_text@p1-11", text)
         self.assertLess(text.index("<!-- open figure_check@p2-6: split: 2 crops -->"), text.index("<!-- figure p2-2"))
         self.assertIn("open=2 unresolved=1", text.split("\n", 1)[0])
+
+    def test_inline_math_hugs_its_dollars_from_layout_5(self):
+        r = record()
+        given = "Scan $ x_{NC} $ and mask $ x_{TM} $ at \\$5, with $$ E $$ as written."
+        next(b for b in r["blocks"] if b["id"] == "p1-11")["text"] = given
+        text = D.render_text(r)[0]
+        self.assertIn("Scan $x_{NC}$ and mask $x_{TM}$ at \\$5, with $$ E $$ as written.", text)
+        self.assertIn(given, D.render_text(r, 4)[0])          # an earlier layout writes it as PaddleOCR gives it
+        self.assertEqual(D.commit(r, text), [])                  # read back unedited: nothing to record
+        D.commit(r, text.replace("and mask", "and the mask"))
+        self.assertEqual([(c["was"], c["now"]) for c in changes(r, "p1-11")], [("mask", "the mask")])
+        self.assertIn("Scan $x_{NC}$ and the mask $x_{TM}$", D.render_text(r)[0])
 
 
 class PageOrder(unittest.TestCase):

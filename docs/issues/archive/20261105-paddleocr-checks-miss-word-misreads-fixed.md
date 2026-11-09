@@ -1,7 +1,14 @@
 # paddleocr：检查漏掉单词级的误读
 
+已解决（2026-11-09，用户选「A」）：新命令 `ocr.py diff <folder>` 逐块比对解析文字和框内的文字层，列出一到三个词的差异，交给整理的 agent 判断。它不算 finding，也不卡完成条件。settle.md §3 原有的接缝抽查（每页最后一块、每栏第一行）保留，`diff` 作为补充：接缝抽查管跨栏接错和栏首整行乱码，`diff` 管单词读错，两者互相看不见对方的那类错。
+- **为什么现有检查抓不到**：`missing_text` 要连续 8 个三词组对不上才报，一个词读错最多影响 3 个三词组，所以是设计上的盲区。
+- **去噪只用确定的规则**：复合词拆分（拼起来完全相同）、本块行内公式里的词和算子名（`\min`）、HTML 实体、文字层把帽子符号印成单独字母；不设模糊阈值。"一到三个词"的上限沿用 11-05 两个 agent 实际用过的做法。
+- **实测**：先在 5 个包上调规则（Lambe、Wang 两篇没整理过，SonoWorld、UIV-US、FSCG 三篇已整理过），已知的 10 处真错全部列出，如 satisficing 读成 satisfying、diagnosticians 读成 diagnostics、表格方法名 STP-BCR 读成 STP-OCR。规则冻结后，换 3 个没看过的包（Bertalanic 2026、Chen 2025、Esteva 2021）检验：共 82 行，约三成是真错，如 instantiating 读成 differentiating、MMLU 读成 MMLI、AI 读成 Al；其余多为表格里合并单元格的顺序差异。拿不去噪的逐页比对做对照，没有漏掉真错。
+- **拒答句式不单独设代码**：SonoWorld 那句"作为 AI 语言模型……"已经被 `foreign_script` 加 `extra_text` 抓到。
+- **顺带改的**：生成 Markdown 时把行内公式写成紧贴的 `$x$`（版式 render=5），JSON 里的原值不动。PaddleOCR 原样输出 `$ x $`，进了 Zotero 笔记只是普通文字，读者原来每抄一个公式都要手工去空格。
+
 - 来源：2026-11-05 全流程试用，三个只看 skill 文档的读论文 agent 在整理（settle）结构化包时报告。用户没有提。
-- 状态：open。
+- 状态：fixed（2026-11-09）。
 
 ## 经过
 
