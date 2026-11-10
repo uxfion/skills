@@ -53,7 +53,7 @@ When your prompt names a previous version, the note was read in that PDF, and th
 - **changed**: corrected, with a correction mark that cites the new version;
 - **removed**: the note's sentence stays, with the removal mark (note-format.md, *Marks*).
 
-A difference that touches a number, a table or a figure the note uses is checked in the new PDF. Gaps the note already had (a question not yet answered, package findings outside the changed parts) wait for a read-through, unless your prompt asks for one; the done-when then holds with `pr.py check` in place of `--full`.
+How you find the differences is yours: any tool serves, `pr.py diff` among them (two packages, or any two pieces of text). A difference that touches a number, a table or a figure the note uses is checked in the new PDF. Gaps the note already had (a question not yet answered, package findings outside the changed parts) wait for a read-through, unless your prompt asks for one; the done-when then holds with `pr.py check` in place of `--full`.
 
 Check the facts that used the old primary PDF against the new one and update their sources. Facts explicitly citing another attachment keep that source; check whether the version move changes their applicability. The 读的版本 paragraph names the new primary PDF. Without the previous PDF, report what cannot be compared rather than treating every answer as verified.
 
