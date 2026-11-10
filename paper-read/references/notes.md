@@ -6,7 +6,7 @@ Every change to a note below goes through SKILL.md, *Every change to a note*.
 
 - **Check what you build on.** Before a fact from a note goes into a project's decision or a manuscript, compare it with the file its source names (the primary PDF when none is named) and mark it in the note （已核对 <source> · <date>）, then put the note back. A fact already marked needs no second check.
 - **Name papers by citation key.** A project's documents and index name a library paper by its Zotero citation key, so a search finds every mention. A manuscript's `\cite{…}` keeps the keys of its own `.bib`.
-- **The project's own reasoning stays in the project**: what the paper means for the project, how it helps, implementation details. It lives in the project's documents, organized by topic as they already are, never in a file per paper. The index points at it.
+- **The project's own reasoning stays in the project**: its decisions, trade-offs and implementation details. It lives in the project's documents, organized by topic as they already are, never in a file per paper. The index points at it. What the paper offers work like ours, which other projects can use too, goes into the note's Q9 (note-format.md).
 - **A newer correction**: reading a note, a correction dated after a decision your project based on that fact sends you back to judge that decision again and rewrite its index line.
 
 Done when every fact the project builds on is marked as checked in the note, and every decision has its line in the index.

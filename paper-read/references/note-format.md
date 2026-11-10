@@ -2,7 +2,9 @@
 
 Read all of it before writing in a note, whether you read the paper through or add one answer.
 
-A paper has one **paper note**: a child note of its item in Zotero whose first line is 论文笔记. It holds the paper alone: what the paper says, each fact with its source (*Evidence*), and judgements about the paper, marked as judgements; what a project decided goes into that project's paper index (references/notes.md). Every task that reads the paper may add to the note or correct it (*Changing a note*).
+A paper has one **paper note**: a child note of its item in Zotero whose first line is 论文笔记. It holds what the paper says, each fact with its source (*Evidence*); judgements about the paper, marked as judgements; and, in Q9, what the paper offers work like ours, which any project can use. What a project decided, and what serves one project only (its trade-offs, implementation details), goes to that project (references/notes.md). Every task that reads the paper may add to the note or correct it (*Changing a note*).
+
+The note records results (what the paper says, what you judged, what you found) and keeps what the search turned up, whatever its length: ideas not taken further and why, leads ruled out and why, the sources searched and when.
 
 ## The skeleton
 
@@ -33,18 +35,21 @@ parent: <citation key>
 ## Q7 有什么可以进一步探索的点？ [待答]
 
 ## Q8 总结一下论文的主要内容 [待答]
+
+## Q9 有什么启发？ [待答]
 ```
 
-A note started for one looked-up answer (`--bare`) holds the title and the 读的版本 paragraph; you add that one question, numbered under the trunk question (one of the eight) it belongs to, `### Q3.1`, without that trunk heading. A later read-through adds the trunk around it, and its number stays.
+A note started for one looked-up answer (`--bare`) holds the title and the 读的版本 paragraph; you add that one question, numbered under the trunk question (one of the nine) it belongs to, `### Q3.1`, without that trunk heading. A later read-through adds the trunk around it, and its number stays.
 
 - **The summary**, the first paragraph under the title: one sentence on what the paper does. Written last, from the answers already there; read first.
 - **读的版本**, the second paragraph: the title of the note's primary PDF. A new note is read in the library's best PDF, and later reads keep it as the primary; when the library gains a better version, a read-through moves the note onto it (reading.md, *Moving to another version*). A source without a version named refers to this PDF, with pages counted from 1 as the package's `<!-- page N -->` does. Other versions and supplementary material are read when a question needs them (*Evidence*).
 
-## The eight questions
+## The nine questions
 
 1. 这篇论文要解决什么问题，为什么重要？这是哪类论文？ The kind: a new method, a dataset, theory, an application study, or another.
 2. 之前的工作怎么做，缺在哪里？ Note the works worth reading next.
-3. 论文如何解决这个问题？ The intuition and the reasons; one concrete example walked from input through processing to output; the core formulas. Walk the method overview figure and say which passage of the text each module in it is.
+3. 论文如何解决这个问题？ The intuition and the reasons; one concrete example walked from input through processing to output; the core formulas. Walk the method overview figure and say which passage of the text each module in it is. Then one fixed item, opening with its bold word:
+   - **核心机制**: the key step, why it works (the authors' reasoning and the ablation that shows it), and what it depends on, in the field's own terms.
 4. 创新点是什么？ What the paper claims to contribute; what is new against the closest earlier work; whether it is new in concept or only in implementation or data.
 5. 做了哪些实验？ Each experiment as what it asks → how → what came out. How the comparisons were set up: against whom and why, on what data and metrics, under the same settings or not. Then five fixed items, each opening with its bold word:
    - **数据和划分**
@@ -54,18 +59,28 @@ A note started for one looked-up answer (`--bare`) holds the title and the 读�
    - **代码和数据**: public or not
 
    Each table and figure that carries a main conclusion gets its own sub-question: what it asks → how it was obtained (data, settings, how many runs, error bars) → the numbers and what they show. Check the numbers against the PDF; a table the package marks `unchecked_table` always. Other tables and figures get one line: what they show, and which table they agree with.
-6. 结论站得住吗？ Five fixed items, each opening with its bold word:
+6. 结论站得住吗？ Six fixed items, each opening with its bold word:
    - **证据和范围**: whether each claim has evidence, and whether its scope is overstated;
    - **提升从哪来**: the ablations; whether the baselines were tuned with the same care; more data or compute;
    - **统计**: how many runs, what the error bars are, whether the gaps exceed the noise;
    - **前后矛盾**: where the text and the tables or figures disagree;
-   - **假设和局限**: those the paper states, and those it plainly should have.
+   - **假设和局限**: those the paper states, and those it plainly should have; then where it would fail: on what data or in what setting, as concretely as the paper allows;
+   - **更好的验证**: the experiment you would run to prove or refute its main claim, beyond what the paper did, and the result that would refute it.
 
    Then the domain checklist below, keeping the points that apply.
 7. 有什么可以进一步探索的点？
 8. 总结一下论文的主要内容 A descriptive summary the authors would agree with, built only from the answers above, with one sentence on why the paper matters.
+9. 有什么启发？ What the paper offers work like ours, read against the open problems the reader's brief names. It opens with a paragraph naming that work and its open problems in words, since the note outlives the brief; with no open problems given, the paragraph says so and the items speak to the field at large. Then six fixed items, each opening with its bold word:
+   - **可借鉴**: practices worth borrowing (method parts, experiment designs, evaluation, ways of arguing) and datasets, code or weights to use; each as a method interface: what it does | when it applies | what it costs | what its result depends on | what it needs in our setting, enough to judge (licences are out of scope);
+   - **可吸取的**: the paper's experience and its flaws: what to take from them, what to avoid in our own work;
+   - **前沿概念**: one line each: what it is, where it comes from;
+   - **和别的论文的联系**: library papers with notes that this paper cites, and those the brief names: same mechanism, contrary result, generalisation or a possible combination, each resting on what the linked note says;
+   - **思路与灵感**: direction-level inspiration for the open problems: a new way to see a problem, a direction worth taking; it need not be testable yet;
+   - **头脑风暴**: at most three ideas, possibly none, each in four labelled parts: **想法** (the open problem it targets), **依据** (where in the paper, plus your inference), **怎么验证** (the smallest experiment, the baseline to beat, the result that would show it wrong), **可能败在哪**. An idea a linked note already holds says which note and what this one adds. Then **没展开的想法**: the other ideas of value, one line each: the idea, where in the paper it comes from, why it was not taken further; an idea another item or a linked note already holds is left out.
 
-A fixed item of Q5 or Q6 the paper says nothing about keeps its bold word, followed by 论文没有说明; one that does not apply says 不适用 and why.
+   Q9 is judgement and inference as much as fact: mark each as *Evidence* says. A later read against another project's open problems adds its paragraph and entries beside the earlier ones, each entry naming the problem it serves. A lookup writes only the Q9 items its question needs, under `## Q9 有什么启发？ [已答]`; the others wait for a read-through.
+
+In a read-through, a fixed item the paper says nothing about keeps its bold word, followed by 论文没有说明; one that does not apply, or a Q9 item with nothing worth keeping, keeps its bold word and says so and why.
 
 ## The tree
 
@@ -92,7 +107,7 @@ The headings are the question tree, which Zotero's Better Notes outline shows as
 
   `pr.py quotes` searches the primary PDF and its package. It cannot verify a quotation against another attachment: compare that quotation with its own PDF, then mark it （已核对 <attachment title and location> · <date>）. The mark records a completed comparison. The text layer holds no LaTeX: of the sentences an answer could rest on, quote one in plain words. A line reported `unparsed` is rewritten in the quotation form. Any other reported quotation (often a table cell, a figure label or a formula the text layer garbles) is compared with its source page image, corrected if need be, and marked as checked; where the package misread the words, the quotation takes the PDF's words and that spot is settled in the package (`ocr.py commit`).
 - **An inference** is marked （推断）; knowledge from outside the paper （论文外）; what the paper does not say is written as 论文没有说明.
-- **Judgements about the paper** (Q6, Q7) are written as judgements, with what they rest on. "Not stated" is a fact and is written plainly; "possibly unfair" is a judgement and says why. Falling short of SOTA, closed code and honestly stated limits are not failures in themselves.
+- **Judgements about the paper** (Q6, Q7, Q9) are written as judgements, with what they rest on. "Not stated" is a fact and is written plainly; "possibly unfair" is a judgement and says why. Falling short of SOTA, closed code and honestly stated limits are not failures in themselves.
 
 **Marks**, in the text (never a heading) after the fact they concern:
 

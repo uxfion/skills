@@ -17,9 +17,11 @@ Every change (default):
   - the 读的版本 paragraph is there; a summary paragraph before it, if any, is not [待答];
   - every question number in the note as taken (<note>.taken beside it, which pr.py take wrote) is still there.
 A read-through (--full) also needs:
-  - Q1 to Q8 all there;
+  - Q1 to Q9 all there;
   - the one-sentence summary written;
-  - Q5 and Q6 each holding their fixed items, each opening with its bold word.
+  - Q3, Q5, Q6 and Q9 each holding their fixed items, each opening with its bold word.
+A note written before Q9 existed lacks Q9, Q3 核心机制 and Q6 更好的验证: missing_trunk and missing_items name
+them, and paper-read's SKILL.md says when they are filled.
 
 stdout: one JSON object {code, questions, open, no_state, math_in_heading, missing_numbers, version, summary_written,
 missing_trunk?, missing_items?}; questions counts the question headings.
@@ -47,8 +49,10 @@ NUMBER = re.compile(r"^(Q\d+(?:\.\d+)*)\b")
 STATE = re.compile(r"\[([^\[\]]+)\](?:[ \t]*→[ \t]*Q[\d.]+)?$")
 VERSION = "读的版本："
 ITEMS = {
+    "Q3": ("核心机制",),
     "Q5": ("数据和划分", "对比方法", "指标", "主要数字", "代码和数据"),
-    "Q6": ("证据和范围", "提升从哪来", "统计", "前后矛盾", "假设和局限"),
+    "Q6": ("证据和范围", "提升从哪来", "统计", "前后矛盾", "假设和局限", "更好的验证"),
+    "Q9": ("可借鉴", "可吸取的", "前沿概念", "和别的论文的联系", "思路与灵感", "头脑风暴"),
 }
 
 
@@ -114,7 +118,7 @@ def check(text, taken=None, full=False):
            "summary_written": bool(summary) and summary != "[待答]"}
     ok = questions and not open_ and not no_state and not math and not missing_numbers and version and summary != "[待答]"
     if full:
-        out["missing_trunk"] = [f"Q{i}" for i in range(1, 9) if f"Q{i}" not in numbers]
+        out["missing_trunk"] = [f"Q{i}" for i in range(1, 10) if f"Q{i}" not in numbers]
         out["missing_items"] = [f"{q} {word}" for q, words in ITEMS.items() for word in words
                                 if not any(f"**{word}**" in line for line in sections.get(q, []))]
         ok = ok and out["summary_written"] and not out["missing_trunk"] and not out["missing_items"]
@@ -125,7 +129,7 @@ def check(text, taken=None, full=False):
 def main(argv=None):
     p = cli.parser(__doc__)
     p.add_argument("note", metavar="NOTE", help="the note file, <name>.note.md as pr.py take wrote it")
-    p.add_argument("--full", action="store_true", help="a read-through: the eight questions, the summary, the fixed items")
+    p.add_argument("--full", action="store_true", help="a read-through: the nine questions, the summary, the fixed items")
     args = cli.parse(p, argv)
 
     def run():

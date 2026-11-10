@@ -1,16 +1,16 @@
 ---
 name: paper-read
-description: Keeps one paper note per Zotero library paper — what the paper says, question by question, each fact with its source — and each project's paper index of the decisions it based on papers. Use when a task needs what a library paper says (查论文里怎么说的、精读、读论文), when the user wants a paper read or its note written (论文笔记), when a project decides something from a paper (论文索引), or when notes across papers are wanted (主题笔记).
+description: Keeps one paper note per Zotero library paper — what the paper says, question by question, each fact with its source, and what it offers our work — and each project's paper index of the decisions it based on papers. Use when a task needs what a library paper says (查论文里怎么说的、精读、读论文) or what it offers a project (启发、借鉴), when the user wants a paper read or its note written (论文笔记), when a project decides something from a paper (论文索引), or when notes across papers are wanted (主题笔记).
 ---
 
 # Paper read
 
 Any task, in any project, that needs what a library paper says gets it fast from the paper's **paper note**, with sources to check it against the PDF, instead of reading the paper again. Two things hold this knowledge:
 
-- **The paper note**, in Zotero under the paper's item, one per paper: the paper alone, what it says and judgements about it (references/note-format.md).
+- **The paper note**, in Zotero under the paper's item, one per paper: what the paper says, judgements about it, and what it offers work like ours (Q9) (references/note-format.md).
 - **The project's paper index**, in the project: one line per decision the project based on a paper, pointing at the note's question and the project's own reasoning (references/notes.md).
 
-**The subject decides where a sentence goes.** About the paper → the note, whether or not a project needs it. About a project → that project.
+**The subject decides where a sentence goes.** About the paper, or what it offers work like ours → the note, whether or not a project needs it. A project's own choices and details → that project.
 
 | operation | where |
 |---|---|
@@ -49,7 +49,7 @@ Done when both checks pass, `pr.py put` answers `ok` or `skipped`, and every `un
 
 1. Take the note (`pr.py take --bare …`) and see whether it answers the question. If it does, that is your answer; a fact a decision or a manuscript will rest on is checked first (references/notes.md, *A project uses a paper*).
 2. If not, or not enough: read the parts of the package that bear on it, by the paddleocr skill's *3. Read and report*, and check against the PDF the numbers you use and any spot still marked open or unresolved; settling the whole package is a read-through's work. Follow other versions or supplementary material when the question calls for them (*Additional sources*).
-3. Write back what is about the paper (*The subject decides where a sentence goes*), under the question it belongs to, by *Every change to a note*. With nothing to write back, put nothing and delete the scratch directory.
+3. Write back what is about the paper or what it offers work like ours (*The subject decides where a sentence goes*), under the question it belongs to, by *Every change to a note*. A note whose only gaps in `check --full` are Q9, Q3 **核心机制** and Q6 **更好的验证** gets the lines of those items this question needs. With nothing to write back, put nothing and delete the scratch directory.
 
 Done when the answer rests on the note or the paper's text, and what belongs in the note is in Zotero.
 
@@ -61,7 +61,7 @@ If a needed source is missing, you obtain it through paper-fetch and continue th
 
 ## Read a paper
 
-**Whether to read a paper through is yours to judge.** Read through a paper that matters to the project: one its decisions will lean on, or one close to its problem. A paper from a strong journal or conference weighs more. For the rest, look up what you need. Papers are read when a task needs them, never in bulk at import. A note `pr.py check --full` already finds `complete` is not read again: look up what it lacks. A better version in the library (`better_pdf`) is the exception: reading the paper through on it is how the note moves there.
+**Whether to read a paper through is yours to judge.** Read through a paper that matters to the project: one its decisions will lean on, or one close to its problem. A paper from a strong journal or conference weighs more. For the rest, look up what you need. Papers are read when a task needs them, never in bulk at import. A note `pr.py check --full` already finds `complete` is not read again: look up what it lacks. Nor is a note whose only gaps in `check --full` are Q9, Q3 **核心机制** and Q6 **更好的验证**, a note from before Q9: a lookup fills the lines its question needs (*Look it up*, step 3), a read-through all of them. A better version in the library (`better_pdf`) is the exception: reading the paper through on it is how the note moves there.
 
 1. **Take** (*Every change to a note*, step 1). With `better_pdf`, take again into a new scratch directory with `--title <better_pdf>`: `previous` then holds the version the note was read in, for the reader to compare (reading.md, *Moving to another version*).
 2. **Send the reader** (*Handoffs*). A subagent running this flow is its own reader: it reads by references/reading.md, then goes on from step 3 with its own findings, and keeps what would be `report.md` in its reply.
@@ -77,7 +77,6 @@ If a needed source is missing, you obtain it through paper-fetch and continue th
    - a settled package: `p2z.py package put <package>`, which trashes the package it replaces (a derived copy: no question for the user);
    - a library error it names, such as a common name the paper goes by without its `aka/` tag: read the item, and if the error is real, fix it by paper-to-zotero's rules and list it in your report. Deleting or merging items waits for the user;
    - questions marked 要看别处: check what source is missing and obtain it when needed for the task (*Additional sources*); resume the reader with what you obtain. Report what remains blocked;
-   - answers to a project's questions: write back what *Look it up* step 3 says belongs in the note;
    - the reader could not finish: supply what it says is missing and send it back, or take it to the user.
 5. **Check and put** (*Every change to a note*, steps 3 and 4): step 4 may have changed the note.
 6. **Questions for the user** (*Handoffs*, the user's row; older notes: references/notes.md, *Older notes*) wait for the batch's end and go out in one message.
@@ -94,8 +93,14 @@ The scripts settle what is certain and stop where judgement starts; the table li
 You are paper-read's reader. <paper-read> is <this skill's directory>. Start every shell call with: `set -o pipefail; export PATH="<paper-read>/scripts:<paper-to-zotero>/scripts:<paddleocr>/scripts:$PATH";` Your brief: <paper-read>/references/reading.md; the note format: <paper-read>/references/note-format.md. The paper: <title> · <first author> · <year> · <venue> · <DOI> · aka: <its aka/ names, or none>. Scratch: <scratch>. Note: <note>. PDF: <input>. Package: <package or none>. Older notes: <old_notes or none>.
 [Open findings: <open_findings>. <paddleocr> is <the paddleocr skill's directory>: settle by <paddleocr>/references/settle.md and <paddleocr>/references/papers.md, with ocr.py.]
 [Previous version: <its PDF title>; PDF <previous.input>; package <previous.package>. This read moves the note onto the PDF above.]
-[A project's questions: <the bare questions, without the project's background>.]
+Papers with notes: <citation key · title, one a line>. [Compare with: <the notes the open problems bear on>.]
+[Our open problems (<project>): <each in one or two lines: the problem; why it stands; what is missing>.]
+[Important: <why: the project will rely on it, reproduce it, or compare against it>. Look for later work.]
 ```
+
+- **Papers with notes**: `p2z.py search --all-fields 论文笔记 | jq -r '"\(.citationKey) · \(.title)"'`.
+- **Open problems** are the ones blocking the project now, as its own records state them. Q9 is read against them.
+- **Important** sends the reader to the web for later work, so one important reader runs at a time: readers in parallel would query the same citation services as one person.
 
 | stop | taker | brief | what comes back, recorded by |
 |---|---|---|---|

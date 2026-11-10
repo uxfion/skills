@@ -69,6 +69,7 @@ key: NOTE1234
 ## Q1 这篇论文要解决什么问题，为什么重要？这是哪类论文？ [已答]
 ## Q2 之前的工作怎么做，缺在哪里？ [已答]
 ## Q3 论文如何解决这个问题？ [已答]
+- **核心机制**：时间条件的自回归解码。
 ### Q3.1 推理时也要输入肿瘤 mask 吗？ [论文没有说明]
 ## Q4 创新点是什么？ [已答]
 ## Q5 做了哪些实验？ [已答]
@@ -82,17 +83,25 @@ key: NOTE1234
 - **提升从哪来**：消融表。
 - **统计**：论文没有说明。
 - **前后矛盾**：没有发现。
-- **假设和局限**：要有 mask。
+- **假设和局限**：要有 mask；没有 mask 的病例上会失败。
+- **更好的验证**：外部中心。
 ## Q7 有什么可以进一步探索的点？ [要看别处]
 ## Q8 总结一下论文的主要内容 [已答]
+## Q9 有什么启发？ [已答]
+- **可借鉴**：期相 token。
+- **可吸取的**：要外部验证。
+- **前沿概念**：自回归增强。
+- **和别的论文的联系**：没有。
+- **思路与灵感**：时间条件。
+- **头脑风暴**：没有值得留下的想法。
 """
 
 
 class CheckNote(unittest.TestCase):
     def test_the_fixed_items_are_note_format_s(self):
         doc = (SCRIPT.parent.parent / "references" / "note-format.md").read_text(encoding="utf-8")
-        for q, n in (("Q5", 5), ("Q6", 6)):
-            block = re.search(rf"^{n}\. .*?(?=^{n + 1}\. )", doc, re.S | re.M).group(0)
+        for q, n in (("Q3", 3), ("Q5", 5), ("Q6", 6), ("Q9", 9)):
+            block = re.search(rf"^{n}\. .*?(?=^\d+\. |^[^\s\d]|\Z)", doc, re.S | re.M).group(0)
             self.assertEqual(tuple(re.findall(r"^ +- \*\*(.+?)\*\*", block, re.M)), check_note.ITEMS[q], q)
 
     def test_a_half_read_note_is_open(self):
@@ -106,7 +115,7 @@ class CheckNote(unittest.TestCase):
 
     def test_a_read_through(self):
         self.assertEqual(check_note.check(FULL, taken=FULL, full=True), {
-            "code": "complete", "questions": 9, "open": [], "no_state": [], "math_in_heading": [], "missing_numbers": [], "version": "T-CACE (JBHI 2026)",
+            "code": "complete", "questions": 10, "open": [], "no_state": [], "math_in_heading": [], "missing_numbers": [], "version": "T-CACE (JBHI 2026)",
             "summary_written": True, "missing_trunk": [], "missing_items": []})
         cut = FULL.replace("- **统计**：论文没有说明。\n", "").replace("## Q8 总结一下论文的主要内容 [已答]\n", "")
         out = check_note.check(cut, full=True)
@@ -114,13 +123,18 @@ class CheckNote(unittest.TestCase):
         # a bold word under another question does not count for Q6
         moved = cut.replace("[要看别处]\n", "[要看别处]\n- **统计**：放错了地方。\n")
         self.assertEqual(check_note.check(moved, full=True)["missing_items"], ["Q6 统计"])
+        # a note written before Q9 existed: exactly Q9 and the two later fixed items are missing
+        older = FULL.split("## Q9")[0].replace("- **核心机制**：时间条件的自回归解码。\n", "").replace("- **更好的验证**：外部中心。\n", "")
+        out = check_note.check(older, full=True)
+        self.assertEqual((out["code"], out["missing_trunk"]), ("open", ["Q9"]))
+        self.assertEqual(out["missing_items"], ["Q3 核心机制", "Q6 更好的验证"] + [f"Q9 {w}" for w in check_note.ITEMS["Q9"]])
 
     def test_a_looked_up_answer(self):
         bare = ("---\nkey: NOTE1234\nparent: xiaoTCACE2026\n---\n# 论文笔记\n\n读的版本：T-CACE (JBHI 2026)\n\n"
                 "### Q3.1 推理时也要输入肿瘤 mask 吗？ [论文没有说明]\n\n方法部分只写了训练。\n")
         self.assertEqual(check_note.check(bare)["code"], "complete")
         out = check_note.check(bare, full=True)
-        self.assertEqual((out["code"], out["missing_trunk"]), ("open", ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8"]))
+        self.assertEqual((out["code"], out["missing_trunk"]), ("open", [f"Q{i}" for i in range(1, 10)]))
         self.assertEqual(check_note.check(bare.replace("读的版本：T-CACE (JBHI 2026)\n\n", ""))["code"], "open")
         # TeX in a heading does not come back from Zotero as a heading (T-CACE, 2026-11-02); Unicode does
         tex = bare.replace("推理时也要输入肿瘤 mask 吗？", "逐期输出 $\\hat{y}_i^{cls}$ 和 $f_\\theta$ 怎么来？")

@@ -1,10 +1,10 @@
 # Reading a paper into its note
 
-This brief is for paper-read's **reader**: one subagent reading one paper of the Zotero library into its paper note. Read through, the note answers the eight questions and the questions that grew from them, from the paper itself. Every later task that needs this paper reads your note instead of the paper. It trusts what you wrote and checks only what it builds on.
+This brief is for paper-read's **reader**: one subagent reading one paper of the Zotero library into its paper note. Read through, the note answers the nine questions and the questions that grew from them: Q1–Q8 from the paper itself, Q9 against our open problems. Every later task that needs this paper reads your note instead of the paper. It trusts what you wrote and checks only what it builds on.
 
 ## Inputs
 
-Your prompt names the paper, its note file (which you edit in place), its primary PDF, its package (the paddleocr skill's parse of that PDF) or none, and the scratch directory they sit in; and, when they apply, the older notes, the package's open findings, a previous version and a project's questions. Read note-format.md first: it says how a note is written and how other sources are cited.
+Your prompt names the paper, its note file (which you edit in place), its primary PDF, its package (the paddleocr skill's parse of that PDF) or none, and the scratch directory they sit in; the library's papers that have notes; and, when they apply, the older notes, the package's open findings, a previous version, our open problems, whether the paper is important to a project, and notes to compare with. Read note-format.md first: it says how a note is written and how other sources are cited.
 
 Before anything else, check that the PDF is this paper: its first page against the title and first author given. A different year or venue is normal, since the preprint and the published version differ. A different paper: stop and report.
 
@@ -25,8 +25,17 @@ Older notes are leads: a fact in one enters the note once you have found it in t
 - Answer one question at a time, and write the answer into the file before starting the next. Any answer may draw on any part of the paper.
 - Grow the tree as you go. An answer raises questions about the paper ("the input includes a tumour mask" → "is the mask needed at test time too?"). One whose evidence is in the paper now is asked and answered now, under the question it belongs to. One that waits on a later answer is marked 等 Qn. Each is written when it arises.
 - After each answer, look back: which questions it settled, which it raised, whether it overturns an earlier answer. If it does, set that answer back to 进行中 and correct it.
-- The summaries come last (note-format.md). A fact they need that no answer holds means that answer is short: complete it.
-- A project's questions are answered in your report, with sources, not in the note. Whatever they lead you to find about the paper itself goes into the note like any other answer.
+- The order is Q1–Q8, then Q9, then the one-sentence summary (note-format.md). A fact Q8 or the summary needs that no answer holds means that answer is short: complete it.
+- Our open problems are what Q9 is read against. What they lead you to find about the paper itself goes into the note like any other answer.
+
+**Reading deep.** This method is yours; the note gets what it finds, where note-format.md puts it.
+
+- **Sceptical by default.** A claim holds when its evidence does; language-model reviewers lean positive.
+- **Re-implement before Q6.** Walk the method step by step as the authors had to build it. The settings the paper leaves unsaid go under the question they belong to, as 论文没有说明; where the method would fail goes into Q6 **假设和局限**.
+- **Code on demand.** Look at the paper's code when the brief marks the paper important, or when a key setting is missing from the paper. The note names the repository, the commit or date, and what differs from the paper, marked （论文外）.
+- **Later work.** When the brief marks the paper important, find a few later papers that directly test, reproduce, contradict or improve it. Q6 **证据和范围** says whether its conclusions were overturned or revised, marked （论文外）, with the date and the sources searched.
+- **Q9 from this paper first.** After Q8, start from this paper's core mechanism, its assumptions, where it would fail and what it left unexplored. Links come from the brief's papers with notes: those this paper cites, and those the brief names. When a relation rests on a linked note, read it: `p2z.py note take <citation key> -o <scratch>/linked/` takes out all of that paper's notes, and its paper note is the one whose first line is 论文笔记.
+- **Brainstorm.** Diverge first, before looking at other notes' ideas: do the opposite, take an analogy from another field, go deep into one component, generalise, move to another setting. Then converge on the ideas that change something and carry a test; applying the method unchanged is not an idea. Last, set them beside the linked notes' ideas. The note gets the kept ideas and 没展开的想法 in note-format.md's form. "No bearing on our open problems" and "nothing worth keeping" are answers.
 
 **Settling the package.** When your prompt names open findings, settle them as you reach them in the reading. Follow settle.md §1–3 and record with `ocr.py commit`. You check those spots against the PDF anyway, and you know what the text is saying. Where settle.md and this brief differ, this brief wins: you write the note file as well as the package folder, and of settle.md's report only what *Report* below asks for goes into yours.
 
@@ -60,7 +69,7 @@ Write only these, plus any drafts of yours in the scratch directory. Putting the
 3. `pr.py quotes <note>` exits 0, each reported quotation settled by note-format.md, *Evidence*.
 4. When your prompt named open findings: `ocr.py findings <package folder>` exits 0.
 5. The self-review is done: each answer split into its claims, every claim checked against its cited source, what was wrong corrected; other-version and supplement facts name their own file and location; 2–4 then hold again.
-6. Your reply is the report (*Report*), with every project question answered and, after a move, every difference listed.
+6. Your reply is the report (*Report*), after a move with every difference listed.
 
 ## Report
 
@@ -71,7 +80,7 @@ The main agent saves your reply and reads the rest from the files and the checks
 - **library**: an error in the item's tags or fields: which, where, what it should be. A word the field uses for this paper that is not among its `aka/` names is one (`<paper-read>/../paper-to-zotero/references/tagging.md`, *Common name*). The main agent fixes it;
 - **version** (a move): each difference between the two versions, and what it became in the note;
 - **elsewhere**: questions still marked 要看别处, the exact source needed, and why it could not be consulted; an available version or supplement needed for an answer has been checked;
-- **project questions**: each answered, with sources;
+- **open problems**: which ones Q9 bears on, and what a source elsewhere would still settle;
 - **self-review**: each correction, one line.
 
 ## Rules

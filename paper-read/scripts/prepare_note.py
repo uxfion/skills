@@ -65,6 +65,7 @@ TRUNK = [
     "结论站得住吗？",
     "有什么可以进一步探索的点？",
     "总结一下论文的主要内容",
+    "有什么启发？",
 ]
 
 
@@ -185,7 +186,7 @@ def main(argv=None):
     p.add_argument("paper", metavar="PAPER", help="its citation key or item key; - reads it from stdin")
     p.add_argument("-o", "--output", required=True, metavar="DIR/",
                    help="the scratch directory of this change, made if absent")
-    p.add_argument("--bare", action="store_true", help="a new note without the eight questions (a looked-up answer)")
+    p.add_argument("--bare", action="store_true", help="a new note without the nine questions (a looked-up answer)")
     p.add_argument("--title", metavar="PDF_TITLE", help="this PDF of the paper, not the one the note names or the best")
     args = cli.parse(p, argv)
     out = Path(args.output).expanduser().resolve()
