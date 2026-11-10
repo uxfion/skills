@@ -22,6 +22,7 @@ Claude Code 的 auto memory 由自身 harness 管理；AGENTS.md 的记忆规则
 
 ## Skills
 
+- [how-we-work](how-we-work/SKILL.md) — 我和 agent 怎么一起做项目的一套规矩，只在这里一份：通用块由同步脚本写进各科研项目的 `AGENTS.md`（每次会话都在上下文里），做实验、写报告、查文献、写论文、摆目录、记记录、无人值守各有一份到用时才读的参考；项目自己的规矩留在项目里，是原则或各项目都成立的一贯做法才提升进通用。
 - [paddleocr](paddleocr/SKILL.md) — 用本机 GPU 上的 PaddleOCR-VL 把文档的 PDF、截图或扫描件（论文、报告、幻灯片等）解析成 Markdown 和记录 JSON（阅读顺序、公式、表格、图、页码标记），对照 PDF 文字层核对，再由子代理核对修正，每处修改连同原因都记在 JSON 里；需先装 `paddleocr` uv tool（[安装](paddleocr/references/install.md)），再装 vllm-serve 可快十到二十倍。
 - [paper-fetch](paper-fetch/SKILL.md) — 认出是哪篇论文（DOI、arXiv 号、CSL 元数据、预印本和正式版），再取全文：开放获取、经学校登录的出版商、图书馆发现系统或用户的浏览器，每个 PDF 都核对是不是这篇、标上是哪个版本；paper-to-zotero 导入时调用它，也能单独用。依赖：opencli-usage、opencli-browser（及 OpenCLI 2.x）、poppler；可选 pdf、papers-cool-search。
 - [paper-read](paper-read/SKILL.md) — 每篇库里的论文一条论文笔记，存在 Zotero：按问题树一问一问地从 PDF 和结构化包里作答，事实都写出处，用的时候查、改、补，越用越全；整篇精读派一个读论文的 subagent，存回前由脚本检查问题树和引文。也管各项目的论文索引（项目根据哪篇论文做了什么决定）、更正和主题笔记。依赖：paper-to-zotero；缺结构化包时用 paddleocr；核对引文用 poppler 的 `pdftotext`。
