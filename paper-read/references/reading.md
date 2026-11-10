@@ -47,13 +47,15 @@ Keep the note's primary PDF while consulting other sources; `pr.py take --title`
 
 ## Moving to another version
 
-When your prompt names a previous version, the note was read in that PDF, and this read moves it onto the one given. A later version can add, change and remove content. Compare the two packages paragraph by paragraph (a diff of their Markdown) and deal with every difference:
+When your prompt names a previous version, the note was read in that PDF, and this read moves it onto the one given. A later version can add, change and remove content. Deal with what differs between the two versions, and only that; your prompt says what the main agent found:
 
 - **added**: read and answered like the rest; it grows the tree;
 - **changed**: corrected, with a correction mark that cites the new version;
 - **removed**: the note's sentence stays, with the removal mark (note-format.md, *Marks*).
 
-Check the facts that used the old primary PDF against the new one and update their sources. Facts explicitly citing another attachment keep that source; check whether the version move changes their applicability. The 读的版本 paragraph names the new primary PDF. A previous version without its package is compared through its PDF's text (`pdftotext`); without that PDF, report what cannot be compared rather than treating every answer as verified.
+A difference that touches a number, a table or a figure the note uses is checked in the new PDF. Gaps the note already had (a question not yet answered, package findings outside the changed parts) wait for a read-through, unless your prompt asks for one; the done-when then holds with `pr.py check` in place of `--full`.
+
+Check the facts that used the old primary PDF against the new one and update their sources. Facts explicitly citing another attachment keep that source; check whether the version move changes their applicability. The 读的版本 paragraph names the new primary PDF. Without the previous PDF, report what cannot be compared rather than treating every answer as verified.
 
 ## Product
 

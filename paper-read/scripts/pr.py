@@ -13,7 +13,8 @@ usage error): stderr's last line is {code, hint}.
 
 A paper is named by its citation key or its item key. take and heading read a list through -: a value a line, or
 paper-to-zotero's JSON lines by their `key` (else `cite`); a line reporting a skip or a failure upstream is passed on
-as it is. check, quotes and put take a note file, <name>.note.md, and find what take put beside it.
+as it is. check, quotes and put take a note file, <name>.note.md, and find what take put beside it. diff takes two
+package folders or text files.
 
 Examples:
   pr.py take xiaoTCACE2026 -o <scratch>/
@@ -34,6 +35,7 @@ WORDS = {
     "check": ("check_note", "a note's question tree, checked by note-format.md"),
     "quotes": ("check_quotes", "list quotations still to check against the paper"),
     "put": ("put_note", "a note's figures and tables linked, and the note put into Zotero"),
+    "diff": ("diff_versions", "two versions of a paper, or two pieces of text, compared section by section"),
     "heading": ("index_heading", "each paper's heading line in a project's paper index"),
 }
 
