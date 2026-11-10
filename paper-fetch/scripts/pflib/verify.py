@@ -24,7 +24,7 @@ as a heading (paper.ERRATUM_HEAD, paper.SUPPLEMENT_HEAD): at the start of a line
 and followed by a colon or the end of the line, or by a space and a dash or to / for / note / notice / regarding.
   erratum_suspected     the head has Correction / Corrigendum / Erratum / Retraction (plural forms too), and the
                         result's own title has none of these words
-  supplement_suspected  the head has Supplementary / Supplemental Material / Information / Appendix / Data /
+  supplement_suspected  the head, or the lines right under the title, has Supplementary / Supplemental Material / Information / Appendix / Data /
                         Methods / Online Content. Not checked when the file's kind is supplement or the result's
                         title says supplement
   doi_mismatch          page 1 prints at least one DOI, none is the item's, and the item's DOI occurs nowhere in
@@ -77,6 +77,7 @@ SUPPLEMENT_SCAN = 600    # where page 1 is searched for words of supplementary m
 MIN_TITLE_CHARS = 10
 MAX_PAGES = 3
 HEAD_CHARS = 500        # the head of page 1 never reaches further
+UNDER_TITLE_CHARS = 120  # the lines right under the title, searched for a supplement's heading
 WORD_SHARE = 0.8        # path B
 BYLINE_CHARS = 1500     # path B: the first author counts here, before an introduction's citations
 TOOL_TIMEOUT = 60       # seconds, for pdftotext / pdfinfo
@@ -433,8 +434,10 @@ def judge(ex, title, alt_titles=(), doi=None, surname=None, kind="published"):
         if matched:
             title_page = k
             break
-    starts = [title_span(page1, n)[0] for t, n in a_titles if n in ex.norm_pages[0]]
-    head = fold(page1[:min([ex.head_len, *starts])])
+    spans = [title_span(page1, n) for t, n in a_titles if n in ex.norm_pages[0]]
+    head = fold(page1[:min([ex.head_len, *(s for s, _ in spans)])])
+    # the lines right under the title, where a supplement that opens with the article's title has its heading
+    under = fold(page1[min(e for _, e in spans):][:UNDER_TITLE_CHARS]) if spans else ""
 
     rdoi = doi_key(doi)
     doi_found = None if not rdoi else normalize(rdoi) in ex.norm_scanned
@@ -455,7 +458,8 @@ def judge(ex, title, alt_titles=(), doi=None, surname=None, kind="published"):
     title_fold = fold(title)
     m = None if paper.ERRATUM_WORDS.search(title_fold) else paper.ERRATUM_HEAD.search(head)
     erratum = m.group(1) if m else None
-    m = None if kind == "supplement" or "supplement" in title_fold else paper.SUPPLEMENT_HEAD.search(head)
+    m = (None if kind == "supplement" or "supplement" in title_fold
+         else paper.SUPPLEMENT_HEAD.search(head) or paper.SUPPLEMENT_HEAD.search(under))
     supplement = m.group(1) if m else None
     mismatch = None
     if kind == "published" and rdoi and not ex.arxiv_stamp:

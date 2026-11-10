@@ -151,6 +151,12 @@ class Claim(unittest.TestCase):
         self.assertEqual((mine.exists(), users.exists(), old.exists()), (False, True, True), "older than .started: not this run's")
         self.assertEqual(self.read("paper"), before, "the scan only appends events: pf.py sync folds")
         self.assertEqual(self.word("scan").lines, [], "a left file is not checked again against the same results")
+        # Chrome's second copy of a download this run has filed: the same bytes, so nothing is left to judge
+        (self.dl / "download (1).pdf").write_bytes((self.work.results / "paper.pdf").read_bytes())
+        self.assertEqual((self.word("scan").lines, sorted(p.name for p in self.work.handoffs.glob("left.*.json"))),
+                         ([], ["left.1.json"]), "no second handoff; the copy stays in Downloads for the sweep")
+        self.assertIn("download (1).pdf", [e["file"] for e in self.word("downloads").lines], "and the sweep lists it")
+        (self.dl / "download (1).pdf").unlink()
         self.result("third", "Something the user reads")
         self.tried("third")
         self.assertEqual([(e["slug"], e["result"]) for e in self.word("scan").lines], [("third", "claimed")])

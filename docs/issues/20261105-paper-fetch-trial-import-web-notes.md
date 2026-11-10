@@ -37,7 +37,7 @@
 - **第 4、5、8、9、10 条**（标签页没停在门页、不等的门、切前台重载、超时提示、提醒到不了用户）：没碰到关卡，仍未核实。
 - **第 7 条（arXiv 接口 400）**：这次三篇都没有 arXiv 版，没碰到。
 
-这次新看到的问题另记在 [archive/20261110-paper-fetch-keeps-trying-where-the-page-says-no-fixed.md](archive/20261110-paper-fetch-keeps-trying-where-the-page-says-no-fixed.md) 和 [20261110-paper-fetch-trial-run-findings.md](20261110-paper-fetch-trial-run-findings.md)。
+这次新看到的问题另记在 [archive/20261110-paper-fetch-keeps-trying-where-the-page-says-no-fixed.md](archive/20261110-paper-fetch-keeps-trying-where-the-page-says-no-fixed.md) 和 [archive/20261110-paper-fetch-trial-run-findings-fixed.md](archive/20261110-paper-fetch-trial-run-findings-fixed.md)。
 
 ## 下一步
 

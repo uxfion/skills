@@ -893,7 +893,7 @@ class Scanner:
     again; the results are read again only when results/ changed. Each PDF is checked against every result fetch was
     asked for and that is not satisfied yet (wanted()): passing for exactly one -> filed, else left there (it may be
     the user's own; an agent's own download is handed over with pf.py claim) and checked again only against
-    results that became wanted since."""
+    results that became wanted since. A second copy of a file this run has filed (the same md5) is passed over."""
 
     def __init__(self, work, dl):
         self.work, self.dl = work, Path(dl)
@@ -909,6 +909,8 @@ class Scanner:
         for e in self.work.events("claim"):
             if e.get("result") == "left":
                 left.setdefault((e.get("file"), e.get("md5")), set()).update(e.get("against") or [])
+        filed = {e["md5"] for kind in ("claim", "accept") for e in self.work.events(kind)
+                 if e.get("result") == "claimed" and e.get("md5")}
         events = []
         for f in new_downloads(self.work, self.dl):
             try:
@@ -926,6 +928,8 @@ class Scanner:
             except OSError:
                 continue
             md5 = self.md5[f.name][1]
+            if md5 in filed:
+                continue  # a second copy of a file this run has filed, byte for byte: pf.py downloads lists it
             results = [r for r in wanted(self.work, self.results) if r.slug not in left.get((f.name, md5), ())]
             if not results:
                 continue

@@ -204,6 +204,15 @@ class HeadMarkers(Base):
         self.assertEqual((res["code"], res["kind"], res["evidence"]["kind"]), ("ok", "supplement", "supplement"))
         self.assertEqual(self.check(page, kind="supplement")["code"], "ok", "a given kind counts the same")
 
+    def test_supplement_heading_right_under_the_title(self):
+        # 2026-11: Springer's electronic supplementary material opens with the article's title, the heading under it
+        page = f"{TITLE}\nELECTRONIC SUPPLEMENTARY MATERIAL\n\nSupplementary methods. The framework.\nWei Liu"
+        res = self.check(page)
+        self.assertEqual((res["code"], res["evidence"]["supplement_marker"]),
+                         ("supplement_suspected", "electronic supplementary material"))
+        body = f"{TITLE}\nWei Liu\nAbstract. We segment.\n" + "Text of the article. " * 20 + "\nSupplementary Material\nSee online."
+        self.assertEqual(self.check(body)["code"], "ok", "the same heading further down the page is a section of the article")
+
     def test_margin_supplemental_content_is_no_supplement(self):
         self.assertEqual(self.check(f"Supplemental content\n{PAPER_PAGE}")["code"], "ok")
 
