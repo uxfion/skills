@@ -39,7 +39,9 @@ NOTE_CHARS = 600         # longest finding text quoted in a note
 
 
 def versions() -> dict:
-    return {"refine": REFINE, "checks": checks.VERSION, "figures": figures.VERSION, "conventions": conventions.VERSION}
+    """The code a record was made by: a record holding others is processed again, its Markdown in the current layout."""
+    return {"refine": REFINE, "checks": checks.VERSION, "figures": figures.VERSION, "conventions": conventions.VERSION,
+            "render": RENDER}
 
 
 # ---------------------------------------------------------------- record and source
