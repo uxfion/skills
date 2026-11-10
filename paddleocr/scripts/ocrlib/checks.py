@@ -465,7 +465,9 @@ def check_document(blocks: list[dict], layer: dict[int, list[tuple] | None]
                                 detail="no text layer in the table's box: embedded as an image")
                 continue
             target = by_id.get(b.get("merged_into"), b)
-            absent = in_order(Counter(region) - Counter(tokens(target["text"])), region)
+            # inline math both as LaTeX tokens and glued as a text layer prints it ("$\\mathrm{SSIM}_{tum}$": ssimtum)
+            parsed = Counter(tokens(target["text"])) | Counter(tokens(glue_math(target["text"])))
+            absent = in_order(Counter(region) - parsed, region)
             if len(absent) >= 2 and len(absent) / len(region) > TABLE_TOLERANCE:
                 add_finding(findings, "table_mismatch", page, b["id"], absent,
                             f"{len(absent)} of {len(region)} text-layer tokens absent")

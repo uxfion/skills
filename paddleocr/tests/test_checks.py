@@ -151,6 +151,17 @@ class TextLayerCheck(unittest.TestCase):
         self.assertEqual(findings[-1]["items"], ["asd", "3.04", "10.94"])
         self.assertEqual(findings[-1]["block"], "p1-1")
 
+    def test_table_math_is_read_as_the_text_layer_prints_it(self):
+        # 2026-11: a text layer prints a subscript run into its word ("SSIMtum"); the parsed header is "$\\mathrm{SSIM}_{tum}$"
+        table_layer = "\nModel SSIMtum PSNRtum AUROCC\nUNet 0.92 0.86 16.67\nResUNet 0.82 0.71 88.03\n"
+        row = "<tr><td>UNet</td><td>0.92</td><td>0.86</td><td>16.67</td></tr><tr><td>ResUNet</td><td>0.82</td><td>0.71</td><td>88.03</td></tr>"
+        head = "<table><tr><td>Model</td><td>$\\mathrm{SSIM}_{%s}$</td><td>$\\mathrm{PSNR}_{%s}$</td><td>$\\mathrm{AUROC}_{C}$</td></tr>"
+        for sub, found in (("tum", []), ("lum", ["table_mismatch@p1-1"])):
+            blocks = [block(0, 1, "text", PARAGRAPH), block(1, 1, "table", head % (sub, sub) + row + "</table>", box=[0, 0, 100, 100])]
+            _, findings = C.check_document(blocks, {1: chars(PARAGRAPH) + chars(table_layer, 50, 50)})
+            self.assertEqual(ids(findings, "table_mismatch"), found)
+        self.assertEqual(findings[-1]["items"], ["ssimtum", "psnrtum"], "a subscript misread still shows")
+
     def test_table_continued_from_the_page_before(self):
         first = "\nModel Dice IOU HD ASD\nUNet 0.92 0.86 16.67 3.04\n"
         rest = "\nResUNet 0.82 0.71 88.03 10.94\nAttUNet 0.88 0.79 20.15 4.12\n"
