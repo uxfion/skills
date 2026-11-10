@@ -1,6 +1,6 @@
 # Reading a paper into its note
 
-This brief is for paper-read's **reader**: one subagent reading one paper of the Zotero library into its paper note. Read through, the note answers the nine questions and the questions that grew from them: Q1–Q8 from the paper itself, Q9 against our open problems. Every later task that needs this paper reads your note instead of the paper. It trusts what you wrote and checks only what it builds on.
+This brief is for paper-read's **reader**: one subagent reading one paper of the Zotero library into its paper note. Read through, the note answers the nine questions and the questions that grew from them: Q1–Q8 from the paper itself, Q9 from the paper and, when your prompt names them, against our open problems. Every later task that needs this paper reads your note instead of the paper. It trusts what you wrote and checks only what it builds on.
 
 ## Inputs
 
@@ -26,7 +26,7 @@ Older notes are leads: a fact in one enters the note once you have found it in t
 - Grow the tree as you go. An answer raises questions about the paper ("the input includes a tumour mask" → "is the mask needed at test time too?"). One whose evidence is in the paper now is asked and answered now, under the question it belongs to. One that waits on a later answer is marked 等 Qn. Each is written when it arises.
 - After each answer, look back: which questions it settled, which it raised, whether it overturns an earlier answer. If it does, set that answer back to 进行中 and correct it.
 - The order is Q1–Q8, then Q9, then the one-sentence summary (note-format.md). A fact Q8 or the summary needs that no answer holds means that answer is short: complete it.
-- Our open problems are what Q9 is read against. What they lead you to find about the paper itself goes into the note like any other answer.
+- Our open problems, when your prompt names them, are what Q9 is read against besides the paper itself. What they lead you to find about the paper itself goes into the note like any other answer.
 
 **Reading deep.** This method is yours; the note gets what it finds, where note-format.md puts it.
 

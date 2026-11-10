@@ -79,7 +79,7 @@ If a needed source is missing, you obtain it through paper-fetch and continue th
    - questions marked 要看别处: check what source is missing and obtain it when needed for the task (*Additional sources*); resume the reader with what you obtain. Report what remains blocked;
    - the reader could not finish: supply what it says is missing and send it back, or take it to the user.
 5. **Check and put** (*Every change to a note*, steps 3 and 4): step 4 may have changed the note.
-6. **Questions for the user** (*Handoffs*, the user's row; older notes: references/notes.md, *Older notes*) wait for the batch's end and go out in one message.
+6. **Questions for the user** (*Handoffs*, the user's row; older notes: references/notes.md, *Older notes*) wait for the batch's end and go out in one message. It names each paper read without the project's open problems: once the user names them, Q9 is filled against them (*Look it up*, step 3).
 
 Done when *Every change to a note* is done with `pr.py check --full`, and every item of `report.md` is acted on or waits in the user's message.
 
@@ -94,12 +94,12 @@ You are paper-read's reader. <paper-read> is <this skill's directory>. Start eve
 [Open findings: <open_findings>. <paddleocr> is <the paddleocr skill's directory>: settle by <paddleocr>/references/settle.md and <paddleocr>/references/papers.md, with ocr.py.]
 [Previous version: <its PDF title>; PDF <previous.input>; package <previous.package>. This read moves the note onto the PDF above.]
 Papers with notes: <citation key · title, one a line>. [Compare with: <the notes the open problems bear on>.]
-[Our open problems (<project>): <each in one or two lines: the problem; why it stands; what is missing>.]
+[Our open problems (<project>): <each in one or two lines: the problem; why it stands; what is missing; what has been tried, or none; where it is stated>.]
 [Important: <why: the project will rely on it, reproduce it, or compare against it>. Look for later work.]
 ```
 
 - **Papers with notes**: `p2z.py search --all-fields 论文笔记 | jq -r '"\(.citationKey) · \(.title)"'`.
-- **Open problems** are the ones blocking the project now, as its own records state them. Q9 is read against them.
+- **Open problems** are the ones blocking the project now, quoted as the project's records or the task at hand state them (what the user said, the results in view), each naming where it is stated. What has been tried lets Q9 build on it. A part the source leaves unsaid reads "not stated"; "none" means the source says nothing was tried. With no source, leave the line out: Q9 rests on the paper alone.
 - **Important** sends the reader to the web for later work, so one important reader runs at a time: readers in parallel would query the same citation services as one person.
 
 | stop | taker | brief | what comes back, recorded by |
