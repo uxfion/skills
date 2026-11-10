@@ -1,7 +1,16 @@
 # paddleocr："Figure 4 (continued): …" 这种续页图注没被认成图注
 
+> **已解决（2026-11-10）。** 跨页的图算一张图：整理数据包的 subagent 把每一部分都指到第一页的那段图注上（`ocr.py cut <图> --caption <第一页的图注>`，第一页的那部分也指一次），`ocr.py objects` 就给出一个编号，落在第一页。写在 `paddleocr/references/settle.md` 第 5 步；`objects` 原来会把两页的框并在一起算，改成只用第一页的部分（`scripts/doc.py`，测试在 `tests/test_objects.py`）。在 Pseudo-CEUS 的包上试过：Fig. 4 得到 `fig:4`，落在第 6 页。
+>
+> **没选的做法。** 让脚本认 `(continued)` 这个词、把带这个词的那段算续页：是往脚本里加关键词，`(cont.)`、`(续)`、Nature 的 `See next page for caption` 会接着加。用户 2026-11-10：「有一些通用的东西或者 Agent 能做的东西，那就让 Agent 去做」；「A′ 应该是更符合我们的设计原则的吧」。也没有改"被点名的图注不再配给别的图"这条规定来省掉第一页那一次点名：它是为另一种情况定的。
+>
+> **留下的。**
+> - Nature 的 `See next page for caption` 用现成的 `--caption` 指到下一页的真图注就行，那次已经这样做了，不用改。
+> - 表题被模型丢掉时没法补挂到表上，另开了 [20261109-paddleocr-lost-table-caption-cannot-be-named.md](../20261109-paddleocr-lost-table-caption-cannot-be-named.md)。
+> - Pseudo-CEUS 库里的那个包还是旧做法（两段同号），下次整理或读到时照新做法指一遍，再 `pr.py put`。
+
 - 来源：2026-11-09 精读那一轮，读论文的 subagent 整理 Pseudo-CEUS（`chenPseudoContrastEnhanced2025`，Published-RSNA）的包时报告。用户没有提。
-- 状态：open。
+- 状态：已解决。
 
 ## 经过
 

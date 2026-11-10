@@ -95,7 +95,9 @@ class Objects(unittest.TestCase):
             "figures": [fig("p1-1", "p1-3", "Fig. 1", px("LEFTPANEL")), fig("p1-2", "p1-3", "Fig. 1", px("RIGHTPANEL")),
                         fig("p1-6", "p1-7", "Supplementary Fig. 3", [200, 1100, 600, 1190]),
                         fig("p1-8", "p1-9", "Fig. 4", [200, 1230, 600, 1290]),
-                        fig("p2-2", "p2-3", "Fig. 4", [200, 200, 600, 390])],
+                        fig("p2-2", "p2-3", "Fig. 4", [200, 200, 600, 390]),
+                        # Fig. 1 goes on over the page: an agent named page 1's caption on this part too
+                        fig("p2-9", "p1-3", "Fig. 1", [10, 10, 1100, 1500])],
             "findings": [], "checks": {},
         }
         self.folder = self.dir / "paper"
@@ -116,7 +118,7 @@ class Objects(unittest.TestCase):
     def test_keys(self):
         got = {i: (o["kind"], o["key"], o["number"]) for i, o in self.objects().items()}
         self.assertEqual(got, {
-            "p1-1": ("figure", "fig:1", "Fig. 1"),            # its two pieces are one object
+            "p1-1": ("figure", "fig:1", "Fig. 1"),            # its pieces are one object, the part on page 2 too
             "p1-4": ("table", "table:II", "TABLE II"),        # "Table 7 shows ..." is running text, no caption
             "p1-6": ("figure", "fig:S3", "Supplementary Fig. 3"),
             "p1-8": ("figure", None, "Fig. 4"), "p2-2": ("figure", None, "Fig. 4"),            # two captions say Fig. 4

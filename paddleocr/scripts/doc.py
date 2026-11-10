@@ -1598,10 +1598,12 @@ def objects(record: dict, src: dict) -> list[dict]:
         raise Stop("not_a_pdf", hint="objects places figures and tables in a PDF; this parse was made from images.")
     found = {}
     for f in figures_view(record):
-        # the pieces of one figure, cut apart under one caption, are one object
+        # the pieces of one figure, cut apart under one caption, are one object; it sits where its first piece is,
+        # so a part on a later page (a figure continued there, its caption named by an agent) adds no box
         o = found.setdefault(("figure", f["caption"] or f["id"]), {"id": f["id"], "kind": "figure", "number": f["number"],
                                                        "page": f["page"], "boxes": []})
-        o["boxes"].append(f["box"])
+        if f["page"] == o["page"]:
+            o["boxes"].append(f["box"])
     for b in blocks_view(record):
         if figures.is_table_caption(b):
             m = conventions.TABLE_CAPTION.match(b["text"])
@@ -1944,7 +1946,8 @@ Example:
 def cmd_objects(argv):
     """Where a parse's figures and tables sit in its PDF, for links from notes: one JSON line each, in page order.
 
-A figure is its whole box, its pieces under one caption joined; a table is its caption line ("TABLE III"), which
+A figure is its whole box, its pieces under one caption joined (a part on a later page, named to the same caption,
+belongs to it and the box stays on the first page); a table is its caption line ("TABLE III"), which
 carries its number. Read-only: edits in the Markdown stay uncommitted. The source must be a PDF.
 
 stdout: {id, kind: figure | table, key, number, page, page_label, rect, top}
