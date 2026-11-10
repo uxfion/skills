@@ -20,8 +20,9 @@ it is — unless the library item has a PDF of the paper already, and the result
 file's md5 is compared with the result's before anything is uploaded. A child of the item already holding the file
 (same md5) settles it without an upload and keeps its own title (`existing`: a title that differs from the label is
 the report's to suggest, the user's to approve); an empty attachment left by a cut-off run is reused. A label settled
-after this run attached the file renames that attachment on the next run. The source url is the item's url, else its
-DOI link. `attach` is a list, an entry per file: {attachment, md5, title, filename, kind, url, at, existing?}; another
+after this run attached the file renames that attachment on the next run. An attachment's url is where its file was
+downloaded, as the result records it (the file's `url`); a file that came without one (from Downloads, from the
+agent) is stored without a url, never under the item's. `attach` is a list, an entry per file: {attachment, md5, title, filename, kind, url, at, existing?}; another
 file later (another md5) is attached afresh.
 
 stdout: one line per record {slug, code, reason?, status?, key?, files?: [{name, code, attachment?, title?,
@@ -112,7 +113,6 @@ def process(rec, ctx):
         return cli.skipped("no_file_yet", status=res["outcome"].get("status"))
     zot, dry_run = ctx["zot"], ctx["args"].dry_run
     attach = [a for a in rec.get("attach") or [] if isinstance(a, dict)] if isinstance(rec.get("attach"), list) else []
-    url = rec.item.get("url") or (f"https://doi.org/{paper.doi_of(rec.item)}" if paper.doi_of(rec.item) else None)
     lines, key = [], None
     for f, file, title in files:
         entry = next((a for a in attach if a.get("md5") == f["md5"]), None)
@@ -135,6 +135,7 @@ def process(rec, ctx):
         if key is None:
             raise cli.Stop("no_item_key", hint="The record has no item in Zotero yet: p2z.py create (p2z.py save) makes "
                                                "it; library candidates are settled first, in their same_paper handoff.")
+        url = f.get("url") or None
         done = zot.attach(key, file, title=title, url=url, dry_run=dry_run)
         existing = done["code"] == "skipped"
         if existing or not done.get("dry_run"):

@@ -41,7 +41,7 @@
 
 - **第 6 条，主 agent 单独查**：CycleGAN 笔记里标着"要看别处"的 5 问（λ、identity loss 权重、训练超参、消融数字、AMT 细节），主 agent 用 `p2z.py package take --title Preprint-arXiv-v7` 取库里的 arXiv 版查到了，各条带显式页链接和「已核对」，存回 Zotero。
 - **第 6 条，读论文的 subagent 精读时查**：athreya 那篇，主 agent 的说明里没有提示，读论文的 subagent 自己去查了库里的 arXiv 预印本，每条事实用那份文件自己的页码写成显式页链接，并判断预印本的设置和数字不适用于正式版。
-- **第 6 条，库里没有的资料由主 agent 取来**：两篇卡在补充材料上。ALADYNOULLI 的 Nature 补充材料取到了，挂成 Supplement-Nature；Pseudo-CEUS 的 RSNA 补充材料卡在网站的人机验证上，等用户。两个 skill 都没写"给已有论文补一份补充材料"怎么做，记在 [20261109-paper-fetch-supplement-for-a-library-paper.md](20261109-paper-fetch-supplement-for-a-library-paper.md)。
+- **第 6 条，库里没有的资料由主 agent 取来**：两篇卡在补充材料上。ALADYNOULLI 的 Nature 补充材料取到了，挂成 Supplement-Nature；Pseudo-CEUS 的 RSNA 补充材料卡在网站的人机验证上，等用户。两个 skill 都没写"给已有论文补一份补充材料"怎么做，记在 [archive/20261109-paper-fetch-supplement-for-a-library-paper-fixed.md](archive/20261109-paper-fetch-supplement-for-a-library-paper-fixed.md)。
 - **第 5 条，退回同一个读论文的 subagent**：拿到 Nature 补充材料后，用 Claude Code `SendMessage` 让 ALADYNOULLI 的读论文的 subagent 接着补那两问（不是因为检查没过，是拿到了它要的资料）。
 - **第 2 条换版本还是没跑成**：本来给 SDEdit 补 ICLR 正式版来跑，OpenReview 的人机验证挡着，等用户。
 

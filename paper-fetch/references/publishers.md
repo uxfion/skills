@@ -36,7 +36,7 @@ Each is the user's to pass in seconds: alert them and wait at the gate (referenc
 
 - A purchase / "Get access" page with no login prompt: the subscription is not recognised. Click the site's institutional sign-in entry ("Institutional Sign In", "Access through your institution") first; the login page that follows is the gate.
 - A CAPTCHA or "verify you are human" page, on the publisher or on a search engine — sometimes only on the PDF link, after the article page loaded fine (PMC).
-- A Cloudflare check ("请稍候…" / "Just a moment…"). In the automation tab it usually passes by itself within 10–15 s (NEJM AI, Lancet, JAMA, OUP; 2026-10); one morning it looped on "verification successful, waiting for response" on several publishers and passed in the afternoon. It is a gate all the same; a check that keeps looping needs the user's click.
+- A Cloudflare check ("请稍候…" / "Just a moment…"). In the automation tab it usually passes by itself within 10–15 s (NEJM AI, Lancet, JAMA, OUP; 2026-10); one morning it looped on "verification successful, waiting for response" on several publishers and passed in the afternoon. On RSNA article pages (`pubs.rsna.org`) and on OpenReview it did not pass at all, in a foreground window or a background one (2026-11-09). It is a gate all the same; a check that keeps looping needs the user's click.
 - A cookie wall ("Cookies must be enabled"): the user allows cookies and reloads.
 
 ## Pages nobody can pass
@@ -108,6 +108,7 @@ When the publisher says no access, the institution may still have the paper thro
 - **ACM Digital Library**: the in-page request answered 403; the user's click on the PDF button downloaded the file.
 - **nature.com journals** (Nat Med, Nat Biomed Eng), **NEJM AI**, **Science**: the PDF link returns HTML, opened directly too — mostly no subscription; Science through the proxy is "Host Needed".
 - **Nature portfolio "Article in Press"** pages and their `_reference.pdf` files (npj journals) are the **unedited accepted manuscript**, not the typeset version: label it `Accepted-Nature-in_press` (next section), and fetch the typeset PDF once it is out.
+- **Supplements** (2026-11-09): a nature.com article lists them in its *Supplementary information* section, and the files are on `static-content.springer.com/esm/…`. The proposed title reads that host as Springer: label by the journal's site (`Supplement-Nature`). An RSNA article's supplement links are on its article page, behind the Cloudflare check above; none fetched yet.
 - **jamanetwork.com**: "Host Needed" through the proxy, 403 without it — open-access JAMA Netw Open articles included; take them from PMC.
 
 ## Versions on the page and on the file (2026-10)

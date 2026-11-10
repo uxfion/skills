@@ -11,7 +11,7 @@ Everything in Zotero: items with their PDFs, filed and tagged; the library tidie
 
 | operation | where |
 |---|---|
-| Import papers: a title, DOI, arXiv id, link, list, .bib or search results | [references/import.md](references/import.md) |
+| Import papers: a title, DOI, arXiv id, link, list, .bib or search results; one more file (a supplement, another version) for a paper the library has | [references/import.md](references/import.md) |
 | A library paper's structured package and PDF, to read or parse | *Reading a library paper* below |
 | Tidy or fix the library: tags, collections, fields, duplicates, attachment titles, the trash | [references/organize.md](references/organize.md) |
 | A note: take it out as Markdown, put it back | references/organize.md, *Notes* |

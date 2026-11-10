@@ -125,3 +125,21 @@ Done when the report is in the conversation: every paper's row read from the lib
 paper-fetch's *Residue* first: stop the watcher, close the sessions it names, and sweep Downloads — `pf.py downloads <imp>/fetch | jq -r .source | p2z.py have -` lists what this run left there and says which the library holds; delete those this run downloaded and the library holds, and name the rest in the report (a file the user downloaded for themselves is theirs). Then delete `<imp>`: Zotero holds its own copy of every attached file. Delete only what this run created, and a file only after its `attach`: a file that did not reach Zotero is a deliverable, handed over with its path. Every exit path ends here; a wait for the user is a pause, not an exit — a record with a `blocker` keeps the tab, the session and `<imp>` until the run resumes or the user drops it.
 
 Done when Downloads holds no file of this run, `<imp>` is gone, every paper-fetch session's close has answered "tab lease released", and anything you could not remove is named in the report with its location.
+
+## One more file for a paper the library has
+
+A supplement, or another version of the paper, for an item that exists: the same run, with no item created.
+
+1. Steps 0–3 for the paper. Done when `prepare` has confirmed the library item (`found.key`); tags and destination are the item's already.
+2. Find the file's link yourself: `fetch` takes the PDF a page declares, which is the main text. A supplement's link is on the article page (paper-fetch's references/publishers.md has the places seen). Hand it to paper-fetch as a copy found elsewhere (its SKILL.md, *Get the file: the chain*) and answer the `label` handoff it leaves:
+
+   ```bash
+   pf.py fetch --pass 1 --session pf-<slug> --start <link> --as supplement <imp>/fetch/results/<slug>.json
+   ```
+
+   Another version of the paper: `--as` names that version.
+3. `p2z.py attach <imp>/records/<slug>.json` in place of `save`, then steps 6 and 7.
+
+A supplement gets its structured package when a task first reads it (SKILL.md, *Reading a library paper*), not here.
+
+Done when the report shows the file among the item's attachments under its label.

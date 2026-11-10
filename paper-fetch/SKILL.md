@@ -160,7 +160,7 @@ One command walks the whole pass: each route over every paper still without a fi
 2. `pf.py todo <dir>`. A `browser_down` first: yours, since no page can be worked without the browser. Then each paper with an open `page` or `file` handoff to its paper agent. Once they have reported, `todo` again: the `label` and `left` handoffs still open go to judges in batches (*Handoffs*) — a paper agent labels and hands over what it fetched itself, so a judge sent earlier would do its work twice.
 3. Each agent answers with `pf.py answer` and reports its exceptions. A paper agent at a gate sends you one line: references/gate.md, *The main agent at a gate*.
 4. Step 1's command again: it skips what this pass has done, takes each answered paper on from where its answer leaves it — the next route, or held on its route until the next pass — and writes new handoffs if any come.
-A copy you or an agent found elsewhere (a PMC page, a repository) is one more candidate for its paper agent: `pf.py fetch --pass N --session pf-<slug> --start <url> [--as accepted] <result>`. Purchase pages are never a route.
+A copy you or an agent found elsewhere (a PMC page, a repository) is one more candidate for its paper agent: `pf.py fetch --pass N --session pf-<slug> --start <url> [--as accepted] <result>`. A supplement comes the same way, `--as supplement`: `fetch` takes the PDF a page declares, the main text, so the supplement's link is found on the article page by hand. Purchase pages are never a route.
 
 **Every file goes through the check**, whoever got it: a file an agent downloaded itself goes in by `pf.py claim <path> <result>`, which files, refuses or holds it (`pf.py claim -h`); `pf.py check <result> [<file>]` shows the verdict and its evidence.
 

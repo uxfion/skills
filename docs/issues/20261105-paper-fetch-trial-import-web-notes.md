@@ -19,6 +19,14 @@
 - `fetch.jsonl` 记录了两次 paper agent 的 `gate_timeout` 回答，其理由都称本次试用要求不等待密码门。可核实的是 agent 留下了这种说法，不能据此推断实际等待了多久；第 5 项仍需按正式运行的要求判断。
 - `result.json` 的版本要求、文件标签、文件检查和状态字段解释了第 6 项。第 2、3、4、7 项在这些资料中没有新增独立证据，保留原有“未核实”状态。
 
+## 2026-11-09 取补充材料时又看到的关卡现象（未核实）
+
+从补充材料那张 issue（[archive/20261109-paper-fetch-supplement-for-a-library-paper-fixed.md](archive/20261109-paper-fetch-supplement-for-a-library-paper-fixed.md)）挪来，都是取 RSNA 补充材料的 subagent 的说法：
+
+8. **切到前台会重新加载页面**：gate.md 第 1 步只给了 `open --window foreground`，它会重新加载；直接调 `windows.update` 被拒（`managed_resource_conflict`）。
+9. **手工打开的页面超时后，提示对不上**：`pf.py wait` 超时的提示让去回答论文的 `page` handoff `gate_timeout`，还说是"登录页，重新看一眼"；可手工打开的页面没有 handoff，gate.md 又说人机验证不要重开。
+10. **subagent 的关卡提醒到不了用户面前**：gate.md 默认 subagent 用 `SendMessage` 发的提醒会到用户面前，实际只排进主 agent 的下一轮。
+
 ## 下一步
 
 下次真跑一篇要走学校登录的论文时，逐条对照，核实了的拆成各自的 issue，或者并进 paper-fetch Unix 改造的 spec。

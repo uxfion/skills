@@ -1,7 +1,15 @@
 # paper-fetch、paper-to-zotero：给库里已有的论文补一份补充材料，没有现成的流程
 
+> **已解决（2026-11-10）。** 第二次（Nature）走通的做法写成了流程：paper-to-zotero 的 `references/import.md`，*One more file for a paper the library has*；paper-fetch 的 SKILL.md 补了 `--as supplement` 的用法，paper-read 的 *Additional sources* 指到这一节，publishers.md 加了 Nature、RSNA 补充材料和 Cloudflare 的带日期提示。补充材料的结构化包不在挂上时做，第一次读它时再做（用户 2026-11-10 同意）。
+>
+> **没做的，和原因：**
+> - **`Supplement-Springer` 的建议不改代码。** 用 `--start` 直接给链接时，脚本手里只有文件的地址（`static-content.springer.com`），没有文章页，认不出是 Nature；标签本来就由 agent 在 label 这一步确认，所以写成 publishers.md 里的提示，不往脚本里加按网址猜的规则。
+> - **附件文件名和正文相同**：存在不同文件夹里不冲突，附件标题能分清。
+> - **关卡的 3 处**（下面第 4、5、6 条）：是所有关卡共有的，挪到 [20261105-paper-fetch-trial-import-web-notes.md](../20261105-paper-fetch-trial-import-web-notes.md) 等真跑时核实。
+> - **Pseudo-CEUS 的 RSNA 补充材料还没取到**，卡在 Cloudflare 人机验证，等用户过；这是那篇论文的事，不是流程的缺口。
+
 - 来源：2026-11-09 精读那一轮。Pseudo-CEUS（`chenPseudoContrastEnhanced2025`，Radiology: AI 2025，条目 VZ5ETN8K）的读论文的 subagent 有 5 问卡在 RSNA 的补充材料上（Appendix S1–S5、Figure S1–S2、Table S1），按 paper-read 的 *Additional sources*，由主 agent 经 paper-fetch 取来。主 agent 派了一个 subagent 照两个 skill 去取，下面是它的回报。用户没有提。
-- 状态：open。这次没取到：RSNA 的文章页挡着 Cloudflare 人机验证，等用户。接着做的步骤在运行记录里（参考资料 `../20261109-paper-read-reading-for-project-insight-reference/run-log.md`，git 不跟踪）。
+- 状态：已解决。原记：这次没取到：RSNA 的文章页挡着 Cloudflare 人机验证，等用户。接着做的步骤在运行记录里（参考资料 `../20261109-paper-read-reading-for-project-insight-reference/run-log.md`，git 不跟踪）。
 
 ## 文档没说怎么做的地方（subagent 逐条报的，括号里是它的做法）
 
@@ -15,7 +23,7 @@
 
 ## 待看
 
-- 设计一条"给已有论文补一份文件（补充材料、另一个版本）"的流程，写进 import.md 或 organize.md：怎么找到文件、怎么取、怎么挂、要不要解析。同日的另一张 issue（补版本时 `create` 先要分类）是同一类问题，已先修好：[archive/20261109-paper-to-zotero-create-asks-collection-before-exists-fixed.md](archive/20261109-paper-to-zotero-create-asks-collection-before-exists-fixed.md)。
+- 设计一条"给已有论文补一份文件（补充材料、另一个版本）"的流程，写进 import.md 或 organize.md：怎么找到文件、怎么取、怎么挂、要不要解析。同日的另一张 issue（补版本时 `create` 先要分类）是同一类问题，已先修好：[archive/20261109-paper-to-zotero-create-asks-collection-before-exists-fixed.md](20261109-paper-to-zotero-create-asks-collection-before-exists-fixed.md)。
 - publishers.md 补 RSNA，改 Cloudflare 那条说法（加日期）。
 - gate.md：subagent 的关卡提醒怎么及时到用户面前。
 

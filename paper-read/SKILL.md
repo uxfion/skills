@@ -57,7 +57,7 @@ Done when the answer rests on the note or the paper's text, and what belongs in 
 
 The primary PDF gives the default page numbers and automatic figure links. To answer a question, follow the paper's references to another version or supplement, and use other relevant attachments as needed. The reader does these lookups during a read-through; outside one, you do them. Follow references/reading.md, *Additional sources*, and cite each file by references/note-format.md, *Evidence*.
 
-If a needed source is missing, you obtain it through paper-fetch and continue the lookup or resume the reader with the source and its original brief. Keep a question as 要看别处 only with the source still needed and what prevents checking it; material already in hand is used now. Any library write follows paper-to-zotero's authorization rules.
+If a needed source is missing, you obtain it by paper-to-zotero's references/import.md, *One more file for a paper the library has*, and continue the lookup or resume the reader with the source and its original brief. Keep a question as 要看别处 only with the source still needed and what prevents checking it; material already in hand is used now. Any library write follows paper-to-zotero's authorization rules.
 
 ## Read a paper
 

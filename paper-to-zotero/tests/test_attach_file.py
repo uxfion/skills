@@ -18,6 +18,7 @@ attach = load("attach_file")
 TITLE = "Progressive Deep Learning for Cardiac Image Segmentation"
 PARENT = "PARENT01"
 URL = "https://www.publisher.org/a/1"
+ARXIV = "https://arxiv.org/pdf/2101.00001v2"
 
 
 class AttachFile(unittest.TestCase):
@@ -45,12 +46,13 @@ class AttachFile(unittest.TestCase):
                                         "saved": {"key": PARENT, "version": 1, "citationKey": None, "created_at": "x"}}))
 
     def settle(self, *files, status="got"):
-        """The result as paper-fetch's pf.py sync leaves it: files [(name, bytes, kind, label title, check)]."""
+        """The result as paper-fetch's pf.py sync leaves it: files [(name, bytes, kind, label title, check, url?)],
+        url being where the file was downloaded (None, as for a file from Downloads, when left out)."""
         entries = []
-        for name, body, kind, title, check in files:
+        for name, body, kind, title, check, *url in files:
             (self.results / name).write_bytes(body)
             entries.append({"name": name, "md5": run.md5_of(self.results / name), "kind": kind, "check": check,
-                            "label": {"title": title}})
+                            "label": {"title": title}, "url": url[0] if url else None})
         res = json.loads(self.result.read_text())
         res.update(files=entries, outcome={"status": status, "tried": [], "last": None})
         self.result.write_text(json.dumps(res))
@@ -68,7 +70,7 @@ class AttachFile(unittest.TestCase):
         self.settle(status="not_got")
         r = self.run_(self.rec)
         self.assertEqual((r.code, r.lines[0]["reason"], r.lines[0]["status"]), (0, "no_file_yet", "not_got"))
-        paper = ("liu.preprint.pdf", b"%PDF-1.4 the paper", "preprint", "Preprint-arXiv-v2", "ok")
+        paper = ("liu.preprint.pdf", b"%PDF-1.4 the paper", "preprint", "Preprint-arXiv-v2", "ok", ARXIV)
         supplement = ("liu.supplement.pdf", b"%PDF-1.4 its supplement", "supplement", "Supplement-Publisher", "accepted")
         unsure = ("liu.pdf", b"%PDF-1.4 cannot tell", "published", "Unknown-Publisher", "cannot_judge")
         self.settle(paper, supplement, unsure)
@@ -79,7 +81,9 @@ class AttachFile(unittest.TestCase):
                          (0, [("liu.preprint.pdf", "ok", "Preprint-arXiv-v2"), ("liu.supplement.pdf", "ok", "Supplement-Publisher")]),
                          "a check the agent has not passed (cannot_judge) is left out")
         self.assertEqual(r.lines[0]["unchecked"], ["liu.pdf"], "and named")
-        self.assertEqual(self.attachments(), [("Preprint-arXiv-v2", URL), ("Supplement-Publisher", URL)])
+        self.assertEqual(self.attachments(), [("Preprint-arXiv-v2", ARXIV), ("Supplement-Publisher", None)],
+                         "each file's url is where it was downloaded, never the item's; none known, none stored")
+        self.assertEqual([a["url"] for a in run.read(self.rec)["attach"]], [ARXIV, None])
         block = run.read(self.rec)["attach"]
         self.assertEqual([(a["kind"], a["title"]) for a in block], [("preprint", "Preprint-arXiv-v2"), ("supplement", "Supplement-Publisher")])
         self.zot.requests.clear()
@@ -98,7 +102,7 @@ class AttachFile(unittest.TestCase):
         self.assertIn("no-doi-record.md", r.lines[0]["hint"], "a stub's file goes the connector path")
         self.settle(("liu.pdf", b"%PDF-1.4 a poster with the same words", "published", "Unknown-IEEE", "unconfirmed"))
         r = self.run_(self.rec)
-        self.assertEqual((r.code, r.lines[0]["unconfirmed"], self.attachments()), (0, ["liu.pdf"], [("Unknown-IEEE", URL)]),
+        self.assertEqual((r.code, r.lines[0]["unconfirmed"], self.attachments()), (0, ["liu.pdf"], [("Unknown-IEEE", None)]),
                          "attached all the same, and named")
 
     def test_the_stubs_pdf_its_item_was_made_from_is_attached(self):
@@ -119,7 +123,7 @@ class AttachFile(unittest.TestCase):
         rec.update(recognize={"md5": md5, "code": "not_recognized"}, saved={"key": PARENT}, attach=[])
         rec.save()  # nothing recognized: the agent wrote the item from the PDF's first page, create_item made it
         r = self.run_(self.rec)
-        self.assertEqual((r.code, r.lines[0]["code"], self.attachments()), (0, "ok", [("Unknown-IEEE", URL)]),
+        self.assertEqual((r.code, r.lines[0]["code"], self.attachments()), (0, "ok", [("Unknown-IEEE", None)]),
                          "an item written from this PDF gets this PDF")
 
     def test_an_item_with_a_pdf_needs_no_result(self):

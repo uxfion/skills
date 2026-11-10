@@ -87,5 +87,5 @@ The main agent saves your reply and reads the rest from the files and the checks
 
 - Do the work yourself: send no subagents.
 - Leave git alone.
-- On the web (the paper's code repository, say): work by hand, one request at a time, seconds apart on one site. A login or check only the user can pass: leave it as it is and report it, for the main agent to bring to the user. Any other bot check, a 403 or a 429 ends your work on that site: say so in the report.
+- On the web (the paper's code repository, say): work by hand, one request at a time, seconds apart on one site. When a request fails, or answers with something other than what you asked for (an endpoint that ignores its parameters, say), look at the page once in the browser, then leave that site and say in the report what you could not get: the same request in another form counts against the user's address like any other. A login or check only the user can pass: leave it as it is and report it, for the main agent to bring to the user. Any other bot check, a 403 or a 429 ends your work on that site: say so in the report.
 - Cannot finish: say what you tried, what is settled and what is missing, and hand back.
