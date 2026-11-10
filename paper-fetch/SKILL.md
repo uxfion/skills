@@ -86,7 +86,7 @@ A handoff record, `<dir>/handoffs/<id>.json`, holds the paper, the evidence and 
 
 | stop | taker | brief | what comes back, recorded by |
 |---|---|---|---|
-| `page`: `fetch` got no PDF from a page — a sign-in, a challenge, no PDF link, its files refused, no record in the discovery search; the bulk run's tab stays on that page | the paper agent | references/web-agent.md | the page handed back, `pf.py fetch --start <url> --session pf-<slug> <result>`, whose file closes the handoff; else a verdict by `answer` |
+| `page`: `fetch` got no PDF from a page — a sign-in, a challenge, no PDF link, its files refused, no record in the discovery search | the paper agent | references/web-agent.md | the page handed back, `pf.py fetch --start <url> --session pf-<slug> <result>`, whose file closes the handoff; else a verdict by `answer` |
 | `file`: the check could not be sure a file is the paper; the file is held in `unverified/` | the paper agent; a judge when labelling files you already have | web-agent.md; judge.md | `answer`: `accept --label …`, since the same look settles the version · `refuse` · `unknown` |
 | `label`: a filed file has no label | the paper agent, while its paper has one; else judges, in batches | web-agent.md; judge.md | `answer`: `label --label <Title> --why …` (references/attachment-titles.md) · `unknown` (`Unknown-<Source>`) |
 | `left`: the watcher found a download that matched no waiting paper, or several | a judge | judge.md | `answer`: `claim --slug <slug>` (it is that paper's) · `not_ours` |

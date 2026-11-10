@@ -5,7 +5,7 @@
 > **没做的，和原因：**
 > - **`Supplement-Springer` 的建议不改代码。** 用 `--start` 直接给链接时，脚本手里只有文件的地址（`static-content.springer.com`），没有文章页，认不出是 Nature；标签本来就由 agent 在 label 这一步确认，所以写成 publishers.md 里的提示，不往脚本里加按网址猜的规则。
 > - **附件文件名和正文相同**：存在不同文件夹里不冲突，附件标题能分清。
-> - **关卡的 3 处**（下面第 4、5、6 条）：是所有关卡共有的，挪到 [20261105-paper-fetch-trial-import-web-notes.md](../20261105-paper-fetch-trial-import-web-notes.md) 等真跑时核实。
+> - **关卡的 3 处**（下面第 4、5、6 条）：是所有关卡共有的，挪到 [20261105-paper-fetch-trial-import-web-notes-fixed.md](20261105-paper-fetch-trial-import-web-notes-fixed.md) 等真跑时核实。
 > - **Pseudo-CEUS 的 RSNA 补充材料还没取到**，卡在 Cloudflare 人机验证，等用户过；这是那篇论文的事，不是流程的缺口。
 
 - 来源：2026-11-09 精读那一轮。Pseudo-CEUS（`chenPseudoContrastEnhanced2025`，Radiology: AI 2025，条目 VZ5ETN8K）的读论文的 subagent 有 5 问卡在 RSNA 的补充材料上（Appendix S1–S5、Figure S1–S2、Table S1），按 paper-read 的 *Additional sources*，由主 agent 经 paper-fetch 取来。主 agent 派了一个 subagent 照两个 skill 去取，下面是它的回报。用户没有提。

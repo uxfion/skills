@@ -12,7 +12,7 @@ A login form is not yet a gate. The single sign-on is often still alive: the dis
 
 The moment a marker shows, alert first — before any further `wait` or `state`, even when the widget says it has verified and is waiting — then watch it; it may pass by itself, and the alert cost nothing. Wait at a gate once per pass.
 
-1. Bring the page to the front: `opencli browser open <url> --session pf-<slug> --window foreground`. Every click on the way to it is yours: what reaches the user is the gate itself.
+1. Bring the page to the front: `opencli browser open <url> --session pf-<slug> --window foreground`, `<url>` being the address the tab is on now (`state` gives it): that address does not load the page again, another one would. Every click on the way to it is yours: what reaches the user is the gate itself.
 2. Send the main agent one line (`SendMessage` with `to: "main"`, loaded first if it is deferred; a subagent has no push notification of its own, so the main agent pushes it): the paper, the page, what the user must do there.
 3. Wait, reading the page only — about ten minutes, in one shell call with a timeout above the wait's (Claude Code: `timeout: 600000`):
 

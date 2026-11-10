@@ -202,7 +202,7 @@ ocr.py findings <scratch>/<名>
 
 都留到以后：六张讲的都是行为、笔记内容或交接，没有一张是 §3 要求的写法。
 
-- `20261103-paper-read-flows-not-run`：讲流程在真项目里跑没跑过。第 7 节的真库验收和全流程试用顺带跑到的分支，在那里打勾。
+- `archive/20261103-paper-read-flows-not-run-fixed`：讲流程在真项目里跑没跑过。第 7 节的真库验收和全流程试用顺带跑到的分支，在那里打勾。
 - `20261103-paper-read-note-expression`：笔记的呈现，和命令无关。
 - `20261103-paper-read-note-images`：同上，还在暂停。
 - `20261103-paper-read-note-two-depths`：同上。

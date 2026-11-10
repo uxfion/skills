@@ -1,6 +1,6 @@
 # paper-to-zotero：从论文里得出的东西（结论、方向、用处）放在哪里、怎么复用
 
-> **已解决（2026-11-03）**：paper-read 按 spec [20261102-paper-read-notes-spec.md](../../specs/20261102-paper-read-notes-spec.md) 设计并实现，§12 是实施中的修正，§13 是验证结果；现在的做法以 `paper-read/` 里的 skill 为准。还没在实际中跑过的流程、关闭前审阅剩下的事，挪到了 [20261103-paper-read-flows-not-run.md](../20261103-paper-read-flows-not-run.md)。文中标着"没拍板"的提议，后来都由已定条目和 spec 定下了；"暂停的事"里"随用随取"那句已写进 paper-read 的 SKILL.md。参考资料文件夹已删，还在用的挪到了跟进 issue、`20261103-paper-read-note-images` 和 `20261102-paper-to-zotero-note-front-matter-fields` 的参考资料里。
+> **已解决（2026-11-03）**：paper-read 按 spec [20261102-paper-read-notes-spec.md](../../specs/20261102-paper-read-notes-spec.md) 设计并实现，§12 是实施中的修正，§13 是验证结果；现在的做法以 `paper-read/` 里的 skill 为准。还没在实际中跑过的流程、关闭前审阅剩下的事，挪到了 [20261103-paper-read-flows-not-run-fixed.md](20261103-paper-read-flows-not-run-fixed.md)。文中标着"没拍板"的提议，后来都由已定条目和 spec 定下了；"暂停的事"里"随用随取"那句已写进 paper-read 的 SKILL.md。参考资料文件夹已删，还在用的挪到了跟进 issue、`20261103-paper-read-note-images` 和 `20261102-paper-to-zotero-note-front-matter-fields` 的参考资料里。
 
 
 - 来源：用户 · 2026-10-28。结构化包做完之后，讨论 SKILL.md 里"随用随取"那句怎么写时提出。
@@ -471,7 +471,7 @@
 88. 用户：「有一个paper read的新issue，你看一眼」：`20261102-paper-read-aka-wording.md`，p2z 那边放宽了 `aka/` 规则，spec 里的转述过时了。
     - 按 issue 给的方向改了 spec 和 skill（spec §12 第 13 条），给 T-CACE 补了 `aka/T-CACE`；issue 已关，移进 archive。
 89. 用户：「快速复用这个先不用管吧……」「读起来快不快倒无所谓……」「你先把没有做的东西分离出去……」「你在关这张issue之前，把所有涉及的代码的变动、文档的修改都用design principle过一遍，包括要用writing for agent skills优化一遍」。
-    - 没跑过的流程分离到 `20261103-paper-read-flows-not-run.md`。
+    - 没跑过的流程分离到 `20261103-paper-read-flows-not-run-fixed.md`。
     - 派了一个独立 subagent 按设计原则审这次的改动，结果在参考资料 `principles-review-20261103.md`：1 条必须修（check_quotes 遇到小于号会吞掉正文，我已亲手验证），9 条应该修，13 条小问题。
     - 用户：「先不用弄吧，先维持现状。我是不想做太多决策，累了已经」。所以都没改，这张 issue 也先不关。还挂着的：审阅结果怎么处理、参考资料里的 `node-judge` 留不留、关 issue 和提交。
 ## 已定（用户拍板的）

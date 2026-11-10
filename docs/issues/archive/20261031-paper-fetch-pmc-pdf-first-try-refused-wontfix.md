@@ -1,5 +1,7 @@
 # paper-fetch: PMC's PDF refused on the bulk run's first try, fetched a minute later
 
+> **不做（2026-11-10）。** 只在 2026-10-31 出现过一次，之后两次都没再现：上午 JAMA 那篇是另一种情况（PMC 页上没有正文 PDF）；下午专门用当初那篇（UNet++，PMC7357299）照原样取了一次，18 秒取到，核对通过。当时流程自己恢复了（页面交接 → paper agent 把同一页交回 → 取到），代价是多派一次 paper agent。被拒的响应是什么仍不知道；再出现时，被拒的文件留在 `unverified/`，页面交接的证据里也有它的标题和开头文字，paper agent 的回报会带出来，到时再记成 publishers.md 里的一条提示。
+
 2026-10-31, phase-1 live acceptance (spec `20261031-paper-skills-script-agent-division-spec.md` §8), UNet++ (`10.1109/TMI.2019.2959609`, PMC7357299, an NIH author manuscript).
 
 - **What was run.** `pf.py fetch --pass 1 --route accepted` on the result. The candidate was the PMC article page `https://pmc.ncbi.nlm.nih.gov/articles/PMC7357299/` (`needs_browser: true`).

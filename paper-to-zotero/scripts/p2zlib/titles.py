@@ -31,7 +31,7 @@ SOURCES = {
     "researchgate.net": "ResearchGate", "easychair.org": "EasyChair", "cell.com": "Elsevier", "thelancet.com": "Elsevier",
     "pnas.org": "PNAS", "plos.org": "PLOS", "iop.org": "IOP", "spiedigitallibrary.org": "SPIE", "thieme-connect.com": "Thieme",
     "thieme-connect.de": "Thieme", "biomedcentral.com": "BMC", "frontiersin.org": "Frontiers", "lirias.kuleuven.be": "Lirias",
-    "proquest.com": "ProQuest", "ebscohost.com": "EBSCO", "ovid.com": "Ovid",
+    "proquest.com": "ProQuest", "ebscohost.com": "EBSCO", "ovid.com": "Ovid", "jamanetwork.com": "JAMA_Network",
 }
 
 

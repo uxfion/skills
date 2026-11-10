@@ -1,6 +1,6 @@
 # paper-read：论文笔记和项目论文索引（设计）
 
-> **实施完成（2026-11-03），冻结。** 现在的做法以 `paper-read/` 里的 skill 为准；还没在实际中跑过的流程见 issue [20261103-paper-read-flows-not-run.md](../issues/20261103-paper-read-flows-not-run.md)。依据是 issue [archive/20261028-paper-to-zotero-paper-notes-fixed.md](../issues/archive/20261028-paper-to-zotero-paper-notes-fixed.md) 的已定 1–50，括号里的"已定 n"指那里的条目。第一版经过三份审阅（忠于已定、技术、新 agent 能不能照着用，报告随 issue 关闭已删，处理结果记在 issue 第 70 条），本版按它们改过，又按用户 2026-11-02 定的已定 44–50 改过。本文取代 [20261031-paper-skills-script-agent-division-spec.md](20261031-paper-skills-script-agent-division-spec.md) §5 的 paper-read 初稿。§9 是审阅之后讨论里补定的几处；之后又按设计原则过了一遍，改了 8 处（报告随 issue 关闭已删，8 处都在本文里），用户让我自己权衡后改（issue 第 81 条）。
+> **实施完成（2026-11-03），冻结。** 现在的做法以 `paper-read/` 里的 skill 为准；还没在实际中跑过的流程见 issue [20261103-paper-read-flows-not-run-fixed.md](../issues/archive/20261103-paper-read-flows-not-run-fixed.md)。依据是 issue [archive/20261028-paper-to-zotero-paper-notes-fixed.md](../issues/archive/20261028-paper-to-zotero-paper-notes-fixed.md) 的已定 1–50，括号里的"已定 n"指那里的条目。第一版经过三份审阅（忠于已定、技术、新 agent 能不能照着用，报告随 issue 关闭已删，处理结果记在 issue 第 70 条），本版按它们改过，又按用户 2026-11-02 定的已定 44–50 改过。本文取代 [20261031-paper-skills-script-agent-division-spec.md](20261031-paper-skills-script-agent-division-spec.md) §5 的 paper-read 初稿。§9 是审阅之后讨论里补定的几处；之后又按设计原则过了一遍，改了 8 处（报告随 issue 关闭已删，8 处都在本文里），用户让我自己权衡后改（issue 第 81 条）。
 
 ## 1. 要解决什么
 
@@ -420,7 +420,7 @@ pdf: <PDF 标题>
     - 用 `--title` 换版本时，报 `previous`：笔记原来读的那一版的 PDF 和包，供对比。
     - 那一版已经不在库里时，`previous` 的路径为空，说明只是同一份文件改了名，改"读的版本"就行，不用重读。
     - reading.md 新加一节"换版本"；note-format.md 加了"新版删去了这段"的标记。
-15. **关 issue 前按设计原则审了一遍**（2026-11-03，独立的 subagent 审，报告在 issue `20261103-paper-read-flows-not-run.md` 的参考资料 `principles-review-20261103.md`）。用户：「重要的你可以审一下，但是那种不重要的，我觉得没必要逐一细节去过」。改了重要的 8 处：
+15. **关 issue 前按设计原则审了一遍**（2026-11-03，独立的 subagent 审，报告在 issue `archive/20261103-paper-read-flows-not-run-fixed.md` 的参考资料 `principles-review-20261103.md`）。用户：「重要的你可以审一下，但是那种不重要的，我觉得没必要逐一细节去过」。改了重要的 8 处：
     - `check_quotes` 的 HTML 标签正则跨行、也作用于 PDF 文字和引文，正文里一个"p < 0.05"会吞掉后面直到下一个">"的文字。改成只去掉包里的标签，用不跨行的标签形状；包目录里没有 `.md` 时报 `unreadable`。
     - `prepare_note` 的 `previous` 取不到旧版时带上 p2z 的 `code`，不再一律当成改名；reading.md 写明旧版缺包或缺 PDF 时怎么换版本。
     - SKILL.md：整篇精读按回报改过笔记以后，存之前再检查一次；查一处时按 paddleocr 第 3 步读包；草稿目录要等问用户的事答完再删；兄弟 skill 表加上 poppler（README 同）。

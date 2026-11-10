@@ -68,7 +68,7 @@
 - **只走图书馆系统。** `fetch --route discovery`：访客视图里就有这篇的 ProQuest 记录，记录页上脚本找不到 PDF → `page` 交接（`no_pdf_link`）→ paper agent 从记录页进到 IEEE（经代理）→ `fetch --start` → `file` 交接 → `accept`，Published-IEEE。这次没用到“点 Sign in”，那一步在上面那次实测里验证过。
 - **先有接受稿，再拿正式版（决策 A）。** UNet++（TMI）：先单跑 `--route accepted`，PMC 文章页的 PDF 链接被核对拒了 → `page` 交接 → paper agent 用 `fetch --start --version accepted` 交回同一页，这次拿到 NIH 作者稿（`nihms-1600374.pdf`），核对通过 → `label` 交接 → agent 答 Accepted-PMC → 这篇不算满足（想要正式版）→ 照常跑完整一遍，开放路线经代理拿到 IEEE 正式版 → `label` 交接交给 judge，答 Published-IEEE → 两份并排，`paper_file` 是正式版 → 重跑退出 0。
 - **看到的、已处理的：** `outcome.tried` 写的是代理的主机名，已改成网站本身的（合进提交 `c2c00a1`）；`claim --sweep` 没有剩余文件时什么也不打印，已改成最后输出一行摘要。
-- **看到的、另记 issue 的：** PMC 的 PDF 链接第一次被拒、一分钟后就拿到了，见 `20261031-paper-fetch-pmc-pdf-first-try-refused.md`。
+- **看到的、另记 issue 的：** PMC 的 PDF 链接第一次被拒、一分钟后就拿到了，见 `20261031-paper-fetch-pmc-pdf-first-try-refused-wontfix.md`。
 - **没测到的：** 图书馆系统的“点 Sign in”（这次访客视图就有记录；上一次实测验证过）；“开放链接碰巧是接受稿”这条路（这次用 `--route accepted` 先拿接受稿，测的是决策 A 的机制）；验证页（没碰到，所以推送转达和 10 分钟等待没在实测里跑到）。
 
 ## 第二期验收实测（2026-11-01，paper-to-zotero）

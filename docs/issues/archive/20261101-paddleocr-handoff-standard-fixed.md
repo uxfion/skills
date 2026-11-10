@@ -9,7 +9,7 @@
 > - **2（PO-3）采纳**：install.md 改成告诉用户、直接装（uv 工具）。依据是用户 2026-10-09 的规矩：「Python工具因为使用的是UV，你可以随便调用或者下载」。poppler 是系统软件，照旧要用户批准。
 > - **3（PO-6）采纳**：回报后 `doc.py show` 还列着没处理的问题，就把输出原样发回同一个 subagent；接不上时另派一个，带上同一份 brief、文件夹现状、这份输出和上一位的回报。写法照 paper-read。
 > - **4（PO-7）不用改**：论文笔记 issue 已定 46 定了，paper-read 已实现，paddleocr SKILL.md 现在的写法和它相符。
-> - **5（PO-8）采纳，换了走法**：别的项目里装的 skill 是从 GitHub 装的副本，在那里改 `conventions.py` 会和仓库分叉，重装时也会被覆盖。现在由整理的 subagent 在回报里写出图注写法并附例子，主 agent 在汇报里转告用户，再到本仓库开 issue。这是用户说过的路子（[20261103-paper-read-flows-not-run.md](../20261103-paper-read-flows-not-run.md)：「我会让项目中的 Agent 开张issue到这边来的」）。papers.md 那句相应改了。
+> - **5（PO-8）采纳，换了走法**：别的项目里装的 skill 是从 GitHub 装的副本，在那里改 `conventions.py` 会和仓库分叉，重装时也会被覆盖。现在由整理的 subagent 在回报里写出图注写法并附例子，主 agent 在汇报里转告用户，再到本仓库开 issue。这是用户说过的路子（[20261103-paper-read-flows-not-run-fixed.md](20261103-paper-read-flows-not-run-fixed.md)：「我会让项目中的 Agent 开张issue到这边来的」）。papers.md 那句相应改了。
 > - **6 整体对一遍**：brief 分两处（SKILL.md 的派发说明、settle.md）、产物和完成条件（settle.md 每节都有）、固定规矩、两边的模型、角色名，现在都齐了。
 >   - 没加交接索引表：paddleocr 只有一种 subagent，每个停点在所在步骤里已经写明谁接手，加一张表只是第二份副本。这一条也不在本 issue 的清单里。
 

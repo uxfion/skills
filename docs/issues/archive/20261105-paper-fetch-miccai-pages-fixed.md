@@ -3,7 +3,7 @@
 2026-11-09 已修复：[locate](../../../paper-fetch/scripts/fulltext_links.py)在补 DOI 后仍保留原始论文页作为候选，原始请求纳入缓存输入；[识别说明](../../../paper-fetch/SKILL.md)和实际提示明确由主 agent 处理没有标准元标签的正常论文页。PDF 链接归属判断沿用既有交接。
 
 - 来源：2026-11-05 全流程试用，导入 agent 用 MICCAI 2026 论文页导入 *Towards Unified Image–Video Modeling Across B-Mode and Contrast-Enhanced Ultrasound for Multi-task Analysis*。用户没有提。
-- 状态：fixed。原始参考资料中仍用于排查学校登录的事实已移入[试用记录](../20261105-paper-fetch-trial-import-web-notes.md)，其余事实记录在本 issue；参考资料文件夹已清理。
+- 状态：fixed。原始参考资料中仍用于排查学校登录的事实已移入[试用记录](20261105-paper-fetch-trial-import-web-notes-fixed.md)，其余事实记录在本 issue；参考资料文件夹已清理。
 
 ## 经过
 
