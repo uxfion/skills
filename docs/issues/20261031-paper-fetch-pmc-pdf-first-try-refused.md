@@ -7,3 +7,7 @@
 - **Why it matters.** A PMC copy may need a second, later request before its PDF link serves the PDF (publishers.md already notes a JavaScript verification for plain HTTP and a reCAPTCHA on the PDF link). The handoff path recovered it, at the cost of a paper agent; a paper with several PMC candidates pauses on the first.
 - **Not yet known.** Whether the first response was PMC's verification page, a viewer, or something else: the refused file sat in `unverified/` and went with the live-test directory.
 - **Suggested.** On the next real run, keep the refused response and look at it; then a dated hint in publishers.md's PMC bullet, worded from what it was.
+
+## 2026-11-10 又跑到一次 PMC，没再现
+
+JAMA Netw Open 的一篇（PMC11519755）。这次不是同一种情况：PMC 文章页上根本没有正文 PDF 的链接，只有三份补充材料；paper agent 猜的 `/pdf/` 地址回 404，`refused` 记的是这个 404，`unverified/` 里没有留下文件。"第一次被拒、过一会儿又能取"没有再现，被拒的响应是什么仍不知道。

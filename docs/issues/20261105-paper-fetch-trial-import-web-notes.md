@@ -27,6 +27,18 @@
 9. **手工打开的页面超时后，提示对不上**：`pf.py wait` 超时的提示让去回答论文的 `page` handoff `gate_timeout`，还说是"登录页，重新看一眼"；可手工打开的页面没有 handoff，gate.md 又说人机验证不要重开。
 10. **subagent 的关卡提醒到不了用户面前**：gate.md 默认 subagent 用 `SendMessage` 发的提醒会到用户面前，实际只排进主 agent 的下一轮。
 
+## 2026-11-10 真跑一次的结果
+
+用户在场，取库里三篇缺 PDF 的论文：两篇 SpringerLink 期刊（Eur Radiol 2025、IJCARS 2018）、一篇 JAMA Netw Open。两本 Springer 期刊学校都没订阅，全程没有出现密码页和人机验证，所以登录和关卡本身这次没测到。
+
+- **第 1 条（代理关联没粘住）**：这次没出现，两篇都直接经代理打开。原因仍不明，没再现。
+- **第 2 条（Springer 机构列表里没有用户的学校）**：核实了。两个 paper agent 各自搜过多种写法，都没有。已写进 publishers.md（带日期，学校名用占位符）。
+- **第 3 条（后台窗口点不了按钮）**：更正。点击能用；不能用的是输入文字（`opencli browser type`）。已写进 publishers.md。
+- **第 4、5、8、9、10 条**（标签页没停在门页、不等的门、切前台重载、超时提示、提醒到不了用户）：没碰到关卡，仍未核实。
+- **第 7 条（arXiv 接口 400）**：这次三篇都没有 arXiv 版，没碰到。
+
+这次新看到的问题另记在 [20261110-paper-fetch-keeps-trying-where-the-page-says-no.md](20261110-paper-fetch-keeps-trying-where-the-page-says-no.md) 和 [20261110-paper-fetch-trial-run-findings.md](20261110-paper-fetch-trial-run-findings.md)。
+
 ## 下一步
 
 下次真跑一篇要走学校登录的论文时，逐条对照，核实了的拆成各自的 issue，或者并进 paper-fetch Unix 改造的 spec。

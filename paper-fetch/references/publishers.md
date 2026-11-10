@@ -12,7 +12,7 @@ The flow needs Chrome set to **download** PDFs: `chrome://settings/content/pdfDo
 
 ## Reach of browser automation
 
-Page content only, the current document's frames included; a PDF or viewer inside a frame from another domain is reached with `opencli browser frames --session <name>`, then `eval --frame <target>` (OpenCLI 2.x; no such site met yet, 2026-10-20). Browser chrome is out of reach: extension toolbar buttons (so the Zotero Connector plugin cannot be driven), extension shortcuts such as `Ctrl+Shift+S`, the PDF viewer's save button, native dialogs.
+Page content only, the current document's frames included; a PDF or viewer inside a frame from another domain is reached with `opencli browser frames --session <name>`, then `eval --frame <target>` (OpenCLI 2.x; no such site met yet, 2026-10-20). In a background window a click works, while `opencli browser type` answers "Native input requires a visible browser page"; setting the field's value with `eval` and dispatching an `input` event fills it (2026-11-10). Browser chrome is out of reach: extension toolbar buttons (so the Zotero Connector plugin cannot be driven), extension shortcuts such as `Ctrl+Shift+S`, the PDF viewer's save button, native dialogs.
 
 Downloads: the watcher (SKILL.md, *Ready*) files a download that passes the check for a waiting paper, so a click needs no `wait download`. Opening a link that downloads leaves the tab on its old page, in the same document (2026-10). PMC's PDF link took 45–60 s from `open` to the file (2026-10-20). `opencli browser wait download <pattern> --timeout <ms> --session <name>` (OpenCLI 2.x) answers only once a matching download has completed or failed, and also counts one completed within the last `--timeout` before the call; it cannot tell a download not yet started from none coming (OpenCLI source, 2026-10-20).
 
@@ -109,7 +109,7 @@ When the publisher says no access, the institution may still have the paper thro
 - **nature.com journals** (Nat Med, Nat Biomed Eng), **NEJM AI**, **Science**: the PDF link returns HTML, opened directly too — mostly no subscription; Science through the proxy is "Host Needed".
 - **Nature portfolio "Article in Press"** pages and their `_reference.pdf` files (npj journals) are the **unedited accepted manuscript**, not the typeset version: label it `Accepted-Nature-in_press` (next section), and fetch the typeset PDF once it is out.
 - **Supplements** (2026-11-09): a nature.com article lists them in its *Supplementary information* section, and the files are on `static-content.springer.com/esm/…`. The proposed title reads that host as Springer: label by the journal's site (`Supplement-Nature`). An RSNA article's supplement links are on its article page, behind the Cloudflare check above; none fetched yet.
-- **jamanetwork.com**: "Host Needed" through the proxy, 403 without it — open-access JAMA Netw Open articles included; take them from PMC.
+- **jamanetwork.com**: "Host Needed" through the proxy, 403 without it — open-access JAMA Netw Open articles included; take them from PMC. One PMC page of such an article listed only its supplements, no PDF of the article, and its guessed `/pdf/` address answered 404 (2026-11-10).
 
 ## Versions on the page and on the file (2026-10)
 
@@ -126,6 +126,7 @@ Hints for a file's label ([attachment-titles.md](attachment-titles.md)), each se
 
 ## Unverified expectations
 
+- SpringerLink journals the institution does not hold (2026-11-10, two journals): through the proxy the article page is still "This is a preview of subscription content" with "Log in via an institution" and "Buy", and the sign-in list (`wayf.springernature.com`, proxied) has no entry for `<institution>` under any spelling tried, so there is nothing to sign in to: no access on this route. The only PDF link such a page offers may be the electronic supplementary material. One of the two was held by ProQuest instead, found through the discovery record.
 - Springer / Nature: `citation_pdf_url` is the PDF itself, so the "Download PDF" button should download directly. Author keywords are in `citation_keywords` meta tags. Observed 2026-09: the institutional sign-in runs through `wayf.springernature.com` — that page is the gate; an unsubscribed chapter shows only a preview and a "Log in via an institution" entry.
 - Wiley: the button opens an `/doi/epdf/` reader; the file lives under `/doi/pdfdirect/`.
 
