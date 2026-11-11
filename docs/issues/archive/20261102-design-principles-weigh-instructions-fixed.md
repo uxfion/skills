@@ -1,6 +1,6 @@
 # design-principles：§5「用户的话是方向」补三处，反馈三分按点内拆分
 
-已解决（2026-11-09，用户选「A」）：在 `docs/design-principles.md` §5 原位改写 *The user's words are direction* 一段，没有新增条目。改后的意思：按部分判断，一个点里可能有要保留、要调整、要放弃的部分；某部分站得住、又没有需要用户拿主意的地方，就直接做，并用一句话说明理由；有疑问或有可选的地方，先拿证据和选项讨论；一次纠正只是关于那件事的证据，重新权衡它改变了什么，其余保持不变。"没有需要拿主意的地方"这个条件是 advisor 审稿时加的，免得"站得住就做"放松了"先给用户看方案再动手"。用户原话记在 `docs/design-principles-sources.md` §5。`.memory/own-judgement.md` 的 Feedback 一段同步改成按部分拆分。要不要写进全局指令，仍归 [agent-instructions 改进清单](../20260929-agent-instructions-reusable-memories.md) 的主题 3。
+已解决（2026-11-09，用户选「A」）：在 `docs/design-principles.md` §5 原位改写 *The user's words are direction* 一段，没有新增条目。改后的意思：按部分判断，一个点里可能有要保留、要调整、要放弃的部分；某部分站得住、又没有需要用户拿主意的地方，就直接做，并用一句话说明理由；有疑问或有可选的地方，先拿证据和选项讨论；一次纠正只是关于那件事的证据，重新权衡它改变了什么，其余保持不变。"没有需要拿主意的地方"这个条件是 advisor 审稿时加的，免得"站得住就做"放松了"先给用户看方案再动手"。用户原话记在 `docs/design-principles-sources.md` §5。`.memory/own-judgement.md` 的 Feedback 一段同步改成按部分拆分。要不要写进全局指令，仍归 [agent-instructions 改进清单](20260929-agent-instructions-reusable-memories-wontfix.md) 的主题 3。
 
 - 来源 · 日期：用户另一个研究项目（下称"该项目"）的会话，2026-11-02 记录。
 - 背景：
@@ -24,5 +24,5 @@
 - 方向（没拍板）：
   - 改写 §5 "The user's words are direction" 一段，补上第 1–3 点，措辞可参照该项目的那两条。
   - 把 `.memory/own-judgement.md` 的 Feedback 一段改成按点内拆分。
-  - 这几条要不要上升到全局指令，归到 `docs/issues/20260929-agent-instructions-reusable-memories.md` 的主题 3"何时自己定、何时问、怎么问"一起决定。
+  - 这几条要不要上升到全局指令，归到 `docs/issues/archive/20260929-agent-instructions-reusable-memories-wontfix.md` 的主题 3"何时自己定、何时问、怎么问"一起决定。
 - 状态：fixed（2026-11-09）。

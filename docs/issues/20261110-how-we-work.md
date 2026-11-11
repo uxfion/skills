@@ -24,7 +24,7 @@
 **这件事是什么。** 用户有好几个研究项目（hc_deduction、ceus、zym_video_3d 等），每个都要搭一层"项目之上"的东西：给 agent 的规则（`AGENTS.md`）、记忆（`.memory/`）、记录和文档放哪、实验 / 报告 / 文献 / 问题单怎么做、怎么和用户协作、无人值守怎么跑。各项目各自长出来，散在 memory、AGENTS.md、docs、spec、issue、SKILL.md 里，互相不同步。2026-11-02 在 zym 把三个仓库的这一层收拢成一套，走得很曲折。用户想以后把它做成一个通用 skill（带上必要的 memory、AGENTS.md、roles 等），新项目照着搭，不再重走。本 issue 收的是做 skill 的原料：结果、过程、用户的想法、三个起点仓库的原件。
 
 **有三层，别混。**
-- **全局指令**：所有项目都适用的个人偏好，进 `~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md`。归本仓库 `agent-instructions/` 和 issue `docs/issues/20260929-agent-instructions-reusable-memories.md` 管，还没定。在那之前，跨项目偏好照用户的决定写在各项目自己的 `AGENTS.md` 里（zym spec §4 第 3 条）。
+- **全局指令**：所有项目都适用的个人偏好，进 `~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md`。归本仓库 `agent-instructions/` 和 issue `docs/issues/archive/20260929-agent-instructions-reusable-memories-wontfix.md` 管，还没定。在那之前，跨项目偏好照用户的决定写在各项目自己的 `AGENTS.md` 里（zym spec §4 第 3 条）。
 - **项目上层（本 issue 要做成的 skill）**：每个项目都要的结构、规则分层、记录格式、工作约定。
 - **项目自己的**：任务和诚实边界、机器上的坑、数据规矩。
 
@@ -130,7 +130,7 @@ research/                 调研报告和项目层面的结论；论文、全文
 
 - zym 这边做完了，最终版本以 zym 仓库为准（`zym/` 下是 `45d1719` 的快照）。项目本身由用户在另一个会话推进。
 - 还在用户手上的：本 issue 和参考材料没有提交（skills 仓库里还有另一个会话的改动）；zym 的 `.memory/` 不进 git；zym 7 月报告里已入 git 的病人素材留不留（zym D20261102-16）。
-- 全局指令那一层（`docs/issues/20260929-agent-instructions-reusable-memories.md`）还没定，和本 issue 有重叠。
+- 全局指令那一层（`docs/issues/archive/20260929-agent-instructions-reusable-memories-wontfix.md`）还没定，和本 issue 有重叠。
 - zym 那份迁移 spec 已冻结，里面有几处旧说法没改（§1 一处原话少了半句、§4 的节名和 `archive/20261102/` 路径已过时），详见 `subagents/record-decisions-options-and-sources.md`。
 
 ## 材料（`20261110-how-we-work-reference/`）
@@ -147,7 +147,7 @@ research/                 调研报告和项目层面的结论；论文、全文
 | `hc_deduction/` | 复制（144 个文本文件）：AGENTS.md、README、全部 `.memory/`；`docs/` 下全部 Markdown（goal、decisions、todo、meetings、experiment-log、servers、specs、issues、task、six-point-method 等，`docs/lxm/files/` 除外）；`research/` 顶层的调研报告；`manuscript/jbhi/WRITING_BRIEF.md`；`agent/README.md`、`agent/run.md`；`archive/` 里的 INDEX 和归档的旧规则文件；各实验 README；`.claude/` 的 agent 定义和设置；`tmp.md`、`skills-lock.json`。清单：`session-scratchpad/hc_copy_list.txt` |
 | `ceus/` | 复制（239 个文本文件）：AGENTS.md、README、todo、全部 `.memory/`；`docs/` 01–23 全部；`reports/` 的 STYLE、README、catalog、路径迁移表和各报告文件夹里的 README；`experiments/`、`data/`、`baseline/`、`results/` 下的 README、REFLECTION 和中断说明；`research/` 的报告和索引（各论文的全文目录除外）；`.claude/settings.local.json`、`pyproject.toml`、`.python-version`、`.gitignore`。清单：`session-scratchpad/ceus_copy_list.txt`。没复制图片、数据和病人影像 |
 
-本仓库里就地引用、没有复制的：`docs/design-principles.md`、`docs/design-principles-sources.md`、`.memory/`、`AGENTS.md`、`docs/issues/20260929-agent-instructions-reusable-memories.md`（全局指令那一层，和本 issue 有重叠）、`docs/issues/archive/20261102-design-principles-weigh-instructions-fixed.md`、`docs/issues/20261028-paper-to-zotero-paper-notes.md`（论文笔记放 Zotero 的决定）。
+本仓库里就地引用、没有复制的：`docs/design-principles.md`、`docs/design-principles-sources.md`、`.memory/`、`AGENTS.md`、`docs/issues/archive/20260929-agent-instructions-reusable-memories-wontfix.md`（全局指令那一层，和本 issue 有重叠）、`docs/issues/archive/20261102-design-principles-weigh-instructions-fixed.md`、`docs/issues/20261028-paper-to-zotero-paper-notes.md`（论文笔记放 Zotero 的决定）。
 
 原仓库：zym `<zym-dir>`，hc `<hc-dir>`，ceus `<ceus-dir>`。
 
@@ -195,7 +195,7 @@ zym 规则层在快照之后的改动（全文差异在 `zym-20261110/rules-laye
 ### 调研时看到的三件事
 
 1. **只有 zym 是新样子。** hc、ceus 还是各自的旧样子；zym 11-04 的改进没有回到任何地方。
-2. **和 `docs/issues/20260929-agent-instructions-reusable-memories.md` 大面积重叠。** 它的 13 个主题都还是"候选"。zym `AGENTS.md` 里和用户怎么协作、subagent、git、文档与记忆这几节，大部分就是那些主题，现在按用户 11-02 的决定先抄在项目里。
+2. **和 `docs/issues/archive/20260929-agent-instructions-reusable-memories-wontfix.md` 大面积重叠。** 它的 13 个主题都还是"候选"。zym `AGENTS.md` 里和用户怎么协作、subagent、git、文档与记忆这几节，大部分就是那些主题，现在按用户 11-02 的决定先抄在项目里。
 3. **zym 的"Weigh an instruction before acting on it"带着"Where it holds, carry it out"这句。** 11-09 用户在 skills 指出同样的句子推着 agent 直接动手（`docs/issues/20261109-design-principles-discuss-before-acting.md`，还开着）。照抄 zym 会把它带进每个新项目。
 
 ### 已定（用户 2026-11-10）
@@ -221,7 +221,7 @@ zym 规则层在快照之后的改动（全文差异在 `zym-20261110/rules-laye
 
 - **名字**：「harness setting」不准确，main agent 给几个候选让用户选（2026-11-10 已提，见对话）。第一轮候选是 `project-conventions` 项目约定（main agent 推荐）、`working-agreement` 协作约定、`project-playbook` 项目手册、`project-kit` 项目套件。用户没有选，指出少了 cowork 这层意思：「我觉得你没有提到这个cowork这个概念,实际上，现在越来越多项目是我作为 User 和 Agent，你就是哈纳斯之间的一种默契的约定，或者说我的一些偏好」。名字的重心因此从「项目」移到「用户和 agent 一起工作」，第二轮候选是 `cowork-conventions` 协作约定（main agent 推荐）、`cowork`、`cowork-playbook` 协作手册、`cowork-style` 协作方式，用户也没有选：「我觉得都不是很满意，你再根据我的原话，或者我们这个 issue 中想要做的事情及其目的，再全局地想几个方案」。第三轮不再在一个词后面换后缀，从几个不同的角度各起一个：`how-we-work`（内容）、`common-ground`（默契）、`house-rules`（是谁的）、`groundwork`（在项目里的位置）、`ways-of-working`（现成的说法），见对话。
 - **怎么更新实例**：第 4 条里用户留着的那一半。
-- 之后的：科研项目和其他项目怎么分；旧项目搬不搬目录；和全局指令（`docs/issues/20260929-agent-instructions-reusable-memories.md`）怎么分工；做成什么形式。
+- 之后的：科研项目和其他项目怎么分；旧项目搬不搬目录；和全局指令（`docs/issues/archive/20260929-agent-instructions-reusable-memories-wontfix.md`）怎么分工；做成什么形式。
 
 ### 名字：`how-we-work`（2026-11-10，main agent 受托定的，用户可改）
 
@@ -283,7 +283,7 @@ main agent 问过"和全局指令怎么分工"（A 全局不动、协作的规�
 定下来的：
 
 - **A：全局指令不动。** 协作的规矩只在 how-we-work。全局指令要不要加东西由用户自己主动提，main agent 不提议、不做。
-- **`docs/issues/20260929-agent-instructions-reusable-memories.md` 的路走错了。** "把各项目常用的记忆提升进全局指令"是当时临时想的办法，现在由 how-we-work 取代。它收集的 13 个主题和出处是 how-we-work 的输入材料；那张 issue 本身怎么关（标记被取代、归档），等实现时和本 issue 一起处理，现在不动。
+- **`docs/issues/archive/20260929-agent-instructions-reusable-memories-wontfix.md` 的路走错了。** "把各项目常用的记忆提升进全局指令"是当时临时想的办法，现在由 how-we-work 取代。它收集的 13 个主题和出处是 how-we-work 的输入材料；那张 issue 本身怎么关（标记被取代、归档），等实现时和本 issue 一起处理，现在不动。
 - **小项目不设计。** 小项目里出了问题，用户当场纠正就行。
 - **缘由**：有些话用户重复说了很多次，烦了；约定一套 how-we-work，说一次就都知道。所以衡量这套东西做得好不好，首先看用户重复说过的那些话有没有都在里面、有没有管住。各份对照报告里的「Recurring」一节因此是最重要的输入。
 - 用户随后（2026-11-10）：「你说的有些东西没带背景，我根本不清楚问题，你就直接抛出一个决策让我做，那我肯定做不出正确的。你有时候需要给我上下文的。」「然后你刚才说的那点，我所有机器都会装这个 skills 的，所以你不用担心。」由此：每台机器都会装 how-we-work，设计时不用为"没装这个 skill 的机器"留后路。提问缺背景这条是对 main agent 的纠正，已进 skills 的记忆 `explain-designs-by-example`；它也是 how-we-work 里"怎么提问"那条规则要管住的事：背景要从用户现在知道的讲起，不是从 agent 刚读到的东西讲起。
@@ -534,4 +534,5 @@ main agent 的回应：采纳（每次一份目标文档、放 `docs/goals/`、�
 - 推送并安装（2026-11-10）：`f928602`、`39452ae`（入口文件的描述里有冒号加空格，YAML 解析失败，安装工具认不出这个 skill；加了引号）、`f326235`（一条测试：通用块内容变了而 `rev` 没动就失败；起因是旁路提醒指出防覆盖只比日期）。`skills add uxfion/skills -s how-we-work -g` 装好，装上的 `common.md` 和仓库一致。
 - diffusion 接入（2026-11-10）。用户对三件事：「按照你的建议」，即 `CLAUDE.md` 改名 `AGENTS.md`；内层仓库的 `CLAUDE.md` 不改名、不放通用块，开头加一句指向外层；六条待提升里四条有用户原话的改放"本项目专有"，两条 agent 自己提的不留。main agent 在本会话里做了接入：外层仓库一个提交（规则文件、五份约定文件、对照表放进 `docs/keyfindings/`），内层仓库一个提交；同步两次，第一次 `updated`、第二次 `current`，退出 0。那边 10 月留下的两处未提交改动没有碰。没做、留给 diffusion 自己的会话的：记忆整理（对照表标了删 11 条、缩 2 条）、README 里两处指向 `CLAUDE.md` 的句子（README 有未提交改动，没去动）、第一次上服务器前建 `docs/servers.md`。目录整体搬迁随后分阶段做，地图在参考文件夹 `drafts/adoption/diffusion/migration/`。
 - diffusion 的搬迁材料备好（参考文件夹 `drafts/adoption/diffusion/migration/`：入口 `START-HERE.md`、前后对比的地图、十个要用户定的问题、分阶段步骤、证据）。用户先说：「你可以在这边先整理好，然后我那边引用一个文件或者文件夹，按照规定去做迁移和接入就行了」。main agent 把十个问题和各自的建议列给用户，并说明建议合起来是"搬一部分，大的和做完的留在原处"，和"整体搬"有差距；问是现在答（A：都照建议或点出要改的编号）还是留给 diffusion 的会话问（B）。用户：「A」。main agent 读作十个都照建议，写进了 `START-HERE.md`，并把这个读法告诉了用户；第 9 个（报告 HTML 入 git）的前提要用户在 diffusion 那边确认。
-- 用户问旧 issue（`20260929-agent-instructions-reusable-memories`）的内容是否都已解决。main agent 逐个主题对了：13 个里 11 个已在 hww；第 10 个（给别的仓库的东西先本地起草）被当天定的做法取代；第 5 个（只读检查不留写入）hww 里没有；末尾两条 Hermes 的事属于全局指令，归用户。第 5 个用 9 月 28 日的事和当天两次派 subagent 只读地看 diffusion 的例子重讲后，用户：「A」（加）。通用块 *Guardrails* 加一条：只读的任务不留下任何写入，别人的源码目录尤其如此；一次性脚本在临时目录里跑；派 subagent 去只读地看时在 brief 里写明可以写哪里。`rev` 改为 `2026-11-10.2`。
+- 用户问旧 issue（`20260929-agent-instructions-reusable-memories-wontfix`）的内容是否都已解决。main agent 逐个主题对了：13 个里 11 个已在 hww；第 10 个（给别的仓库的东西先本地起草）被当天定的做法取代；第 5 个（只读检查不留写入）hww 里没有；末尾两条 Hermes 的事属于全局指令，归用户。第 5 个用 9 月 28 日的事和当天两次派 subagent 只读地看 diffusion 的例子重讲后，用户：「A」（加）。通用块 *Guardrails* 加一条：只读的任务不留下任何写入，别人的源码目录尤其如此；一次性脚本在临时目录里跑；派 subagent 去只读地看时在 brief 里写明可以写哪里。`rev` 改为 `2026-11-10.2`。
+- 用户同意归档旧 issue：「可以」。`20260929-agent-instructions-reusable-memories-wontfix` 改名加 `-wontfix`、移进 `archive/`，顶上写明被 how-we-work 取代和 13 个主题各自的去向；指向它的链接都改了；末尾两条 Hermes 的事另记一张 `20261110-agent-instructions-hermes-two-open-points.md`。

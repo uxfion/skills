@@ -1,5 +1,7 @@
 # agent-instructions 改进清单
 
+> 2026-11-10 归档，没有照这张单子的办法做：把各项目常用的记忆写进全局指令这条路，被 how-we-work skill 取代（[20261110-how-we-work.md](../20261110-how-we-work.md)）。用户当天：「之前说的进 global instruction 是错误的。当初为了想这个方法临时提的，我们现在新建了一个 how-we-work skills」。13 个主题的去向：第 1–4、6–9、11–13 个已在 how-we-work 的通用块或参考里；第 5 个（只读检查不留写入）2026-11-10 补进通用块的 *Guardrails*；第 10 个（给别的仓库的东西先本地起草）被当天定的做法取代（别的仓库默认不写，给 skills 仓库提 issue 是常设的例外）。末尾“走 Auto memory 流程的两条”是 Hermes 的事，另记在 [20261110-agent-instructions-hermes-two-open-points.md](../20261110-agent-instructions-hermes-two-open-points.md)。全局指令由用户自己管。
+
 用户 2026-09-29 的原话：「我的意图就是想把每个项目里经常用到的这些 memory 整理起来、维护起来，然后有必要的话写进 agent instruction 里面。这样就不用经常在项目中，去引用其他项目中比较好的一些记忆，能够统一管理且自己可以进行迭代。」
 
 本文件的主体是把各项目反复用到的记忆收拢成主题，逐个决定要不要写进全局指令（`agent-instructions/`）。目前只收集整理，还没起草措辞（「现在只是收集和整理，并没有草拟和修改」）。
@@ -31,7 +33,7 @@
 1. **规则写进全局后，各项目里的原记忆怎么处理。** 建议：只重复全局指令的删掉，项目特有的部分留下并改短；删除按项目逐个问你。理由：Claude Code 的记忆规则本来就不存 CLAUDE.md 里已有的东西；副本留着会继续分叉。
 2. **选项编号。** 建议用 ABC/abc/123：这是 09-28 的偏好，比 1234 那条（09-20）晚，而且当时你说「记住我的偏好」。`fin:plain-numbering` 随后改掉。
 3. **受阻时的回退梯子（第 7 节）。** 09-21 你否决过把它放进全局。建议只上升通用的一半，OpenCLI、浏览器的具体顺序留在 skill。
-4. **Python 节的一次性写法加 `--no-project`（第 5 节）。** 09-28 你说暂不改、以后提醒。建议这批一起改：现有写法在有 `pyproject.toml` 的目录里会建 `.venv`，是指令本身的缺陷。→ 已定（10-07）：单独改，只加 `--no-project`，见 [20261007-uv-python-no-project-fixed.md](archive/20261007-uv-python-no-project-fixed.md)。
+4. **Python 节的一次性写法加 `--no-project`（第 5 节）。** 09-28 你说暂不改、以后提醒。建议这批一起改：现有写法在有 `pyproject.toml` 的目录里会建 `.venv`，是指令本身的缺陷。→ 已定（10-07）：单独改，只加 `--no-project`，见 [20261007-uv-python-no-project-fixed.md](20261007-uv-python-no-project-fixed.md)。
 5. **讲解方式（第 12 节）。** 建议写成通用句，不写你的专业背景，公开仓库里就没有个人画像。
 6. **advisor（第 13 节）。** 建议不上升：Claude Code 的系统提示已经要求动手前、卡住时、完成前调用，当初纠正的"终审太晚"已被覆盖；Codex、Hermes 没有 advisor。
 7. **用户原话记录（第 9 节）。** 建议只上升"引用你的话要逐字"；"所有思路都记下来"留在想法系统里。
@@ -82,7 +84,7 @@
 - 来源：`tmp:readonly-checks-no-writes`
 - 为什么：09-28 一个子 agent 只读检查时，在别人的源码目录里跑了 `uv run -`，uv 建了 `.venv` 并重写了 egg-info；实测加 `--no-project` 后不再建环境。
 - harness 现状：现有 Python 节的一次性写法 `uv run -` 就有这个问题。这是唯一要改现有节的主题。
-- 详情：[20261007-uv-python-no-project-fixed.md](archive/20261007-uv-python-no-project-fixed.md)，10-07 的实测、边界条件和改动方向都在那边。
+- 详情：[20261007-uv-python-no-project-fixed.md](20261007-uv-python-no-project-fixed.md)，10-07 的实测、边界条件和改动方向都在那边。
 - 状态：候选（Python 写法已按决定 4 改；「只读任务不留写入」的通用规则还是候选）
 
 ### 6. 求证纪律
