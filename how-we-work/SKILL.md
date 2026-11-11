@@ -1,6 +1,6 @@
 ---
 name: how-we-work
-description: The user's shared working rules for their research projects — the common block synced into each project's AGENTS.md, and one reference per kind of work. Use in a project whose AGENTS.md carries the how-we-work block: at the start of a session (sync), before an experiment or a run on a training server, a report, a literature search, a manuscript, a new directory or record, and when the user switches on an unattended run (无人值守). Use also when the user asks for a project to adopt these rules, and when a common rule is to be changed.
+description: "The user's shared working rules for their research projects — the common block synced into each project's AGENTS.md, and one reference per kind of work. Use in a project whose AGENTS.md carries the how-we-work block: at the start of a session (sync), before an experiment or a run on a training server, a report, a literature search, a manuscript, a new directory or record, and when the user switches on an unattended run (无人值守). Use also when the user asks for a project to adopt these rules, and when a common rule is to be changed."
 ---
 
 # How we work
