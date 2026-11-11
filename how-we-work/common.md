@@ -1,4 +1,4 @@
-<!-- how-we-work:begin rev 2026-11-10 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
+<!-- how-we-work:begin rev 2026-11-10.2 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
 
 # How we work
 
@@ -103,6 +103,7 @@ Before a kind of work, invoke the how-we-work skill and read its reference for t
 
 ## Guardrails
 
+- A task that only reads leaves no write behind, least of all in someone else's source tree: a throwaway script runs in the session's scratch directory, and the brief of a subagent sent to read says what it may write and that everything else is read-only.
 - Write only inside this project unless the user names the outside target. The one standing exception is an issue file in the skills repository (the how-we-work skill's `SKILL.md` says where it is and what the issue holds), logged on your own and mentioned in a line: for a problem in one of the user's skills, a sentence of this block or of a reference that led you wrong, or a rule to promote.
 - A file that a later step or a later session needs lives in the project, not in a session's temporary directory. When something the user has seen (a figure, a prompt, a run's output) is redone, the seen version stays beside the new one.
 - Use the caches that already exist; do not create another. Anything installed outside uv on this machine needs the user's yes on a preview that says what, why, from where, how large and how to remove it (unattended: the unattended reference; on a training server: the experiments reference). The yes covers the tool named and nothing beside it: a second tool it turns out to need gets its own preview; what was installed is recorded so that it can be undone.
