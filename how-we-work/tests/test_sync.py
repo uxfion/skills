@@ -7,8 +7,10 @@
 The skill's own common.md is not used: every run names a small one of the test's through HOW_WE_WORK_COMMON. The
 expected bytes and lines are written by hand.
 """
+import hashlib
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -314,6 +316,26 @@ class Sync(unittest.TestCase):
         self.assertTrue(last["detail"])
         self.assertTrue(self.untouched(stale))
         self.assertEqual([f.name for f in self.project.iterdir()], ["AGENTS.md"])
+
+
+
+class Rev(unittest.TestCase):
+    """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
+    install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
+    leaves the rev alone fails here."""
+    REV, SHA256 = "2026-11-10", "ad82b46f02c9cd325eb37b274a19a93f53c39049a4c42630e31212b65e0d464e"
+
+    def test_the_rev_moves_whenever_the_block_changes(self):
+        data = (ENTRY.parent.parent / "common.md").read_bytes()
+        m = re.search(rb"<!--[ \t]*how-we-work:begin[ \t]+rev[ \t]+(\S+)[^>]*-->(.*?)<!--[ \t]*how-we-work:end[ \t]*-->", data, re.S)
+        self.assertIsNotNone(m, "common.md's begin marker carries no rev")
+        rev, sha = m.group(1).decode(), hashlib.sha256(m.group(2)).hexdigest()
+        if sha != self.SHA256:
+            self.assertNotEqual(rev, self.REV, "common.md's block changed and its rev did not: move the rev in the begin "
+                                               "marker to today (a second change on one day: <day>.2), then record the "
+                                               "new pair here")
+            self.fail(f"common.md is at rev {rev} with new text: record REV, SHA256 = {rev!r}, {sha!r} here")
+        self.assertEqual(rev, self.REV, "the rev moved and the block's text did not: record the new REV here")
 
 
 if __name__ == "__main__":
