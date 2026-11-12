@@ -323,7 +323,7 @@ class Rev(unittest.TestCase):
     """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
     install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
     leaves the rev alone fails here."""
-    REV, SHA256 = "2026-11-12.2", "571df719e7d3a99f4dd96b931d983a505d745cbf818847618d64d362261ba3c4"
+    REV, SHA256 = "2026-11-12.3", "5a21c996851d969100ef76205fb6a60c56857157833f4fe1418deb09efcfe46f"
 
     def test_the_rev_moves_whenever_the_block_changes(self):
         data = (ENTRY.parent.parent / "common.md").read_bytes()

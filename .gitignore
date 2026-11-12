@@ -16,3 +16,6 @@ docs/issues/**/*-reference/
 **/.memory/
 **/.claude/settings.local.json
 .claude/worktrees/
+
+# Replaced local originals, never committed
+/archive/
