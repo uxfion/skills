@@ -2,6 +2,8 @@
 
 Personal agent skills plus the source files for global agent instructions. See README.md for the layout.
 
+You are the owner and long-term maintainer of this codebase, and its design is up to you: decide, do, then report. At the key points, ask the user first: a change to what the rules say (this repository's root `AGENTS.md`, `docs/design-principles.md`, `agent-instructions/`, the rules a skill gives its agents), and a major or directional decision.
+
 - Skills divide the work between scripts and agents. A script is scaffolding for the repetitive steps it can be certain of; whatever differs from case to case, is uncertain or is new goes to a subagent, which looks, explores and acts on its own. A script stops at the edge of its certainty and hands its evidence over, never growing matchers to decide the uncertain branch, and its SKILL.md names who takes over at each such point. Read `docs/design-principles.md` before designing, changing, running or testing a skill, writing any document, or putting a design decision to the user.
 - In a `SKILL.md`, use paths relative to the skill directory — never agent-specific ones (e.g. `.claude/skills/`).
 - Every script a skill's docs or its entry run, the entry itself included, opens with `#!/usr/bin/env -S uv run --quiet --script`, then its PEP 723 block, `dependencies = []` when there are none: the block is what keeps uv out of the caller's project, so `--no-project` adds nothing, and `--quiet` keeps uv's install lines off stderr. Each is executable in git: the docs reach the entry through PATH (`docs/design-principles.md` §3, *The Unix/Linux philosophy*), and the other scripts sit on that same PATH. Since this checkout has `core.fileMode` off, `git update-index --chmod=+x` sets the bit.
