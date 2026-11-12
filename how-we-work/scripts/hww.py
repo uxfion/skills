@@ -28,7 +28,7 @@ from pathlib import Path
 SELF = Path(__file__).name
 # word: (script, what it does). Every word runs here, in hww.py, so none has a script of its own.
 WORDS = {
-    "sync": (None, "bring the common block of a project's AGENTS.md up to date; list its rules waiting to be promoted"),
+    "sync": (None, "bring the common block of a project's AGENTS.md up to date; check the form of its convention files"),
     "add": (None, "make the project's convention file for one kind of work, in the form sync checks"),
 }
 OK, ACT, CANNOT = 0, 1, 2
@@ -40,20 +40,15 @@ REFERENCES = Path(__file__).resolve().parent.parent / "references"
 NOT_KINDS = {"adopting", "maintaining"}
 CONVENTIONS = Path("docs") / "conventions"
 REFERENCE_LINE = "Read the how-we-work skill's {kind} reference first (invoke the skill); this file only adds to it."
-PROJECT_ONLY = ("this project only", "本项目")     # a `## ` heading holding either
 # The two markers, as HTML comments. A begin marker may carry any text after `begin`, a note to the reader.
 BEGIN = re.compile(rb"<!--[ \t]*how-we-work:begin\b.*?-->", re.S)
 END = re.compile(rb"<!--[ \t]*how-we-work:end[ \t]*-->")
 # The day the block last changed, in its begin marker: `rev 2026-11-10`, or `2026-11-10.2` for a further change that day.
 REV = re.compile(rb"how-we-work:begin[ \t]+rev[ \t]+(\d{4})-(\d{2})-(\d{2})(?:\.(\d+))?")
-# What an agent writes at an entry's end once it has judged it (the skill's SKILL.md gives the two forms).
-MARK = re.compile(r"\((issue|judged)\b[^()]*\)\s*$")
 HEADING = re.compile(r"^(#{1,6})[ \t]+(.*)$")
-TO_PROMOTE = ("待提升", "to promote")              # a `## ` heading holding either opens the section
-ITEM = re.compile(r"^(?:[-*+]|\d+[.)])[ \t]+(.*)$")   # a list item starting in the line's first column
 FENCE = re.compile(r"^(?:(`{3,})[^`]*|(~{3,}).*)$")   # a code fence opening in the line's first column
 
-SYNC = """Bring the how-we-work block of a project's AGENTS.md up to date, and list the project's rules waiting to be promoted.
+SYNC = """Bring the how-we-work block of a project's AGENTS.md up to date, and check the form of its convention files.
 
 The block. In FILE and in the skill's common.md alike, the block runs from the comment
 `<!-- how-we-work:begin ... -->` (any text may follow `begin`) through the comment `<!-- how-we-work:end -->`, both
@@ -70,34 +65,20 @@ comes before it), decide the place, put an empty pair there, and run sync:
 common.md is the one in the skill's directory, beside scripts/; HOW_WE_WORK_COMMON names another file.
 
 Convention files. Each docs/conventions/*.md beside FILE adds to one reference of the skill and is checked for its
-form: its name is that reference's (`hww.py add -h` lists them); before its first `## ` heading it holds the line
-that sends the reader to the reference first; and it has a `## ` heading for what is this project's only and one
-for what is to promote. `hww.py add KIND` makes a file in this form. A file that is not in it is listed, for you
-to put right; its entries to promote are listed all the same.
+form: its name is that reference's (`hww.py add -h` lists them), and before its first `## ` heading it holds the
+line that sends the reader to the reference first. `hww.py add KIND` makes a file in this form. A file that is not
+in it is listed, for you to put right. sync reads no entry: what a rule says, and whether it holds beyond this
+project, is not the script's to judge.
 
-To promote. In FILE outside its block (a rule for every task that the project holds), and in each
-docs/conventions/*.md beside FILE, under a `## ` heading that holds "待提升" or "To promote", up to the next `# `
-or `## ` heading, every list item starting in the first column is one entry, with the lines that continue it. Text
-there outside a list item is not listed, and a fenced example starting in the first column is not read. sync judges
-no entry: whether one holds beyond this project, or the common rules now cover it, is yours to judge.
-
-stdout: one JSON line for the block, then one for each entry: FILE's own first, then the convention files in name
-order; then one for each convention file that is not in form.
+stdout: one JSON line for the block, then one for each convention file that is not in form, in name order.
   {code: "ok", file, block}                block: "updated" or "current"; with -n, an "updated" line adds
                                            dry_run: true and FILE is as it was
-  {code: "to_promote", file, line, entry, mark}
-                                           file: FILE or the convention file; line: where the item starts; entry: its
-                                           text as written, without the list marker; mark: "issue" or "judged" when the
-                                           entry ends in `(issue: ...)` or `(judged ...: stays)`, else null
   {code: "convention", file, problems, hint}
-                                           problems: any of unknown_kind, no_reference_line,
-                                           no_project_only_heading, no_to_promote_heading
+                                           problems: unknown_kind, no_reference_line, or both
 
-Exit status: 0 = nothing waits: every convention file is in form, and there is no entry or each carries a mark and
-the block was already current; 1 = a convention file is not in form, or entries wait to be judged, those whose mark
-is null, or all of them when the block was just updated: stderr ends with
-{"summary": {to_promote, unjudged, files, conventions}}; 2 = cannot go on: FILE is as it was, and stderr's last line is
-{code, hint, ...}, the code one of
+Exit status: 0 = the block is current or was brought up to date, and every convention file is in form; 1 = a
+convention file is not in form: stderr ends with {"summary": {conventions}}; 2 = cannot go on: FILE is as it was,
+and stderr's last line is {code, hint, ...}, the code one of
   no_block                FILE holds no marker
   unclosed_block          a begin marker with no end marker after it, or an end marker alone
   several_blocks          more than one begin or end marker (one quoted in the text counts)
@@ -109,7 +90,7 @@ is null, or all of them when the block was just updated: stderr ends with
 
 Examples:
   hww.py sync
-  hww.py sync -n | jq -r 'select(.code == "to_promote") | "\\(.file):\\(.line)"'
+  hww.py sync -n | jq -r 'select(.code == "convention") | .file'
 """
 
 
@@ -207,41 +188,6 @@ def common_block():
     return data[span[0]:span[1]]
 
 
-def to_promote(path, skip=None):
-    """[(line number, text)]: the entries of a file's to-promote sections; `skip` is a (first, last) range of
-    lines left out, the how-we-work block of the project's AGENTS.md. A fenced block that opens in the first column
-    is an example, read neither for headings nor for items; a fence indented under an item is that item's text."""
-    entries, current, inside, blank, fence = [], None, False, False, None
-    for number, line in enumerate(path.read_bytes().decode("utf-8-sig", errors="replace").splitlines(), 1):
-        if skip and skip[0] <= number <= skip[1]:
-            current, inside, blank, fence = None, False, False, None   # the block opens with its own `# ` heading
-            continue
-        if fence:                         # inside a fenced example, up to a closing fence at least as long
-            closing = line.rstrip()
-            if len(closing) >= len(fence) and set(closing) == {fence[0]}:
-                fence = None
-            blank = False
-            continue
-        if opening := FENCE.match(line):
-            fence, current, blank = opening.group(1) or opening.group(2), None, False
-            continue
-        heading, item = HEADING.match(line), ITEM.match(line)
-        if heading:
-            current = None
-            if len(heading.group(1)) <= 2:
-                inside = len(heading.group(1)) == 2 and any(t in heading.group(2).casefold() for t in TO_PROMOTE)
-        elif inside and item:
-            current = [item.group(1).rstrip()]
-            entries.append((number, current))
-        elif current is not None:
-            if line.strip() and blank and not line[0].isspace():
-                current = None            # a paragraph of its own after a blank line: no longer the item's
-            else:
-                current.append(line.rstrip())
-        blank = not line.strip()
-    return [(number, text) for number, lines in entries if (text := "\n".join(lines).rstrip())]
-
-
 def kinds():
     """The kinds of work a project may keep a convention file for: the skill's references, by name."""
     return sorted(f.stem for f in REFERENCES.glob("*.md") if f.stem not in NOT_KINDS)
@@ -249,7 +195,7 @@ def kinds():
 
 def convention_problems(path, known):
     """What keeps a convention file from being in form, as a list of names; empty when it is."""
-    reference_line, seen_heading, project_only, promote, fence = False, False, False, False, None
+    reference_line, fence = False, None
     expected = REFERENCE_LINE.format(kind=path.stem)
     for line in path.read_bytes().decode("utf-8-sig", errors="replace").splitlines():
         if fence:                         # a fenced example is not the file's own text
@@ -262,13 +208,11 @@ def convention_problems(path, known):
             continue
         heading = HEADING.match(line)
         if heading and len(heading.group(1)) == 2:
-            seen_heading, title = True, heading.group(2).casefold()
-            project_only = project_only or any(t in title for t in PROJECT_ONLY)
-            promote = promote or any(t in title for t in TO_PROMOTE)
-        elif not seen_heading and line.strip() == expected:
+            break                         # the line stands before the first `## ` heading
+        if line.strip() == expected:
             reference_line = True
-    return [name for name, ok in (("unknown_kind", path.stem in known), ("no_reference_line", reference_line),
-                                  ("no_project_only_heading", project_only), ("no_to_promote_heading", promote))
+            break
+    return [name for name, ok in (("unknown_kind", path.stem in known), ("no_reference_line", reference_line))
             if not ok]
 
 
@@ -324,35 +268,18 @@ def sync(argv):
                                            "It is as it was.", file=args.file, detail=str(e))
     emit(done)
 
-    # the project's own part of FILE first (the block's lines left out), then the convention files in name order
-    now = path.read_bytes()
-    span, why, _ = find_block(now)
-    inside = None if why else (now[:span[0]].count(b"\n") + 1, now[:span[1]].count(b"\n") + 1)
-    found = {args.file: to_promote(path, inside)}
-    files = sorted((path.parent / "docs" / "conventions").glob("*.md"))
-    found.update({str(f): to_promote(f) for f in files if f.is_file()})
-    unjudged = 0
-    for name, entries in found.items():
-        for number, text in entries:
-            mark = MARK.search(text)
-            unjudged += mark is None
-            emit({"code": "to_promote", "file": name, "line": number, "entry": text, "mark": mark and mark.group(1)})
     known, out_of_form = kinds(), 0
-    for f in files:
+    for f in sorted((path.parent / CONVENTIONS).glob("*.md")):
         if f.is_file() and (problems := convention_problems(f, known)):
             out_of_form += 1
             emit({"code": "convention", "file": str(f), "problems": problems,
-                  "hint": f"A convention file is named for a reference of the skill ({', '.join(known)}), holds the "
-                          f"line `{REFERENCE_LINE.format(kind='<its name>')}` before its first `## ` heading, and has "
-                          f"the headings `## This project only` and `## To promote`. Put right what `problems` names; "
-                          f"what a file of an unknown kind holds moves to the kind it belongs to, or, a rule for every "
-                          f"task, to AGENTS.md outside the block. `{SELF} add KIND` makes a file in form."})
-    total = sum(map(len, found.values()))
-    # marked entries wait for nothing, until the block changes: then each is judged against the new block
-    if out_of_form or unjudged or (total and done["block"] == "updated"):
-        emit({"summary": {"to_promote": total, "unjudged": unjudged,
-                          "files": sum(1 for entries in found.values() if entries), "conventions": out_of_form}},
-             sys.stderr)
+                  "hint": f"A convention file is named for a reference of the skill ({', '.join(known)}) and holds "
+                          f"the line `{REFERENCE_LINE.format(kind='<its name>')}` before its first `## ` heading. Put "
+                          f"right what `problems` names; what a file of an unknown kind holds moves to the kind it "
+                          f"belongs to, or, a rule for every task, to AGENTS.md outside the block. `{SELF} add KIND` "
+                          f"makes a file in form."})
+    if out_of_form:
+        emit({"summary": {"conventions": out_of_form}}, sys.stderr)
         return ACT
     return OK
 
@@ -360,9 +287,9 @@ def sync(argv):
 ADD = """Make the project's convention file for one kind of work: docs/conventions/KIND.md, in the current directory.
 
 A convention file holds what this project adds to one reference of the skill, and carries that reference's name.
-add writes it in the form sync checks: a title, the line that sends the reader to the reference first, and the two
-headings entries go under, `## This project only` and `## To promote`. A file that is already there is left as it
-is. Run it in the project's root, where AGENTS.md is.
+add writes it in the form sync checks: a title and the line that sends the reader to the reference first; the
+entries under it are yours to write. A file that is already there is left as it is. Run it in the project's root,
+where AGENTS.md is.
 
 KIND is one of: {kinds}
 
@@ -405,8 +332,7 @@ def add(argv):
             done["dry_run"] = True
         else:
             title = args.kind.replace("-", " ").capitalize()
-            text = (f"# {title}: this project\n\n{REFERENCE_LINE.format(kind=args.kind)}\n\n"
-                    f"## This project only\n\n## To promote\n")
+            text = f"# {title}: this project\n\n{REFERENCE_LINE.format(kind=args.kind)}\n"
             try:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(text, encoding="utf-8", newline="")

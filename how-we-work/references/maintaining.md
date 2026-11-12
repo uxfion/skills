@@ -1,6 +1,6 @@
 # Maintaining the common rules
 
-Read this in the skills repository, before proposing or making a change to `common.md` or to a reference of this skill. A project session reaches this file to judge an entry to promote (*What earns a line*) and to prepare the issue that proposes it (*How a rule is proposed*).
+Read this in the skills repository, before proposing or making a change to `common.md` or to a reference of this skill. It also says how what the projects have learned reaches the common rules (*Reconciling the projects*).
 
 ## What earns a line
 
@@ -20,6 +20,27 @@ What stays out, and where it lives instead:
 Length is no measure, in either direction: 「篇幅不是问题啊……只要能把原则、规则讲清楚就好了」. What the current model already does unprompted is proposed for deletion at a tidy.
 
 A statement the user made for one moment is not a rule. Before writing one down, check its breadth against their words: a sentence said under a momentary constraint (a usage limit just hit, one deadline) is for that moment.
+
+## Reconciling the projects
+
+How a project's rule becomes a common rule. From inside one project nobody can tell whether a rule holds in the others, so a project's agent does not judge it: this repository's session reads the projects and brings what it finds to the user. Adoption was the first such reading of a project; this is the same reading, done again.
+
+- **When.** On the user's word. Offer it when a release is about to be synced into the projects.
+- **What is read.** For each project that carries the block (their paths are `projects` in `~/.config/how-we-work/config.json`): its `.memory/`, its `AGENTS.md` outside the block, its `docs/conventions/`. Read-only, and by the main agent itself: a project holds a few dozen entries, which is not work for subagents.
+- **What comes out is the exceptions,** never a table of every entry:
+
+  | Seen | Done |
+  |---|---|
+  | A rule in a project's files that would hold in any project; the same rule standing in two projects is the best evidence. Also an entry in a project's memory that carries the user's words stated as holding from now on | Put to the user (*How a rule is proposed*). On their yes it enters the block, or the reference of the same kind, and the entries it came from are listed for deletion |
+  | An entry the common rules already state, or have overtaken | Listed for the project to delete: the project's text outranks the block, so an old copy would override the newer rule |
+  | A lesson in a project's memory that has proved itself | Named to the project's session, which promotes it into the project's files |
+  | A rule that is the project's own | Left |
+
+- **What the user turns down or puts off** is recorded in this repository's `docs/decisions/`, so that the next reading does not ask again. Nothing is marked in the project.
+- **Changes in a project are its own session's**: give the user a short prompt to paste there. On the user's word to make them from here, first check that no session is running in that project.
+- **Notes about a project** made while reading stay in a git-ignored place. This repository is public: what enters its tracked files is the general rule and the user's words.
+- **A rule that reads as design thinking** is not written into `docs/design-principles.md` from here; it is proposed to the user by that document's own procedure.
+- **Many entries in a project's `AGENTS.md` that share a kind of work no reference covers** are the sign that a reference is missing: say so.
 
 ## How a rule is proposed
 
@@ -46,4 +67,4 @@ The issue that carried the rule holds the user's words, dated, and the decision;
 
 ## After a change
 
-A change to `common.md` reaches a project at its next sync. Where a change makes an entry in a project's `## To promote` redundant, that project's agent deletes the entry when the sync lists it. The public repository is scanned before a push, as its `AGENTS.md` says; the user's sentences quoted in these files are about how to work and stay whole, with two things kept out before a commit: anything that would locate the user's institution, and any credential. The user's bar: 「只要不是那种直接能定位到学校的，或者说一些凭证信息，应该是无所谓的吧」. A change to `common.md` moves the `rev` in its begin marker to the day of the change (`rev <YYYY-MM-DD>`, or `<YYYY-MM-DD>.<n>` for a further change on the same day). The skill's test fails while the block's text has changed and the `rev` has not.
+A change to `common.md` reaches a project at its next sync. After a sync that updated the block, the project's agent reads its own entries against the new block and deletes what the block now states (the skill's `SKILL.md`). The public repository is scanned before a push, as its `AGENTS.md` says; the user's sentences quoted in these files are about how to work and stay whole, with two things kept out before a commit: anything that would locate the user's institution, and any credential. The user's bar: 「只要不是那种直接能定位到学校的，或者说一些凭证信息，应该是无所谓的吧」. A change to `common.md` moves the `rev` in its begin marker to the day of the change (`rev <YYYY-MM-DD>`, or `<YYYY-MM-DD>.<n>` for a further change on the same day). The skill's test fails while the block's text has changed and the `rev` has not.

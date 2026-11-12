@@ -148,155 +148,41 @@ class Sync(Base):
         self.assertEqual((done.returncode, done.stderr), (0, ""))
         self.assertIn("\n  sync  ", done.stdout)
 
-    def test_a_rule_to_promote_in_the_projects_own_part_of_agents_md_is_listed_and_the_block_is_not_read(self):
-        # the block itself holds a `## To promote` heading with an item: it is the skill's text, never an entry
-        block = (b"<!-- how-we-work:begin -->\n\n## To promote\n\n- inside the block: not an entry\n\n"
-                 b"<!-- how-we-work:end -->")
-        common = self.dir / "common-with-heading.md"
-        common.write_bytes(block + b"\n")
-        self.put(b"# Project\n\n## To promote\n\n- **Above the block.**\n\n" + EMPTY_PAIR
-                 + b"\n\n- a list after the block, under no heading: not an entry\n\n## This project only\n\n- **Uses server A.**\n\n"
-                 b"## To promote\n\n- **State a collision before editing.** From: 2026-10-09\n")
-        code, out, err = self.run_entry("sync", self.file, common=common)
-        self.assertEqual(code, 1)
-        self.assertEqual(out[0], {"code": "ok", "file": str(self.file), "block": "updated"})
-        text = self.file.read_bytes().decode().splitlines()
-        line = text.index("- **State a collision before editing.** From: 2026-10-09") + 1
-        self.assertEqual(out[1:], [{"code": "to_promote", "file": str(self.file), "line": 5, "entry": "**Above the block.**",
-                                    "mark": None},
-                                   {"code": "to_promote", "file": str(self.file), "line": line,
-                                    "entry": "**State a collision before editing.** From: 2026-10-09", "mark": None}])
-        self.assertEqual(json.loads(err.strip().splitlines()[-1]),
-                         {"summary": {"to_promote": 2, "unjudged": 2, "files": 1, "conventions": 0}})
-
-    def test_entries_to_promote_are_listed_and_exit_1(self):
-        self.put(b"# Project\n\n" + EMPTY_PAIR + b"\n")
+    def test_convention_files_out_of_form_are_listed_and_exit_1_and_no_entry_is_read(self):
+        self.put(b"# Project\n\n" + BLOCK + b"\n\n## To promote\n\n- **An entry in the project's own part: not the script's to read.**\n")
         conventions = self.project / "docs" / "conventions"
         conventions.mkdir(parents=True)
-        # the heading in Chinese; CRLF line endings
-        (conventions / "experiments.md").write_bytes((
-            "# 实验：本项目\r\n"                                        # 1
-            "\r\n"
-            "## 本项目专有\r\n"                                         # 3
-            "\r\n"
-            "- **只用 A 服务器。** 为什么只属于这里：数据在那。\r\n"    # 5
-            "\r\n"
-            "## 待提升\r\n"                                             # 7
-            "\r\n"
-            "- **图例放右上角。** From: 2026-11-10 「以后图例放右上角」\r\n"   # 9
-            "- **每个实验一个文件夹。**\r\n"                            # 10
-            "  From: the first runs,\r\n"
-            "  which got mixed up.\r\n"
-            "\r\n"
-            "## 其他\r\n"                                               # 14
-            "\r\n"
-            "- 不在待提升一节里。\r\n").encode())
-        # the heading in English, with what an entry may hold: a nested list, a lazy line, a paragraph of its own
+        line = REFERENCE_LINE.format(kind="experiments")
+        # in form: the name of a reference, the line before the first `## ` heading; headings and entries are free
+        (conventions / "experiments.md").write_bytes(
+            ("# 实验：本项目\r\n\r\n" + line + "\r\n\r\n## To promote\r\n\r\n- **图例放右上角。**\r\n").encode())
+        # the line only inside a fenced example, and again after the first `## ` heading: not in form
         (conventions / "reports.md").write_text(
-            "# Reports: this project\n"                    # 1
-            "\n"
-            "## To promote\n"                              # 3
-            "\n"
-            "A sentence that is no list item.\n"           # 5
-            "\n"
-            "1. **Numbers carry their unit.**\n"           # 7
-            "   - also in tables\n"
-            "a line that continues it\n"
-            "\n"
-            "    kept: indented under the item\n"          # 11
-            "\n"
-            "A paragraph of its own, not the item's.\n"    # 13
-            "\n"
-            "### Figures\n"                                # 15
-            "\n"
-            "* **Axis labels in English.**\n"              # 17
-            "\n"
-            "# Another part\n"                             # 19
-            "\n"
-            "- not under the heading any more\n", encoding="utf-8")
-        # fenced examples: one opening in the first column is not read, its heading and its item included; one
-        # indented under an item is that item's text
-        (conventions / "layout.md").write_text(
-            "# Layout: this project\n"                              # 1
-            "\n"
-            "## To promote\n"                                       # 3
-            "\n"
-            "The form of an entry, as an example:\n"                # 5
-            "\n"
-            "```markdown\n"                                         # 7
-            "## This project only\n"
-            "\n"
-            "- **<the rule, one sentence>.** From: <the date>.\n"   # 10
-            "```\n"
-            "\n"
-            "- **An archive folder has an index.** Its form:\n"     # 13
-            "\n"
-            "  ```markdown\n"                                       # 15
-            "  | What | Where it was |\n"
-            "  ```\n"
-            "- **Scratch files stay out of git.**\n"                # 18
-            "~~~\n"
-            "- not an entry: a second fenced example, in tildes\n"  # 20
-            "~~~\n", encoding="utf-8")
-        # no such heading: nothing listed from it
-        (conventions / "servers.md").write_text("# Servers\n\n## This project only\n\n- **One GPU box.** Why here only: x.\n",
-                                                encoding="utf-8")
-        (conventions / "notes.txt").write_text("## To promote\n\n- not a convention file\n", encoding="utf-8")
+            "# Reports: this project\n\n```markdown\n" + REFERENCE_LINE.format(kind="reports") + "\n```\n\n"
+            "## Later\n\n" + REFERENCE_LINE.format(kind="reports") + "\n", encoding="utf-8")
+        # another kind's line does not serve
+        (conventions / "layout.md").write_text("# Layout: this project\n\n" + line + "\n", encoding="utf-8")
+        # a topic of the project's own, and a reference that is no kind of work
+        (conventions / "servers.md").write_text("# Servers\n\n- **One GPU box.**\n", encoding="utf-8")
+        (conventions / "adopting.md").write_text(
+            "# Adopting\n\n" + REFERENCE_LINE.format(kind="adopting") + "\n", encoding="utf-8")
+        (conventions / "notes.txt").write_text("not a convention file\n", encoding="utf-8")
 
-        experiments, layout, reports = (str(conventions / name) for name in ("experiments.md", "layout.md", "reports.md"))
-        entries = [
-            {"code": "to_promote", "file": experiments, "line": 9,
-             "entry": "**图例放右上角。** From: 2026-11-10 「以后图例放右上角」"},
-            {"code": "to_promote", "file": experiments, "line": 10,
-             "entry": "**每个实验一个文件夹。**\n  From: the first runs,\n  which got mixed up."},
-            {"code": "to_promote", "file": layout, "line": 13,
-             "entry": "**An archive folder has an index.** Its form:\n\n  ```markdown\n  | What | Where it was |\n  ```"},
-            {"code": "to_promote", "file": layout, "line": 18, "entry": "**Scratch files stay out of git.**"},
-            {"code": "to_promote", "file": reports, "line": 7,
-             "entry": "**Numbers carry their unit.**\n   - also in tables\na line that continues it\n\n"
-                      "    kept: indented under the item"},
-            {"code": "to_promote", "file": reports, "line": 17, "entry": "**Axis labels in English.**"},
-        ]
-        entries = [{**entry, "mark": None} for entry in entries]      # none of them judged yet
-        # none of these hand-made files is in form: each is listed after the entries, with what it lacks
-        servers = str(conventions / "servers.md")
-        out_of_form = {experiments: ["no_reference_line"],
-                       layout: ["no_reference_line", "no_project_only_heading"],
-                       reports: ["no_reference_line", "no_project_only_heading"],
-                       servers: ["unknown_kind", "no_reference_line", "no_to_promote_heading"]}
-        summary = {"summary": {"to_promote": 6, "unjudged": 6, "files": 3, "conventions": 4}}
-
-        status, lines, err = self.run_entry("sync", self.file)
-        self.assertEqual({line["file"]: line["problems"] for line in lines[len(entries) + 1:]}, out_of_form)
-        self.assertTrue(all(line["code"] == "convention" and line["hint"] for line in lines[len(entries) + 1:]))
-        lines = lines[:len(entries) + 1]
-        self.assertEqual((status, lines), (1, [{"code": "ok", "file": str(self.file), "block": "updated"}, *entries]))
-        self.assertEqual([json.loads(line) for line in err.splitlines()], [summary])
-        self.assertEqual(self.file.read_bytes(), b"# Project\n\n" + BLOCK + b"\n")
-
-        # the entries wait until an agent has dealt with them: listed again, with -n as well, the block now current
-        os.utime(self.file, (OLD, OLD))
+        expected = {"adopting.md": ["unknown_kind"], "layout.md": ["no_reference_line"],
+                    "reports.md": ["no_reference_line"], "servers.md": ["unknown_kind", "no_reference_line"]}
         for argv in (("sync", self.file), ("sync", "-n", self.file)):
             status, lines, err = self.run_entry(*argv)
-            self.assertEqual((status, lines[:len(entries) + 1]),
-                             (1, [{"code": "ok", "file": str(self.file), "block": "current"}, *entries]))
-            self.assertEqual(json.loads(err.splitlines()[-1]), summary)
-        self.assertTrue(self.untouched(b"# Project\n\n" + BLOCK + b"\n"))
+            self.assertEqual((status, lines[0]), (1, {"code": "ok", "file": str(self.file), "block": "current"}))
+            self.assertEqual([(Path(l["file"]).name, l["problems"]) for l in lines[1:]], sorted(expected.items()))
+            self.assertTrue(all(l["code"] == "convention" and l["hint"] for l in lines[1:]))
+            self.assertEqual([json.loads(l) for l in err.splitlines()], [{"summary": {"conventions": 4}}])
 
-
-    def test_judged_entries_wait_only_when_the_block_changes(self):
-        own = (b"\n\n## To promote\n\n- **Kept here for now.** (judged 2026-11-10: stays)\n"
-               b"- **Proposed.** From: 2026-11-10 (issue: 20261110-how-we-work-legend.md)\n")
-        self.put(b"# Project\n\n" + EMPTY_PAIR + own)
-        code, out, err = self.run_entry("sync", self.file)        # the block was just written: every entry is judged anew
-        self.assertEqual((code, out[0]["block"], [o["mark"] for o in out[1:]]), (1, "updated", ["judged", "issue"]))
-        self.assertEqual(json.loads(err.strip().splitlines()[-1]), {"summary": {"to_promote": 2, "unjudged": 0, "files": 1, "conventions": 0}})
-        code, out, err = self.run_entry("sync", self.file)        # current block, every entry marked: nothing waits
-        self.assertEqual((code, out[0]["block"], len(out), err), (0, "current", 3, ""))
-        self.file.write_bytes(self.file.read_bytes() + b"- **New today.**\n")
-        code, out, err = self.run_entry("sync", self.file)
-        self.assertEqual((code, [o["mark"] for o in out[1:]]), (1, ["judged", "issue", None]))
-        self.assertEqual(json.loads(err.strip().splitlines()[-1]), {"summary": {"to_promote": 3, "unjudged": 1, "files": 1, "conventions": 0}})
+        # put right, nothing waits
+        for name in ("servers.md", "adopting.md"):
+            (conventions / name).unlink()
+        for kind in ("reports", "layout"):
+            (conventions / f"{kind}.md").write_text(f"# {kind}\n\n" + REFERENCE_LINE.format(kind=kind) + "\n", encoding="utf-8")
+        self.assertEqual(self.run_entry("sync", self.file), (0, [{"code": "ok", "file": str(self.file), "block": "current"}], ""))
 
     def test_an_install_behind_the_projects_block_writes_nothing(self):
         def block(day):
@@ -339,8 +225,8 @@ class Add(Base):
     def test_add_makes_a_file_in_form_once_and_refuses_a_kind_without_a_reference(self):
         self.put(b"# Project\n\n" + BLOCK + b"\n")
         made = self.project / "docs" / "conventions" / "experiments.md"
-        text = ("# Experiments: this project\n\n" + REFERENCE_LINE.format(kind="experiments") + "\n\n"
-                "## This project only\n\n## To promote\n")
+        text = ("# Experiments: this project\n\n" + REFERENCE_LINE.format(kind="experiments") + "\n"
+        )
 
         code, out, err = self.run_entry("add", "-n", "experiments", cwd=self.project)
         self.assertEqual((code, out, err, made.exists()),
@@ -352,7 +238,7 @@ class Add(Base):
         self.assertEqual(self.run_entry("sync", cwd=self.project), (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"}], ""))
 
         # a file that is there is left as it is, entries and all
-        made.write_text(text.replace("## To promote\n", "## To promote\n\n- **A rule.** (judged 2026-11-12: stays)\n"), encoding="utf-8")
+        made.write_text(text + "\n- **A rule.** From: 2026-11-12.\n", encoding="utf-8")
         kept = made.read_bytes()
         self.assertEqual(self.run_entry("add", "experiments", cwd=self.project)[:2],
                          (0, [{"code": "ok", "file": "docs/conventions/experiments.md", "created": False}]))
@@ -376,7 +262,7 @@ class Rev(unittest.TestCase):
     """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
     install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
     leaves the rev alone fails here."""
-    REV, SHA256 = "2026-11-12.4", "6de752663e66c89ae7b566af768ddd675871cb45e19666a908f35e2b008c8888"
+    REV, SHA256 = "2026-11-12.5", "faa5742b987fef67d6713a497083142015842d2c601f0ac61c2926ca1017077a"
 
     def test_the_rev_moves_whenever_the_block_changes(self):
         data = (ENTRY.parent.parent / "common.md").read_bytes()

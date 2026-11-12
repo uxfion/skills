@@ -11,7 +11,7 @@ The user steers several projects and comes back to each after days or months; a 
 
 ## The default map
 
-This is the default for a new project. A project whose map differs follows its own `README.md`, and gives the reason for each difference in its own layout file (`docs/conventions/layout.md`, under `## This project only`). An existing project keeps the directories and the names it has; in one project the user said so of its experiment folders: 「已经有的就不用改了，未来新的，从新在开始就执行这个命名方式」. Bringing an existing project onto this map is a change of the map (below) and waits for the user.
+This is the default for a new project. A project whose map differs follows its own `README.md`, and gives the reason for each difference in its own layout file (`docs/conventions/layout.md`). An existing project keeps the directories and the names it has; in one project the user said so of its experiment folders: 「已经有的就不用改了，未来新的，从新在开始就执行这个命名方式」. Bringing an existing project onto this map is a change of the map (below) and waits for the user.
 
 The last column says whether git tracks the thing. For the inside of an experiment's or a report's folder, that kind's reference has the list. The common block's guardrail on patient data stands above every "yes" in the column.
 

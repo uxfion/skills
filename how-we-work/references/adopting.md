@@ -25,9 +25,9 @@ Read `common.md` and every reference first: each of the project's old rules is j
   | The old rule | Where it goes |
   |---|---|
   | The common block or a reference now says it | Dropped from the project |
-  | A fact of this project (its task, data, hosts, paths, dated cases) | A fact one kind of work needs: that kind's convention file, under `## This project only` (each reference says what its file holds). Hosts: the servers file. The rest: the project's `AGENTS.md`, outside the block, or the document that already holds such facts |
-  | A rule for one kind of work that only this project needs | `docs/conventions/<kind>.md` under `## This project only`, with the reason it is this project's alone |
-  | A rule that looks general and that the common rules do not have | `docs/conventions/<kind>.md` under `## To promote` (a rule for every task: the project's `AGENTS.md`, outside the block, marked the same way), and an issue in the skills repository, named at the entry's end as `(issue: <its file name>)` |
+  | A fact of this project (its task, data, hosts, paths, dated cases) | A fact one kind of work needs: that kind's convention file (each reference says what its file holds). Hosts: the servers file. The rest: the project's `AGENTS.md`, outside the block, or the document that already holds such facts |
+  | A rule for one kind of work that only this project needs | `docs/conventions/<kind>.md`; where it departs from a common rule, it says which and why |
+  | A rule that looks general and that the common rules do not have | Kept as the project's rule, in the place its kind gives (a rule for every task: the project's `AGENTS.md`, outside the block), and named in the brief to the user. It reaches the common rules when the skills repository's session reconciles the projects (the maintaining reference), not from inside the project |
   | The user's global instructions, or one of their skills, already say it | Dropped from the project, with what says it named |
   | Overtaken by something the user said later | Dropped, with the later statement named in the accounting |
 
@@ -50,7 +50,7 @@ The layout reference has the default map and what happens to a file that is repl
 
 ### What the user sees
 
-Before anything in the project changes: the accounting, in brief (how many rules dropped as covered, how many kept as the project's own, how many to promote, and every row that is a judgement of yours and not an obvious match), and the project's `AGENTS.md` as it would read. After their yes: make the changes, run the sync, check (*Acceptance*, below), and say what was done.
+Before anything in the project changes: the accounting, in brief (how many rules dropped as covered, how many kept as the project's own, which of those look general, and every row that is a judgement of yours and not an obvious match), and the project's `AGENTS.md` as it would read. After their yes: make the changes, run the sync, check (*Acceptance*, below), and say what was done.
 
 ### With a move
 
@@ -78,7 +78,7 @@ The rest is the project session's, done better on the spot: the accounting row b
 The agent that adopted checks the result before it reports, by looking and running, with these as the points:
 
 - Each row of the accounting names the place its rule now stands in, and that place holds it in words that still say all of it.
-- A second `hww.py sync` prints `current`; each entry under `## To promote` ends in `(issue: …)` or `(judged …: stays)`.
+- A second `hww.py sync` prints `current` and exits 0: the block is in, and every convention file is in form.
 - One read of the project's `AGENTS.md` from its first line to its last finds no rule stated both inside the block and outside it, and no path the project does not have.
 - The project's training servers are in its servers file, as the user now names them.
 - After a move: *What runs keeps running*.

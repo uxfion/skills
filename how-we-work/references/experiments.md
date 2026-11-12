@@ -238,7 +238,7 @@ A row is added to the second table when a run or a deployment first creates some
 
 ## What the project's own file holds
 
-`docs/conventions/experiments.md` in the project, under the two headings the common block's *How a rule grows* works with, `## This project only` and `## To promote`; the entry format is in the records reference of this skill. Typically:
+`docs/conventions/experiments.md` in the project; the entry format is in the records reference of this skill. Typically:
 
 - the Python version and the framework build its hardware needs, with the reason;
 - its data: where it lives, its versions, which cases are held out, what its honest limits are;

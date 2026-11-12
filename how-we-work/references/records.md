@@ -197,37 +197,25 @@ It is consulted to check where a rule came from, or how wide it was meant when i
 
 One file per kind of work, named as the reference of this skill it adds to (`docs/conventions/experiments.md` adds to the experiments reference). A kind is a reference of the skill: a topic of the project's own gets no file here (a rule for every task goes to `AGENTS.md` outside the block, a fact to the project's documents). Agents read it, so it is in English and quotes the user in Chinese.
 
-The script makes the file, in the project's root: `hww.py add <kind>`. It refuses a kind the skill has no reference for, and writes the title, the line that sends the reader to the reference first, and the two headings; you write the entries. The sync checks every convention file for this form at the start of each session and lists the ones that are not in it, a file written by hand before this command existed among them: put right what its line names.
+The script makes the file, in the project's root: `hww.py add <kind>`. It refuses a kind the skill has no reference for, and writes the title and the line that sends the reader to the reference first; you write the entries. The sync checks every convention file for its name and that line at the start of each session and lists the ones that are not in form, a file written by hand before this command existed among them: put right what its line names.
 
-The file has the line under its title and two sections, and the line and the headings are written exactly as below. The sync script of this skill finds the entries to promote by the heading `## To promote` and lists every top-level bullet under it as one entry; it also reads the heading `## 待提升`, for a file a project already keeps in Chinese. An entry written any other way (under a `###` heading, indented, as a table row or a paragraph) is not listed and is never judged: check the form when you write one.
+Under that line, one bullet per rule, in this form (the same form serves an entry in `AGENTS.md` outside the block):
 
 ```markdown
 # Experiments: this project
 
 Read the how-we-work skill's experiments reference first (invoke the skill); this file only adds to it.
 
-## This project only
-
-- **<the rule, one sentence>.** Why here only: <what about this project makes it so: its data, its machines, a decision that names it>. From: <the date, and the user's words in 「」 or the case>.
-
-## To promote
-
 - **<the rule, one sentence>.** From: <the date, and the user's words in 「」 or the case>.
 ```
 
-Two invented entries (the project and the words in 「」 are made up):
+An invented entry (the project and the case are made up):
 
 ```markdown
-## This project only
-
-- **Photos from the two greenhouse cameras are scored apart from the field photos.** Why here only: this project's data comes from two sources with different lighting, and a pooled score hides the gap between them. From: 2026-03-25, the comparison in `experiments/20260324-source-gap/`.
-
-## To promote
-
-- **A figure's legend sits in the upper right corner.** From: 2026-03-26, the user: 「以后图例放右上角」.
+- **Photos from the two greenhouse cameras are scored apart from the field photos.** From: 2026-03-25, the comparison in `experiments/20260324-source-gap/`.
 ```
 
-An entry goes under `## This project only` when the reason it is this project's alone can be written; one whose reason you cannot give goes under `## To promote`. A reason that a group of entries shares may be given once, above them. What the sync and you then do with the entries to promote is in the common block (*How a rule grows*).
+An entry that departs from a common rule on purpose says which rule and why. Whether an entry holds beyond this project is not marked in the file: the common block (*How a rule grows*) says who judges that. A file that still carries the earlier headings `## This project only` and `## To promote` may keep them; they mean nothing to the script.
 
 ### Exploration tree and experiment log
 

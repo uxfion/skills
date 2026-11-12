@@ -12,18 +12,16 @@ COMMON = "<!-- how-we-work:begin — synced from the skill. -->\n\n# How we work
 
 @contextlib.contextmanager
 def env(tmp):
-    """Two projects, each with an empty marker pair: `small` with no convention file, `big` with 400 entries to
-    promote of 300 characters each."""
+    """Two projects, each with an empty marker pair: `small` with no convention file, `big` with 400 convention
+    files that are not in form."""
     (tmp / "common.md").write_text(COMMON, encoding="utf-8")
     for name in ("small", "big"):
         (tmp / name).mkdir()
         (tmp / name / "AGENTS.md").write_text(f"# {name}\n\n{PAIR}", encoding="utf-8")
     conventions = tmp / "big" / "docs" / "conventions"
     conventions.mkdir(parents=True)
-    (conventions / "reports.md").write_text(
-        "# Reports: this project\n\nRead the how-we-work skill's reports reference first (invoke the skill); this file only adds to it.\n\n"
-        "## This project only\n\n## To promote\n\n" + "".join(f"- **Rule {i}.** " + "x" * 300 + "\n" for i in range(400)),
-        encoding="utf-8")
+    for i in range(400):
+        (conventions / f"topic-{i:03d}.md").write_text("# A topic of the project's own\n\n" + "x" * 300 + "\n", encoding="utf-8")
     yield {"HOW_WE_WORK_COMMON": str(tmp / "common.md")}   # nothing runs on: the files go with the check's directory
 
 
@@ -32,7 +30,7 @@ def quiet(tmp):
 
 
 def reader(tmp):
-    # sync prints many lines only when entries wait, and that is exit 1 with a summary line on stderr, where the
+    # sync prints many lines only when convention files are out of form, and that is exit 1 with a summary line on stderr, where the
     # check's reader case asks for exit 0 and an empty stderr. So the line turns exactly that outcome into the one
     # the check asserts: status 1 becomes 0 (any other status fails), and the summary line alone is taken off stderr
     # (a traceback from the closed pipe would still show).
