@@ -11,8 +11,9 @@ Exit codes, every word: 0 done (stderr empty); 1 something is yours to act on: s
 ends with {"summary": ...}; 2 the command cannot go on (no block markers, a missing file, a usage error): the
 file is as it was, and stderr's last line is {code, hint, ...}.
 
-Example:
+Examples:
   hww.py sync
+  hww.py add experiments
 """
 import argparse
 import contextlib
@@ -28,10 +29,18 @@ SELF = Path(__file__).name
 # word: (script, what it does). Every word runs here, in hww.py, so none has a script of its own.
 WORDS = {
     "sync": (None, "bring the common block of a project's AGENTS.md up to date; list its rules waiting to be promoted"),
+    "add": (None, "make the project's convention file for one kind of work, in the form sync checks"),
 }
 OK, ACT, CANNOT = 0, 1, 2
 COMMON = Path(__file__).resolve().parent.parent / "common.md"
 COMMON_ENV = "HOW_WE_WORK_COMMON"
+# A convention file adds to one reference of the skill and carries its name. Two references are about the skill
+# itself and take none.
+REFERENCES = Path(__file__).resolve().parent.parent / "references"
+NOT_KINDS = {"adopting", "maintaining"}
+CONVENTIONS = Path("docs") / "conventions"
+REFERENCE_LINE = "Read the how-we-work skill's {kind} reference first (invoke the skill); this file only adds to it."
+PROJECT_ONLY = ("this project only", "本项目")     # a `## ` heading holding either
 # The two markers, as HTML comments. A begin marker may carry any text after `begin`, a note to the reader.
 BEGIN = re.compile(rb"<!--[ \t]*how-we-work:begin\b.*?-->", re.S)
 END = re.compile(rb"<!--[ \t]*how-we-work:end[ \t]*-->")
@@ -60,6 +69,12 @@ comes before it), decide the place, put an empty pair there, and run sync:
   <!-- how-we-work:end -->
 common.md is the one in the skill's directory, beside scripts/; HOW_WE_WORK_COMMON names another file.
 
+Convention files. Each docs/conventions/*.md beside FILE adds to one reference of the skill and is checked for its
+form: its name is that reference's (`hww.py add -h` lists them); before its first `## ` heading it holds the line
+that sends the reader to the reference first; and it has a `## ` heading for what is this project's only and one
+for what is to promote. `hww.py add KIND` makes a file in this form. A file that is not in it is listed, for you
+to put right; its entries to promote are listed all the same.
+
 To promote. In FILE outside its block (a rule for every task that the project holds), and in each
 docs/conventions/*.md beside FILE, under a `## ` heading that holds "待提升" or "To promote", up to the next `# `
 or `## ` heading, every list item starting in the first column is one entry, with the lines that continue it. Text
@@ -67,17 +82,21 @@ there outside a list item is not listed, and a fenced example starting in the fi
 no entry: whether one holds beyond this project, or the common rules now cover it, is yours to judge.
 
 stdout: one JSON line for the block, then one for each entry: FILE's own first, then the convention files in name
-order.
+order; then one for each convention file that is not in form.
   {code: "ok", file, block}                block: "updated" or "current"; with -n, an "updated" line adds
                                            dry_run: true and FILE is as it was
   {code: "to_promote", file, line, entry, mark}
                                            file: FILE or the convention file; line: where the item starts; entry: its
                                            text as written, without the list marker; mark: "issue" or "judged" when the
                                            entry ends in `(issue: ...)` or `(judged ...: stays)`, else null
+  {code: "convention", file, problems, hint}
+                                           problems: any of unknown_kind, no_reference_line,
+                                           no_project_only_heading, no_to_promote_heading
 
-Exit status: 0 = no entry waits: there is none, or each carries a mark and the block was already current; 1 = entries
-wait to be judged, those whose mark is null, or all of them when the block was just updated: stderr ends with
-{"summary": {to_promote, unjudged, files}}; 2 = cannot go on: FILE is as it was, and stderr's last line is
+Exit status: 0 = nothing waits: every convention file is in form, and there is no entry or each carries a mark and
+the block was already current; 1 = a convention file is not in form, or entries wait to be judged, those whose mark
+is null, or all of them when the block was just updated: stderr ends with
+{"summary": {to_promote, unjudged, files, conventions}}; 2 = cannot go on: FILE is as it was, and stderr's last line is
 {code, hint, ...}, the code one of
   no_block                FILE holds no marker
   unclosed_block          a begin marker with no end marker after it, or an end marker alone
@@ -223,6 +242,36 @@ def to_promote(path, skip=None):
     return [(number, text) for number, lines in entries if (text := "\n".join(lines).rstrip())]
 
 
+def kinds():
+    """The kinds of work a project may keep a convention file for: the skill's references, by name."""
+    return sorted(f.stem for f in REFERENCES.glob("*.md") if f.stem not in NOT_KINDS)
+
+
+def convention_problems(path, known):
+    """What keeps a convention file from being in form, as a list of names; empty when it is."""
+    reference_line, seen_heading, project_only, promote, fence = False, False, False, False, None
+    expected = REFERENCE_LINE.format(kind=path.stem)
+    for line in path.read_bytes().decode("utf-8-sig", errors="replace").splitlines():
+        if fence:                         # a fenced example is not the file's own text
+            closing = line.rstrip()
+            if len(closing) >= len(fence) and set(closing) == {fence[0]}:
+                fence = None
+            continue
+        if opening := FENCE.match(line):
+            fence = opening.group(1) or opening.group(2)
+            continue
+        heading = HEADING.match(line)
+        if heading and len(heading.group(1)) == 2:
+            seen_heading, title = True, heading.group(2).casefold()
+            project_only = project_only or any(t in title for t in PROJECT_ONLY)
+            promote = promote or any(t in title for t in TO_PROMOTE)
+        elif not seen_heading and line.strip() == expected:
+            reference_line = True
+    return [name for name, ok in (("unknown_kind", path.stem in known), ("no_reference_line", reference_line),
+                                  ("no_project_only_heading", project_only), ("no_to_promote_heading", promote))
+            if not ok]
+
+
 def replace(path, data):
     """`data` becomes the content of the file at `path`, or the file stays as it was: the bytes go to a temporary
     file beside it, which then takes its place. A symlink stays one: the file it names is the one replaced."""
@@ -288,16 +337,87 @@ def sync(argv):
             mark = MARK.search(text)
             unjudged += mark is None
             emit({"code": "to_promote", "file": name, "line": number, "entry": text, "mark": mark and mark.group(1)})
+    known, out_of_form = kinds(), 0
+    for f in files:
+        if f.is_file() and (problems := convention_problems(f, known)):
+            out_of_form += 1
+            emit({"code": "convention", "file": str(f), "problems": problems,
+                  "hint": f"A convention file is named for a reference of the skill ({', '.join(known)}), holds the "
+                          f"line `{REFERENCE_LINE.format(kind='<its name>')}` before its first `## ` heading, and has "
+                          f"the headings `## This project only` and `## To promote`. Put right what `problems` names; "
+                          f"what a file of an unknown kind holds moves to the kind it belongs to, or, a rule for every "
+                          f"task, to AGENTS.md outside the block. `{SELF} add KIND` makes a file in form."})
     total = sum(map(len, found.values()))
     # marked entries wait for nothing, until the block changes: then each is judged against the new block
-    if unjudged or (total and done["block"] == "updated"):
+    if out_of_form or unjudged or (total and done["block"] == "updated"):
         emit({"summary": {"to_promote": total, "unjudged": unjudged,
-                          "files": sum(1 for entries in found.values() if entries)}}, sys.stderr)
+                          "files": sum(1 for entries in found.values() if entries), "conventions": out_of_form}},
+             sys.stderr)
         return ACT
     return OK
 
 
-WORD_RUNS = {"sync": sync}
+ADD = """Make the project's convention file for one kind of work: docs/conventions/KIND.md, in the current directory.
+
+A convention file holds what this project adds to one reference of the skill, and carries that reference's name.
+add writes it in the form sync checks: a title, the line that sends the reader to the reference first, and the two
+headings entries go under, `## This project only` and `## To promote`. A file that is already there is left as it
+is. Run it in the project's root, where AGENTS.md is.
+
+KIND is one of: {kinds}
+
+stdout: one JSON line, {{code: "ok", file, created}}; created is false when the file was already there, and with -n
+the line adds dry_run: true and nothing is written.
+
+Exit status: 0 = the file is there; 2 = cannot go on: nothing was written, and stderr's last line is
+{{code, hint, ...}}, the code one of
+  unknown_kind            KIND is no reference of the skill: `kinds` lists them
+  file_not_found          no AGENTS.md in the current directory: this is not a project's root
+  write_failed            the file could not be written
+  usage                   the command line cannot be read
+
+Example:
+  hww.py add experiments
+"""
+
+
+def add(argv):
+    known = kinds()
+    first, _, rest = ADD.format(kinds=", ".join(known)).strip().partition("\n")
+    p = Parser(prog=f"{SELF} add", description=first, epilog=rest.strip(),
+               formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("-n", "--dry-run", action="store_true", help="say what would be made, and write nothing")
+    p.add_argument("kind", metavar="KIND", help="the kind of work, by the name of its reference")
+    args = p.parse_intermixed_args(argv)
+
+    if args.kind not in known:
+        raise Stop("unknown_kind", "A convention file adds to a reference of the skill and carries its name: `kinds` "
+                                   "lists them. What belongs to no kind of work is a rule for every task (AGENTS.md, "
+                                   "outside the block) or a fact for the project's own documents. Nothing was written.",
+                   kind=args.kind, kinds=known)
+    if not Path("AGENTS.md").is_file():
+        raise Stop("file_not_found", "Run add in the project's root, where AGENTS.md is. Nothing was written.",
+                   file="AGENTS.md")
+    path = CONVENTIONS / f"{args.kind}.md"
+    done = {"code": "ok", "file": str(path), "created": not path.exists()}
+    if done["created"]:
+        if args.dry_run:
+            done["dry_run"] = True
+        else:
+            title = args.kind.replace("-", " ").capitalize()
+            text = (f"# {title}: this project\n\n{REFERENCE_LINE.format(kind=args.kind)}\n\n"
+                    f"## This project only\n\n## To promote\n")
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8", newline="")
+            except OSError as e:
+                raise Stop("write_failed", "The file could not be written: `detail` says why.", file=str(path),
+                           detail=str(e))
+    emit(done)
+    return OK
+
+
+WORD_RUNS = {"sync": sync, "add": add}
 
 
 def listing():

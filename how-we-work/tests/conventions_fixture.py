@@ -21,7 +21,8 @@ def env(tmp):
     conventions = tmp / "big" / "docs" / "conventions"
     conventions.mkdir(parents=True)
     (conventions / "reports.md").write_text(
-        "# Reports\n\n## To promote\n\n" + "".join(f"- **Rule {i}.** " + "x" * 300 + "\n" for i in range(400)),
+        "# Reports: this project\n\nRead the how-we-work skill's reports reference first (invoke the skill); this file only adds to it.\n\n"
+        "## This project only\n\n## To promote\n\n" + "".join(f"- **Rule {i}.** " + "x" * 300 + "\n" for i in range(400)),
         encoding="utf-8")
     yield {"HOW_WE_WORK_COMMON": str(tmp / "common.md")}   # nothing runs on: the files go with the check's directory
 

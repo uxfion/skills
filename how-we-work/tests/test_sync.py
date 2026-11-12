@@ -24,10 +24,11 @@ BLOCK = ("<!-- how-we-work:begin — synced from the skill; do not edit inside t
          "<!-- how-we-work:end -->").encode()
 COMMON = b"<!-- Draft 3: a note for whoever maintains the skill. -->\n\n" + BLOCK + b"\nA line after the block.\n"
 EMPTY_PAIR = b"<!-- how-we-work:begin -->\n<!-- how-we-work:end -->"
+REFERENCE_LINE = "Read the how-we-work skill's {kind} reference first (invoke the skill); this file only adds to it."
 OLD = 1_600_000_000   # a modification time long past: a write would move it
 
 
-class Sync(unittest.TestCase):
+class Base(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp(prefix="hww-"))
         self.common = self.dir / "common.md"
@@ -50,13 +51,16 @@ class Sync(unittest.TestCase):
     def untouched(self, data):
         return self.file.read_bytes() == data and self.file.stat().st_mtime == OLD
 
+
+class Sync(Base):
     def test_first_sync_fills_the_empty_pair_and_a_second_run_writes_nothing(self):
         before, after = b"# Project\n\nIts goal.\n\n", b"\n\n## This project's own rules\n\n- Figures in English.\n"
         self.put(before + EMPTY_PAIR + after)
         # a convention file whose to-promote section holds no entry: nothing waits
         conventions = self.project / "docs" / "conventions"
         conventions.mkdir(parents=True)
-        (conventions / "reports.md").write_text("# Reports\n\n## This project only\n\n- **A rule.** Why here only: x.\n\n"
+        (conventions / "reports.md").write_text("# Reports: this project\n\n" + REFERENCE_LINE.format(kind="reports") + "\n\n"
+                                                "## This project only\n\n- **A rule.** Why here only: x.\n\n"
                                                 "## To promote (待提升)\n\nNothing yet.\n", encoding="utf-8")
 
         self.assertEqual(self.run_entry("sync", self.file),
@@ -163,7 +167,7 @@ class Sync(unittest.TestCase):
                                    {"code": "to_promote", "file": str(self.file), "line": line,
                                     "entry": "**State a collision before editing.** From: 2026-10-09", "mark": None}])
         self.assertEqual(json.loads(err.strip().splitlines()[-1]),
-                         {"summary": {"to_promote": 2, "unjudged": 2, "files": 1}})
+                         {"summary": {"to_promote": 2, "unjudged": 2, "files": 1, "conventions": 0}})
 
     def test_entries_to_promote_are_listed_and_exit_1(self):
         self.put(b"# Project\n\n" + EMPTY_PAIR + b"\n")
@@ -254,9 +258,18 @@ class Sync(unittest.TestCase):
             {"code": "to_promote", "file": reports, "line": 17, "entry": "**Axis labels in English.**"},
         ]
         entries = [{**entry, "mark": None} for entry in entries]      # none of them judged yet
-        summary = {"summary": {"to_promote": 6, "unjudged": 6, "files": 3}}
+        # none of these hand-made files is in form: each is listed after the entries, with what it lacks
+        servers = str(conventions / "servers.md")
+        out_of_form = {experiments: ["no_reference_line"],
+                       layout: ["no_reference_line", "no_project_only_heading"],
+                       reports: ["no_reference_line", "no_project_only_heading"],
+                       servers: ["unknown_kind", "no_reference_line", "no_to_promote_heading"]}
+        summary = {"summary": {"to_promote": 6, "unjudged": 6, "files": 3, "conventions": 4}}
 
         status, lines, err = self.run_entry("sync", self.file)
+        self.assertEqual({line["file"]: line["problems"] for line in lines[len(entries) + 1:]}, out_of_form)
+        self.assertTrue(all(line["code"] == "convention" and line["hint"] for line in lines[len(entries) + 1:]))
+        lines = lines[:len(entries) + 1]
         self.assertEqual((status, lines), (1, [{"code": "ok", "file": str(self.file), "block": "updated"}, *entries]))
         self.assertEqual([json.loads(line) for line in err.splitlines()], [summary])
         self.assertEqual(self.file.read_bytes(), b"# Project\n\n" + BLOCK + b"\n")
@@ -265,7 +278,8 @@ class Sync(unittest.TestCase):
         os.utime(self.file, (OLD, OLD))
         for argv in (("sync", self.file), ("sync", "-n", self.file)):
             status, lines, err = self.run_entry(*argv)
-            self.assertEqual((status, lines), (1, [{"code": "ok", "file": str(self.file), "block": "current"}, *entries]))
+            self.assertEqual((status, lines[:len(entries) + 1]),
+                             (1, [{"code": "ok", "file": str(self.file), "block": "current"}, *entries]))
             self.assertEqual(json.loads(err.splitlines()[-1]), summary)
         self.assertTrue(self.untouched(b"# Project\n\n" + BLOCK + b"\n"))
 
@@ -276,13 +290,13 @@ class Sync(unittest.TestCase):
         self.put(b"# Project\n\n" + EMPTY_PAIR + own)
         code, out, err = self.run_entry("sync", self.file)        # the block was just written: every entry is judged anew
         self.assertEqual((code, out[0]["block"], [o["mark"] for o in out[1:]]), (1, "updated", ["judged", "issue"]))
-        self.assertEqual(json.loads(err.strip().splitlines()[-1]), {"summary": {"to_promote": 2, "unjudged": 0, "files": 1}})
+        self.assertEqual(json.loads(err.strip().splitlines()[-1]), {"summary": {"to_promote": 2, "unjudged": 0, "files": 1, "conventions": 0}})
         code, out, err = self.run_entry("sync", self.file)        # current block, every entry marked: nothing waits
         self.assertEqual((code, out[0]["block"], len(out), err), (0, "current", 3, ""))
         self.file.write_bytes(self.file.read_bytes() + b"- **New today.**\n")
         code, out, err = self.run_entry("sync", self.file)
         self.assertEqual((code, [o["mark"] for o in out[1:]]), (1, ["judged", "issue", None]))
-        self.assertEqual(json.loads(err.strip().splitlines()[-1]), {"summary": {"to_promote": 3, "unjudged": 1, "files": 1}})
+        self.assertEqual(json.loads(err.strip().splitlines()[-1]), {"summary": {"to_promote": 3, "unjudged": 1, "files": 1, "conventions": 0}})
 
     def test_an_install_behind_the_projects_block_writes_nothing(self):
         def block(day):
@@ -319,11 +333,50 @@ class Sync(unittest.TestCase):
 
 
 
+class Add(Base):
+    """hww.py add makes a convention file that sync finds in form, and only for a kind the skill has a reference for."""
+
+    def test_add_makes_a_file_in_form_once_and_refuses_a_kind_without_a_reference(self):
+        self.put(b"# Project\n\n" + BLOCK + b"\n")
+        made = self.project / "docs" / "conventions" / "experiments.md"
+        text = ("# Experiments: this project\n\n" + REFERENCE_LINE.format(kind="experiments") + "\n\n"
+                "## This project only\n\n## To promote\n")
+
+        code, out, err = self.run_entry("add", "-n", "experiments", cwd=self.project)
+        self.assertEqual((code, out, err, made.exists()),
+                         (0, [{"code": "ok", "file": "docs/conventions/experiments.md", "created": True, "dry_run": True}], "", False))
+        self.assertEqual(self.run_entry("add", "experiments", cwd=self.project),
+                         (0, [{"code": "ok", "file": "docs/conventions/experiments.md", "created": True}], ""))
+        self.assertEqual(made.read_text(encoding="utf-8"), text)
+        # sync finds it in form: one line, nothing waits
+        self.assertEqual(self.run_entry("sync", cwd=self.project), (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"}], ""))
+
+        # a file that is there is left as it is, entries and all
+        made.write_text(text.replace("## To promote\n", "## To promote\n\n- **A rule.** (judged 2026-11-12: stays)\n"), encoding="utf-8")
+        kept = made.read_bytes()
+        self.assertEqual(self.run_entry("add", "experiments", cwd=self.project)[:2],
+                         (0, [{"code": "ok", "file": "docs/conventions/experiments.md", "created": False}]))
+        self.assertEqual(made.read_bytes(), kept)
+
+        # a new topic of the project's is no kind of work: nothing is made
+        code, out, err = self.run_entry("add", "our-new-topic", cwd=self.project)
+        last = json.loads(err.strip().splitlines()[-1])
+        self.assertEqual((code, out, last["code"]), (2, [], "unknown_kind"))
+        self.assertIn("experiments", last["kinds"])
+        self.assertNotIn("adopting", last["kinds"])
+        self.assertEqual(sorted(f.name for f in made.parent.iterdir()), ["experiments.md"])
+
+        # outside a project's root nothing is made either
+        code, out, err = self.run_entry("add", "reports", cwd=self.dir)
+        self.assertEqual((code, out, json.loads(err.strip().splitlines()[-1])["code"]), (2, [], "file_not_found"))
+        self.assertFalse((self.dir / "docs").exists())
+
+
 class Rev(unittest.TestCase):
     """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
     install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
     leaves the rev alone fails here."""
-    REV, SHA256 = "2026-11-12.3", "5a21c996851d969100ef76205fb6a60c56857157833f4fe1418deb09efcfe46f"
+    REV, SHA256 = "2026-11-12.4", "6de752663e66c89ae7b566af768ddd675871cb45e19666a908f35e2b008c8888"
 
     def test_the_rev_moves_whenever_the_block_changes(self):
         data = (ENTRY.parent.parent / "common.md").read_bytes()
