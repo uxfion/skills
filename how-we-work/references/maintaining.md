@@ -71,12 +71,12 @@ A rule that came by an issue has its history there: the user's words, dated, and
 
 ## The head of a reference
 
-Each reference a project may add to opens with a head of three fields, in the form of a skill's: `name` (the file's name), `description` and `trigger`, each value on one line in double quotes. The two say different things and each is written here only:
+Each reference a project may add to opens with a head of three fields, in the form of a skill's: `name` (the file's name), `description` and `trigger`, each value on one line in double quotes. `description` and `trigger` say different things, and the head is the one place either is written:
 
 - **`trigger`** is when the reference is read. The line of the block's *When to read what* is this text word for word: change it here, and the test (`Heads`) prints the line the block must then carry. That is a change to the block, with its rev.
 - **`description`** is what the kind of work covers and what the project's file of that name holds, with the neighbour it is most easily taken for. It carries no moment. The sync copies it into the list that opens a project's `other.md`, so a project decides from these sentences where a rule goes: when a boundary moves, this sentence moves with it.
 
-The body of a reference does not open by repeating either. A new reference gets its head and its line in the block; a project's `other.md` then lists it at the next sync after the reinstall, and the sync tells the project's agent to move the entries that now belong to it.
+The body of a reference opens on its first rule. A new reference gets its head and its line in the block; a project's `other.md` then lists it at the next sync after the reinstall, and the sync tells the project's agent to move the entries that now belong to it.
 
 ## Committing and releasing a change
 

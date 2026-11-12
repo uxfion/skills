@@ -205,7 +205,7 @@ One file per kind of work, named as the reference it adds to: `docs/conventions/
 
 The script owns the file's name and its first line under the title. `hww.py add <name>`, run in the project's root, makes the file; it refuses a name that is no reference of the skill. The sync writes the line into a file that lacks it, and lists a file named for no reference: what such a file holds moves to the kind it belongs to, to `other.md` (a rule for a kind of work that has no reference), to `AGENTS.md` outside the block (a rule for every task), or to the project's documents (any other fact).
 
-`docs/conventions/other.md` is the one file with more of the script's text and with headings of its own: the list of the kinds that have a file, then the project's entries under a heading per kind of work. The other reference of this skill says how it is written.
+`docs/conventions/other.md` differs in two ways: the script also writes the list of kinds that opens it, and its entries stand under a heading per kind of work. The other reference of this skill says how it is written.
 
 Under the line, one bullet per rule or fact. The same form serves an entry in `AGENTS.md` outside the block:
 
