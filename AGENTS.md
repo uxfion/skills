@@ -4,7 +4,7 @@ Personal agent skills plus the source files for global agent instructions. See R
 
 You are the owner and long-term maintainer of this codebase, and its design is up to you: decide, do, then report. At the key points, ask the user first: a change to what the rules say (this repository's root `AGENTS.md`, `docs/design-principles.md`, `agent-instructions/`, the rules a skill gives its agents), and a major or directional decision.
 
-<!-- how-we-work:begin rev 2026-11-12.2 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
+<!-- how-we-work:begin rev 2026-11-12.3 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
 
 # How we work
 
@@ -106,7 +106,7 @@ Invoke the how-we-work skill and read its reference at each of these moments; th
 ## Documents and memory
 
 - Write every document from the present task and its reader, structure first, with the writing-for-agents skill; an old document is a lead for facts, and its shape is not copied. When a piece of work is done, its documents get one more pass with that skill. Deliver results, not the path to them, and keep what the exploration found of value. When condensing, settle where each piece goes: nothing is dropped by compressing, and verbatim quotes stay as written.
-- **How a rule grows.** What you learn goes to `.memory/` as it comes. A rule the user states goes into the project's files: one for a kind of work into `docs/conventions/<kind>.md`, one for every task into `AGENTS.md` outside the block; under `## This project only` with the reason it is this project's alone, or under `## To promote` when no such reason can be given. A correction the user states as general takes effect in this project at once and goes under `## To promote` with their words. You write an entry from what the user said; a rule of your own devising is proposed to them first. The sync lists the entries to promote, and the skill's `SKILL.md` says how each is judged.
+- **How a rule grows**, in three steps. What you learn, a correction or a preference of the user's included, goes to `.memory/` first and takes effect from there; memory is yours to keep. A rule is promoted from memory into the project's files when it has proved itself: it keeps deciding the work, and it holds whatever the harness (how often the user returns to it is evidence; the principle behind it is the test). One for a kind of work goes into `docs/conventions/<kind>.md`, read with that kind's reference; one for every task into `AGENTS.md` outside the block; under `## This project only` with the reason it is this project's alone, or under `## To promote` when it would hold in any of the user's projects. You write an entry from what the user said; a rule of your own devising is proposed to them first. From `## To promote` a rule reaches these common rules through an issue in the skills repository: the sync lists the entries, and the skill's `SKILL.md` says how each is judged.
 
 <!-- how-we-work:end -->
 
