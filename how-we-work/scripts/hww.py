@@ -326,7 +326,8 @@ def sync(argv):
                   "hint": f"A convention file is named for a reference of the skill ({', '.join(known)}). Move what "
                           f"this one holds: a rule or a fact for one of those kinds of work into that kind's file "
                           f"(`{SELF} add KIND` makes it), a rule for every task into AGENTS.md outside the block, "
-                          f"any other fact into the project's documents. Then remove the file."})
+                          f"any other fact into the project's documents. Then remove the file: its content has moved, "
+                          f"so that is part of the move and yours to do."})
         elif not has_reference_line(f):
             line = {"code": "convention", "file": str(f), "wrote": "reference_line"}
             if args.dry_run:
