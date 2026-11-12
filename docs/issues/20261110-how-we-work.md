@@ -49,7 +49,7 @@ research/                 调研报告和项目层面的结论；论文、全文
 
 **从哪读起**：
 1. 本文件：全局、过程、弯路、现状。
-2. `zym/AGENTS.md`，再看 `zym/docs/rules-sources.md`（每条规则为什么有）和 `zym/docs/decisions/2026-11.md`（45 个决定的来龙去脉）。
+2. `zym/AGENTS.md`，再看 `zym/docs/rules-sources.md`（每条规则为什么有）和 `zym/docs/decisions/202611.md`（45 个决定的来龙去脉）。
 3. 用户怎么想：`user-words.md`（全部原话，按时间编号），`decisions-options.md`。
 4. 三个起点仓库：`subagents/study-*.md` 讲 hc、ceus 怎么做的；`subagents/cross-check-*.md` 把三个仓库的每条记忆、规则、潜在规则列成表，标明在 zym 里的去向或为什么不适用。原件在 `hc_deduction/`、`ceus/`，skills 的就在本仓库。
 5. 要细节时：`conversation.md`（可读的全文），`session-raw/`（原始记录，含工具输出），`session-scratchpad/`（各版草稿、对账表、交接文件）。
@@ -67,7 +67,7 @@ research/                 调研报告和项目层面的结论；论文、全文
 
 ## 压缩之后：每一步怎么想的、结果在哪
 
-时间是 UTC。每一步的完整讨论在 `conversation.md` 里按时间能找到；决定的选项、理由和用户原话在 `zym/docs/decisions/2026-11.md` 的 D20261102-37 到 -45。
+时间是 UTC。每一步的完整讨论在 `conversation.md` 里按时间能找到；决定的选项、理由和用户原话在 `zym/docs/decisions/202611.md` 的 D20261102-37 到 -45。
 
 1. **平衡版 AGENTS.md（13:30–13:59，D-37、D-40，提交 `67add8a`）**
    - 起因：AGENTS.md 在 255 行详细版和 138、172 行简版之间来回，丢了细节和用户的想法（#60–61）。用户要的是"恰到好处"：特别重要、反复提到、原则性的进 AGENTS.md 并保留细节，琐碎的进 memory，某类工作才用的进那类工作的文档。
@@ -93,7 +93,7 @@ research/                 调研报告和项目层面的结论；论文、全文
 
 ## 决定、选项、来源和想法
 
-逐条记录在 `20261110-how-we-work-reference/decisions-options.md`：每个决定当时的选项、选项出处、用户和 main agent 各自的想法、结果、落在 zym 哪里、后来是否改过（压缩前后共 38 条）。后来的版本连同 D-39 到 -45 在 `zym/docs/decisions/2026-11.md`，格式在 `zym/docs/decisions/README.md`。已定的 17 条和原话也在 spec §4；规则背后的原话按章节归在 `zym/docs/rules-sources.md`，末尾是没采用的候选和理由。
+逐条记录在 `20261110-how-we-work-reference/decisions-options.md`：每个决定当时的选项、选项出处、用户和 main agent 各自的想法、结果、落在 zym 哪里、后来是否改过（压缩前后共 38 条）。后来的版本连同 D-39 到 -45 在 `zym/docs/decisions/202611.md`，格式在 `zym/docs/decisions/README.md`。已定的 17 条和原话也在 spec §4；规则背后的原话按章节归在 `zym/docs/rules-sources.md`，末尾是没采用的候选和理由。
 
 ## 用户的考虑（主线，原话见编号）
 
@@ -169,7 +169,7 @@ research/                 调研报告和项目层面的结论；论文、全文
 | ceus | 没有变化（10-29 之后无提交，上层文件和快照逐个相同） | 无 |
 | skills 的设计原则 | 11-04 到 11-10 改了 8 次：§3 加了 Unix/Linux 约定，§2 收紧了"别过度设计"，§3 加了"设置服务于用户需要的选择"，§5"用户的话是方向"在 11-09 重写，advisor 改成"会话里有才用" | 就地读 `docs/design-principles.md`；`subagents/cross-check-skills-repo-rules-vs-zym.md` 对照的是旧版 |
 
-zym 规则层在快照之后的改动（全文差异在 `zym-20261110/rules-layer-diff-since-45d1719.patch`，决定在 `zym-20261110/docs/decisions/2026-11.md`）：
+zym 规则层在快照之后的改动（全文差异在 `zym-20261110/rules-layer-diff-since-45d1719.patch`，决定在 `zym-20261110/docs/decisions/202611.md`）：
 
 - `AGENTS.md` 的任务一节只留两句，项目事实只放 `docs/goal.md`（D20261104-4）。现在 217 行的 `AGENTS.md` 里几乎没有 zym 专有的内容。
 - `docs/goal.md` 只写方向、范围和完成条件；未解决的技术问题进探索树，待办进 `docs/todo.md`，todo 由 main agent 维护，只把用户需要知道的告诉用户（D20261104-3）。
@@ -553,7 +553,7 @@ main agent 的回应：采纳（每次一份目标文档、放 `docs/goals/`、�
 - 用户（2026-11-11）：「我不清楚你为什么会问这些问题，这实际不应该到项目那边真的推进了才会问」。即：这边只问决定方案形状的问题（如 ①）；推进到某一步才用得上的问题（② 病人数据入不入 git、③ 备份、④ 工程级批准谁签、⑤ 历史目录，以及 09-24 组会、10-29 简报之后的事），写进 `questions.md`，带背景、选项、建议，由 CEUS 会话推进到那一步时再问。这修正了之前"要用户定的事在这边一件件问完"的那半句。
 - 用户（2026-11-11）：「你这边我不知道为什么拖那么久，diff那边很快就接入了」「你在拖什么？」。main agent 停了两个还在跑的 subagent（套用核对结果、算改链接清单），没有留下改动；这两件交给 CEUS 会话在现场做。文件夹收成 `START-HERE.md`（含分步、检查、要注意的）和 `questions.md`（按推进到哪一步再问），加上原有的 `accounting.md`、`draft/` 和四份扫描报告；原定的 `preview.md`、`stages.md`、`evidence.md` 不单独写，给用户看的简报由 CEUS 会话在第 2 步写规则前在对话里给。
 - CEUS 已由用户交给那边的会话（2026-11-11）。用户：「我感觉你这次写得非常的过度，你自己好好反思一下。但我这边已经交付给那边的项目，所以你就不要改了」。main agent 的反思：准备阶段太重（四份各半小时的扫描、又派两个 subagent、几轮 advisor 和提问），START-HERE 写了约百行的做法细节（命令、检查步骤、文件行号、和扫描报告重复的注意事项），`questions.md` 把每个问题的背景、选项、建议都替那边写好，贴给那边的提示又把 START-HERE 复述了一遍；每条扫描发现、每条 advisor 意见都加成一行，没有按"没有它那边会做错什么"去掂量。规则本来就有（设计原则 §4、通用块 *Context over control*），错在执行。交接文件只放目标、用户的决定、材料在哪、那边自己发现不了的坑；记进了记忆 `handover-docs-minimal`。交出去的文件不再改。
-- 更正（2026-11-11）。用户问：「我现在要反问你一下，你当初是你决定的要把一些图片都记进去吗？」查了用户在 CEUS 的原话，说过的是用 git 当保险、记进度（「使用 Git 做好管理……Git 做了版本后会有一层保险，同时会记录你相应的进展」「记得在合适的时候git提交记录避免进度丢失。之前探索的实验也不要删掉」）和报告里要有各方向的效果图，没有一句要把图片提交进 git。"实验效果图随代码进 git、为了追溯"是 9 月 CEUS 的 agent 的理解，写进了它的记忆并写成用户的要求；本次准备包的 `questions.md` 照那条记忆转述成用户的话并推荐"图照旧进 git"，是 main agent 没查原话。用户最后定了新的图片、视频、数据数组不进 git（CEUS `docs/decisions/2026-11.md` D20261111-5）。
+- 更正（2026-11-11）。用户问：「我现在要反问你一下，你当初是你决定的要把一些图片都记进去吗？」查了用户在 CEUS 的原话，说过的是用 git 当保险、记进度（「使用 Git 做好管理……Git 做了版本后会有一层保险，同时会记录你相应的进展」「记得在合适的时候git提交记录避免进度丢失。之前探索的实验也不要删掉」）和报告里要有各方向的效果图，没有一句要把图片提交进 git。"实验效果图随代码进 git、为了追溯"是 9 月 CEUS 的 agent 的理解，写进了它的记忆并写成用户的要求；本次准备包的 `questions.md` 照那条记忆转述成用户的话并推荐"图照旧进 git"，是 main agent 没查原话。用户最后定了新的图片、视频、数据数组不进 git（CEUS `docs/decisions/202611.md` D20261111-5）。
 
 ### 两个项目接入后的检查，和由此改的规则（2026-11-12）
 
@@ -579,5 +579,5 @@ main agent 的回应：采纳（每次一份目标文档、放 `docs/goals/`、�
 
 ### 之后的决定记在 `docs/decisions/`（2026-11-12）
 
-- skills 仓库自己接入了 how-we-work，照原版不留例外：`docs/decisions/2026-11.md`，D20261112-1、D20261112-2。从这以后，关于 how-we-work 的决定记在那里，这张 issue 只记问题本身。
+- skills 仓库自己接入了 how-we-work，照原版不留例外：`docs/decisions/202611.md`，D20261112-1、D20261112-2。从这以后，关于 how-we-work 的决定记在那里，这张 issue 只记问题本身。
 - 同日通用块 *How a rule grows* 改成三步（`rev 2026-11-12.3`）：学到的先进记忆，验证过才提升进项目文件，再经 issue 进通用规则。用户：「我怎么感觉你有点忘记了 用户反复提到的原则、规则、教训或纠正，或者你学习到的一些东西，就是从 auto memory（是你自己claude code去做的，我不加约束），然后逐渐提升到 agents.md通用块外，再逐渐提升到 how we work 这个流程」；对改前两句的建议：「A」。main agent 随后把同一条里与之冲突的「用户说是通用的纠正立刻进待提升」一并改掉，并在接入参考里写明接入时记忆只去掉通用规则已有的。

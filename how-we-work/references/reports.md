@@ -79,7 +79,7 @@ What a result may claim, a result on a small sample included, is in the experime
 
 ### The folder is a package
 
-A report lives at `reports/<YYYY-MM-DD>/<task>/` (the layout reference of this skill has the whole table of places). The folder can be handed to someone as it is: 「我希望html是可以单独拎出来的」.
+A report lives at `reports/<YYYYMMDD>/<task>/` (the layout reference of this skill has the whole table of places). The folder can be handed to someone as it is: 「我希望html是可以单独拎出来的」.
 
 - Every image and video the report shows is copied into the report's own `figures/`, grouped by task or case, and linked relatively, as files and not as base64 inside the page. A README in `figures/` says which path or script each file came from.
 - A version derived from a report (a Word file, a talk page) lives in that report's folder, with its build script and a note on how it is built. The user turned down a separate folder for one: 「我觉得是不是也没必要新建一个文件夹，你就直接放在原来那个」.

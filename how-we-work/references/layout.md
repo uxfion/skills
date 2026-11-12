@@ -21,7 +21,7 @@ The last column says whether git tracks the thing. For the inside of an experime
 | What the project is; the only directory map, with this column; the list of upstream repositories | `README.md` | yes |
 | The project's direction: goal, scope and constraints, completion criteria | `docs/goal.md` | yes |
 | What is to be done and what it waits on; the user's passing ideas | `docs/todo.md` | yes |
-| A decision: options, the user's words, who decided, the reason | `docs/decisions/<YYYY-MM>.md` | yes |
+| A decision: options, the user's words, who decided, the reason | `docs/decisions/<YYYYMM>.md` | yes |
 | What anyone other than the user said about the project (a supervisor, a doctor, a reviewer), and what was done about each point | `docs/meetings.md` | yes |
 | A design | `docs/specs/<YYYYMMDD>-<topic>-spec.md` | yes |
 | An unattended run: its goal, its record, what waits for the user | `docs/goals/<YYYYMMDD>-<topic>.md` (the unattended reference of this skill) | yes |
@@ -34,8 +34,8 @@ The last column says whether git tracks the thing. For the inside of an experime
 | External datasets, one met during a literature search included; the training servers | `docs/datasets.md`; `docs/servers.md` | yes |
 | One line of experiments: code, configuration, README, run records | `experiments/<YYYYMMDD>-<topic>/` (the experiments reference) | see the experiments reference |
 | What a line of work produces on the way, put where the user can look while the work is still moving | `preview/` inside that experiment's folder (the experiments reference) | see the experiments reference |
-| A report | `reports/<YYYY-MM-DD>/<task>/` (the reports reference) | see the reports reference |
-| A summary over a stretch of time, such as the one before a group meeting | `reports/<YYYY-MM-DD>/meeting-summary/`, a task folder under the day it is written (the reports reference) | as a report |
+| A report | `reports/<YYYYMMDD>/<task>/` (the reports reference) | see the reports reference |
+| A summary over a stretch of time, such as the one before a group meeting | `reports/<YYYYMMDD>/meeting-summary/`, a task folder under the day it is written (the reports reference) | as a report |
 | A version of a report made for other people (Word, slides), with its template and build script | the folder of the report it was made from | as the report |
 | A literature survey | `research/<YYYYMMDD>-<topic>.md` (the literature reference) | yes |
 | What the project now holds true, from literature and from experiments | `research/key_findings.md` (the literature reference) | yes |
@@ -54,8 +54,8 @@ Where the project stands has no row, because it has no file of its own: what is 
 ## Names
 
 - **Each kind of thing has one form of name**, the one the map gives it. In a project that began with this map, a new thing takes the form the map gives its kind. In an older project whose things are named otherwise, existing names stay, and whether new ones take the default form from now on is the user's to say once (asked at adoption); until they have said, a new thing takes the form its kind already has there.
-- **A new kind of dated thing is named `<YYYYMMDD>-<topic>`.** The date is the day the thing was logged, settled or started, so that a listing sorts by time. The topic says what it is about in the words the user uses; an issue's topic starts with the part of the project it concerns. Two kinds on the map collect by period instead of naming one topic, and keep the hyphenated dates the existing projects use: decisions, one file per month (`<YYYY-MM>.md`), and reports, one folder per day (`<YYYY-MM-DD>/`) with a folder per task inside.
-- **A name tells what the thing is and when it was made, without opening it.** This is the user's test. They asked for dated, topic-named experiment folders (「尽量保持{日期}_{实验主题}的命名格式」) when a listing no longer showed them 「最新进度和主题（做了什么）」. Which separator a kind uses is part of that kind's form (the user's own sentence has an underscore, the default map a hyphen); the date and a topic that says what was done are what must hold. A version mark or a running number is added to a name that already says what the thing is (`overview-v2.png`).
+- **A dated thing is named `<YYYYMMDD>-<topic>`**: the date undivided, a hyphen between it and the topic and between the topic's words. The user, 2026-11-12: 「统一成连字符」, 「日期就不要带连字符了，不要把年月日分开」. The date is the day the thing was logged, settled or started, so that a listing sorts by time. The topic says what it is about in the words the user uses; an issue's topic starts with the part of the project it concerns. The two kinds that collect by period are named the same way: decisions, one file per month (`<YYYYMM>.md`), and reports, one folder per day (`<YYYYMMDD>/`) with a folder per task inside. Names a project already has stay as they are; this is the form of a new one.
+- **A name tells what the thing is and when it was made, without opening it.** This is the user's test. They asked for dated, topic-named experiment folders (「尽量保持{日期}_{实验主题}的命名格式」) when a listing no longer showed them 「最新进度和主题（做了什么）」. The date and a topic that says what was done are what must hold. A version mark or a running number is added to a name that already says what the thing is (`overview-v2.png`).
 
 ## A new directory or kind of file
 

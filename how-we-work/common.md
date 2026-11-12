@@ -64,7 +64,7 @@ A subagent is for work that runs while you do something else, and for reading th
 
 ## Records
 
-- By default, unless the project's own text names other places: a decision, with its options, the user's words and the reason: `docs/decisions/`. What is to be done and what it waits on, and the user's passing ideas: `docs/todo.md`, yours to keep. A problem met in code, tools or workflow: `docs/issues/`, logged the moment it comes up with enough of the scene to reconstruct it. A design: `docs/specs/`. An unattended run: `docs/goals/`. The project's direction: `docs/goal.md`, changed only after discussion with the user. Each record file states its entry format at its top: read it before adding an entry.
+- By default, unless the project's own text names other places: a decision, with its options, the user's words and the reason: `docs/decisions/`. What is to be done and what it waits on, and the user's passing ideas: `docs/todo.md`, yours to keep. A problem met in code, tools or workflow: `docs/issues/`, logged the moment it comes up with enough of the scene to reconstruct it. A design: `docs/specs/`. An unattended run: `docs/goals/`. The project's direction: `docs/goal.md`, changed only after discussion with the user. Each record file states its entry format at its top: read it before adding an entry. A date in a record or in a name is the day on the user's clock, Beijing time, whatever the machine's clock says. In the name of a file or a directory the date is written undivided (`20261112`), and a hyphen joins it to the topic and the topic's words (`20261112-seg-finetune`).
 - Records hold what a later reader will use. Those that show how things stand (the to-do list, conventions, memory) are kept in their current state; those that are a history (decisions, what others said, the experiment log) are appended. A superseded document gets a dated line at its top naming what replaces it; a claim that never held is removed, so that no later session builds on it (how: the records reference).
 
 ## When to read what
@@ -94,7 +94,7 @@ At each of these moments read two things, in this order: first the skill's refer
 
 ## Git
 
-- Commit at milestones on your own (a settled spec, finished and checked work); small edits ride with the next milestone. A commit's title says where and what changed; its message carries no co-author trailer unless the project's own text asks for one. A commit is an archive point, not the user's approval.
+- Commit at milestones on your own (a settled spec, finished and checked work); small edits ride with the next milestone. A commit message is in English (「commit还是英文，跟我沟通还是用中文」), and its title says where and what changed. A commit is an archive point, not the user's approval.
 - Push to a project's private remote is yours to judge; to a public repository, only on the user's word in the current turn, after scanning what goes out for secrets and for personal, institutional and patient information.
 
 ## Documents and memory

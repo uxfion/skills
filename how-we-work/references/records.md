@@ -24,7 +24,7 @@ A later session starts with no memory of this one, and the user comes back to a 
 | Record | File | Language | Changes by |
 |---|---|---|---|
 | Direction | `docs/goal.md` | Chinese | rewriting, only with the user |
-| Decisions | `docs/decisions/<YYYY-MM>.md` | Chinese | appending |
+| Decisions | `docs/decisions/<YYYYMM>.md` | Chinese | appending |
 | To-do | `docs/todo.md` | Chinese | rewriting |
 | What others said | `docs/meetings.md` | Chinese | appending (what was said); rewriting (the alignment table) |
 | Issues | `docs/issues/<YYYYMMDD>-<topic>.md` | Chinese | rewriting, one file per problem |
@@ -41,7 +41,7 @@ Sections: 方向 (where the project is going and what for), 范围与约束, 完
 
 It holds direction only: 「goal不应该去表达的是整个项目的目标方向，或者说实现的最终目标吗？」 Progress, open technical problems and things to do each have their own record, and the file changes only after discussion with the user, as the common block says. An agent once kept a "current position" section here and updated it unasked: 「为什么会把记录项目的方向当前进展记入 goal？当前进展是记入 goal 的吗？不太合适吧」.
 
-### Decisions: `docs/decisions/<YYYY-MM>.md`
+### Decisions: `docs/decisions/<YYYYMM>.md`
 
 Takes: what the user decided, what the user adopted from a recommendation, and what the main agent decided alone once another document or a later run depends on it. Small decisions inside an unattended run stay in that run's goal document.
 
