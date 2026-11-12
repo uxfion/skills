@@ -31,7 +31,7 @@ A later session starts with no memory of this one, and the user comes back to a 
 | Specs | `docs/specs/<YYYYMMDD>-<topic>-spec.md` | Chinese | rewriting until built, then frozen |
 | An unattended run | `docs/goals/<YYYYMMDD>-<topic>.md` | Chinese | as the unattended reference of this skill says; its parts are there |
 | The user's words behind a rule | `docs/rules-sources.md` | Chinese | appending |
-| The project's additions to a reference of this skill | `docs/conventions/<kind>.md` | English, quoting the user in Chinese: agents read it | rewriting |
+| What the project adds to a reference of this skill | `docs/conventions/<name>.md` | English, quoting the user in Chinese: agents read it | rewriting |
 | Exploration tree | `docs/exploration-tree.md` | Chinese | rewriting |
 | Experiment log | `docs/experiment-log.md` | by the common block's rule: Chinese where the user reads it, English where only agents do; an existing log keeps its language | appending |
 
@@ -193,18 +193,18 @@ Grouped by where the rule lives. One bullet per source: the date, the scene, the
 
 It is consulted to check where a rule came from, or how wide it was meant when its wording is in doubt; the rule text is what is followed.
 
-### The project's additions to a reference of this skill: `docs/conventions/<kind>.md`
+### What the project adds to a reference: `docs/conventions/<name>.md`
 
-One file per kind of work, named as the reference of this skill it adds to (`docs/conventions/experiments.md` adds to the experiments reference). A kind is a reference of the skill: a topic of the project's own gets no file here (a rule for every task goes to `AGENTS.md` outside the block, a fact to the project's documents). Agents read it, so it is in English and quotes the user in Chinese.
+One file per kind of work, named as the reference it adds to: `docs/conventions/experiments.md` adds to `references/experiments.md`. It holds this project's rules for that kind of work and the facts that work needs. Where an entry differs from the reference, the entry holds for this project; one that departs from a common rule on purpose says which rule and why. Agents read the file, so it is in English and quotes the user in Chinese.
 
-The script makes the file, in the project's root: `hww.py add <kind>`. It refuses a kind the skill has no reference for, and writes the title and the line that sends the reader to the reference first; you write the entries. The sync checks every convention file for its name and that line at the start of each session and lists the ones that are not in form, a file written by hand before this command existed among them: put right what its line names.
+The script owns the file's name and its first line under the title. `hww.py add <name>`, run in the project's root, makes the file; it refuses a name that is no reference of the skill. The sync writes the line into a file that lacks it, and lists a file named for no reference: what such a file holds moves to the kind it belongs to, to `AGENTS.md` outside the block (a rule for every task), or to the project's documents (any other fact).
 
-Under that line, one bullet per rule, in this form (the same form serves an entry in `AGENTS.md` outside the block):
+Under the line, one bullet per rule or fact. The same form serves an entry in `AGENTS.md` outside the block:
 
 ```markdown
 # Experiments: this project
 
-Read the how-we-work skill's experiments reference first (invoke the skill); this file only adds to it.
+Read `~/.agents/skills/how-we-work/references/experiments.md` first; this file adds to it, and holds for this project where the two differ.
 
 - **<the rule, one sentence>.** From: <the date, and the user's words in 「」 or the case>.
 ```
@@ -215,7 +215,7 @@ An invented entry (the project and the case are made up):
 - **Photos from the two greenhouse cameras are scored apart from the field photos.** From: 2026-03-25, the comparison in `experiments/20260324-source-gap/`.
 ```
 
-An entry that departs from a common rule on purpose says which rule and why. Whether an entry holds beyond this project is not marked in the file: the common block (*How a rule grows*) says who judges that. A file that still carries the earlier headings `## This project only` and `## To promote` may keep them; they mean nothing to the script.
+A file made before 2026-11-12 may carry the headings `## This project only` and `## To promote`. They may stay, below the line; nothing reads them.
 
 ### Exploration tree and experiment log
 

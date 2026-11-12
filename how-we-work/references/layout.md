@@ -26,9 +26,9 @@ The last column says whether git tracks the thing. For the inside of an experime
 | A design | `docs/specs/<YYYYMMDD>-<topic>-spec.md` | yes |
 | An unattended run: its goal, its record, what waits for the user | `docs/goals/<YYYYMMDD>-<topic>.md` (the unattended reference of this skill) | yes |
 | A problem met in code, tools or workflow | `docs/issues/<YYYYMMDD>-<topic>.md`; closed ones in `docs/issues/archive/` | yes |
-| An issue's working material: reports, drafts, prototypes, data | `docs/issues/<issue file name>-reference/`, beside the issue; when the issue closes, to `archive/<YYYYMMDD>/` (the records reference, *Issues*) | no |
+| An issue's working material: reports, drafts, prototypes, data | `docs/issues/<the issue's file name without .md>-reference/`, beside the issue; when the issue closes, to `archive/<YYYYMMDD>/` (the records reference, *Issues*) | no |
 | The user's words behind a rule of the project's own | `docs/rules-sources.md` | yes |
-| What this project adds to a reference of this skill | `docs/conventions/<kind>.md` | yes |
+| What this project adds to a reference of this skill | `docs/conventions/<name>.md` | yes |
 | Each technical problem: the directions tried, their state, what blocks them | `docs/exploration-tree.md` | yes |
 | The ledger of all experiments | `docs/experiment-log.md` | yes |
 | External datasets, one met during a literature search included; the training servers | `docs/datasets.md`; `docs/servers.md` | yes |
@@ -55,7 +55,7 @@ Where the project stands has no row, because it has no file of its own: what is 
 
 - **Each kind of thing has one form of name**, the one the map gives it. In a project that began with this map, a new thing takes the form the map gives its kind. In an older project whose things are named otherwise, existing names stay, and whether new ones take the default form from now on is the user's to say once (asked at adoption); until they have said, a new thing takes the form its kind already has there.
 - **A dated thing is named `<YYYYMMDD>-<topic>`**: the date undivided, a hyphen between it and the topic and between the topic's words. The user, 2026-11-12: 「统一成连字符」, 「日期就不要带连字符了，不要把年月日分开」. The date is the day the thing was logged, settled or started, so that a listing sorts by time. The topic says what it is about in the words the user uses; an issue's topic starts with the part of the project it concerns. The two kinds that collect by period are named the same way: decisions, one file per month (`<YYYYMM>.md`), and reports, one folder per day (`<YYYYMMDD>/`) with a folder per task inside. Names a project already has stay as they are; this is the form of a new one.
-- **A name tells what the thing is and when it was made, without opening it.** This is the user's test. They asked for dated, topic-named experiment folders (「尽量保持{日期}_{实验主题}的命名格式」) when a listing no longer showed them 「最新进度和主题（做了什么）」. The date and a topic that says what was done are what must hold. A version mark or a running number is added to a name that already says what the thing is (`overview-v2.png`).
+- **A name tells what the thing is and when it was made, without opening it.** This is the user's test. They asked for dated, topic-named experiment folders (「尽量保持{日期}_{实验主题}的命名格式」; the separator has since been settled as the hyphen, above) when a listing no longer showed them 「最新进度和主题（做了什么）」. The date and a topic that says what was done are what must hold. A version mark or a running number is added to a name that already says what the thing is (`overview-v2.png`).
 
 ## A new directory or kind of file
 

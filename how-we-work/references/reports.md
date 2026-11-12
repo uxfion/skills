@@ -55,7 +55,7 @@ Open each figure you place, and sample a few frames of each video, and write dow
 
 ### Comparison tables
 
-A table that compares methods or runs by numbers, in the chat or in a file, carries the direction in each header (↑ ↓), the best value in bold and rank superscripts (¹²³), with reference rows unranked. This section is its form.
+The rule for a table that compares methods or runs by numbers is in the common block, and holds in the chat as in a file. This section is its form.
 
 - The header of each numeric column carries its direction: ↑ higher is better, ↓ lower is better.
 - Ranks are per column, among the ranked rows: ¹ is the best in that column's direction, and the cell ranked ¹ is also bold.

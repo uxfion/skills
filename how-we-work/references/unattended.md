@@ -61,7 +61,7 @@ With the say-back, give the user the `/goal` line to paste, whole, in a code blo
 
 ## Done ahead and reported
 
-The common block's guardrail on installs leaves the unattended run to this document. These you do during a run and report afterwards, with the reason and how to undo it: reinstalling a tool or a skill; a small system install on this machine that one command undoes; training (the common block's guardrail), on those of the project's training servers the user did not name as well; trying, beside what a written rule asks for, a way you judge better, with both results kept and the rule named in the report (never in place of what the user decides or of a guardrail). Wide uninstalls, wide deletions and wide changes of configuration wait; cleaning a server of what the run itself put there is not one of them.
+The common block's guardrail on installs leaves the unattended run to this document. These you do during a run and report afterwards, with the reason and how to undo it: reinstalling a tool or a skill; a small system install on this machine that one command undoes; training on any of the project's training servers, also one the user did not name for this round; trying, beside what a written rule asks for, a way you judge better, with both results kept and the rule named in the report (never in place of what the user decides or of a guardrail). Wide uninstalls, wide deletions and wide changes of configuration wait; cleaning a server of what the run itself put there is not one of them.
 
 ## Keeping the run alive
 

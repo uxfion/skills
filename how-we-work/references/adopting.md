@@ -26,7 +26,7 @@ Read `common.md` and every reference first: each of the project's old rules is j
   |---|---|
   | The common block or a reference now says it | Dropped from the project |
   | A fact of this project (its task, data, hosts, paths, dated cases) | A fact one kind of work needs: that kind's convention file (each reference says what its file holds). Hosts: the servers file. The rest: the project's `AGENTS.md`, outside the block, or the document that already holds such facts |
-  | A rule for one kind of work that only this project needs | `docs/conventions/<kind>.md`; where it departs from a common rule, it says which and why |
+  | A rule for one kind of work that only this project needs | `docs/conventions/<name>.md`; where it departs from a common rule, it says which and why |
   | A rule that looks general and that the common rules do not have | Kept as the project's rule, in the place its kind gives (a rule for every task: the project's `AGENTS.md`, outside the block), and named in the brief to the user. It reaches the common rules when the skills repository's session reconciles the projects (the maintaining reference), not from inside the project |
   | The user's global instructions, or one of their skills, already say it | Dropped from the project, with what says it named |
   | Overtaken by something the user said later | Dropped, with the later statement named in the accounting |
@@ -46,7 +46,7 @@ Read `common.md` and every reference first: each of the project's old rules is j
 - **A project without a rules file**, whose rules sit in memory and in the openings of its documents, gets an `AGENTS.md` as a new project does, then its own part. A rules file in a subdirectory is accounted for like the rest; whether it stays is the user's.
 - **A harness-specific rules file** (a `CLAUDE.md` that holds the project's rules) is the user's to keep or to turn into `AGENTS.md`; ask.
 
-The layout reference has the default map and what happens to a file that is replaced; the records reference has the convention file's two headings and the record files a project may lack (they are set up when first needed, not at adoption).
+The layout reference has the default map and what happens to a file that is replaced; the records reference has the convention file's form and the record files a project may lack (they are set up when first needed, not at adoption).
 
 ### What the user sees
 

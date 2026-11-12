@@ -4,7 +4,7 @@ which every case names through HOW_WE_WORK_COMMON, so the check does not depend 
 import contextlib
 
 # Every -h runs here: no common.md, so a -h that read it would fail.
-HELP_ENV = {"HOW_WE_WORK_COMMON": "/nonexistent/common.md"}
+HELP_ENV = {"HOW_WE_WORK_COMMON": "/nonexistent/common.md", "HOW_WE_WORK_CONFIG": "/nonexistent/config.json"}
 
 PAIR = "<!-- how-we-work:begin -->\n<!-- how-we-work:end -->\n"
 COMMON = "<!-- how-we-work:begin — synced from the skill. -->\n\n# How we work\n\n- One rule.\n\n<!-- how-we-work:end -->\n"
@@ -22,7 +22,7 @@ def env(tmp):
     conventions.mkdir(parents=True)
     for i in range(400):
         (conventions / f"topic-{i:03d}.md").write_text("# A topic of the project's own\n\n" + "x" * 300 + "\n", encoding="utf-8")
-    yield {"HOW_WE_WORK_COMMON": str(tmp / "common.md")}   # nothing runs on: the files go with the check's directory
+    yield {"HOW_WE_WORK_COMMON": str(tmp / "common.md"), "HOW_WE_WORK_CONFIG": str(tmp / "config.json")}   # nothing runs on: the files go with the check's directory
 
 
 def quiet(tmp):

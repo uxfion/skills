@@ -24,7 +24,8 @@ BLOCK = ("<!-- how-we-work:begin — synced from the skill; do not edit inside t
          "<!-- how-we-work:end -->").encode()
 COMMON = b"<!-- Draft 3: a note for whoever maintains the skill. -->\n\n" + BLOCK + b"\nA line after the block.\n"
 EMPTY_PAIR = b"<!-- how-we-work:begin -->\n<!-- how-we-work:end -->"
-REFERENCE_LINE = "Read the how-we-work skill's {kind} reference first (invoke the skill); this file only adds to it."
+REFERENCE_LINE = ("Read `~/.agents/skills/how-we-work/references/{kind}.md` first; this file adds to it, and holds "
+                  "for this project where the two differ.")
 OLD = 1_600_000_000   # a modification time long past: a write would move it
 
 
@@ -37,11 +38,19 @@ class Base(unittest.TestCase):
         self.project.mkdir()
         self.file = self.project / "AGENTS.md"
 
-    def run_entry(self, *argv, cwd=None, common=None):
-        env = {**os.environ, "HOW_WE_WORK_COMMON": str(common or self.common)}
+    def run_entry(self, *argv, cwd=None, common=None, whole=False):
+        """(exit status, stdout's lines, stderr). The block's line comes without its `hint` and `registered`, which one
+        test reads with whole=True."""
+        # the list of projects goes to a file of the test's, never to the real config
+        env = {**os.environ, "HOW_WE_WORK_COMMON": str(common or self.common),
+               "HOW_WE_WORK_CONFIG": str(self.dir / "config" / "config.json")}
         done = subprocess.run(["uv", "run", "--quiet", "--script", str(ENTRY), *map(str, argv)], capture_output=True,
                               text=True, env=env, cwd=cwd)
-        return done.returncode, [json.loads(line) for line in done.stdout.splitlines()], done.stderr
+        lines = [json.loads(line) for line in done.stdout.splitlines()]
+        if not whole:
+            lines = [{k: v for k, v in line.items() if k not in ("hint", "registered")} if line.get("code") == "ok" and "block" in line else line
+                     for line in lines]
+        return done.returncode, lines, done.stderr
 
     def put(self, data):
         """The project's AGENTS.md with these bytes, last modified long ago."""
@@ -63,8 +72,10 @@ class Sync(Base):
                                                 "## This project only\n\n- **A rule.** Why here only: x.\n\n"
                                                 "## To promote (待提升)\n\nNothing yet.\n", encoding="utf-8")
 
-        self.assertEqual(self.run_entry("sync", self.file),
-                         (0, [{"code": "ok", "file": str(self.file), "block": "updated"}], ""))
+        status, lines, err = self.run_entry("sync", self.file, whole=True)
+        self.assertEqual((status, {k: v for k, v in lines[0].items() if k != "hint"}, len(lines), err),
+                         (0, {"code": "ok", "file": str(self.file), "block": "updated", "registered": True}, 1, ""))
+        self.assertIn("read it again", lines[0]["hint"])
         self.assertEqual(self.file.read_bytes(), before + BLOCK + after)
 
         os.utime(self.file, (OLD, OLD))
@@ -148,41 +159,62 @@ class Sync(Base):
         self.assertEqual((done.returncode, done.stderr), (0, ""))
         self.assertIn("\n  sync  ", done.stdout)
 
-    def test_convention_files_out_of_form_are_listed_and_exit_1_and_no_entry_is_read(self):
+    def test_a_convention_file_gets_its_reference_line_and_one_named_for_no_reference_is_listed(self):
         self.put(b"# Project\n\n" + BLOCK + b"\n\n## To promote\n\n- **An entry in the project's own part: not the script's to read.**\n")
         conventions = self.project / "docs" / "conventions"
         conventions.mkdir(parents=True)
         line = REFERENCE_LINE.format(kind="experiments")
-        # in form: the name of a reference, the line before the first `## ` heading; headings and entries are free
-        (conventions / "experiments.md").write_bytes(
-            ("# 实验：本项目\r\n\r\n" + line + "\r\n\r\n## To promote\r\n\r\n- **图例放右上角。**\r\n").encode())
-        # the line only inside a fenced example, and again after the first `## ` heading: not in form
-        (conventions / "reports.md").write_text(
-            "# Reports: this project\n\n```markdown\n" + REFERENCE_LINE.format(kind="reports") + "\n```\n\n"
-            "## Later\n\n" + REFERENCE_LINE.format(kind="reports") + "\n", encoding="utf-8")
-        # another kind's line does not serve
-        (conventions / "layout.md").write_text("# Layout: this project\n\n" + line + "\n", encoding="utf-8")
-        # a topic of the project's own, and a reference that is no kind of work
+        # in form already, CRLF and a title in Chinese: left as it is
+        in_form = ("# 实验：本项目\r\n\r\n" + line + "\r\n\r\n## To promote\r\n\r\n- **图例放右上角。**\r\n").encode()
+        (conventions / "experiments.md").write_bytes(in_form)
+        # the line only inside a fenced example and after the first `## ` heading: missing, written under the title
+        reports = ("# Reports: this project\n\n```markdown\n" + REFERENCE_LINE.format(kind="reports") + "\n```\n\n"
+                   "## Later\n\n" + REFERENCE_LINE.format(kind="reports") + "\n")
+        (conventions / "reports.md").write_text(reports, encoding="utf-8")
+        # another kind's line does not serve; CRLF is kept; no title: the line goes on top
+        (conventions / "layout.md").write_bytes(("# Layout: this project\r\n\r\n" + line + "\r\n").encode())
+        (conventions / "records.md").write_text("- **An entry and no title.**\n", encoding="utf-8")
+        # a topic of the project's own, and a reference that is no kind of work: listed, never written to
         (conventions / "servers.md").write_text("# Servers\n\n- **One GPU box.**\n", encoding="utf-8")
-        (conventions / "adopting.md").write_text(
-            "# Adopting\n\n" + REFERENCE_LINE.format(kind="adopting") + "\n", encoding="utf-8")
+        (conventions / "adopting.md").write_text("# Adopting\n", encoding="utf-8")
         (conventions / "notes.txt").write_text("not a convention file\n", encoding="utf-8")
 
-        expected = {"adopting.md": ["unknown_kind"], "layout.md": ["no_reference_line"],
-                    "reports.md": ["no_reference_line"], "servers.md": ["unknown_kind", "no_reference_line"]}
-        for argv in (("sync", self.file), ("sync", "-n", self.file)):
-            status, lines, err = self.run_entry(*argv)
-            self.assertEqual((status, lines[0]), (1, {"code": "ok", "file": str(self.file), "block": "current"}))
-            self.assertEqual([(Path(l["file"]).name, l["problems"]) for l in lines[1:]], sorted(expected.items()))
-            self.assertTrue(all(l["code"] == "convention" and l["hint"] for l in lines[1:]))
-            self.assertEqual([json.loads(l) for l in err.splitlines()], [{"summary": {"conventions": 4}}])
+        def lines_of(lines):
+            return [(Path(l["file"]).name, l.get("wrote") or l["problems"]) for l in lines[1:]]
+        expected = [("adopting.md", ["unknown_kind"]), ("layout.md", "reference_line"), ("records.md", "reference_line"),
+                    ("reports.md", "reference_line"), ("servers.md", ["unknown_kind"])]
+        summary = [{"summary": {"conventions": 2}}]
 
-        # put right, nothing waits
+        status, lines, err = self.run_entry("sync", "-n", self.file)       # -n says it and writes nothing
+        self.assertEqual((status, lines_of(lines), [json.loads(l) for l in err.splitlines()]), (1, expected, summary))
+        self.assertTrue(all(l.get("dry_run") for l in lines[1:] if "wrote" in l))
+        self.assertEqual((conventions / "reports.md").read_text(encoding="utf-8"), reports)
+        self.assertFalse((self.dir / "config").exists(), "-n registers nothing")
+
+        status, lines, err = self.run_entry("sync", self.file, whole=True)
+        self.assertEqual((status, lines_of(lines), [json.loads(l) for l in err.splitlines()]), (1, expected, summary))
+        self.assertEqual(lines[0], {"code": "ok", "file": str(self.file), "block": "current", "registered": True})
+        self.assertEqual((conventions / "experiments.md").read_bytes(), in_form)
+        self.assertEqual((conventions / "reports.md").read_text(encoding="utf-8"),
+                         "# Reports: this project\n\n" + REFERENCE_LINE.format(kind="reports") + "\n\n" + reports.split("\n\n", 1)[1])
+        self.assertEqual((conventions / "layout.md").read_bytes(),
+                         ("# Layout: this project\r\n\r\n" + REFERENCE_LINE.format(kind="layout") + "\r\n\r\n" + line + "\r\n").encode())
+        self.assertEqual((conventions / "records.md").read_text(encoding="utf-8"),
+                         REFERENCE_LINE.format(kind="records") + "\n\n- **An entry and no title.**\n")
+        self.assertEqual((conventions / "servers.md").read_text(encoding="utf-8"), "# Servers\n\n- **One GPU box.**\n")
+        # the project is on the list the skills repository's session reads, once
+        config = json.loads((self.dir / "config" / "config.json").read_text(encoding="utf-8"))
+        self.assertEqual(config, {"projects": [str(self.project.resolve())]})
+
+        # a second run writes nothing more; the two files named for no reference still wait
+        status, lines, err = self.run_entry("sync", self.file)
+        self.assertEqual((status, lines[0], lines_of(lines)),
+                         (1, {"code": "ok", "file": str(self.file), "block": "current"},
+                          [("adopting.md", ["unknown_kind"]), ("servers.md", ["unknown_kind"])]))
         for name in ("servers.md", "adopting.md"):
             (conventions / name).unlink()
-        for kind in ("reports", "layout"):
-            (conventions / f"{kind}.md").write_text(f"# {kind}\n\n" + REFERENCE_LINE.format(kind=kind) + "\n", encoding="utf-8")
         self.assertEqual(self.run_entry("sync", self.file), (0, [{"code": "ok", "file": str(self.file), "block": "current"}], ""))
+        self.assertEqual(json.loads((self.dir / "config" / "config.json").read_text(encoding="utf-8")), config)
 
     def test_an_install_behind_the_projects_block_writes_nothing(self):
         def block(day):
@@ -262,7 +294,7 @@ class Rev(unittest.TestCase):
     """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
     install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
     leaves the rev alone fails here."""
-    REV, SHA256 = "2026-11-12.5", "fe7bfe3712ebf5c084168b77cdcfeb729c1b84fd79d68810d93990a3b1c34248"
+    REV, SHA256 = "2026-11-12.6", "caa4057369fec7b7955b2de2d88d0714b1fe4efff1ef3c4594c3c15b5eace838"
 
     def test_the_rev_moves_whenever_the_block_changes(self):
         data = (ENTRY.parent.parent / "common.md").read_bytes()

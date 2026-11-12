@@ -151,7 +151,7 @@ An invented example (the project, the papers, the numbers and the paths are made
 
 - **在实验室白底照片上训练的模型，直接用到田间照片上会明显变差**：3 篇论文各自报告的跨场景 Dice 都比同场景低 20 个点以上。（`research/20260312-leaf-lesion-survey.md` §2）
 - **通用分割基础模型微调后是现成的最强起点**：在 2 个公开数据集上都排第一，条件是病斑大于叶面积的约 5%。（`research/20260312-leaf-lesion-survey.md` §3）
-  - 2026-04-02 加注：范围变窄。我们自己的数据里小病斑占多数，微调后的模型在小病斑上不如专用模型（`experiments/20260328-small-lesion-compare/`；`docs/decisions/2026-04.md` D20260402-3）。
+  - 2026-04-02 加注：范围变窄。我们自己的数据里小病斑占多数，微调后的模型在小病斑上不如专用模型（`experiments/20260328-small-lesion-compare/`；`docs/decisions/202604.md` D20260402-3）。
 
 ## 【2026-04-20】读 LeafLesionNet
 
