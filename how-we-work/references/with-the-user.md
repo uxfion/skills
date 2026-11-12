@@ -1,6 +1,12 @@
+---
+name: with-the-user
+description: "Putting a design or several decisions to the user, and reading how far something they said reaches. The project's file holds what the user set for this project alone on how things are put to them."
+trigger: "before a design, or several decisions, goes to the user."
+---
+
 # Working with the user
 
-Read this before a design, or several decisions, goes to the user, and when you are unsure how far something they said reaches. The common block has the rules of every turn (*Who decides what*, *Asking, and showing work*, *Words*), how far a word of the user's reaches among them; this is the finer grain under them.
+The common block has the rules of every turn (*Who decides what*, *Asking, and showing work*, *Words*), how far a word of the user's reaches among them; this is the finer grain under them.
 
 ## Reading what the user said
 

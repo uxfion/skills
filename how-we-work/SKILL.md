@@ -8,8 +8,8 @@ description: "The user's shared working rules for their research projects: the c
 One set of rules for how the user and their agents work on a project, kept here and nowhere else.
 
 - `common.md` holds the **common block**. A project that uses it carries the block inside its `AGENTS.md`, between two marker comments, so that it is in context in every session.
-- `references/` holds one file per kind of work or moment. The block names the moments and gives the installed path, so a project's agent reads a reference directly.
-- `scripts/hww.py` keeps a project in step with the skill: `sync` brings the block up to date and puts the convention files in form, `add` makes a convention file. `hww.py -h` has the rest.
+- `references/` holds one file per kind of work or moment. Each opens with a head saying what it covers (`description`) and when it is read (`trigger`); the block carries the triggers and gives the installed path, so a project's agent reads a reference directly.
+- `scripts/hww.py` keeps a project in step with the skill: `sync` brings the block up to date and puts the convention files in form, `add` makes a convention file (`other` for a kind of work that has no reference yet). `hww.py -h` has the rest.
 
 What only one project needs stays in that project: outside the block in its `AGENTS.md`, and in its `docs/conventions/`.
 

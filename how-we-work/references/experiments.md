@@ -1,6 +1,10 @@
-# Experiments
+---
+name: experiments
+description: "Planning, running and reading experiments: a run a conclusion rests on, upstream code, environments, the training servers, and what follows a run (an incident, a defect found later, the next run). The project's file holds what its experiments need: its Python and framework build, its data and held-out cases, its expert references, the facts of its machines that bite when forgotten. How a result is shown to someone belongs to `reports`."
+trigger: "for any work on an experiment, a look at its code, data, runs or results included; before planning one or changing its code, data or settings; before a run whose result a conclusion will rest on (training, a processing or evaluation batch, model calls that rate outputs or are themselves the conditions compared); before saying what a result shows; and before using upstream code, building an environment or touching a training server."
+---
 
-Read this before a run whose result a conclusion will rest on (training, a processing or evaluation batch, model calls that rate outputs or are themselves the conditions compared), before saying what a result shows, and before using upstream code, building an environment or touching a training server. It also covers what comes after a run: an incident, a defect found later, the step to the next run.
+# Experiments
 
 The common block in the project's `AGENTS.md` holds the principles this document applies (*Look, understand, then trust*; *When stuck, step back*; *State lives in files*; *Review before it counts*) and the guardrails it relies on (a small run before a full one, the announcement of a batch that spends at scale, patient data, caches, installs). This document is the practice under them: where it names a rule of the block, it adds only what experiments need. In one place the block hands its rule over to this document, which says so there (*On a training server*, installing). The project's own `docs/conventions/experiments.md` adds what only that project needs; the last section says what belongs there.
 

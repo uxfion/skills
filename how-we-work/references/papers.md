@@ -1,8 +1,12 @@
+---
+name: papers
+description: "Writing and changing a manuscript, its figures and tables, a cover letter and a response to reviewers. The project's file holds how it runs its paper: the journal and template, how it compiles, the order of its revision, its change log, its practice for figures, tables and letters."
+trigger: "before writing or changing a manuscript, its figures or tables, a cover letter or a response to reviewers."
+---
+
 # Papers
 
-Read this before writing or changing a manuscript, one of its figures or tables, a cover letter or a response to reviewers. Read *The outward document* in the reports reference of this skill with it: the rules for every text that goes out under the user's name have their home there (it is one whole that shows the settled work, it has one voice, it stands behind itself, each limit is told once, as a limit or a next step). This document adds what is the manuscript's own.
-
-How one project runs its paper (its journal and template, how it compiles, the order of its revision, its change log, its practice for figures, tables and letters) is in that project's `docs/conventions/papers.md`.
+Read *The outward document* in the reports reference of this skill with this document: the rules for every text that goes out under the user's name have their home there (it is one whole that shows the settled work, it has one voice, it stands behind itself, each limit is told once, as a limit or a next step). This document adds what is the manuscript's own.
 
 The paper goes out under the user's name, to a reviewer who sees the paper and nothing else. Three things follow, and they are the sections below:
 

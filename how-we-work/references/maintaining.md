@@ -32,7 +32,7 @@ How a project's rule becomes a common rule. From inside one project nobody can t
 
   | Seen | Done |
   |---|---|
-  | A rule in a project's files that would hold in any project; the same rule standing in two projects is the best evidence. Also an entry in a project's memory that carries the user's words stated as holding from now on | Put to the user (*How a rule is proposed*). On their yes it enters the block, or the reference of the same name, and the entries it came from are listed for deletion |
+  | A rule in a project's files that would hold in any project; the same rule standing in two projects is the best evidence. Also an entry in a project's memory that carries the user's words stated as holding from now on | Put to the user (*How a rule is proposed*). On their yes it enters the block, or the reference of the same name (from a project's `other.md`: the other reference, under the same heading), and the entries it came from are listed for deletion |
   | An entry the common rules already state, or have overtaken | Listed for the project to delete: the project's text holds over the block, so an old copy would override the newer rule |
   | A lesson in a project's memory that has proved itself | Named to the project's session, which moves it into the project's files |
   | An issue file a project left here | Committed and weighed like any issue of this repository |
@@ -42,7 +42,7 @@ How a project's rule becomes a common rule. From inside one project nobody can t
 - **Changes in a project are its own session's**: give the user a short prompt to paste there. On the user's word to make them from here, first check that no session is running in that project.
 - **Notes about a project** made on the way stay in a git-ignored place. This repository is public: what enters its tracked files is the general rule and the user's words.
 - **A rule that reads as design thinking** is not written into `docs/design-principles.md` from here; it is proposed to the user by that document's own procedure, on its own.
-- **Many entries in a project's `AGENTS.md` that share a kind of work no reference covers** are the sign that a reference is missing: say so.
+- **A heading in a project's `other.md` that gathers several rules, or that stands in two projects,** is the sign that its kind of work deserves a reference: say so. So are entries in a project's `AGENTS.md` that are needed for one kind of work only.
 
 Done when every project on the list was read or named as gone, each exception above has reached the user or the project's session, and `docs/decisions/` has a dated line for this reconciliation, also when it found nothing.
 
@@ -68,6 +68,15 @@ Rules written here before failed in ways that repeat:
 ## Where a rule's history is kept
 
 A rule that came by an issue has its history there: the user's words, dated, and the decision; when the issue closes it is archived by the repository's own rule. A rule that came from a reconciliation, or from the user in this repository, has it in `docs/decisions/`. A candidate that was not taken is noted in the same place with the reason, so that it is not proposed again unchanged.
+
+## The head of a reference
+
+Each reference a project may add to opens with a head of three fields, in the form of a skill's: `name` (the file's name), `description` and `trigger`, each value on one line in double quotes. The two say different things and each is written here only:
+
+- **`trigger`** is when the reference is read. The line of the block's *When to read what* is this text word for word: change it here, and the test (`Heads`) prints the line the block must then carry. That is a change to the block, with its rev.
+- **`description`** is what the kind of work covers and what the project's file of that name holds, with the neighbour it is most easily taken for. It carries no moment. The sync copies it into the list that opens a project's `other.md`, so a project decides from these sentences where a rule goes: when a boundary moves, this sentence moves with it.
+
+The body of a reference does not open by repeating either. A new reference gets its head and its line in the block; a project's `other.md` then lists it at the next sync after the reinstall, and the sync tells the project's agent to move the entries that now belong to it.
 
 ## Committing and releasing a change
 

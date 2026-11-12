@@ -17,6 +17,7 @@ import unittest
 from pathlib import Path
 
 ENTRY = Path(__file__).resolve().parent.parent / "scripts" / "hww.py"
+REFERENCES = ENTRY.parent.parent / "references"
 
 # The block as the skill holds it, and a common.md around it: the note above the block and the line below stay in the skill.
 BLOCK = ("<!-- how-we-work:begin — synced from the skill; do not edit inside this block. -->\n"
@@ -290,11 +291,75 @@ class Add(Base):
         self.assertFalse((self.dir / "docs").exists())
 
 
+class Other(Base):
+    """other.md is the convention file for kinds of work that have no reference. It opens with the script's lines,
+    one for each kind that has a file; sync keeps them current and leaves what stands below them alone."""
+
+    def test_add_writes_the_list_of_kinds_and_sync_brings_a_stale_one_up_to_date(self):
+        self.put(b"# Project\n\n" + BLOCK + b"\n")
+        made = self.project / "docs" / "conventions" / "other.md"
+        self.assertEqual(self.run_entry("add", "other", cwd=self.project),
+                         (0, [{"code": "ok", "file": "docs/conventions/other.md", "created": True}], ""))
+        text = made.read_text(encoding="utf-8")
+        opening, _, rest = text.partition("<!-- how-we-work:kinds ")
+        self.assertEqual(opening, "# Other: this project\n\n" + REFERENCE_LINE.format(kind="other") + "\n\n")
+        listed = re.findall(r"^- `([a-z-]+)`: \S", rest, re.M)
+        self.assertEqual(listed, sorted(f.stem for f in REFERENCES.glob("*.md") if f.stem not in ("adopting", "maintaining", "other")))
+        self.assertTrue(text.endswith("<!-- how-we-work:kinds-end -->\n"))
+        # in form as made: sync writes nothing, and says each time that the file is to be read
+        code, out, err = self.run_entry("sync", cwd=self.project)
+        read = {"code": "convention", "file": "docs/conventions/other.md", "read": "now"}
+        self.assertEqual((code, [{k: v for k, v in line.items() if k != "hint"} for line in out], err),
+                         (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"}, read], ""))
+
+        # an entry of the project's below the list, and a list from an older skill: sync rewrites the list alone
+        entry = "\n## Code\n\n- **A rule.** From: 2026-11-13.\n"
+        stale = re.sub(r"^- `reports`: .*\n", "", text, flags=re.M).replace("- `layout`: ", "- `layout`: An older sentence. ") + entry
+        made.write_text(stale, encoding="utf-8")
+        code, out, err = self.run_entry("sync", "-n", cwd=self.project)
+        self.assertEqual((code, [{k: v for k, v in line.items() if k != "hint"} for line in out], err, made.read_text(encoding="utf-8")),
+                         (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"},
+                              {"code": "convention", "file": "docs/conventions/other.md", "wrote": "kinds", "dry_run": True}, read], "", stale))
+        code, out, err = self.run_entry("sync", cwd=self.project)
+        self.assertEqual((code, out[1]["wrote"], err), (0, "kinds", ""))
+        self.assertIn("move an entry", out[1]["hint"])
+        self.assertEqual(made.read_text(encoding="utf-8"), text + entry)
+
+        # a hand-made other.md with neither line gets both, and keeps its entry
+        made.write_text("# Other\n" + entry, encoding="utf-8")
+        code, out, _ = self.run_entry("sync", cwd=self.project)
+        self.assertEqual((code, [line.get("wrote") or line.get("read") for line in out[1:]]), (0, ["reference_line", "kinds", "now"]))
+        self.assertEqual(made.read_text(encoding="utf-8"), text.replace("# Other: this project", "# Other") + entry)
+
+
+class Heads(unittest.TestCase):
+    """The head of each reference a project may add to is the one place its `description` and its `trigger` are
+    written. The line of the common block's *When to read what* is that trigger, word for word."""
+
+    def test_each_kind_has_a_head_and_the_block_carries_its_trigger(self):
+        common = (ENTRY.parent.parent / "common.md").read_text(encoding="utf-8")
+        for path in sorted(REFERENCES.glob("*.md")):
+            if path.stem in ("adopting", "maintaining"):
+                continue
+            with self.subTest(reference=path.name):
+                lines = path.read_text(encoding="utf-8").splitlines()
+                self.assertEqual(lines[0], "---", "the reference opens with its head")
+                fields = dict(line.split(": ", 1) for line in lines[1:lines.index("---", 1)])
+                self.assertEqual(list(fields), ["name", "description", "trigger"])
+                self.assertEqual(fields["name"], path.stem, "the name is the file's name")
+                description, trigger = json.loads(fields["description"]), json.loads(fields["trigger"])
+                self.assertTrue(description.strip() and trigger.strip())
+                title = path.stem.replace("-", " ").capitalize()
+                line = f"- **{title}** (`{path.stem}`): {trigger}"
+                self.assertIn("\n" + line + "\n", common,
+                              f"common.md's *When to read what* does not carry this trigger: its line should read\n{line}")
+
+
 class Rev(unittest.TestCase):
     """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
     install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
     leaves the rev alone fails here."""
-    REV, SHA256 = "2026-11-12.7", "1790948dcd6bbb2e56f22227cce95883ec5cb51833ce0976acbac729922cc08f"
+    REV, SHA256 = "2026-11-13", "8b1047e5e1ea3448667c5f4b4ee8565a7f39b897218af70d5a20daa4edb3b119"
 
     def test_the_rev_moves_whenever_the_block_changes(self):
         data = (ENTRY.parent.parent / "common.md").read_bytes()

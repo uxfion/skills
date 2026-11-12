@@ -1,6 +1,12 @@
+---
+name: unattended
+description: "An unattended run: its goal document, what is done ahead and what is reported, notifying the user, keeping the run alive. The project's file holds what this project does not start unattended, and what its runs need to keep going."
+trigger: "at the switch, and when a session resumes a run after a compaction or a restart."
+---
+
 # Unattended runs
 
-Read this when the user switches an unattended run on, before writing its goal document, before notifying them, and again, with the goal document, when a session resumes a run after a compaction or a restart. The common block (*Unattended runs*) has how a run is switched on and off and what its rules come to; this document holds the rules themselves, the reasons, the form of the goal document, what is done ahead and reported, and what is known about keeping a run alive.
+The common block (*Unattended runs*) has how a run is switched on and off and what its rules come to; this document holds the rules themselves, the reasons, the form of the goal document, what is done ahead and reported, and what is known about keeping a run alive.
 
 ## Why the user runs unattended
 

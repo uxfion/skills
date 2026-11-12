@@ -1,6 +1,12 @@
+---
+name: subagents
+description: "Sending a subagent: how many at once, on which model, what the brief holds, what is checked when it returns. The project's file holds the project's own limits: a lower cap, a runner its work must go through."
+trigger: "before sending one."
+---
+
 # Subagents
 
-Read this before sending a subagent. The common block says what a subagent is for and the two rules it carries everywhere (no agents of its own, no git); this is the rest.
+The common block says what a subagent is for and the two rules it carries everywhere (no agents of its own, no git); this is the rest.
 
 - **How many, on which model.** At most 8 in flight at once, since they share the usage quota; where they are small checks on a cheap model, at most 10 instead. A subagent runs on the session's model; browser work and small checks of text or files run on a cheap model (Claude Code: `sonnet`; Codex: `luna`), and looking at a result or judging how well something works never does (「那种看效果或者评估效果就不能用 Sonnet 了」). The main line comes first on quota: parallel work is split into what must be produced now and what runs if quota is left.
 - **What it is for**, in the user's words: 「这些占用你大量上下文的就派给个subagent」; and of a check the main agent would only wait for: 「其实你可以不用给agent，你自己过一遍都行」. While subagents run, the main agent goes on with its own work.

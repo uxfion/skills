@@ -1,6 +1,12 @@
+---
+name: layout
+description: "Where files and directories live and what they are called, and what holds when one is moved, replaced, archived or deleted. The project's file holds each place where its map differs from the default, with the reason. What an entry of a record looks like belongs to `records`."
+trigger: "before deciding where a new file or directory goes or what it is called, and before moving, replacing, archiving or deleting one."
+---
+
 # Layout: where things live
 
-Read this before deciding where a new file or directory goes or what it is called, before moving, replacing, archiving or deleting one, and when a project's layout is first set up. The common block in the project's `AGENTS.md` says which record takes what; this document holds the whole map and what must hold when the map changes. What an entry of each record looks like is in the records reference of this skill.
+The common block in the project's `AGENTS.md` says which record takes what; this document holds the whole map and what must hold when the map changes. What an entry of each record looks like is in the records reference of this skill.
 
 ## What the layout is for
 

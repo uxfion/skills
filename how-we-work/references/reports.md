@@ -1,6 +1,12 @@
+---
+name: reports
+description: "Showing results to someone: a report for the user and the group meeting, a document for people outside the project, and the figures and comparison tables in these. The project's file holds the terms of its field, its display pipeline and its own places. A manuscript belongs to `papers`."
+trigger: "before making anything that shows results to someone: a report; a Word file, slides or a talk page for people outside the project; a page of questions for them; and the figures in these."
+---
+
 # Reports
 
-Read this before making anything that shows results to someone: a report for the user and the group meeting; a document for people outside the project (a Word file, slides, a page for a talk, a page of questions for them); and the figures and comparison tables in these. A manuscript follows the papers reference of this skill together with *The outward document* below. What only one project needs (the terms of its field, its display pipeline, its own places) is in the project's `docs/conventions/reports.md`.
+A manuscript follows the papers reference of this skill together with *The outward document* below.
 
 ## First settle who reads it
 

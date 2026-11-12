@@ -1,8 +1,10 @@
+---
+name: literature
+description: "Finding what others have published (papers, models and weights, code, datasets, the field's guidelines), and importing, reading, recording and citing a paper. The project's file holds its Zotero collection, its directions and the fields next to them, and the venues that count in its field."
+trigger: "before looking for what others have published (papers, models and weights, code, datasets, the field's guidelines), and before importing, reading, recording or citing a paper."
+---
+
 # Literature
-
-Read this before you look for what others have published (papers, models and their weights, code, datasets, the field's guidelines), and before you import a paper into the library, read one for the project, record what it gives the project, or cite one in a project document.
-
-What holds in every kind of work is in the common block in the project's `AGENTS.md`. What only this project needs (its Zotero collection, its directions and the fields next to them, the venues that count in its field) is in the project's `docs/conventions/literature.md`.
 
 ## What the literature is for
 

@@ -1,6 +1,12 @@
+---
+name: records
+description: "What an entry of each record holds and how a record stays current: decisions, the to-do list, issues, specs, what others said, the experiment log, the convention files. The project's file holds where it changes a record's format, with the reason. Where a record lives belongs to `layout`."
+trigger: "before setting up a record file, before writing an entry whose format no file header gives you, and before closing an issue, freezing or superseding a spec, or correcting a record."
+---
+
 # Records: what an entry holds and how each record stays current
 
-Read this before setting up a record file, when the format at the top of a record file leaves you unsure what an entry must hold, and before closing an issue, freezing or superseding a spec, or correcting a record that is out of date or was never true. Day to day the format at the top of each record file is enough; those headers are written from this document. Where each record lives is in the layout reference of this skill. The rules of recording that hold in every turn are in the common block in the project's `AGENTS.md` (*Words* and *Records*), and are not repeated here.
+Day to day the format at the top of each record file is enough; those headers are written from this document. Where each record lives is in the layout reference of this skill. The rules of recording that hold in every turn are in the common block in the project's `AGENTS.md` (*Words* and *Records*), and are not repeated here.
 
 ## What the records are for
 
@@ -197,7 +203,9 @@ It is consulted to check where a rule came from, or how wide it was meant when i
 
 One file per kind of work, named as the reference it adds to: `docs/conventions/experiments.md` adds to `references/experiments.md`. It holds this project's rules for that kind of work and the facts that work needs. Where an entry differs from the reference, the entry holds for this project; one that departs from a common rule on purpose says which rule and why. Agents read the file, so it is in English and quotes the user in Chinese.
 
-The script owns the file's name and its first line under the title. `hww.py add <name>`, run in the project's root, makes the file; it refuses a name that is no reference of the skill. The sync writes the line into a file that lacks it, and lists a file named for no reference: what such a file holds moves to the kind it belongs to, to `AGENTS.md` outside the block (a rule for every task), or to the project's documents (any other fact).
+The script owns the file's name and its first line under the title. `hww.py add <name>`, run in the project's root, makes the file; it refuses a name that is no reference of the skill. The sync writes the line into a file that lacks it, and lists a file named for no reference: what such a file holds moves to the kind it belongs to, to `other.md` (a rule for a kind of work that has no reference), to `AGENTS.md` outside the block (a rule for every task), or to the project's documents (any other fact).
+
+`docs/conventions/other.md` is the one file with more of the script's text and with headings of its own: the list of the kinds that have a file, then the project's entries under a heading per kind of work. The other reference of this skill says how it is written.
 
 Under the line, one bullet per rule or fact. The same form serves an entry in `AGENTS.md` outside the block:
 
