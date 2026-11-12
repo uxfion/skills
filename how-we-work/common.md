@@ -88,7 +88,7 @@ A reference is `~/.agents/skills/how-we-work/references/<name>.md`, with the nam
 - **With the user** (`with-the-user`): before a design, or several decisions, goes to the user.
 - **Subagents** (`subagents`): before sending one.
 - **Unattended** (`unattended`): at the switch, and when a session resumes a run after a compaction or a restart.
-- **Other** (`other`): at the start of a session, in a project that has `docs/conventions/other.md`.
+- **Other** (`other`): before work of a kind that the sync lists from the project's `docs/conventions/other.md`, and before writing down a rule for a kind of work that has no reference.
 - **The user's skills** (paper-to-zotero, paddleocr and the rest): running one means following its `SKILL.md`; a step you leave out is said in the same message.
 
 ## Guardrails

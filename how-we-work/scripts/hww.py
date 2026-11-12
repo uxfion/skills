@@ -93,7 +93,9 @@ order.
                                            when the project was added to the list just now
   {code: "convention", file, wrote}        wrote: "reference_line", or "kinds" (other.md's list, with a hint);
                                            with -n, dry_run: true and nothing was written
-  {code: "convention", file, read, hint}   read: "now": the project has an other.md, printed at every sync
+  {code: "convention", file, headings, hint}
+                                           other.md's `## ` headings, the kinds of work it holds rules for: printed
+                                           at every sync while it has any
   {code: "convention", file, problems, hint}
                                            problems: ["unknown_kind"]
 
@@ -295,6 +297,24 @@ def with_kinds_lines(data):
     return None if new == text else new.encode("utf-8", errors="surrogateescape")
 
 
+def headings(data):
+    """The `## ` headings of a project's other.md, a fenced example left out: the kinds of work it holds rules for."""
+    found, fence = [], None
+    for line in data.decode("utf-8-sig", errors="replace").splitlines():
+        if fence:
+            closing = line.rstrip()
+            if len(closing) >= len(fence) and set(closing) == {fence[0]}:
+                fence = None
+            continue
+        if opening := FENCE.match(line):
+            fence = opening.group(1) or opening.group(2)
+            continue
+        heading = HEADING.match(line)
+        if heading and len(heading.group(1)) == 2:
+            found.append(heading.group(2).strip())
+    return found
+
+
 def register(project):
     """Add a project's path to `projects` in the config, the list the skills repository's session reads. True when
     it was added just now; a config that cannot be read or written is left as it is."""
@@ -405,10 +425,10 @@ def sync(argv):
                                                "it was.", file=str(f), detail=str(e))
             for what in wrote:
                 emit({"code": "convention", "file": str(f), **what, **({"dry_run": True} if args.dry_run else {})})
-            if f.stem == OTHER:
-                emit({"code": "convention", "file": str(f), "read": "now",
-                      "hint": "Read this file before the work: it holds this project's rules for kinds of work that "
-                              "have no reference of their own."})
+            if f.stem == OTHER and (found := headings(data)):
+                emit({"code": "convention", "file": str(f), "headings": found,
+                      "hint": "This project's rules for kinds of work that have no reference: before work of one "
+                              "of these kinds, read its section of this file."})
     if unplaced:
         emit({"summary": {"conventions": unplaced}}, sys.stderr)
         return ACT

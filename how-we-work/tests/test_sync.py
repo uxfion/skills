@@ -306,11 +306,10 @@ class Other(Base):
         listed = re.findall(r"^- `([a-z-]+)`: \S", rest, re.M)
         self.assertEqual(listed, sorted(f.stem for f in REFERENCES.glob("*.md") if f.stem not in ("adopting", "maintaining", "other")))
         self.assertTrue(text.endswith("<!-- how-we-work:kinds-end -->\n"))
-        # in form as made: sync writes nothing, and says each time that the file is to be read
-        code, out, err = self.run_entry("sync", cwd=self.project)
-        read = {"code": "convention", "file": "docs/conventions/other.md", "read": "now"}
-        self.assertEqual((code, [{k: v for k, v in line.items() if k != "hint"} for line in out], err),
-                         (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"}, read], ""))
+        # in form as made, with no entry yet: sync writes nothing and has nothing to name
+        self.assertEqual(self.run_entry("sync", cwd=self.project), (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"}], ""))
+        # with entries, every sync names their headings, the kinds of work to read the file for
+        read = {"code": "convention", "file": "docs/conventions/other.md", "headings": ["Code"]}
 
         # an entry of the project's below the list, and a list from an older skill: sync rewrites the list alone
         entry = "\n## Code\n\n- **A rule.** From: 2026-11-13.\n"
@@ -321,14 +320,14 @@ class Other(Base):
                          (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"},
                               {"code": "convention", "file": "docs/conventions/other.md", "wrote": "kinds", "dry_run": True}, read], "", stale))
         code, out, err = self.run_entry("sync", cwd=self.project)
-        self.assertEqual((code, out[1]["wrote"], err), (0, "kinds", ""))
+        self.assertEqual((code, out[1]["wrote"], {k: v for k, v in out[2].items() if k != "hint"}, err), (0, "kinds", read, ""))
         self.assertIn("move an entry", out[1]["hint"])
         self.assertEqual(made.read_text(encoding="utf-8"), text + entry)
 
         # a hand-made other.md with neither line gets both, and keeps its entry
         made.write_text("# Other\n" + entry, encoding="utf-8")
         code, out, _ = self.run_entry("sync", cwd=self.project)
-        self.assertEqual((code, [line.get("wrote") or line.get("read") for line in out[1:]]), (0, ["reference_line", "kinds", "now"]))
+        self.assertEqual((code, [line.get("wrote") or line.get("headings") for line in out[1:]]), (0, ["reference_line", "kinds", ["Code"]]))
         self.assertEqual(made.read_text(encoding="utf-8"), text.replace("# Other: this project", "# Other") + entry)
 
 
@@ -359,7 +358,7 @@ class Rev(unittest.TestCase):
     """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
     install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
     leaves the rev alone fails here."""
-    REV, SHA256 = "2026-11-13", "8b1047e5e1ea3448667c5f4b4ee8565a7f39b897218af70d5a20daa4edb3b119"
+    REV, SHA256 = "2026-11-13", "b3c85bf2bfe1f08a54608102c82dc60be95be81499de2c293e0a1c56e8671515"
 
     def test_the_rev_moves_whenever_the_block_changes(self):
         data = (ENTRY.parent.parent / "common.md").read_bytes()
