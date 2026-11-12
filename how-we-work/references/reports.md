@@ -48,7 +48,7 @@ Open each figure you place, and sample a few frames of each video, and write dow
 
 ### Figures
 
-- **Text inside a figure is English** (the common block's rule). Inside means drawn into the image: axes, legends, annotations, labels. The caption and the body text around the figure are in the report's language.
+- **Text inside a figure is English by default** (the common block's rule): its script takes the language option, and a report gets Chinese figures when the user names Chinese for it. Inside means drawn into the image: axes, legends, annotations, labels. The caption and the body text around the figure are in the report's language.
 - **A figure is drawn at its final size and print resolution by the script that draws it,** and stays as drawn: enlarging or resampling it later in the document tool is the repair the user objected to (「你这些图绘制的时候不就应该是输出600dpi的png了吗？为什么在操作word这边。」). The measure is that it looks clear on the page, not that nothing is lost. When every figure of one Word report was drawn at 600 dpi the file grew very large, and the user said 「也不是说完全无损，只要看上去比较清晰就可以了」 and, for that report, 「就留300dpi的就行了」. That number is the user's for one printed report: it gives the scale, and the measure decides.
 - **In a report (an HTML page, a Word file) raster figures are saved as PNG:** 「另外，我们存图的时候都用PNG吧，因为JPG是被压缩过的」. The figure format of a manuscript is the manuscript's own matter.
 - **A flow chart runs left to right:** 「流程图尽量不要竖着放，竖着放我一页不可能放得下，而且要滑页，根本就看不全，要横着放」. The user's test for any schematic or flow chart is that the figure alone tells the logic: 「看到图就能知道背后的逻辑和原理」.

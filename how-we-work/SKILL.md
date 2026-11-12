@@ -47,7 +47,7 @@ Read the reference, then the project's `docs/conventions/<kind>.md` if it has on
 
 ## When a project is to adopt these rules
 
-Only on the user's word naming the project. Read [references/adopting.md](references/adopting.md), then `common.md` and every reference, since each of the project's old rules is judged against them. Nothing in the project changes before the user has seen the accounting.
+Only on the user's word naming the project. Read [references/adopting.md](references/adopting.md): by the project's state (new, under way, under way and unable to stop for it) it says what adoption is, what the user sees before anything changes, and what a session of the skills repository delivers when the user has it prepare the adoption first.
 
 ## Changing the common rules
 
