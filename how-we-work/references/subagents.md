@@ -1,0 +1,10 @@
+# Subagents
+
+Read this before sending a subagent. The common block says what a subagent is for and the two rules it carries everywhere (no agents of its own, no git); this is the rest.
+
+- **How many, on which model.** At most 8 in flight at once, since they share the usage quota; where they are small checks on a cheap model, at most 10 instead. A subagent runs on the session's model; browser work and small checks of text or files run on a cheap model (Claude Code: `sonnet`; Codex: `luna`), and looking at a result or judging how well something works never does (「那种看效果或者评估效果就不能用 Sonnet 了」). The main line comes first on quota: parallel work is split into what must be produced now and what runs if quota is left.
+- **What it is for**, in the user's words: 「这些占用你大量上下文的就派给个subagent」; and of a check the main agent would only wait for: 「其实你可以不用给agent，你自己过一遍都行」. While subagents run, the main agent goes on with its own work.
+- **The brief** gives the context to judge alone (the goal, what is known, what was tried), the inputs by path, the reference and the project convention file this kind of work follows, the product and the one folder it writes to, a done-when that can fail and names what it must look at, and what to report: exceptions only, and if it cannot finish, what it tried, what it established and what is still needed. It carries the two rules the subagent can read nowhere else: no agents of its own, no git. The subagent writes its notes as it goes. For wide research the user may allow two levels, for the piece of work in hand.
+- **Around the dispatch.** Run `git status` before sending a subagent and again when it returns. What it wrote outside its folder is moved to where it belongs or removed; a change you cannot tell to be the subagent's stays, and is named to the user.
+- **One writer per file.** Commits, edits to records and the start-of-session sync stay with the main agent.
+- **Its report is a lead** (the common block, *Facts are looked up, not asked*): what a decision rests on is checked against the source. Read yourself what it left out of what the user asked for.

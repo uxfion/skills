@@ -1,12 +1,23 @@
 # Unattended runs
 
-Read this when the user switches an unattended run on, before writing its goal document, before notifying them, and again, with the goal document, when a session resumes a run after a compaction or a restart. The rules that hold all through a run are in the common block (*Unattended runs*); this document holds the reasons, the form of the goal document, what is done ahead and reported, and what is known about keeping a run alive.
+Read this when the user switches an unattended run on, before writing its goal document, before notifying them, and again, with the goal document, when a session resumes a run after a compaction or a restart. The common block (*Unattended runs*) has how a run is switched on and off and what its rules come to; this document holds the rules themselves, the reasons, the form of the goal document, what is done ahead and reported, and what is known about keeping a run alive.
 
 ## Why the user runs unattended
 
 The user's time at the keyboard is the scarce thing; yours is not. An unattended run turns their absence, usually a night, into progress on the project: 「在我不在线的这一段时间里，你要尽可能向前推进，因为等我回来后，我希望看到结果。而不是被某个问题卡住。」 They come back to decide, not to start work: 「不要等我做了决定以后，你再去做一堆东西。你要把你能做的以及未来可能需要做的都做好了，等我在的时候，你再集中问我……甚至有些路已经走通了，只是让我确定一下就行了。」 An agent that finishes the named task and waits has wasted the night: 「不然的话，无人值守的意义在哪里呢？」
 
 Their brakes were never about doing too much. They were about direction: pushing on without rethinking (「如果方向错误的话，你走的再多都没有用」), a side line crowding out the main one, and scale put on a base that was not settled yet.
+
+## The rules of a run
+
+- **The goal is the project's goal.** The main line comes first and is carried to the end the user will check. When it is done, blocked, or waiting on a training run or subagents, the run does not stop: from the project's goal, pick the next thing that you can do yourself, that does not crowd out the main line, and that helps the project most: an experiment, a path ahead explored, a coming choice of the user's worked out as compared results, an issue solved, literature, analysis, whatever serves the goal. After each stretch, look back at the direction before picking the next. A report or a commit is a milestone, not a stop.
+- **At the switch,** write the run's goal document in `docs/goals/`, say back in a few lines the goal as you read it, what you will do ahead of their decisions, what waits for them and what would stop the run; ask only what they can settle on the spot; and start on what does not hang on the answer. After 10 minutes without a reply, treat the user as absent.
+- **Do ahead whatever would still be a long run after the user's word; only the word itself waits.** The user decides in the morning, and what remains after their word should be quick assembly, never another long run. So what the user decides (the common block, *Who decides what*) still waits, each item prepared to within one word: the options of an open choice all run, drafts of a paper or an outward report written in the likeliest versions with their figures, the branches of a change of direction explored. What is small and can be undone you do and report afterwards, with the reason and how to undo it (*Done ahead and reported*). What the user then refuses is not done again.
+- **The one stop.** Stop only when everything left hangs on a decision of the user's and doing it first would likely be wasted; before deciding that, re-read `docs/goal.md`, the to-do list and the open issues for what else serves the goal. Then the goal document says so and the user is notified on their phone, with the project and what waits. Waiting is not this stop: when only the end of a training run or another job is left, note in the goal document what is awaited and end the turn with a way back set (*Keeping the run alive*), without notifying.
+- **A turn ends only with a way back.** Do not end a turn on "next I will do X": do X. End a turn only with background work that will call you back, or at the one stop, and end it with one line of state: what was just done, what comes next, what was queued for the user.
+- **The record is the goal document.** After each step append what was done, decided or met, how it was handled and why, and keep its list of what waits for the user current; it is where a resumed session picks up. A conflict or an anomaly met in the run goes on that list with a proposed handling.
+- **A batch that spends at scale** (the common block's guardrail) is announced in the goal document; it then runs where the resources the user gave for the round cover it and nothing it rests on is undecided, and waits for the user otherwise.
+- **When the user is back,** give first a brief that needs no context (what was done, the state now, what you decided for them, what waits), then the questions, one at a time.
 
 ## The goal document
 
@@ -42,7 +53,7 @@ The record is for the agent that resumes, more than for the user: 「你合理�
 
 ## At the switch
 
-What you say back has the four parts the block names, a line or two each, in the chat: the goal as you read it; what you will do ahead; what waits for them; what would stop the run. This is their one chance to correct the scope before they leave; the one time it was done well, the user widened the scope within two minutes.
+What you say back has the four parts *The rules of a run* names, a line or two each, in the chat: the goal as you read it; what you will do ahead; what waits for them; what would stop the run. This is their one chance to correct the scope before they leave; the one time it was done well, the user widened the scope within two minutes.
 
 Your questions go as one numbered list: only what their message left open and they can settle on the spot, or what only they can open in the coming hours (a login that will expire, a permission).
 
@@ -71,4 +82,4 @@ Only at the one stop. Bark, with the settings in `~/.config/bark/config.json` (`
 
 ## When the user is back
 
-The block gives the order: first the brief, then the questions one at a time. The brief is in the chat, in Chinese, with the names the user uses, and says: what was done; the state now, including what is still running and until when; what you decided for them, which they may overturn; what waits. A report of the night's results, where the round calls for one, follows the reports reference.
+*The rules of a run* gives the order: first the brief, then the questions one at a time. The brief is in the chat, in Chinese, with the names the user uses, and says: what was done; the state now, including what is still running and until when; what you decided for them, which they may overturn; what waits. A report of the night's results, where the round calls for one, follows the reports reference.

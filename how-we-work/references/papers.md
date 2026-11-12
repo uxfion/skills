@@ -53,7 +53,7 @@ Settled by the user on 2026-11-10: the evaluation is objective, and within that 
 - **The red comes off only when the user says they have read those changes properly.** 「大致看了一遍」 is not that. An agent heard 「我记得大致过了一遍。」, recorded the batch as reviewed and proposed removing the red; the answer was 「不要，我只是说大致看了一遍，没有具体看，所以还是先提交。」 This is the common block's rule that a leaning is recorded as a leaning.
 - **A deletion leaves nothing red on the page.** Name each deletion and its place in your report, so that the user can find it.
 - **A copy for someone else** is built with the colour switched off and the marks still in the source; afterwards the working state, red on, is restored: 「然后把标红的标注先取消掉，编译一版，我需要发给别人相对完整的。」
-- **In an unattended run,** the versions the common block asks you to prepare for a choice of the user's stand side by side, each marked red, none chosen.
+- **In an unattended run,** the versions the unattended reference asks you to prepare for a choice of the user's stand side by side, each marked red, none chosen.
 - **A sentence of the manuscript that goes to the user as a question** is shown as a change: where it is, the original, the proposal, the Chinese of each, the changed words marked, the reason, then the options.
 
 ## Where the other rules are

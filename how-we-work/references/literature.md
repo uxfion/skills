@@ -95,7 +95,7 @@ A paper the user sends as an example of a direction is both kinds: read it, then
 
 **Reading shifts the direction without anyone deciding it**: 「你在查文献的过程中，读得越多，方向可能也会慢慢偏移。反正大方向是我决定的，在合理的时间点停下来和我讨论，小方向你自己决定。」 When what you have read would change the project's direction, bring it to the user at that point.
 
-**A survey beside a main line** comes under the common block's rule that the main line comes first on quota. The case behind that rule was a literature one: literature agents running beside the main line used up the shared limit. 「你的文献任务暂缓一下，用了太多token导致限额了，影响了主任务。」
+**A survey beside a main line** comes under the rule that the main line comes first on quota (the subagents reference of this skill). The case behind that rule was a literature one: literature agents running beside the main line used up the shared limit. 「你的文献任务暂缓一下，用了太多token导致限额了，影响了主任务。」
 
 ## What goes into the library
 

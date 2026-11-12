@@ -1,6 +1,6 @@
 ---
 name: how-we-work
-description: "The user's shared working rules for their research projects — the common block synced into each project's AGENTS.md, and one reference per kind of work. Use in a project whose AGENTS.md carries the how-we-work block: at the start of a session (sync), before an experiment or a run on a training server, a report, a literature search, a manuscript, a new directory or record, and when the user switches on an unattended run (无人值守). Use also when the user asks for a project to adopt these rules, and when a common rule is to be changed."
+description: "The user's shared working rules for their research projects — the common block synced into each project's AGENTS.md, and one reference per kind of work. Use in a project whose AGENTS.md carries the how-we-work block: at the start of a session (sync), before an experiment or a run on a training server, a report, a literature search, a manuscript, a new directory or record, a design or decisions put to the user, a subagent sent, and when the user switches on an unattended run (无人值守). Use also when the user asks for a project to adopt these rules, and when a common rule is to be changed."
 ---
 
 # How we work
@@ -33,7 +33,7 @@ The common rules change only there. Its path on this machine is `skills_repo` in
 
 ## Before a kind of work
 
-Read the reference, then the project's `docs/conventions/<kind>.md` if it has one. The block's *Kinds of work* says when each applies.
+Read the reference, then the project's `docs/conventions/<kind>.md` if it has one. The block's *When to read what* says when each applies.
 
 | Kind | Read |
 |---|---|
@@ -43,6 +43,8 @@ Read the reference, then the project's `docs/conventions/<kind>.md` if it has on
 | Papers | [references/papers.md](references/papers.md), and *The outward document* in the reports reference |
 | Layout | [references/layout.md](references/layout.md) |
 | Records | [references/records.md](references/records.md) |
+| A design, or several decisions, going to the user | [references/with-the-user.md](references/with-the-user.md) |
+| Sending a subagent | [references/subagents.md](references/subagents.md) |
 | An unattended run: at the switch, and on resuming one after a compaction or a restart | [references/unattended.md](references/unattended.md) |
 
 ## When a project is to adopt these rules
