@@ -39,7 +39,7 @@ How a project's rule becomes a common rule. From inside one project nobody can t
   | A rule that is the project's own | Left |
 
 - **What the user decides is recorded** in this repository's `docs/decisions/`: a rule taken, with the user's words; one turned down or put off, so that the next reconciliation does not ask again. Nothing is marked in the project.
-- **Changes in a project are made from here.** First check that no session is running in that project (no agent process has its directory as working directory); a project with a session open waits for the next pass. Commit there only the files you changed.
+- **Changes in a project are made from here.** First check that no session is running in that project (no agent process has its directory as working directory); a project with a session open waits for the next pass. What git cannot bring back (its memory, an untracked file) is first copied, as it was, to that project's `archive/<YYYYMMDD>/` with a line in its `INDEX.md` saying why and how to put it back (the layout reference). The user, 2026-11-14: 「如果有一些要删的或者比较大的改动的，没有git跟踪的，你进项目那边的archive」. Commit there only the files you changed.
 - **Notes about a project** made on the way stay in a git-ignored place. This repository is public: what enters its tracked files is the general rule and the user's words.
 - **A rule that reads as design thinking** is not written into `docs/design-principles.md` from here; it is proposed to the user by that document's own procedure, on its own.
 - **A heading in a project's `other.md` that gathers several rules, or that stands in two projects,** is the sign that its kind of work deserves a reference: say so. So are entries in a project's `AGENTS.md` that are needed for one kind of work only.

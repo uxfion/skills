@@ -1,3 +1,5 @@
+> 已解决（2026-11-14）：reports 参考按一套标准重写并发布（rev 2026-11-14，D20261114-1 到 -4）；各项目里被新参考盖过的条目已从 skills 仓库这边清理（D20261114-3、-5）。留下的检验是下一次真实的组会页：如果又被纠正同一组问题，新开一份 issue。参考材料在 git 不跟踪的 `archive/20261114/20261114-how-we-work-reports-learn-from-satisfying-pages-reference/`。
+
 # how-we-work：照参考做的组会汇报页总被否，要照用户满意的三份页面改 reports 参考
 
 - **来源 · 日期**：用户在 skills 仓库的会话里提出 · 2026-11-14。当时用户让检查 how-we-work 跑了一段时间后有什么问题，用户把汇报页单独拎了出来。
@@ -8,7 +10,7 @@
     - zym_video_3d `reports/2026-11-03/carotid-wall-3d-report/technical-report.html`（对外技术报告）；
     - diffusion `reports/2026-11-11/group-meeting/index.html`；
     - hc_deduction `reports/20261113/meeting-summary/index_v3.html`（最新，组会上反馈好）。
-  - 各次检查的证据、截图和逐条原话在旁边的参考文件夹 `20261114-how-we-work-reports-learn-from-satisfying-pages-reference/`（`evidence.md`、`shots/`）。
+  - 各次检查的证据、截图和逐条原话在`archive/20261114/20261114-how-we-work-reports-learn-from-satisfying-pages-reference/`（原在 issue 旁边）（`evidence.md`、`shots/`）。
 - **用户原话**：
   - 纠正（北京时间）：
     - zym，11-04：「其实我感觉流程图看得不是很直观，应该要把它弄成类似主图的形式」
@@ -59,7 +61,7 @@
   2. 读参考：每份参考在用到时都读全一次（通用块 *When to read what* 开头那段，rev 2026-11-14）；不再要求每轮修改前重读，压缩后重读靠块里原有那句（D20261114-4）。
   3. 中文组会页的示意图默认用中文、数据图用英文（用户：「1可以」）。页面由脚本拼出来算特例，不保留，"页面手写，图表用脚本"不变。
   4. 发布（推送、重装、各项目同步）等用户点头。改过的参考要在下一次真实的汇报里检验。
-- **状态**：处理中
+- **状态**：已解决
 
 ## 对账：四个项目里和报告有关的条目（2026-11-14）
 
