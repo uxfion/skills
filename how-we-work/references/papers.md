@@ -6,7 +6,7 @@ trigger: "before writing or changing a manuscript, its figures or tables, a cove
 
 # Papers
 
-Read *The outward document* in the reports reference of this skill with this document: the rules for every text that goes out under the user's name have their home there (it is one whole that shows the settled work, it has one voice, it stands behind itself, each limit is told once, as a limit or a next step). This document adds what is the manuscript's own.
+Read the reports reference of this skill with this document: the rules for every page that presents the work, a manuscript included, have their home there (*What the page claims*, *One voice*: it is one whole, it has one voice, it stands behind itself, each limit is told once, beside the step that addresses it). This document adds what is the manuscript's own.
 
 The paper goes out under the user's name, to a reviewer who sees the paper and nothing else. Three things follow, and they are the sections below:
 
@@ -16,7 +16,7 @@ The paper goes out under the user's name, to a reviewer who sees the paper and n
 
 ## One whole, in a manuscript
 
-「论文的正文中应该展示一个整体，而不是一次次实验或者revised的中间流水。」 What this asks of any outward text is in the reports reference. In a manuscript two things come with it:
+「论文的正文中应该展示一个整体，而不是一次次实验或者revised的中间流水。」 What this asks of any page is in the reports reference (*What the page claims*). In a manuscript two things come with it:
 
 - **A claim that recurs reads the same everywhere.** Abstract, introduction, contributions, method, results, captions and discussion tell one argument. When one place changes, bring the others along in the same piece of work and name them in your report. After a new table went in, the user asked 「文中其他地方也同步改了吗？」, and more places were then found.
 - **It is a way of reading the paper, not a step to tick off.** When an agent turned it into "check every decision against the full text", the user corrected it: 「也不是说"每条决定都要放回全文核对"，就是要把这篇论文看成一个整体」. Every rewrite, and every option you put to the user, is written for the paper's one argument.

@@ -1,4 +1,4 @@
-<!-- how-we-work:begin rev 2026-11-13 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
+<!-- how-we-work:begin rev 2026-11-14 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
 
 # How we work
 
@@ -80,7 +80,7 @@ A subagent is for work that runs while you do something else, and for reading th
 A reference is `~/.agents/skills/how-we-work/references/<name>.md`, with the name each line below gives. At each of these moments read that reference, then the project's `docs/conventions/<name>.md` where there is one: it adds what this project needs, and holds where the two differ. After a compaction a reference is no longer in your context: read it again before going on with that work.
 
 - **Experiments** (`experiments`): for any work on an experiment, a look at its code, data, runs or results included; before planning one or changing its code, data or settings; before a run whose result a conclusion will rest on (training, a processing or evaluation batch, model calls that rate outputs or are themselves the conditions compared); before saying what a result shows; and before using upstream code, building an environment or touching a training server.
-- **Reports** (`reports`): before making anything that shows results to someone: a report; a Word file, slides or a talk page for people outside the project; a page of questions for them; and the figures in these.
+- **Reports** (`reports`): before making anything that shows results to someone: a report; a Word file, slides or a talk page for people outside the project; a page of questions for them; and the figures in these. Read it whole, and again before each round of revising the page.
 - **Literature** (`literature`): before looking for what others have published (papers, models and weights, code, datasets, the field's guidelines), and before importing, reading, recording or citing a paper.
 - **Papers** (`papers`): before writing or changing a manuscript, its figures or tables, a cover letter or a response to reviewers.
 - **Layout** (`layout`): before deciding where a new file or directory goes or what it is called, and before moving, replacing, archiving or deleting one.
