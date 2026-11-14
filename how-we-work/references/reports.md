@@ -1,12 +1,12 @@
 ---
 name: reports
 description: "Showing results to someone: any page that presents the work (a report, a group-meeting page, a talk, a Word file, a page of questions) and the figures and comparison tables in it. The project's file holds the terms of its field, its display pipeline and its own places. A manuscript belongs to `papers`."
-trigger: "before making anything that shows results to someone: a report; a Word file, slides or a talk page for people outside the project; a page of questions for them; and the figures in these. Read it whole, and again before each round of revising the page."
+trigger: "before making anything that shows results to someone: a report; a Word file, slides or a talk page for people outside the project; a page of questions for them; and the figures in these. Read the reference whole, and again before each round of revising one of these."
 ---
 
 # Reports
 
-Every page that shows the work is held to one standard, whoever reads it: a report the user reads, the page the user presents at a group meeting, a technical report for a hospital, a talk, a Word file. The user, 2026-11-14: 「都是呈现。目标是把事情/问题讲清楚梳理清楚展示好」; 「不要去刻意把报告或者组会或者对外演讲给分开来」. This replaces the split into an internal report and an outward document of 2026-11-10. The standard is the default. A page's use (spoken over at a meeting, or sent to be read alone) changes three things, each said where it applies: how much text, and with it how a figure is explained (*Words*, *Each section is carried by its main figure*); how much of the history of the work is shown (*What the page claims*); and the medium (*By medium*). A manuscript follows the papers reference of this skill, with *What the page claims*, *One voice* and *Words* from this one; its structure and its figures are the manuscript's own.
+Every page that shows the work is held to one standard, whoever reads it: a report the user reads, the page the user presents at a group meeting, a technical report for a hospital, a talk, a Word file. The user, 2026-11-14: 「都是呈现。目标是把事情/问题讲清楚梳理清楚展示好」; 「不要去刻意把报告或者组会或者对外演讲给分开来」. This replaces the split into an internal report and an outward document of 2026-11-10. The standard is the default. Where a page's use (spoken over at a meeting, or sent to be read alone) changes something, the rule says so where it stands: how much text and how a figure is explained, how much of the history of the work is shown, which parts of the frame a page has, the medium. A manuscript follows the papers reference of this skill, with *What the page claims*, *One voice* and *Words* from this one; its structure and its figures are the manuscript's own.
 
 The standard was drawn from the three pages the user named as satisfying on 2026-11-14 (a group-meeting page from each of two projects and a technical report for a hospital) and from the corrections that led to them.
 
@@ -45,7 +45,7 @@ These are the parts of the satisfying pages, in their order; a page has them by 
 |---|---|---|
 | Navigation | A long page | A bar fixed at the top with one short name per section |
 | Eyebrow (眉题), title | Every page | Topic · date · what the page is (组会汇报, 技术报告); the task or the question in one sentence |
-| Scope | Every page | The data, the model, how the comparison was run, in a line or on the key-number cards; on a meeting page also how it reads ("each section gives its answer first, then the main figure and the numbers") |
+| Scope | Every page | The data, and whether it also served to choose the method; the model; how the comparison was run; whose readings the judgements are. In a line or on the key-number cards; on a meeting page also how the page reads ("each section gives its answer first, then the main figure and the numbers") |
 | First screen | Every page | The result at once (*The first screen shows the whole*) |
 | Answer table | A page answering questions someone put to it, as a meeting's | One row per question (*The first screen shows the whole*) |
 | One section per question | Every page | A small label above the heading names it (§1 · Q1, or the topic); then as *Each section is carried by its main figure* says |
