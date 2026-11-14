@@ -1,7 +1,7 @@
 ---
 name: reports
 description: "Showing results to someone: any page that presents the work (a report, a group-meeting page, a talk, a Word file, a page of questions) and the figures and comparison tables in it. The project's file holds the terms of its field, its display pipeline and its own places. A manuscript belongs to `papers`."
-trigger: "before making anything that shows results to someone: a report; a Word file, slides or a talk page for people outside the project; a page of questions for them; and the figures in these. Read the reference whole, and again before each round of revising one of these."
+trigger: "before making anything that shows results to someone: a report; a Word file, slides or a talk page for people outside the project; a page of questions for them; and the figures in these."
 ---
 
 # Reports
