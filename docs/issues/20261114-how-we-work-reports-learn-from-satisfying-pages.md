@@ -65,15 +65,16 @@
 
 用户：「diffusion、ceus也要看，然后走那个流程」。按 `how-we-work/references/maintaining.md` 的 *Reconciling the projects*，只对报告这一块：读了每个项目的 `.memory/`、`AGENTS.md` 块外的部分、全部约定文件，还有报告目录里的 README 和规则文件。下面只列例外；没列的条目都是项目自己的（病例排版、出图工具包、报告目录等），留着。
 
-**要升进通用参考的，等用户定**
+**提议升、用户不升的**
 
-- diffusion `docs/conventions/reports.md`：报告按定下的设置展示结果，不放让读者自己调参数的控件。用户 2026-09-16 的原话：「另外，我不希望做成自己调整的形式。每次我让你做一次报告，按照时间归类，然后就一个HTML 就行，附件那些东西可以引用，而不是嵌入」。后半句通用参考里已经有了。
+- diffusion `docs/conventions/reports.md`："报告按定下的设置展示结果，不放让读者自己调参数的控件"。出处是用户 2026-09-16 否掉交互式图库时说的：「另外，我不希望做成自己调整的形式……」。main agent 提议升进通用参考，用户不同意：「这个是很久以前的吧，而且之后我们做的工作也没有重复去做吧。这个应该是一个例外的条例吧，就针对某一个场景的，我应该提升吗？我感觉你这个提升有点激进了，而且其他报告里面也有这种交互的情况啊」，并决定在项目里也删掉：「而且我甚至觉得这个约定应该删掉」「1 删」（2026-11-14）。
 
 **被新参考写了或盖过的，发布后交给项目自己的会话删**
 
 - diffusion：
-  - `docs/conventions/reports.md` 写的是"报告放在 `reports/<YYYY-MM-DD>/<task>/`"，`reports/README.md` 开头也这么写。通用规则从 2026-11-12 起，新文件夹名里的日期连写（`<YYYYMMDD>`，D20261112-6），已有的名字不动。
-  - 给 diffusion 会话的提示：「how-we-work 的 reports 参考已重写（rev 2026-11-14）。`docs/conventions/reports.md` 和 `reports/README.md` 里新报告的路径写的还是 `reports/<YYYY-MM-DD>/`，按通用规则改成新报告用 `reports/<YYYYMMDD>/<任务>/`，已有的文件夹名不动。改完说一行改了什么。」
+  - `docs/conventions/reports.md` 里"不做成让读者自己调参数的形式"那条，删掉（用户 2026-11-14 定的，见上）。
+  - 新报告文件夹的日期写法：不用改。通用规则已不再约束日期怎么写（D20261114-2）。
+  - 给 diffusion 会话的提示：「how-we-work 的 reports 参考已重写（rev 2026-11-14）。`docs/conventions/reports.md` 里"报告按定下的设置展示、不放让读者自己调参数的控件"那条，用户 2026-11-14 定了删掉：那是针对 2026-09 关键点图库的一次性要求，之后的报告里交互用得好（比如可旋转的三维模型）。删完说一行。」
 - ceus：
   - `docs/conventions/reports.md` 的 *Meeting report rhythm*：规定的章节顺序和每节末尾的启发框，来自已作废的 `reports/STYLE.md`，会盖过新参考的骨架。
   - *Visual precedents*：把 2026 年 8–9 月的三份页面定为细节的标准，要确认不和新的外观冲突。
