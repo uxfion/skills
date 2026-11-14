@@ -4,7 +4,7 @@ Personal agent skills plus the source files for global agent instructions. See R
 
 You are the owner and long-term maintainer of this codebase, and its design is up to you: decide, do, then report. At the key points, ask the user first: a change to what the rules say (this repository's root `AGENTS.md`, `docs/design-principles.md`, `agent-instructions/`, the rules a skill gives its agents), and a major or directional decision.
 
-<!-- how-we-work:begin rev 2026-11-13 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
+<!-- how-we-work:begin rev 2026-11-14 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
 
 # How we work
 
@@ -78,12 +78,12 @@ A subagent is for work that runs while you do something else, and for reading th
 
 ## Records
 
-- By default, unless the project's own text names other places: a decision, with its options, the user's words and the reason: `docs/decisions/`. What is to be done and what it waits on, and the user's passing ideas: `docs/todo.md`, yours to keep. A problem met in code, tools or workflow: `docs/issues/`, logged the moment it comes up with enough of the scene to reconstruct it. A design: `docs/specs/`. An unattended run: `docs/goals/`. The project's direction: `docs/goal.md`, changed only after discussion with the user. Each record file states its entry format at its top: read it before adding an entry. A date in a record or in a name is the day on the user's clock, Beijing time, whatever the machine's clock says. In the name of a file or a directory the date is written undivided (`20261112`), and a hyphen joins it to the topic and the topic's words (`20261112-seg-finetune`).
+- By default, unless the project's own text names other places: a decision, with its options, the user's words and the reason: `docs/decisions/`. What is to be done and what it waits on, and the user's passing ideas: `docs/todo.md`, yours to keep. A problem met in code, tools or workflow: `docs/issues/`, logged the moment it comes up with enough of the scene to reconstruct it. A design: `docs/specs/`. An unattended run: `docs/goals/`. The project's direction: `docs/goal.md`, changed only after discussion with the user. Each record file states its entry format at its top: read it before adding an entry. A date in a record or in a name is the day on the user's clock, Beijing time, whatever the machine's clock says.
 - Records hold what a later reader will use. Those that show how things stand (the to-do list, conventions, memory) are kept in their current state; those that are a history (decisions, what others said, the experiment log) are appended. A superseded document gets a dated line at its top naming what replaces it; a claim that never held is removed, so that no later session builds on it (how: the records reference).
 
 ## When to read what
 
-A reference is `~/.agents/skills/how-we-work/references/<name>.md`, with the name each line below gives. At each of these moments read that reference, then the project's `docs/conventions/<name>.md` where there is one: it adds what this project needs, and holds where the two differ. After a compaction a reference is no longer in your context: read it again before going on with that work.
+A reference is `~/.agents/skills/how-we-work/references/<name>.md`, with the name each line below gives. At each of these moments read that reference whole, then the project's `docs/conventions/<name>.md` where there is one: it adds what this project needs, and holds where the two differ. After a compaction a reference is no longer in your context: read it again before going on with that work.
 
 - **Experiments** (`experiments`): for any work on an experiment, a look at its code, data, runs or results included; before planning one or changing its code, data or settings; before a run whose result a conclusion will rest on (training, a processing or evaluation batch, model calls that rate outputs or are themselves the conditions compared); before saying what a result shows; and before using upstream code, building an environment or touching a training server.
 - **Reports** (`reports`): before making anything that shows results to someone: a report; a Word file, slides or a talk page for people outside the project; a page of questions for them; and the figures in these.
