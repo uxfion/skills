@@ -61,14 +61,35 @@
   4. 发布（推送、重装、各项目同步）等用户点头。改过的参考要在下一次真实的汇报里检验。
 - **状态**：处理中
 
-## 发布后各项目要清掉的条目
+## 对账：四个项目里和报告有关的条目（2026-11-14）
 
-项目自己的约定优先于通用参考，下面这些不清掉，会继续压过新的标准。发布（推送、重装）之后，把对应的提示交给各项目自己的会话。要从这里直接改，先确认那个项目没有会话在跑。
+用户：「diffusion、ceus也要看，然后走那个流程」。按 `how-we-work/references/maintaining.md` 的 *Reconciling the projects*，只对报告这一块：读了每个项目的 `.memory/`、`AGENTS.md` 块外的部分、全部约定文件，还有报告目录里的 README 和规则文件。下面只列例外；没列的条目都是项目自己的（病例排版、出图工具包、报告目录等），留着。
 
-- **ceus**，`docs/conventions/reports.md`：
-  - *Meeting report rhythm* 规定了组会页的章节顺序（任务和路线、数据、实际效果、失败和修订……），每节末尾还有一个启发框。这会盖过新参考的骨架（按上次会议的问题分节、每节一张主图、页首回答一览）。
-  - *Visual precedents* 把 2026 年 8–9 月的三份页面定为细节的标准，要确认它不和新参考的外观冲突。
-  - 给 ceus 会话的提示：「how-we-work 的 reports 参考已重写（rev 2026-11-14）：所有呈现结果的页面一套标准，组会页按上次会议的问题分节，每节一张主图，页首放回答一览。请对照新参考看 `docs/conventions/reports.md`：*Meeting report rhythm* 里被新参考盖过的部分删掉，只留 CEUS 自己的；每节末尾的启发框若还要留，写明理由。*Visual precedents* 只管参考没说到的细节，确认不和新的外观冲突。改完说一行改了什么。」
-- **hc_deduction**，`.memory/figure-language-overview-zh.md`："中文组会页的示意图用中文、数据图用英文"已写进参考。
-  - 给 hc 会话的提示：「how-we-work 的 reports 参考已重写（rev 2026-11-14），中文组会页的示意图默认中文、数据图英文已在参考里。`.memory/figure-language-overview-zh.md` 里和参考重复的部分删掉，只留本项目的事实（`make_figs.py --lang zh`、能渲染中文的字体）。」
-- **diffusion**，`docs/conventions/reports.md`：没有被盖过的条目。它写着"页面手写，工具包只算数"，而 2026-11-11 那份页面是 `make_report.py` 生成的，和它自己的约定不一致。这件事留给 diffusion 的会话，不用改约定。
+**要升进通用参考的，等用户定**
+
+- diffusion `docs/conventions/reports.md`：报告按定下的设置展示结果，不放让读者自己调参数的控件。用户 2026-09-16 的原话：「另外，我不希望做成自己调整的形式。每次我让你做一次报告，按照时间归类，然后就一个HTML 就行，附件那些东西可以引用，而不是嵌入」。后半句通用参考里已经有了。
+
+**被新参考写了或盖过的，发布后交给项目自己的会话删**
+
+- diffusion：
+  - `docs/conventions/reports.md` 写的是"报告放在 `reports/<YYYY-MM-DD>/<task>/`"，`reports/README.md` 开头也这么写。通用规则从 2026-11-12 起，新文件夹名里的日期连写（`<YYYYMMDD>`，D20261112-6），已有的名字不动。
+  - 给 diffusion 会话的提示：「how-we-work 的 reports 参考已重写（rev 2026-11-14）。`docs/conventions/reports.md` 和 `reports/README.md` 里新报告的路径写的还是 `reports/<YYYY-MM-DD>/`，按通用规则改成新报告用 `reports/<YYYYMMDD>/<任务>/`，已有的文件夹名不动。改完说一行改了什么。」
+- ceus：
+  - `docs/conventions/reports.md` 的 *Meeting report rhythm*：规定的章节顺序和每节末尾的启发框，来自已作废的 `reports/STYLE.md`，会盖过新参考的骨架。
+  - *Visual precedents*：把 2026 年 8–9 月的三份页面定为细节的标准，要确认不和新的外观冲突。
+  - `.memory/tool-hints.md` 里 Mermaid 那条，已作为带日期的提示进了通用参考。
+  - 给 ceus 会话的提示：「how-we-work 的 reports 参考已重写（rev 2026-11-14）：所有呈现结果的页面一套标准，组会页按上次会议的问题分节，每节一张主图，页首放回答一览。请对照新参考：`docs/conventions/reports.md` 里 *Meeting report rhythm* 被盖过的部分删掉，只留 CEUS 自己的，每节末尾的启发框若还要留，写明理由；*Visual precedents* 只管参考没说到的细节，确认不和新的外观冲突；`.memory/tool-hints.md` 里 Mermaid 那条参考已经有了，删掉。改完说一行改了什么。」
+- hc_deduction：
+  - `.memory/figure-language-overview-zh.md`："中文组会页的示意图用中文、数据图用英文"已在参考里。
+  - `.memory/outward-facing-docs.md`："给外人的版本精简，去掉实验过程、文件路径和 D47、B7 这类编号"已在参考里（*What the page claims*、*One voice*）。存到 `archive/<日期>/`、`docs/` 里的 Markdown 仍是源头，这两点是 hc 自己的做法，留着。
+  - 给 hc 会话的提示：「how-we-work 的 reports 参考已重写（rev 2026-11-14）。`.memory/figure-language-overview-zh.md` 里和参考重复的部分删掉，只留本项目的事实（`make_figs.py --lang zh`、能渲染中文的字体）；`.memory/outward-facing-docs.md` 里"精简、去掉过程和编号"参考已经有了，只留存档位置和"docs/ 里的 Markdown 是源头"这两点。改完说一行改了什么。」
+- skills（本仓库）：记忆、`AGENTS.md`、约定文件里都没有报告相关的条目。
+
+**不再问的**
+
+- ceus 待提升的那条"几个方向合起来的启发"：用户 11-11 说先不管（D20261112-5），用户不重提就不再问。
+
+**不在这次范围**
+
+- hc `.memory/hit-rate-with-false-alarms.md`（命中率要和误报一起报）：讲的是实验结论怎么报，归实验参考，以后单独处理。
+- zym_video_3d 没接入 how-we-work，不在对账名单上。它那份技术报告的做法已经写进参考。

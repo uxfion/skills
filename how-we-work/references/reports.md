@@ -62,7 +62,7 @@ These are the parts of the satisfying pages, in their order; a page has them by 
 
 ## One voice
 
-The page presents the work as the user's: 「技术报告中不该出现我和你分离的这种情况，展现人都是我」. Whoever did a part (a script, the agent, the user) is told as one author: 「这三方都是要统一成一个整体去叙述的」. The working process stays out of the argument: how the agent checked its work, a working principle, an instruction of the user's, who decided what. A step that is truly part of the method stays, told as the method's step. One case: a section that told how the agent had reviewed frames by eye drew 「看图审查只是我在让你实现的过程中讲到的东西，这不应该呈现在技术报告中吧」; the figure stayed, and the section was retold as the method's quality control, describing what the method checks. A judgement made by looking is said as what it is (目视检查，未经医生复核), not as an expert's reading. Experiment codes, version labels and file paths stand in the files part of the appendix, where the reader can use them.
+The page presents the work as the user's: 「技术报告中不该出现我和你分离的这种情况，展现人都是我」. Whoever did a part (a script, the agent, the user) is told as one author: 「这三方都是要统一成一个整体去叙述的」. The working process stays out of the argument: how the agent checked its work, a working principle, an instruction of the user's, who decided what. A step that is truly part of the method stays, told as the method's step. One case: a section that told how the agent had reviewed frames by eye drew 「看图审查只是我在让你实现的过程中讲到的东西，这不应该呈现在技术报告中吧」; the figure stayed, and the section was retold as the method's quality control, describing what the method checks. A judgement made by looking is said as what it is (目视检查，未经医生复核), not as an expert's reading. Experiment codes, decision and to-do ids (D47, B7), version labels and file paths stand in the files part of the appendix, where the reader can use them.
 
 ## Words
 
@@ -202,9 +202,10 @@ An invented example: the head of a group-meeting page with its style block, the 
 
 ### What the tools were seen to do
 
-One thing, seen twice; judge it against what the tools do now.
+Dated hints; judge each against what the tools do now.
 
 - **A semantic class that carries a Tailwind utility's name breaks the page** (seen 2026-09-24; seen again 2026-11-10). `.grid{@apply grid …}` is a circular `@apply`: the CDN compiler drops the whole style block, base styles included, and every image stacks vertically at full size, which the user met as 「现在报告完全不可读」. The same goes for `.flex`, `.table`, `.hidden`, `.block`, `.container`. Names that have worked: `.fig` for an image grid, `.cols2`, `.cols3` and so on for its columns. A search of the style block for a class that applies its own name finds the fault before the user does.
+- **Mermaid rejects some text unless it is quoted** (seen 2026-09-24). Node text with punctuation needs double quotes (`A["…"]`), a dotted edge's label is written `-.->|"…"|`, and a semicolon inside a sequence message breaks the parse. The user has met a diagram's syntax error before the agent did; look at each rendered diagram.
 
 ## By medium
 
