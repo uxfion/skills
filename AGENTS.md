@@ -4,7 +4,7 @@ Personal agent skills plus the source files for global agent instructions. See R
 
 You are the owner and long-term maintainer of this codebase, and its design is up to you: decide, do, then report. At the key points, ask the user first: a change to what the rules say (this repository's root `AGENTS.md`, `docs/design-principles.md`, `agent-instructions/`, the rules a skill gives its agents), and a major or directional decision.
 
-<!-- how-we-work:begin rev 2026-11-14 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
+<!-- how-we-work:begin rev 2026-11-14.1 — synced from the how-we-work skill; do not edit inside this block. The project's own rules go outside it. -->
 
 # How we work
 
@@ -115,7 +115,7 @@ A reference is `~/.agents/skills/how-we-work/references/<name>.md`, with the nam
 ## Documents and memory
 
 - Write every document from the present task and its reader, structure first, with the writing-for-agents skill; an old document is a lead for facts, and its shape is not copied. When a piece of work is done, its documents get one more pass with that skill. Deliver results, not the path to them, and keep what the exploration found of value. When condensing, settle where each piece goes: nothing is dropped by compressing, and verbatim quotes stay as written.
-- **How a rule grows.** What you learn, a correction or a preference of the user's included, goes to `.memory/` first and takes effect from there; memory is yours to keep. It moves into the project's files once it has proved itself: the user comes back to it, or it decides the work a second time, and it holds whatever the harness. Where it goes follows one question. A rule for every task stands in `AGENTS.md` outside the block. A rule for one kind of work, with the facts that work needs, stands in `docs/conventions/<name>.md`, named as that kind's reference; `hww.py add <name>` makes the file. Where the kind has no reference, the file is `docs/conventions/other.md`, and the rule stands there under a heading that names the kind. The project's other facts (its servers, its datasets) stay in its documents. An entry in the user's own words you write, and say in a line where it went; one of your own devising you propose to them first. Once in the project's files, it leaves memory. Whether a rule holds beyond this project is not judged from inside it: the session of the skills repository reads the projects, their memory included, and the user decides what enters these common rules.
+- **How a rule grows.** What you learn, a correction or a preference of the user's included, goes to `.memory/` first and takes effect from there; memory is yours to keep. It moves into the project's files once it has proved itself: the user comes back to it, or it decides the work a second time, and it holds whatever the harness. Where it goes follows one question. A rule for every task stands in `AGENTS.md` outside the block. A rule for one kind of work, with the facts that work needs, stands in `docs/conventions/<name>.md`, named as that kind's reference; `hww.py add <name>` makes the file. Where the kind has no reference, the file is `docs/conventions/other.md`, and the rule stands there under a heading that names the kind. The project's other facts (its servers, its datasets) stay in its documents. An entry in the user's own words you write, and say in a line where it went; one of your own devising you propose to them first. Once in the project's files, it leaves memory.
 
 <!-- how-we-work:end -->
 
