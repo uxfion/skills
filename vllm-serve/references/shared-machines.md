@@ -4,7 +4,7 @@ A GPU server that other people use, reached over ssh with a personal login and n
 
 ## First deployment
 
-1. Agree on the place with the user: their directory on that machine (2026-10: the user keeps one per server, a `.tmp` under a path with room). It is the root, the home of all their work there, for every project: uv with its Python and cache, the vLLM environment, the Hugging Face cache, every compile cache, serve.py's profiles, state and logs, so each project reuses what another downloaded or built; a project's own files go in a directory of its own inside it. Shared servers often have a nearly full system disk, and other people's space is off limits. A root already in use (its `env.sh` exists) is used as it is: go on at step 4.
+1. Agree on the place with the user: their directory on that machine (2026-10: the user keeps one per server, a `.tmp` under a path with room). It is the root, the home of all their work there, for every project: uv with its Python and cache, the vLLM environment, the Hugging Face cache, every compile cache, serve.py's profiles, state and logs, so each project reuses what another downloaded or built; a project's own files go in a directory of its own inside it. Shared servers often have a nearly full system disk, and other people's space is off limits. Where the machine has memory to spare, a new root goes in RAM instead, with that directory as the fallback (*A root in RAM*). A root already in use (its `env.sh` exists), on disk or in RAM, is used as it is: go on at step 4.
 2. Write `<root>/env.sh`, the environment every project there sources before each command, `ssh <host> '. <root>/env.sh && …'`, since non-interactive ssh reads no shell profile:
 
    ```sh
@@ -18,6 +18,22 @@ A GPU server that other people use, reached over ssh with a personal login and n
 6. Choose the GPUs, write the deployment profile, `up` it in the background, and check it from a client, as the sections below say. Leave the server running: a deployment stays up after the check.
 
 Done when a client on the network gets the model list from the server's address (Who reaches the server), and `status` shows the server on the chosen GPUs.
+
+## A root in RAM
+
+Where the machine has memory to spare, a new root is `/dev/shm/.tmp`, and the disk directory agreed in step 1 is the fallback; a root already in use on disk moves only on the user's word. Everything in the root is deleted after use anyway, the servers seldom reboot, and a reboot takes only what can be rebuilt or was already fetched. The user, 2026-11-13: 「因为本身我们训练完或者使用完都是需要删除的，那为啥不放在存储速度更快的位置」; 「之后我们就都在/dev/shm/.tmp下干活的」.
+
+Before the root goes there, and before anything large is added to it, all three hold:
+
+- Our total stays within half of `/dev/shm`'s size (`df -h /dev/shm`). Other people's jobs use it too (NCCL, PyTorch workers), and a full `/dev/shm` breaks them.
+- With it in place, `free` still shows more than half of the total memory available. Files there hold their memory until they are deleted; the kernel cannot drop them as it drops a disk's cache when others need memory.
+- logind will not delete it. With `RemoveIPC=yes`, systemd's default, logind deletes a regular user's files in `/dev/shm` when that user's last session ends; root and other system users are exempt. `id -u` and `loginctl show-session -p RemoveIPC` tell; check again when the login changes. A regular login under `RemoveIPC=yes` waits on the disk root until the machine's admin sets `RemoveIPC=no` or enables lingering for it (`loginctl enable-linger <login>`); the user asks them.
+
+The user set the first two: 「可以，按A定，加上这两条上限」.
+
+A reboot empties the root. Rebuild it with steps 2–5 of *First deployment*, filled from the network rather than from the machine's own disk: a large file such as model weights from another of the user's machines on the LAN that holds it, wherever it keeps it there, else from its source; packages straight from their index with uv; checksums verified either way. The user: 「很大的权重，比如模型权重这些非常大，内网其他服务器上有，那就直接内网传过去，如果是小的安装包，本省下载也很快，那就直接下载就行」.
+
+2026-11-13, an 8× H200 host with 2 TB of memory, whose disk array other people kept busy: the first start of a 27B model took 18 minutes with the root on disk and 2 minutes 15 seconds from RAM (reading the weights 426 s → 10 s, importing the environment about 5 minutes → 8 s); installing a package from the uv cache on that disk stalled for 18 minutes, where downloading it took 103 s.
 
 ## Logins
 
@@ -56,4 +72,4 @@ A full commit hash in `--revision` pins the weights: serve.py downloads that rev
 
 ## Leaving the machine
 
-A shared server goes back once the user stops using it, its space included (2026-10-31: the H200 host was cleared when other people booked it). Stop the servers there (`down --all`); the root, which may hold the user's other projects, is cleared by the user or, on their word, by you, along with `/tmp/torchinductor_<login>`, which torch leaves outside it (`TMPDIR` stays the system's).
+A shared server goes back once the user stops using it, its space included (2026-10-31: the H200 host was cleared when other people booked it). Stop the servers there (`down --all`); the root, which may hold the user's other projects and, in RAM, holds the machine's memory until it goes, is cleared by the user or, on their word, by you, along with `/tmp/torchinductor_<login>`, which torch leaves outside it (`TMPDIR` stays the system's).
