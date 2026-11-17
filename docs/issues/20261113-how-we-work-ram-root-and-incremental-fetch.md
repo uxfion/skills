@@ -42,4 +42,8 @@
   - "每半小时"标成例子，写明不是用户定的数。
   - `RemoveIPC` 两条说法对照了 systemd v255 源码：`src/shared/clean-ipc.c` 会递归删掉 `/dev/shm` 下属于这个 uid 的文件和目录；`src/login/logind-user.c` 里开了 lingering、用户服务还在跑时不会走到清理那一步。查 `RemoveIPC` 的命令用 `loginctl show-session -p RemoveIPC`；hc 的 `docs/servers.md` 里写的 `loginctl show-logind` 在 systemd 255 上不存在（本机实测 `Unknown command verb 'show-logind'`）。
   - 内存盘怎么填（大文件走内网、安装包直接下载，D20261113-17）写进了共享机器参考的重建一段。
-- 状态：处理中。文字已改、已提交，等发布（推送要用户发话，然后 `skills update -g`）。发布后 hc_deduction 里被盖过的条目从这边清理：`docs/conventions/experiments.md` 里内存盘那条，`docs/servers.md` 里的通用部分和那条错的命令。待办 B1。发布后关闭。
+- 状态：处理中。文字已改、已提交；和 vllm-serve 那张一起，等余量定了再发布（推送要用户发话，然后 `skills update -g`）。发布后 hc_deduction 里被盖过的条目从这边清理：`docs/conventions/experiments.md` 里内存盘那条，`docs/servers.md` 里的通用部分和那条错的命令。待办 B1。发布后关闭。
+
+## 余量的讨论（2026-11-17）
+
+内存盘的条件只写在 vllm-serve 的共享机器参考里，余量怎么限的讨论和没定的那一点记在 [`20261113-vllm-serve-ram-disk-root.md`](20261113-vllm-serve-ram-disk-root.md)。这张的部分（experiments 参考里的指针、跑的过程中取回）不受影响，和那张一起发布。

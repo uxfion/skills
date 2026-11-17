@@ -1,5 +1,7 @@
 # vllm-serve：共享服务器内存充足时，根目录放内存盘 `/dev/shm/.tmp`
 
+> 还没定（2026-11-17）：内存盘的余量怎么限。已提交的文字（`ffbd881`）还是 11-13 的两条上限；用户觉得绕、太严，讨论到一半说「你先别确定，我还没有想太好」。要定的两件：内存余量留多少（算上所有占用，放之前先估计；1/3 还是 1/4 或别的）；要不要另限我们在 `/dev/shm` 里的占用。经过见文末「余量的讨论」，按 1/3、不另限写的草稿在参考文件夹 `20261113-vllm-serve-ram-disk-root-reference/draft-20261117-one-third-margin.diff`（没提交）。这一点定了才发布（待办 B1）。
+
 - 来源 · 日期：hc_deduction 项目，2026-11-13。项目里的决定是 D20261113-14（`docs/decisions/202611.md`），写法在 `docs/servers.md`。
 - 涉及的文字：`references/shared-machines.md` *First deployment* 第 1 步写的是"Agree on the place with the user: their directory on that machine (2026-10: the user keeps one per server, a `.tmp` under a path with room)"，默认根目录在硬盘上。
 
@@ -47,4 +49,11 @@
   - "每半小时"标成例子，写明不是用户定的数。
   - `RemoveIPC` 两条说法对照了 systemd v255 源码：`src/shared/clean-ipc.c` 会递归删掉 `/dev/shm` 下属于这个 uid 的文件和目录；`src/login/logind-user.c` 里开了 lingering、用户服务还在跑时不会走到清理那一步。查 `RemoveIPC` 的命令用 `loginctl show-session -p RemoveIPC`；hc 的 `docs/servers.md` 里写的 `loginctl show-logind` 在 systemd 255 上不存在（本机实测 `Unknown command verb 'show-logind'`）。
   - 内存盘怎么填（大文件走内网、安装包直接下载，D20261113-17）写进了共享机器参考的重建一段。
-- 状态：处理中。文字已改、已提交，等发布（推送要用户发话，然后 `skills update -g`）。发布后 hc_deduction 里被盖过的条目从这边清理：`docs/conventions/experiments.md` 里内存盘那条，`docs/servers.md` 里的通用部分和那条错的命令。待办 B1。发布后关闭。
+- 状态：处理中。文字已改、已提交；余量怎么限还没定（见开头），定了再发布（推送要用户发话，然后 `skills update -g`）。发布后 hc_deduction 里被盖过的条目从这边清理：`docs/conventions/experiments.md` 里内存盘那条，`docs/servers.md` 里的通用部分和那条错的命令。待办 B1。发布后关闭。
+
+## 余量的讨论（2026-11-17，提交 `ffbd881` 之后）
+
+- 用户看了两条上限（我们的总量不超过 `/dev/shm` 的一半；放完后可用内存仍过半）：「这两个条件好像有一些重叠，是不是你把条件给理清楚一点看」；「我们希望更直白地表达，而不是绕来绕去的」；「但我感觉也不用限制那么严吧」；「我是说1/4的限制是不是也没必要」；「那问题你说的放进去后再去计算也不合适，应该是先估计大概有多少空间，然后再放进去。做法是不是反了？」；「我觉得吧，就留出1/4的余量就行了。算上所有的占用。我现在感觉你太绕了，真的太绕了。你不要在原来基础上修改，你在全局或者说全部看一遍，看怎么设计、怎么约束它比较好」；「1/4也是我随口说的数，也可能是1/3。你自己评估，然后跟我讨论」。
+- 只读看了 3090_1、a4000_1、a4000_2、a4000_5 的内存（用户：「你看一下3090_1，a4000_1 2 5」）：两台 62 GB，两台 219–251 GB，`/dev/shm` 都是内存的一半，都是 root 登录。main agent 建议余量 1/3：小机器上 1/4 只留十几 GB，挤到别人的代价比我们退回硬盘大。
+- 用户先说「那就按照1/3来」，接着说「别人一般很少用内存盘，而且用了也不会用很多。正因为内存盘本身就比较大，所以我们要利用好这个优势，别人也不知道，这样的话我们就可以很舒服地用内存盘」；main agent 据此在工作区重写了整节（没提交），用户随即说：「你先别确定，我还没有想太好」。余量取多少、要不要另限 `/dev/shm`，都没拍板。
+- 还在谈：`/dev/shm` 默认是内存的一半，只看 1/3 余量时，机器空闲时我们最多能占满整个 `/dev/shm`。没拍板。
