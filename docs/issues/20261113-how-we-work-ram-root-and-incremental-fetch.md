@@ -34,10 +34,10 @@
 
 - 用户（2026-11-17，看了 how-we-work issue 的优先级排序后）：「内存盘那个可以去做」。两张 issue 一起做：根目录怎么放在 vllm-serve 的共享机器参考里写一处，how-we-work 的 experiments 参考只指过去，再加上跑的过程中取回。
 - 改了什么：
-  - `vllm-serve/references/shared-machines.md`：*First deployment* 第 1 步加一句（内存充足时新的根目录放内存，原来商定的硬盘目录做退路）；新的一节 *A root in RAM*：三个前提（我们的总量不超过 `/dev/shm` 一半；放完后可用内存仍超过总内存一半；logind 不会删它），重启后怎么重建（从网络填，不从本机硬盘拷），h200 那次的实测数作为带日期的提示；*Leaving the machine* 加一句：根目录在内存里时，它一直占着这台机器的内存。
+  - `vllm-serve/references/shared-machines.md`：*First deployment* 第 1 步加一句（内存充足时新的根目录放内存，原来商定的硬盘目录做退路）；新的一节 *A root in RAM*：三个前提（我们的总量不超过 `/dev/shm` 一半；放完后可用内存仍超过总内存一半；logind 不会删它），重启后怎么重建（从网络填，不从本机硬盘拷），那台 8 卡服务器的实测数作为带日期的提示；*Leaving the machine* 加一句：根目录在内存里时，它一直占着这台机器的内存。
   - `how-we-work/references/experiments.md` *On a training server*：*Where things go on the host* 第一条加了内存根目录和指针，大数据集放上去、输出会很大的训练开跑之前再查一次前提；*Fetching back, checking, cleaning* 开头加了跑的过程中用增量 `rsync` 取回要紧的输出，第 1 步去掉了"一次取回"（in one go）。
 - main agent 自己定的几处：
-  - 已经在用的硬盘根目录不自动搬，要用户发话才搬：用户的话说的是"之后"，hc 那次清空 `/data/.tmp` 也是等用户发了话。
+  - 已经在用的硬盘根目录不自动搬，要用户发话才搬：用户的话说的是"之后"，hc 那次清空硬盘上的根目录也是等用户发了话。
   - 跑的过程中取回对硬盘上的根目录也适用：用户那句「如果是重要的，要取回的，那就定时取回」没限定内存盘，代价也小。
   - "每半小时"标成例子，写明不是用户定的数。
   - `RemoveIPC` 两条说法对照了 systemd v255 源码：`src/shared/clean-ipc.c` 会递归删掉 `/dev/shm` 下属于这个 uid 的文件和目录；`src/login/logind-user.c` 里开了 lingering、用户服务还在跑时不会走到清理那一步。查 `RemoveIPC` 的命令用 `loginctl show-session -p RemoveIPC`；hc 的 `docs/servers.md` 里写的 `loginctl show-logind` 在 systemd 255 上不存在（本机实测 `Unknown command verb 'show-logind'`）。

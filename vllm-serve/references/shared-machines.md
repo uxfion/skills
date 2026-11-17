@@ -33,7 +33,7 @@ The user set the first two: 「可以，按A定，加上这两条上限」.
 
 A reboot empties the root. Rebuild it with steps 2–5 of *First deployment*, filled from the network rather than from the machine's own disk: a large file such as model weights from another of the user's machines on the LAN that holds it, wherever it keeps it there, else from its source; packages straight from their index with uv; checksums verified either way. The user: 「很大的权重，比如模型权重这些非常大，内网其他服务器上有，那就直接内网传过去，如果是小的安装包，本省下载也很快，那就直接下载就行」.
 
-2026-11-13, an 8× H200 host with 2 TB of memory, whose disk array other people kept busy: the first start of a 27B model took 18 minutes with the root on disk and 2 minutes 15 seconds from RAM (reading the weights 426 s → 10 s, importing the environment about 5 minutes → 8 s); installing a package from the uv cache on that disk stalled for 18 minutes, where downloading it took 103 s.
+2026-11-13, an 8× H200 host with 2 TB of memory and a mechanical disk array (about 120 MB/s for the weights): the first start of a 27B model took 18 minutes with the root on the array and 2 minutes 15 seconds from RAM (reading the weights 426 s → 10 s, importing the environment about 5 minutes → 8 s). The same evening, with other people's copy jobs keeping the array busy, installing a package from the uv cache there stalled for 18 minutes, where downloading it took 103 s.
 
 ## Logins
 
