@@ -4,7 +4,7 @@ A GPU server that other people use, reached over ssh with a personal login and n
 
 ## First deployment
 
-1. Agree on the place with the user: their directory on that machine (2026-10: the user keeps one per server, a `.tmp` under a path with room). It is the root, the home of all their work there, for every project: uv with its Python and cache, the vLLM environment, the Hugging Face cache, every compile cache, serve.py's profiles, state and logs, so each project reuses what another downloaded or built; a project's own files go in a directory of its own inside it. Shared servers often have a nearly full system disk, and other people's space is off limits. Where the machine has memory to spare, a new root goes in RAM instead, with that directory as the fallback (*A root in RAM*). A root already in use (its `env.sh` exists), on disk or in RAM, is used as it is: go on at step 4.
+1. Agree on the place with the user: their directory on that machine (2026-10: the user keeps one per server, a `.tmp` under a path with room). It is the root, the home of all their work there, for every project: uv with its Python and cache, the vLLM environment, the Hugging Face cache, every compile cache, serve.py's profiles, state and logs, so each project reuses what another downloaded or built; a project's own files go in a directory of its own inside it. Shared servers often have a nearly full system disk, and other people's space is off limits. Where the machine has memory to spare, a new root goes in RAM instead (*A root in RAM*). A root already in use (its `env.sh` exists) is used as it is: go on at step 4.
 2. Write `<root>/env.sh`, the environment every project there sources before each command, `ssh <host> '. <root>/env.sh && …'`, since non-interactive ssh reads no shell profile:
 
    ```sh
@@ -21,18 +21,16 @@ Done when a client on the network gets the model list from the server's address 
 
 ## A root in RAM
 
-Where the machine has memory to spare, a new root is `/dev/shm/.tmp`, and the disk directory agreed in step 1 is the fallback; a root already in use on disk moves only on the user's word. Everything in the root is deleted after use anyway, the servers seldom reboot, and a reboot takes only what can be rebuilt or was already fetched. The user, 2026-11-13: 「因为本身我们训练完或者使用完都是需要删除的，那为啥不放在存储速度更快的位置」; 「之后我们就都在/dev/shm/.tmp下干活的」.
+Where the machine has memory to spare, a new root is `/dev/shm/.tmp`, with the disk directory agreed in step 1 as the fallback: everything in the root is deleted after use anyway, and RAM is far faster than a shared disk. A root already on disk moves only on the user's word.
 
 Before the root goes there, and before anything large is added to it, both hold:
 
 - A quarter of the memory stays free. Before putting anything there, estimate its size (weights, environments, caches, data, the outputs runs will write) and add it to what `free` shows in use. If at least a quarter of the total memory is still free and it fits in `/dev/shm` (`df -h /dev/shm`), go ahead; otherwise use the disk root.
 - logind will not delete it. With `RemoveIPC=yes`, systemd's default, logind deletes a regular user's files in `/dev/shm` when that user's last session ends; root and other system users are exempt. `id -u` and `loginctl show-session -p RemoveIPC` tell; check again when the login changes. A regular login under `RemoveIPC=yes` waits on the disk root until the machine's admin sets `RemoveIPC=no` or enables lingering for it (`loginctl enable-linger <login>`); the user asks them.
 
-The user set the margin, 2026-11-23: 「改成1/4吧，就是至少留1/4」.
+A reboot empties the root. Rebuild it with steps 2–5 of *First deployment*, from the network rather than from the machine's disk: large files such as weights from another of the user's machines on the LAN that has them, else from their source; packages from their index with uv; checksums verified.
 
-A reboot empties the root. Rebuild it with steps 2–5 of *First deployment*, filled from the network rather than from the machine's own disk: a large file such as model weights from another of the user's machines on the LAN that holds it, wherever it keeps it there, else from its source; packages straight from their index with uv; checksums verified either way. The user: 「很大的权重，比如模型权重这些非常大，内网其他服务器上有，那就直接内网传过去，如果是小的安装包，本省下载也很快，那就直接下载就行」.
-
-2026-11-13, an 8× H200 host with 2 TB of memory and a mechanical disk array (about 120 MB/s for the weights): the first start of a 27B model took 18 minutes with the root on the array and 2 minutes 15 seconds from RAM (reading the weights 426 s → 10 s, importing the environment about 5 minutes → 8 s). The same evening, with other people's copy jobs keeping the array busy, installing a package from the uv cache there stalled for 18 minutes, where downloading it took 103 s.
+2026-11-13, 8× H200 with 2 TB of memory and a mechanical disk array: a 27B model's first start took 18 minutes from the disk root and 2 minutes 15 seconds from RAM; with other people's copies keeping the array busy, a package install from the uv cache on it stalled for 18 minutes, where downloading took 103 s.
 
 ## Logins
 
