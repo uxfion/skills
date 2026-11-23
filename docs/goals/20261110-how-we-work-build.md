@@ -1,6 +1,6 @@
 # 无人值守：把 how-we-work 做成能用的 skill，各项目的接入准备到只差一句话（2026-11-10 起）
 
-issue：[`docs/issues/20261110-how-we-work.md`](../issues/20261110-how-we-work.md)；设计：[`docs/specs/20261110-how-we-work-spec.md`](../specs/20261110-how-we-work-spec.md)；材料和草稿：issue 旁的参考文件夹（先读其中的 `START-HERE.md`）。
+issue：[`docs/issues/archive/20261110-how-we-work-fixed.md`](../issues/archive/20261110-how-we-work-fixed.md)；设计：[`docs/specs/20261110-how-we-work-spec.md`](../specs/20261110-how-we-work-spec.md)；材料和草稿：issue 旁的参考文件夹（先读其中的 `START-HERE.md`）。
 
 ## 用户的话
 
