@@ -84,7 +84,13 @@ At the one stop, the message that stops carries the section the line names, with
 
 ## Notifying the user
 
-Only at the one stop. Bark, with the settings in `~/.config/bark/config.json` (`server_url`, `device_key`): a POST of JSON to `<server_url>/push` with `device_key`, `title` (the project, and that the run stopped), `body` (what waits, in a line or two), `group` (`how-we-work`). You send it, before the message that stops.
+At the one stop. Also, as soon as you see it:
+
+- something serious has happened that the user should know at once;
+- what they are to receive on their return, the task they named or a key part of it, will not be there, and you have done what you can;
+- a major decision blocks that work and is too large to make for them.
+
+Bark, with the settings in `~/.config/bark/config.json` (`server_url`, `device_key`): a POST of JSON to `<server_url>/push` with `device_key`, `title` (the project, and what happened), `body` (what is blocked and the one thing you need from the user, in a line or two), `group` (`how-we-work`). At the one stop you send it before the message that stops. A push is never a reason to wait: the user may not answer, so the run goes on as it would have, and an answer that comes is taken in.
 
 ## When the user is back
 
