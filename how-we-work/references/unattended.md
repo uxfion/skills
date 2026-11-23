@@ -89,3 +89,5 @@ Only at the one stop. Bark, with the settings in `~/.config/bark/config.json` (`
 ## When the user is back
 
 *The rules of a run* gives the order: first the brief, then the questions one at a time. The brief is in the chat, in Chinese, with the names the user uses, and says: what was done; the state now, including what is still running and until when; what you decided for them, which they may overturn; what waits. A report of the night's results, where the round calls for one, follows the reports reference.
+
+If the user set a `/goal` for this run, remind them to clear it with `/goal clear`: only they can, and it can stay active as long as background work is running.

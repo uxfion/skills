@@ -22,6 +22,8 @@ set -o pipefail; export PATH="<this skill's absolute path>/scripts:$PATH";
 hww.py sync
 ```
 
+The sync also records the project's path in `~/.config/how-we-work/config.json`, so that the skills repository's session can find every project.
+
 Each line it prints says what it means and what to do. Two outcomes need more than their hint:
 
 - **Exit 2, `older_common`**: this machine's install of the skill is behind the project's block. Reinstalling is yours to do (`npx skills update how-we-work -g`); say in a line that you did. Until then work from the block as it stands.
@@ -31,7 +33,7 @@ Each line it prints says what it means and what to do. Two outcomes need more th
 
 A project logs one for two things: a sentence of the block or of a reference that led you wrong, and a problem in one of the user's skills. Whether a rule of the project's should become a common rule is not a project's issue: the session of the skills repository reads the projects for that ([references/maintaining.md](references/maintaining.md), *Reconciling the projects*).
 
-The repository's path on this machine is `skills_repo` in `~/.config/how-we-work/config.json`; where it is missing, ask the user for the path once and write it there. An issue is one file, `docs/issues/<YYYYMMDD>-<skill>-<topic>.md`, the topic starting with the name of the skill it concerns (`how-we-work` for a sentence of the block or of a reference). It holds what happened (what was run, what was seen, why it hurt), in which project, and the user's words with their date; the records reference has the fields. The repository is public: a host, a login, the institution, or a path that holds one, is written as the placeholder that repository's `AGENTS.md` gives, and nothing of a project's unpublished results goes in. Before opening one, look through that directory for an open issue on the same thing, and add this project's case to it. Logging the issue, that line of the config included, is the one thing a project's session writes outside its project; mention it to the user in a line.
+The repository's path on this machine is `skills_repo` in `~/.config/how-we-work/config.json`; where it is missing, ask the user for the path once and write it there. An issue is one file, `docs/issues/<YYYYMMDD>-<skill>-<topic>.md`, the topic starting with the name of the skill it concerns (`how-we-work` for a sentence of the block or of a reference). It holds what happened (what was run, what was seen, why it hurt), in which project, and the user's words with their date; the records reference has the fields. The repository is public: a host, a login, the institution, or a path that holds one, is written as the placeholder that repository's `docs/rules.md` gives, and nothing of a project's unpublished results goes in. Before opening one, look through that directory for an open issue on the same thing, and add this project's case to it. Logging the issue, that line of the config included, is the one thing a project's session writes outside its project; mention it to the user in a line.
 
 ## When a project is to adopt these rules
 

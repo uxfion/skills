@@ -110,6 +110,9 @@ to or could not place, in name order, then the lines of each rules file.
   {code: "ok", file, block}                block: "updated" or "current". An "updated" line carries a hint, and
                                            with -n it adds dry_run: true and FILE is as it was. registered: true
                                            when the project was added to the list just now
+  {code: "not_registered", file, detail, hint}
+                                           the project could not be added to the list of projects in the
+                                           config (file): a release would skip it. Never printed with -n
   {code: "outside", file, lines, hint}     FILE holds more outside its block than a title: the numbers of
                                            those lines, printed at every sync while there are any
   {code: "convention", file, wrote}        wrote: "reference_line"; with -n, dry_run: true and nothing was written
@@ -366,14 +369,17 @@ def headings(data):
 
 def register(project):
     """Add a project's path to `projects` in the config, the list the skills repository's session reads. True when
-    it was added just now; a config that cannot be read or written is left as it is."""
+    it was added just now, False when it was there already. A config that cannot be read or written is left as it
+    is, and what went wrong is returned as a string."""
     path = Path(os.environ.get(CONFIG_ENV) or CONFIG)
     try:
-        config = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        config = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
         if not isinstance(config, dict):
-            return False
+            return "the file does not hold a JSON object"
         projects = config.setdefault("projects", [])
-        if not isinstance(projects, list) or str(project) in projects:
+        if not isinstance(projects, list):
+            return "`projects` in the file is not a list"
+        if str(project) in projects:
             return False
         projects.append(str(project))
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -382,8 +388,8 @@ def register(project):
         else:
             path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return True
-    except (OSError, ValueError):
-        return False
+    except (OSError, ValueError) as e:
+        return str(e) or type(e).__name__
 
 
 def replace(path, data):
@@ -437,11 +443,19 @@ def sync(argv):
                 raise Stop("write_failed", "The file could not be replaced by its new content: `detail` says why. "
                                            "It is as it was.", file=args.file, detail=str(e))
     if done["block"] == "updated":
-        done["hint"] = ("The block changed: read it again from the file, since the copy in your context is the old "
+        done["hint"] = ("The block in the file is not the current one, and a run without -n replaces it. Nothing was "
+                        "written." if args.dry_run else
+                        "The block changed: read it again from the file, since the copy in your context is the old "
                         "one. A subagent started from your context has the old copy too.")
-    if not args.dry_run and register(path.resolve().parent):
+    listed = False if args.dry_run else register(path.resolve().parent)
+    if listed is True:
         done["registered"] = True
     emit(done)
+    if isinstance(listed, str):
+        emit({"code": "not_registered", "file": str(Path(os.environ.get(CONFIG_ENV) or CONFIG)), "detail": listed,
+              "hint": "This project could not be added to the list of projects in that file, which the skills "
+                      "repository's session reads to sync and reconcile the projects: until it is on the list, a "
+                      "release skips it. Tell the user; the block itself is as the line above says."})
     if done["block"] == "updated" and not args.dry_run:       # the numbers are those of the file as it now stands
         data, span = data[:span[0]] + block + data[span[1]:], (span[0], span[0] + len(block))
     if own := outside(data, span):

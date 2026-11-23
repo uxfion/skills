@@ -109,6 +109,27 @@ class Sync(Base):
                          (0, [{"code": "ok", "file": str(self.file), "block": "current"}]))
         self.assertTrue(self.untouched(b"intro\n" + BLOCK))
 
+    def test_a_list_that_cannot_be_written_is_said(self):
+        """A project already on the list and one that could not be put there must not look alike."""
+        self.put(b"top\n" + BLOCK + b"\nbottom\n")
+        config = self.dir / "config" / "config.json"
+        config.mkdir(parents=True)                             # a directory where the file should be: unreadable
+        status, lines, err = self.run_entry("sync", self.file, whole=True)
+        self.assertEqual((status, err, lines[0]), (0, "", {"code": "ok", "file": str(self.file), "block": "current"}))
+        self.assertEqual([(l["code"], l["file"], bool(l["detail"])) for l in lines[1:]],
+                         [("not_registered", str(config), True)])
+        self.assertTrue(config.is_dir())
+        config.rmdir()
+        config.write_text('{"projects": "nope"}', encoding="utf-8")
+        lines = self.run_entry("sync", self.file, whole=True)[1]
+        self.assertEqual([l["code"] for l in lines], ["ok", "not_registered"])
+        self.assertEqual(config.read_text(encoding="utf-8"), '{"projects": "nope"}')
+        config.write_text('{"projects": []}', encoding="utf-8")
+        lines = self.run_entry("sync", self.file, whole=True)[1]
+        self.assertEqual(lines, [{"code": "ok", "file": str(self.file), "block": "current", "registered": True}])
+        self.assertEqual(self.run_entry("sync", self.file, whole=True)[1],
+                         [{"code": "ok", "file": str(self.file), "block": "current"}])
+
     def test_dry_run_writes_nothing(self):
         stale = b"top\n" + EMPTY_PAIR + b"\nbottom\n"
         self.put(stale)
@@ -116,6 +137,9 @@ class Sync(Base):
             self.assertEqual(self.run_entry(*argv),
                              (0, [{"code": "ok", "file": str(self.file), "block": "updated", "dry_run": True}], ""))
             self.assertTrue(self.untouched(stale))
+        hint = self.run_entry("sync", "-n", self.file, whole=True)[1][0]["hint"]
+        self.assertIn("Nothing was written", hint)
+        self.assertNotIn("read it again", hint)
         # nothing to change and nothing waiting: the one line, and no more
         self.put(b"top\n" + BLOCK + b"\nbottom\n")
         self.assertEqual(self.run_entry("sync", "-n", self.file),
@@ -430,7 +454,7 @@ class Rev(unittest.TestCase):
     """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
     install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
     leaves the rev alone fails here."""
-    REV, SHA256 = "2026-11-23", "fe2135c0fa1fd6a99e27285076d8bec78d678c15da8100d7acd78db957e8f927"
+    REV, SHA256 = "2026-11-23.1", "27c7a7c4b1e3ffd5d16109760bced56cf4324edd776148085ae4ccdbb02476d1"
 
     def test_the_rev_moves_whenever_the_block_changes(self):
         data = (ENTRY.parent.parent / "common.md").read_bytes()

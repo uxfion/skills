@@ -1,4 +1,4 @@
-> 已关闭（2026-11-23）：调研的结论是保留现有设计，不改。它复现的一个毛病（`sync -n` 遇到旧块时提示「块已经变了，去重读」，其实什么都没写）并进了 `docs/issues/20261117-how-we-work-sync-register-silent-and-undocumented.md`。逐文件复核里其余的观察没有开 issue，留在参考材料里。参考材料（官方文档原文、逐文件复核、讨论稿）在 git 不跟踪的 `archive/20261123/20261118-how-we-work-codex-configuration-reference/`。
+> 已关闭（2026-11-23）：调研的结论是保留现有设计，不改。它复现的一个毛病（`sync -n` 遇到旧块时提示「块已经变了，去重读」，其实什么都没写）并进了 `docs/issues/archive/20261117-how-we-work-sync-register-silent-and-undocumented-fixed.md`。逐文件复核里其余的观察没有开 issue，留在参考材料里。参考材料（官方文档原文、逐文件复核、讨论稿）在 git 不跟踪的 `archive/20261123/20261118-how-we-work-codex-configuration-reference/`。
 
 # 对照 OpenAI 官方建议，HWW 需要大改吗？
 

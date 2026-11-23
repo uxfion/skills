@@ -1,4 +1,4 @@
-<!-- how-we-work:begin rev 2026-11-23 — synced from the how-we-work skill; do not edit inside this block. Nothing of the project's goes in this file: its own rules stand in `docs/rules.md` and `docs/conventions/`. -->
+<!-- how-we-work:begin rev 2026-11-23.1 — synced from the how-we-work skill; do not edit inside this block. Nothing of the project's goes in this file: its own rules stand in `docs/rules.md` and `docs/conventions/`. -->
 
 # How we work
 
@@ -64,7 +64,7 @@ and do what its lines say. Read the project's to-do list (`docs/todo.md` by defa
 
 ## Unattended runs
 
-The user switches one on with 「启动无人值守」 or 「开启无人值守」, and only their word ends it (「停止无人值守」「关闭无人值守」「我在线了」); any other message they send meanwhile is taken in and the run goes on. The rules of a run are in the unattended reference, read before the goal document is written or the work goes on. What they come to: the goal is the project's goal, with the named task first in line; whatever would still be a long run after the user's word is done ahead, and only the word itself waits; a turn ends only with a way back, or at the one stop, when everything left hangs on a decision of the user's.
+The user switches one on by telling you to start or go on with 无人值守 (「启动无人值守」), and only their word ends it (「停止无人值守」, 「我在线了」); any other message they send meanwhile is taken in and the run goes on. A message that could mean either (「我不在，你继续」) is asked about in one line. The rules of a run are in the unattended reference, read before the goal document is written or the work goes on. What they come to: the goal is the project's goal, with the named task first in line; whatever would still be a long run after the user's word is done ahead, and only the word itself waits; a turn ends only with a way back, or at the one stop, when everything left hangs on a decision of the user's.
 
 ## Subagents
 
