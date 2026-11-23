@@ -23,13 +23,12 @@ Done when a client on the network gets the model list from the server's address 
 
 Where the machine has memory to spare, a new root is `/dev/shm/.tmp`, and the disk directory agreed in step 1 is the fallback; a root already in use on disk moves only on the user's word. Everything in the root is deleted after use anyway, the servers seldom reboot, and a reboot takes only what can be rebuilt or was already fetched. The user, 2026-11-13: 「因为本身我们训练完或者使用完都是需要删除的，那为啥不放在存储速度更快的位置」; 「之后我们就都在/dev/shm/.tmp下干活的」.
 
-Before the root goes there, and before anything large is added to it, all three hold:
+Before the root goes there, and before anything large is added to it, both hold:
 
-- Our total stays within half of `/dev/shm`'s size (`df -h /dev/shm`). Other people's jobs use it too (NCCL, PyTorch workers), and a full `/dev/shm` breaks them.
-- With it in place, `free` still shows more than half of the total memory available. Files there hold their memory until they are deleted; the kernel cannot drop them as it drops a disk's cache when others need memory.
+- A quarter of the memory stays free. Before putting anything there, estimate its size (weights, environments, caches, data, the outputs runs will write) and add it to what `free` shows in use. If at least a quarter of the total memory is still free and it fits in `/dev/shm` (`df -h /dev/shm`), go ahead; otherwise use the disk root.
 - logind will not delete it. With `RemoveIPC=yes`, systemd's default, logind deletes a regular user's files in `/dev/shm` when that user's last session ends; root and other system users are exempt. `id -u` and `loginctl show-session -p RemoveIPC` tell; check again when the login changes. A regular login under `RemoveIPC=yes` waits on the disk root until the machine's admin sets `RemoveIPC=no` or enables lingering for it (`loginctl enable-linger <login>`); the user asks them.
 
-The user set the first two: 「可以，按A定，加上这两条上限」.
+The user set the margin, 2026-11-23: 「改成1/4吧，就是至少留1/4」.
 
 A reboot empties the root. Rebuild it with steps 2–5 of *First deployment*, filled from the network rather than from the machine's own disk: a large file such as model weights from another of the user's machines on the LAN that holds it, wherever it keeps it there, else from its source; packages straight from their index with uv; checksums verified either way. The user: 「很大的权重，比如模型权重这些非常大，内网其他服务器上有，那就直接内网传过去，如果是小的安装包，本省下载也很快，那就直接下载就行」.
 
