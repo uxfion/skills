@@ -1,6 +1,6 @@
 # vllm-serve：共享服务器内存充足时，根目录放内存盘 `/dev/shm/.tmp`
 
-> 余量定了（2026-11-23）：整台机器至少留四分之一的内存，放之前先估；不另限我们在 `/dev/shm` 里的占用。文字已改（决定 D20261123-13），等发布。经过见文末「余量的讨论」。11-17 那份按 1/3 重写整节的草稿没有用，留在参考文件夹。
+> 已解决（2026-11-23）：共享服务器内存富余时，新的根目录放 `/dev/shm/.tmp`，硬盘目录做退路；前提是整台机器至少留四分之一的内存（放之前先估），以及登录退出时系统不会清掉它。写在 `vllm-serve/references/shared-machines.md` 的 *A root in RAM*（决定 D20261123-13，提交 `fde75a2`、`85fb1f2`，同日发布）。hc_deduction 里抄的旧两条上限和一条错的命令已清掉（那边的提交 `899cd5b`）。11-17 那份按 1/3 重写整节的草稿没有用，在 git 不跟踪的 `archive/20261123/20261113-vllm-serve-ram-disk-root-reference/`。
 
 - 来源 · 日期：hc_deduction 项目，2026-11-13。项目里的决定是 D20261113-14（`docs/decisions/202611.md`），写法在 `docs/servers.md`。
 - 涉及的文字：`references/shared-machines.md` *First deployment* 第 1 步写的是"Agree on the place with the user: their directory on that machine (2026-10: the user keeps one per server, a `.tmp` under a path with room)"，默认根目录在硬盘上。
@@ -49,7 +49,7 @@
   - "每半小时"标成例子，写明不是用户定的数。
   - `RemoveIPC` 两条说法对照了 systemd v255 源码：`src/shared/clean-ipc.c` 会递归删掉 `/dev/shm` 下属于这个 uid 的文件和目录；`src/login/logind-user.c` 里开了 lingering、用户服务还在跑时不会走到清理那一步。查 `RemoveIPC` 的命令用 `loginctl show-session -p RemoveIPC`；hc 的 `docs/servers.md` 里写的 `loginctl show-logind` 在 systemd 255 上不存在（本机实测 `Unknown command verb 'show-logind'`）。
   - 内存盘怎么填（大文件走内网、安装包直接下载，D20261113-17）写进了共享机器参考的重建一段。
-- 状态：处理中。文字已改、已提交；余量怎么限还没定（见开头），定了再发布（推送要用户发话，然后 `skills update -g`）。发布后 hc_deduction 里被盖过的条目从这边清理：`docs/conventions/experiments.md` 里内存盘那条，`docs/servers.md` 里的通用部分和那条错的命令。待办 B1。发布后关闭。
+- 状态：已解决（2026-11-23，见开头）。
 
 ## 余量的讨论（2026-11-17，提交 `ffbd881` 之后）
 

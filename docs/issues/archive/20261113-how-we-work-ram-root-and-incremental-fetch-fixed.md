@@ -1,6 +1,8 @@
 # how-we-work：训练服务器的根目录可以放内存盘，训练输出在跑的过程中增量取回
 
-- 来源 · 日期：hc_deduction 项目，2026-11-13，决定 D20261113-14。和 [`20261113-vllm-serve-ram-disk-root.md`](20261113-vllm-serve-ram-disk-root.md) 是同一件事，这张记 how-we-work 这边要改的文字。
+> 已解决（2026-11-23）：how-we-work 的实验参考指向 vllm-serve 的 *A root in RAM*，不再重复它的内容；训练输出在跑的过程中用增量 `rsync` 取回。余量的决定和经过在 `docs/issues/archive/20261113-vllm-serve-ram-disk-root-fixed.md`（D20261123-13）。同日发布，hc_deduction 里被盖过的条目已清掉。
+
+- 来源 · 日期：hc_deduction 项目，2026-11-13，决定 D20261113-14。和 [`20261113-vllm-serve-ram-disk-root.md`](20261113-vllm-serve-ram-disk-root-fixed.md) 是同一件事，这张记 how-we-work 这边要改的文字。
 - 涉及的文字：`references/experiments.md` *On a training server*：
   - *Where things go on the host* 默认存储根目录在磁盘上；
   - *Fetching back, checking, cleaning* 写的是「When the job ends, in this order: 1. Fetch everything ... in one go」，只在结束时取回。
@@ -42,8 +44,8 @@
   - "每半小时"标成例子，写明不是用户定的数。
   - `RemoveIPC` 两条说法对照了 systemd v255 源码：`src/shared/clean-ipc.c` 会递归删掉 `/dev/shm` 下属于这个 uid 的文件和目录；`src/login/logind-user.c` 里开了 lingering、用户服务还在跑时不会走到清理那一步。查 `RemoveIPC` 的命令用 `loginctl show-session -p RemoveIPC`；hc 的 `docs/servers.md` 里写的 `loginctl show-logind` 在 systemd 255 上不存在（本机实测 `Unknown command verb 'show-logind'`）。
   - 内存盘怎么填（大文件走内网、安装包直接下载，D20261113-17）写进了共享机器参考的重建一段。
-- 状态：处理中。文字已改、已提交；和 vllm-serve 那张一起，等余量定了再发布（推送要用户发话，然后 `skills update -g`）。发布后 hc_deduction 里被盖过的条目从这边清理：`docs/conventions/experiments.md` 里内存盘那条，`docs/servers.md` 里的通用部分和那条错的命令。待办 B1。发布后关闭。
+- 状态：已解决（2026-11-23，见开头）。
 
 ## 余量的讨论（2026-11-17）
 
-内存盘的条件只写在 vllm-serve 的共享机器参考里，余量怎么限的讨论和没定的那一点记在 [`20261113-vllm-serve-ram-disk-root.md`](20261113-vllm-serve-ram-disk-root.md)。这张的部分（experiments 参考里的指针、跑的过程中取回）不受影响，和那张一起发布。
+内存盘的条件只写在 vllm-serve 的共享机器参考里，余量怎么限的讨论和没定的那一点记在 [`20261113-vllm-serve-ram-disk-root.md`](20261113-vllm-serve-ram-disk-root-fixed.md)。这张的部分（experiments 参考里的指针、跑的过程中取回）不受影响，和那张一起发布。
