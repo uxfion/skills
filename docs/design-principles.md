@@ -117,7 +117,7 @@ The standard is the writing-for-agents skill *(mattpocock)*: every document foll
 
 **Write from the task, not from an old document.** An old document, note, draft or template is a lead for facts, which are then checked; it is never the model for structure, order, wording or argument. The shape comes from the current task, its reader and what they need now.
 
-**Skill text** leaves out what other layers govern (examples simply call the entry's words: `p2z.py search …`). Each external CLI gets one labelled example, plus dated hints of practices established, with run-time discovery authoritative. It holds no personal facts: the repo is public, and root AGENTS.md has the placeholders. Principles like these, and a skill's way of reaching pages, are written into each skill's own prompt, not into the global instructions.
+**Skill text** leaves out what other layers govern (examples simply call the entry's words: `p2z.py search …`). Each external CLI gets one labelled example, plus dated hints of practices established, with run-time discovery authoritative. It holds no personal facts: the repo is public, and `docs/rules.md` has the placeholders. Principles like these, and a skill's way of reaching pages, are written into each skill's own prompt, not into the global instructions.
 
 **Language by reader.** What agents read (SKILL.md and its references, AGENTS.md, briefs, memory) is English, quoting the user verbatim in Chinese; what the user reads (README, specs, issues, reports) is Chinese.
 
