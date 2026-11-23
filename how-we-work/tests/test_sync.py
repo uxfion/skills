@@ -26,7 +26,10 @@ BLOCK = ("<!-- how-we-work:begin — synced from the skill; do not edit inside t
 COMMON = b"<!-- Draft 3: a note for whoever maintains the skill. -->\n\n" + BLOCK + b"\nA line after the block.\n"
 EMPTY_PAIR = b"<!-- how-we-work:begin -->\n<!-- how-we-work:end -->"
 REFERENCE_LINE = ("Read `~/.agents/skills/how-we-work/references/{kind}.md` first; this file adds to it, and holds "
-                  "for this project where the two differ.")
+                  "for this project where the two differ. It holds how this kind of work is done here; what the "
+                  "thing the project builds must be stands in the project's rules file (`docs/rules.md`).")
+FORMER_LINE = ("Read `~/.agents/skills/how-we-work/references/{kind}.md` first; this file adds to it, and holds "
+               "for this project where the two differ.")   # the line as it read until 2026-11-23
 OLD = 1_600_000_000   # a modification time long past: a write would move it
 
 
@@ -39,15 +42,18 @@ class Base(unittest.TestCase):
         self.project.mkdir()
         self.file = self.project / "AGENTS.md"
 
-    def run_entry(self, *argv, cwd=None, common=None, whole=False):
+    def run_entry(self, *argv, cwd=None, common=None, whole=False, outside=False):
         """(exit status, stdout's lines, stderr). The block's line comes without its `hint` and `registered`, which one
-        test reads with whole=True."""
+        test reads with whole=True. The line for what stands outside the block is left out, since most projects of
+        these tests carry text there to show that sync leaves it alone; outside=True keeps it."""
         # the list of projects goes to a file of the test's, never to the real config
         env = {**os.environ, "HOW_WE_WORK_COMMON": str(common or self.common),
                "HOW_WE_WORK_CONFIG": str(self.dir / "config" / "config.json")}
         done = subprocess.run(["uv", "run", "--quiet", "--script", str(ENTRY), *map(str, argv)], capture_output=True,
                               text=True, env=env, cwd=cwd)
         lines = [json.loads(line) for line in done.stdout.splitlines()]
+        if not outside:
+            lines = [line for line in lines if line.get("code") != "outside"]
         if not whole:
             lines = [{k: v for k, v in line.items() if k not in ("hint", "registered")} if line.get("code") == "ok" and "block" in line else line
                      for line in lines]
@@ -175,6 +181,9 @@ class Sync(Base):
         # another kind's line does not serve; CRLF is kept; no title: the line goes on top
         (conventions / "layout.md").write_bytes(("# Layout: this project\r\n\r\n" + line + "\r\n").encode())
         (conventions / "records.md").write_text("- **An entry and no title.**\n", encoding="utf-8")
+        # the line as an older skill wrote it: replaced where it stands, never doubled
+        (conventions / "literature.md").write_text("# Literature: this project\n\n" + FORMER_LINE.format(kind="literature")
+                                                   + "\n\n- **A rule.**\n", encoding="utf-8")
         # a topic of the project's own, and a reference that is no kind of work: listed, never written to
         (conventions / "servers.md").write_text("# Servers\n\n- **One GPU box.**\n", encoding="utf-8")
         (conventions / "adopting.md").write_text("# Adopting\n", encoding="utf-8")
@@ -182,7 +191,8 @@ class Sync(Base):
 
         def lines_of(lines):
             return [(Path(l["file"]).name, l.get("wrote") or l["problems"]) for l in lines[1:]]
-        expected = [("adopting.md", ["unknown_kind"]), ("layout.md", "reference_line"), ("records.md", "reference_line"),
+        expected = [("adopting.md", ["unknown_kind"]), ("layout.md", "reference_line"),
+                    ("literature.md", "reference_line"), ("records.md", "reference_line"),
                     ("reports.md", "reference_line"), ("servers.md", ["unknown_kind"])]
         summary = [{"summary": {"conventions": 2}}]
 
@@ -196,6 +206,8 @@ class Sync(Base):
         self.assertEqual((status, lines_of(lines), [json.loads(l) for l in err.splitlines()]), (1, expected, summary))
         self.assertEqual(lines[0], {"code": "ok", "file": str(self.file), "block": "current", "registered": True})
         self.assertEqual((conventions / "experiments.md").read_bytes(), in_form)
+        self.assertEqual((conventions / "literature.md").read_text(encoding="utf-8"),
+                         "# Literature: this project\n\n" + REFERENCE_LINE.format(kind="literature") + "\n\n- **A rule.**\n")
         self.assertEqual((conventions / "reports.md").read_text(encoding="utf-8"),
                          "# Reports: this project\n\n" + REFERENCE_LINE.format(kind="reports") + "\n\n" + reports.split("\n\n", 1)[1])
         self.assertEqual((conventions / "layout.md").read_bytes(),
@@ -271,7 +283,7 @@ class Add(Base):
         self.assertEqual(self.run_entry("sync", cwd=self.project), (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"}], ""))
 
         # a file that is there is left as it is, entries and all
-        made.write_text(text + "\n- **A rule.** From: 2026-11-12.\n", encoding="utf-8")
+        made.write_text(text + "\n- **A rule.**\n", encoding="utf-8")
         kept = made.read_bytes()
         self.assertEqual(self.run_entry("add", "experiments", cwd=self.project)[:2],
                          (0, [{"code": "ok", "file": "docs/conventions/experiments.md", "created": False}]))
@@ -291,44 +303,104 @@ class Add(Base):
         self.assertFalse((self.dir / "docs").exists())
 
 
-class Other(Base):
-    """other.md is the convention file for kinds of work that have no reference. It opens with the script's lines,
-    one for each kind that has a file; sync keeps them current and leaves what stands below them alone."""
+class Outside(Base):
+    """A project's AGENTS.md holds its title and the block. sync says which lines stand outside the block, at every
+    run, and moves none."""
 
-    def test_add_writes_the_list_of_kinds_and_sync_brings_a_stale_one_up_to_date(self):
+    def test_lines_outside_the_block_are_reported_and_left_alone(self):
+        clean = b"# Project\n\n" + EMPTY_PAIR + b"\n"
+        self.put(clean)
+        self.assertEqual(self.run_entry("sync", self.file, outside=True)[:2],
+                         (0, [{"code": "ok", "file": str(self.file), "block": "updated"}]))
+        # a line above the title's blank, two below the block; the numbers are those of the file as sync leaves it
+        data = b"# Project\n\nWhat it is.\n\n" + EMPTY_PAIR + b"\n\n## This project only\n\n- **A rule.**\n"
+        self.put(data)
+        code, out, err = self.run_entry("sync", self.file, outside=True)
+        text = self.file.read_text(encoding="utf-8").splitlines()
+        self.assertEqual((code, err, out[1]["code"], [text[n - 1] for n in out[1]["lines"]]),
+                         (0, "", "outside", ["What it is.", "## This project only", "- **A rule.**"]))
+        self.assertIn("add nothing there", out[1]["hint"])
+        kept = self.file.read_bytes()
+        code, out, err = self.run_entry("sync", "-n", self.file, outside=True)       # again at every run, -n included
+        self.assertEqual((code, [line["code"] for line in out], self.file.read_bytes()), (0, ["ok", "outside"], kept))
+
+
+class Rules(Base):
+    """docs/rules.md is the project's rules file. It opens with the script's lines, which list each kind of work
+    that has a convention file; sync keeps them current, here and in any docs/*.md that carries the marker pair,
+    and leaves what stands below them alone."""
+
+    def test_add_writes_the_list_and_sync_brings_a_stale_one_up_to_date(self):
         self.put(b"# Project\n\n" + BLOCK + b"\n")
-        made = self.project / "docs" / "conventions" / "other.md"
-        self.assertEqual(self.run_entry("add", "other", cwd=self.project),
-                         (0, [{"code": "ok", "file": "docs/conventions/other.md", "created": True}], ""))
+        made = self.project / "docs" / "rules.md"
+        kinds = sorted(f.stem for f in REFERENCES.glob("*.md") if f.stem not in ("adopting", "maintaining", "project-rules"))
+        self.assertNotIn("other", kinds)
+        self.assertEqual(self.run_entry("add", "rules", cwd=self.project),
+                         (0, [{"code": "ok", "file": "docs/rules.md", "created": True}], ""))
         text = made.read_text(encoding="utf-8")
-        opening, _, rest = text.partition("<!-- how-we-work:kinds ")
-        self.assertEqual(opening, "# Other: this project\n\n" + REFERENCE_LINE.format(kind="other") + "\n\n")
-        listed = re.findall(r"^- `([a-z-]+)`: \S", rest, re.M)
-        self.assertEqual(listed, sorted(f.stem for f in REFERENCES.glob("*.md") if f.stem not in ("adopting", "maintaining", "other")))
-        self.assertTrue(text.endswith("<!-- how-we-work:kinds-end -->\n"))
-        # in form as made, with no entry yet: sync writes nothing and has nothing to name
+        opening, _, rest = text.partition("<!-- how-we-work:rules ")
+        self.assertEqual(opening, "# Rules: this project\n\n")
+        self.assertEqual(re.findall(r"^- `([a-z-]+)`: \S", rest, re.M), kinds)
+        self.assertTrue(text.endswith("<!-- how-we-work:rules-end -->\n"))
+        self.assertFalse((self.project / "docs" / "conventions").exists(), "the rules file is no convention file")
+        # in form as made, with no rule yet: sync writes nothing and has nothing to name
         self.assertEqual(self.run_entry("sync", cwd=self.project), (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"}], ""))
-        # with entries, every sync names their headings, the kinds of work to read the file for
-        read = {"code": "convention", "file": "docs/conventions/other.md", "headings": ["Code"]}
+        # `add -h` prints the same kinds with what each covers, for a project that has no rules file yet
+        helped = subprocess.run(["uv", "run", "--quiet", "--script", str(ENTRY), "add", "-h"], capture_output=True, text=True).stdout
+        self.assertEqual(re.findall(r"^  `([a-z-]+)`: \S", helped, re.M), kinds)
 
-        # an entry of the project's below the list, and a list from an older skill: sync rewrites the list alone
-        entry = "\n## Code\n\n- **A rule.** From: 2026-11-13.\n"
+        # rules of the project's below the list, and a list from an older skill: sync rewrites the list alone
+        read = {"code": "rules", "file": "docs/rules.md", "headings": ["Masks", "Code"]}
+        entry = "\n## Masks\n\n- **A rule.**\n\n```markdown\n## Not a heading\n```\n\n## Code\n\n- **Another.**\n"
         stale = re.sub(r"^- `reports`: .*\n", "", text, flags=re.M).replace("- `layout`: ", "- `layout`: An older sentence. ") + entry
         made.write_text(stale, encoding="utf-8")
         code, out, err = self.run_entry("sync", "-n", cwd=self.project)
         self.assertEqual((code, [{k: v for k, v in line.items() if k != "hint"} for line in out], err, made.read_text(encoding="utf-8")),
                          (0, [{"code": "ok", "file": "AGENTS.md", "block": "current"},
-                              {"code": "convention", "file": "docs/conventions/other.md", "wrote": "kinds", "dry_run": True}, read], "", stale))
+                              {"code": "rules", "file": "docs/rules.md", "wrote": "list", "dry_run": True}, read], "", stale))
         code, out, err = self.run_entry("sync", cwd=self.project)
-        self.assertEqual((code, out[1]["wrote"], {k: v for k, v in out[2].items() if k != "hint"}, err), (0, "kinds", read, ""))
-        self.assertIn("move an entry", out[1]["hint"])
+        self.assertEqual((code, out[1]["wrote"], {k: v for k, v in out[2].items() if k != "hint"}, err), (0, "list", read, ""))
+        self.assertIn("convention file", out[1]["hint"])
         self.assertEqual(made.read_text(encoding="utf-8"), text + entry)
+        # every later sync names the headings and writes nothing
+        code, out, err = self.run_entry("sync", cwd=self.project)
+        self.assertEqual((code, [{k: v for k, v in line.items() if k != "hint"} for line in out[1:]], err), (0, [read], ""))
 
-        # a hand-made other.md with neither line gets both, and keeps its entry
-        made.write_text("# Other\n" + entry, encoding="utf-8")
+        # a hand-made docs/rules.md without the script's lines gets them under its title, and keeps its rules
+        made.write_text("# Our rules\n" + entry, encoding="utf-8")
         code, out, _ = self.run_entry("sync", cwd=self.project)
-        self.assertEqual((code, [line.get("wrote") or line.get("headings") for line in out[1:]]), (0, ["reference_line", "kinds", ["Code"]]))
-        self.assertEqual(made.read_text(encoding="utf-8"), text.replace("# Other: this project", "# Other") + entry)
+        self.assertEqual((code, [line.get("wrote") or line.get("headings") for line in out[1:]]), (0, ["list", ["Masks", "Code"]]))
+        self.assertEqual(made.read_text(encoding="utf-8"), text.replace("# Rules: this project", "# Our rules") + entry)
+
+    def test_a_rules_file_of_another_name_is_the_one_that_carries_the_marker_pair(self):
+        self.put(b"# Project\n\n" + BLOCK + b"\n")
+        docs = self.project / "docs"
+        docs.mkdir()
+        kept = "# 配置设计准则\n\n先读这份文件。\n\n<!-- how-we-work:rules -->\n<!-- how-we-work:rules-end -->\n\n## 1. 设计原则\n\n- 一条。\n"
+        (docs / "guideline.md").write_text(kept, encoding="utf-8")
+        plain = "# Goal\n\n## 方向\n"
+        (docs / "goal.md").write_text(plain, encoding="utf-8")       # no pair: not a rules file, never read for headings
+        code, out, err = self.run_entry("sync", cwd=self.project)
+        self.assertEqual((code, [(line["file"], line.get("wrote") or line.get("headings")) for line in out[1:]], err),
+                         (0, [("docs/guideline.md", "list"), ("docs/guideline.md", ["1. 设计原则"])], ""))
+        text = (docs / "guideline.md").read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("# 配置设计准则\n\n先读这份文件。\n\n<!-- how-we-work:rules "))
+        self.assertTrue(text.endswith("<!-- how-we-work:rules-end -->\n\n## 1. 设计原则\n\n- 一条。\n"))
+        self.assertIn("- `experiments`: ", text)
+        self.assertEqual((docs / "goal.md").read_text(encoding="utf-8"), plain)
+
+    def test_an_other_md_left_from_before_is_listed_to_be_moved(self):
+        self.put(b"# Project\n\n" + BLOCK + b"\n")
+        conventions = self.project / "docs" / "conventions"
+        conventions.mkdir(parents=True)
+        old = "# Other: this project\n\n## Code\n\n- **A rule.**\n"
+        (conventions / "other.md").write_text(old, encoding="utf-8")
+        code, out, err = self.run_entry("sync", cwd=self.project)
+        self.assertEqual((code, out[1]["problems"], json.loads(err.strip().splitlines()[-1])), (1, ["unknown_kind"], {"summary": {"conventions": 1}}))
+        self.assertIn("add rules", out[1]["hint"])
+        self.assertEqual((conventions / "other.md").read_text(encoding="utf-8"), old)
+        code, out, err = self.run_entry("add", "other", cwd=self.project)
+        self.assertEqual((code, out, json.loads(err.strip().splitlines()[-1])["code"]), (2, [], "unknown_kind"))
 
 
 class Heads(unittest.TestCase):
@@ -358,7 +430,7 @@ class Rev(unittest.TestCase):
     """The begin marker of common.md carries the day the block last changed, and the sync trusts it to tell an older
     install from a newer block. This pair is the block's text as it stood at that rev: a change to the text that
     leaves the rev alone fails here."""
-    REV, SHA256 = "2026-11-14.1", "79dd2f8e7a12f10ced99403c1f0c903653610b9a694dfb76398f7bbed095401c"
+    REV, SHA256 = "2026-11-23", "fe2135c0fa1fd6a99e27285076d8bec78d678c15da8100d7acd78db957e8f927"
 
     def test_the_rev_moves_whenever_the_block_changes(self):
         data = (ENTRY.parent.parent / "common.md").read_bytes()

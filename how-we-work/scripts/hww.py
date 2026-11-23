@@ -14,6 +14,7 @@ file is as it was, and stderr's last line is {code, hint, ...}.
 Examples:
   hww.py sync
   hww.py add experiments
+  hww.py add rules
 """
 import argparse
 import contextlib
@@ -28,20 +29,29 @@ from pathlib import Path
 SELF = Path(__file__).name
 # word: (script, what it does). Every word runs here, in hww.py, so none has a script of its own.
 WORDS = {
-    "sync": (None, "bring the common block of a project's AGENTS.md up to date; check the form of its convention files"),
-    "add": (None, "make the project's convention file for one kind of work, in the form sync checks"),
+    "sync": (None, "bring the common block of a project's AGENTS.md up to date; keep its convention files and its rules file in form"),
+    "add": (None, "make the project's convention file for one kind of work, or its rules file, in the form sync keeps"),
 }
 OK, ACT, CANNOT = 0, 1, 2
 COMMON = Path(__file__).resolve().parent.parent / "common.md"
 COMMON_ENV = "HOW_WE_WORK_COMMON"
-# A convention file adds to one reference of the skill and carries its name. Two references are about the skill
-# itself and take none.
+# A convention file adds to one reference of the skill and carries its name. Three references take none: two are
+# about the skill itself, and project-rules says where a project's own rules go.
 REFERENCES = Path(__file__).resolve().parent.parent / "references"
-NOT_KINDS = {"adopting", "maintaining"}
+NOT_KINDS = {"adopting", "maintaining", "project-rules"}
 CONVENTIONS = Path("docs") / "conventions"
-# The line under a convention file's title. It is the script's piece of the file: add writes it, sync writes it where it is missing.
+# The line under a convention file's title. It is the script's piece of the file: add writes it, sync writes it where
+# it is missing and brings a former wording of it up to date.
 REFERENCE_LINE = ("Read `~/.agents/skills/how-we-work/references/{kind}.md` first; this file adds to it, and holds "
-                  "for this project where the two differ.")
+                  "for this project where the two differ. It holds how this kind of work is done here; what the "
+                  "thing the project builds must be stands in the project's rules file (`docs/rules.md`).")
+FORMER_REFERENCE_LINES = ("Read `~/.agents/skills/how-we-work/references/{kind}.md` first; this file adds to it, and "
+                          "holds for this project where the two differ.",)
+# The project's rules file: what the thing the project builds must be, and rules for kinds of work no reference
+# covers. add makes it under this name; a project that keeps its rules in a file of another name puts the marker
+# pair there, and sync fills it wherever in docs/ it stands.
+RULES = "rules"
+RULES_FILE = Path("docs") / "rules.md"
 # The projects that carry the block, for the skills repository's session to read: sync adds the one it runs in.
 CONFIG = Path.home() / ".config" / "how-we-work" / "config.json"
 CONFIG_ENV = "HOW_WE_WORK_CONFIG"
@@ -50,16 +60,16 @@ BEGIN = re.compile(rb"<!--[ \t]*how-we-work:begin\b.*?-->", re.S)
 END = re.compile(rb"<!--[ \t]*how-we-work:end[ \t]*-->")
 # The day the block last changed, in its begin marker: `rev 2026-11-10`, or `2026-11-10.2` for a further change that day.
 REV = re.compile(rb"how-we-work:begin[ \t]+rev[ \t]+(\d{4})-(\d{2})-(\d{2})(?:\.(\d+))?")
-# In docs/conventions/other.md, the script's lines: one for each kind of work that has a file of its own, from the
-# `description` in the head of that kind's reference. add writes them, sync keeps them current.
-KINDS_OPEN = "<!-- how-we-work:kinds — the script's lines, rewritten by `hww.py sync`; write below the end marker -->"
-KINDS_CLOSE = "<!-- how-we-work:kinds-end -->"
-KINDS = re.compile(r"<!--[ \t]*how-we-work:kinds\b.*?-->.*?<!--[ \t]*how-we-work:kinds-end[ \t]*-->", re.S)
-OTHER = "other"
+# In the rules file, the script's lines: what the file holds, when it is read, and one line for each kind of work
+# that has a convention file, from the `description` in the head of that kind's reference. add writes them, sync
+# keeps them current.
+LIST_OPEN = "<!-- how-we-work:rules — the script's lines, rewritten by `hww.py sync`; write below the end marker -->"
+LIST_CLOSE = "<!-- how-we-work:rules-end -->"
+LIST = re.compile(r"<!--[ \t]*how-we-work:rules\b.*?-->.*?<!--[ \t]*how-we-work:rules-end[ \t]*-->", re.S)
 HEADING = re.compile(r"^(#{1,6})[ \t]+(.*)$")
 FENCE = re.compile(r"^(?:(`{3,})[^`]*|(~{3,}).*)$")   # a code fence opening in the line's first column
 
-SYNC = """Bring the how-we-work block of a project's AGENTS.md up to date, and put its convention files in form.
+SYNC = """Bring the how-we-work block of a project's AGENTS.md up to date, and keep its convention files and its rules file in form.
 
 The block. In FILE and in the skill's common.md alike, the block runs from the comment
 `<!-- how-we-work:begin ... -->` (any text may follow `begin`) through the comment `<!-- how-we-work:end -->`, both
@@ -77,27 +87,37 @@ common.md is the one in the skill's directory, beside scripts/; HOW_WE_WORK_COMM
 
 Convention files. Each docs/conventions/*.md beside FILE adds to one reference of the skill and carries its name
 (`hww.py add -h` lists them). Under its title it holds the line that sends the reader to that reference first; the
-line is the script's, and sync writes it where it is missing. other.md, the file for kinds of work that have no
-reference of their own, opens with the script's lines too, between two marker comments: one for each kind that has
-a file, with what the head of its reference says it holds; sync rewrites them where they are out of date. A file
-named for no reference is listed, for you to move what it holds. sync reads no entry: what a rule says, and whether it holds beyond this project, is not the
-script's to judge.
+line is the script's: sync writes it where it is missing, and replaces a former wording of it. A file named for no
+reference is listed, for you to move what it holds.
+
+The rules file. docs/rules.md holds the project's own rules. It opens with the script's lines, between the two
+comments `<!-- how-we-work:rules ... -->` and `<!-- how-we-work:rules-end -->`: what the file holds, when it is
+read, and one line for each kind of work that has a convention file, with what the head of its reference says.
+sync rewrites them where they are out of date, in docs/rules.md and in any other docs/*.md that carries the pair
+(a project that keeps its rules under another name places the pair there once). It prints the file's `## `
+headings at every sync. sync reads no entry, here or in a convention file: what a rule says, and where it
+belongs, is not the script's to judge.
 
 The list of projects. sync adds the project it runs in to `projects` in ~/.config/how-we-work/config.json, the
 list the skills repository's session reads the projects from; HOW_WE_WORK_CONFIG names another file.
 
-stdout: one JSON line for the block, then one for each convention file sync wrote to or could not place, in name
-order.
+A project's AGENTS.md holds its title and the block, nothing else: what only the project needs stands in its
+rules file, its convention files and its documents. sync reports the lines it finds outside the block and moves
+none.
+
+stdout: one JSON line for the block, one for what stands outside it, then one for each convention file sync wrote
+to or could not place, in name order, then the lines of each rules file.
   {code: "ok", file, block}                block: "updated" or "current". An "updated" line carries a hint, and
                                            with -n it adds dry_run: true and FILE is as it was. registered: true
                                            when the project was added to the list just now
-  {code: "convention", file, wrote}        wrote: "reference_line", or "kinds" (other.md's list, with a hint);
-                                           with -n, dry_run: true and nothing was written
-  {code: "convention", file, headings, hint}
-                                           other.md's `## ` headings, the kinds of work it holds rules for: printed
-                                           at every sync while it has any
+  {code: "outside", file, lines, hint}     FILE holds more outside its block than a title: the numbers of
+                                           those lines, printed at every sync while there are any
+  {code: "convention", file, wrote}        wrote: "reference_line"; with -n, dry_run: true and nothing was written
   {code: "convention", file, problems, hint}
                                            problems: ["unknown_kind"]
+  {code: "rules", file, wrote, hint}       wrote: "list", the script's lines; with -n, dry_run: true
+  {code: "rules", file, headings, hint}    the file's `## ` headings, what its rules are about: printed at every
+                                           sync while it has any
 
 Exit status: 0 = the block is current or was brought up to date, and every convention file is named for a
 reference; 1 = a convention file is named for none: stderr ends with {"summary": {conventions}}; 2 = cannot go on:
@@ -108,7 +128,7 @@ FILE is as it was, and stderr's last line is {code, hint, ...}, the code one of
   file_not_found          FILE is not a file
   no_common, bad_common   the skill's common.md is missing, or does not hold exactly one block
   older_common            FILE's block is of a later day than the skill's: this install is behind
-  write_failed            FILE could not be replaced by its new content: it is as it was
+  write_failed            a file could not be replaced by its new content: it is as it was
   usage                   the command line cannot be read
 
 Examples:
@@ -186,6 +206,21 @@ HINTS = {
 }
 
 
+def outside(data, span):
+    """The numbers of the lines of an AGENTS.md that stand outside its block and are neither blank nor its title
+    (the first `# ` heading): a project's AGENTS.md holds nothing else."""
+    found, titled, at = [], False, 0
+    for number, line in enumerate(data.decode("utf-8-sig", errors="replace").splitlines(keepends=True), 1):
+        start, at = at, at + len(line.encode("utf-8", errors="replace"))
+        if span[0] <= start < span[1] or not line.strip():
+            continue
+        if not titled and line.startswith("# "):
+            titled = True
+            continue
+        found.append(number)
+    return found
+
+
 def rev(marker_data):
     """The day in a block's begin marker as a tuple to compare, or None where the marker carries none."""
     m = REV.search(marker_data)
@@ -237,12 +272,20 @@ def has_reference_line(path):
 
 
 def with_reference_line(data, kind):
-    """A convention file's bytes with its reference line put under the title, or at the top where the file opens
-    with no `# ` title. The file's own line ending is kept."""
+    """A convention file's bytes with its reference line: a former wording of the line replaced where it stands,
+    otherwise the line put under the title, or at the top where the file opens with no `# ` title. The file's own
+    line ending is kept."""
     nl = b"\r\n" if b"\r\n" in data else b"\n"
     line = REFERENCE_LINE.format(kind=kind).encode()
     bom = b"\xef\xbb\xbf" if data.startswith(b"\xef\xbb\xbf") else b""
     body = data[len(bom):]
+    rows = body.split(nl)
+    for former in FORMER_REFERENCE_LINES:
+        old = former.format(kind=kind).encode()
+        for i, row in enumerate(rows):
+            if row.strip() == old:
+                rows[i] = line
+                return bom + nl.join(rows)
     first, sep, rest = body.partition(nl)
     if first.startswith(b"# "):
         return bom + first + nl + nl + line + nl + (rest if rest.startswith(nl) or not rest else nl + rest)
@@ -266,39 +309,45 @@ def head(path):
     return fields
 
 
-def kinds_lines(nl="\n"):
-    """The script's lines of a project's other.md: every kind of work that has a file of its own, with what the
-    head of its reference says it holds."""
+def kind_rows():
+    """One line for each kind of work that has a convention file, with what the head of its reference says."""
     rows = []
     for kind in kinds():
-        if kind != OTHER:
-            description = head(REFERENCES / f"{kind}.md").get("description")
-            rows.append(f"- `{kind}`: {description}" if isinstance(description, str) else f"- `{kind}`")
-    return nl.join([KINDS_OPEN, "Each of these kinds of work has a file of its own, `docs/conventions/<name>.md`:", "",
-                    *rows, "",
-                    "What none of them covers goes below, under a `## ` heading that names its kind of work.",
-                    KINDS_CLOSE])
+        description = head(REFERENCES / f"{kind}.md").get("description")
+        rows.append(f"- `{kind}`: {description}" if isinstance(description, str) else f"- `{kind}`")
+    return rows
 
 
-def with_kinds_lines(data):
-    """A project's other.md with the script's lines as they now read: replaced where the two markers are, put under
-    the reference line where they are not. None when they already read so."""
+def list_lines(nl="\n"):
+    """The script's lines of a rules file: what it holds, when it is read, and the kinds of work that have a
+    convention file."""
+    return nl.join([LIST_OPEN,
+                    "What the thing this project builds must be, and how it is designed and changed; after that, "
+                    "rules for kinds of work that have no reference. Read it whole before designing or changing what "
+                    "the project builds. It holds over a convention file on the same matter.", "",
+                    "A rule about how one of these kinds of work is done here stands in `docs/conventions/<name>.md`:",
+                    "", *kind_rows(), "",
+                    "Nothing of the project's stands in `AGENTS.md`. A fact stands in the project's documents, or "
+                    "with the rules of the kind of work that needs it.",
+                    LIST_CLOSE])
+
+
+def with_list_lines(data):
+    """A rules file with the script's lines as they now read: replaced where the two markers are, put under the
+    title (or on top, where there is none) where they are not. None when they already read so."""
     nl = "\r\n" if b"\r\n" in data else "\n"
-    text, lines = data.decode("utf-8", errors="surrogateescape"), kinds_lines(nl)
-    if found := KINDS.search(text):
+    text, lines = data.decode("utf-8", errors="surrogateescape"), list_lines(nl)
+    if found := LIST.search(text):
         new = text[:found.start()] + lines + text[found.end():]
     else:
-        line = REFERENCE_LINE.format(kind=OTHER)
-        at = text.find(line)
-        at = text.find(nl, at) if at >= 0 else -1
-        at = len(text) if at < 0 else at + len(nl)
-        new = text[:at] + ("" if text[:at].endswith(nl) or not text[:at] else nl) + nl + lines + nl + (
-            "" if text[at:].startswith(nl) or not text[at:] else nl) + text[at:]
+        first, sep, rest = text.partition(nl)
+        at = len(first) + len(sep) if first.startswith("# ") else 0
+        new = text[:at] + (nl if at else "") + lines + nl + ("" if text[at:].startswith(nl) or not text[at:] else nl) + text[at:]
     return None if new == text else new.encode("utf-8", errors="surrogateescape")
 
 
 def headings(data):
-    """The `## ` headings of a project's other.md, a fenced example left out: the kinds of work it holds rules for."""
+    """The `## ` headings of a rules file, a fenced example left out: what its rules are about."""
     found, fence = [], None
     for line in data.decode("utf-8-sig", errors="replace").splitlines():
         if fence:
@@ -393,6 +442,14 @@ def sync(argv):
     if not args.dry_run and register(path.resolve().parent):
         done["registered"] = True
     emit(done)
+    if done["block"] == "updated" and not args.dry_run:       # the numbers are those of the file as it now stands
+        data, span = data[:span[0]] + block + data[span[1]:], (span[0], span[0] + len(block))
+    if own := outside(data, span):
+        emit({"code": "outside", "file": args.file, "lines": own,
+              "hint": "AGENTS.md holds the project's title and the block, nothing else. These lines stand outside "
+                      "the block: add nothing there. Each belongs in the rules file, a convention file or one of the "
+                      "project's documents (the project-rules reference, *Which file*); where each goes is the "
+                      "user's to approve, and the skills repository's session moves them with the user."})
 
     known, unplaced = kinds(), 0
     for f in sorted((path.parent / CONVENTIONS).glob("*.md")):
@@ -402,48 +459,57 @@ def sync(argv):
             unplaced += 1
             emit({"code": "convention", "file": str(f), "problems": ["unknown_kind"],
                   "hint": f"A convention file is named for a reference of the skill ({', '.join(known)}). Move what "
-                          f"this one holds: a rule or a fact for one of those kinds of work into that kind's file "
-                          f"(`{SELF} add KIND` makes it), a rule for a kind of work none of them covers into other.md under a "
-                          f"heading that names the kind, a rule for every task into AGENTS.md outside the block, "
-                          f"any other fact into the project's documents. Then remove the file: its content has moved, "
-                          f"so that is part of the move and yours to do."})
-        else:
-            data, wrote = f.read_bytes(), []
-            if not has_reference_line(f):
-                data = with_reference_line(data, f.stem)
-                wrote.append({"wrote": "reference_line"})
-            if f.stem == OTHER and (new := with_kinds_lines(data)) is not None:
-                data = new
-                wrote.append({"wrote": "kinds", "hint": "The list of kinds in this file was brought up to date: read "
-                                                        "the headings under it, and move an entry that now belongs "
-                                                        "to one of the listed files."})
-            if wrote and not args.dry_run:
+                          f"this one holds to the places the block's *How a rule grows* gives (the project-rules "
+                          f"reference has examples): how one of those kinds of work is done here into that kind's file "
+                          f"(`{SELF} add KIND` makes it), any other rule into the rules file (`{SELF} add {RULES}`). "
+                          f"Then remove the file: its content has moved, so that is part of the move and yours to do."})
+        elif not has_reference_line(f):
+            if not args.dry_run:
                 try:
-                    replace(f, data)
+                    replace(f, with_reference_line(f.read_bytes(), f.stem))
                 except OSError as e:
                     raise Stop("write_failed", "A convention file could not be written: `detail` says why. It is as "
                                                "it was.", file=str(f), detail=str(e))
-            for what in wrote:
-                emit({"code": "convention", "file": str(f), **what, **({"dry_run": True} if args.dry_run else {})})
-            if f.stem == OTHER and (found := headings(data)):
-                emit({"code": "convention", "file": str(f), "headings": found,
-                      "hint": "This project's rules for kinds of work that have no reference: before work of one "
-                              "of these kinds, read its section of this file."})
+            emit({"code": "convention", "file": str(f), "wrote": "reference_line", **({"dry_run": True} if args.dry_run else {})})
+
+    docs = path.parent / RULES_FILE.parent
+    for f in sorted(docs.glob("*.md")):
+        if not f.is_file():
+            continue
+        data = f.read_bytes()
+        if f.name != RULES_FILE.name and not LIST.search(data.decode("utf-8", errors="replace")):
+            continue                      # a rules file is docs/rules.md, or the file that carries the marker pair
+        if (new := with_list_lines(data)) is not None:
+            if not args.dry_run:
+                try:
+                    replace(f, new)
+                except OSError as e:
+                    raise Stop("write_failed", "The rules file could not be written: `detail` says why. It is as it "
+                                               "was.", file=str(f), detail=str(e))
+            data = new
+            emit({"code": "rules", "file": str(f), "wrote": "list", **({"dry_run": True} if args.dry_run else {}),
+                  "hint": "The list that opens this file was brought up to date: a rule under one of its headings "
+                          "that one of the listed kinds now covers moves to that kind's convention file."})
+        if found := headings(data):
+            emit({"code": "rules", "file": str(f), "headings": found,
+                  "hint": "This project's own rules. Read the file whole before designing or changing what the "
+                          "project builds; before work of a kind one of these headings names, read that section."})
     if unplaced:
         emit({"summary": {"conventions": unplaced}}, sys.stderr)
         return ACT
     return OK
 
 
-ADD = """Make the project's convention file for one kind of work: docs/conventions/KIND.md, in the current directory.
+ADD = """Make the project's convention file for one kind of work, docs/conventions/KIND.md, or its rules file, docs/rules.md.
 
-A convention file holds what this project adds to one reference of the skill, and carries that reference's name.
-add writes it in the form sync checks: a title and the line that sends the reader to the reference first; the
-entries under it are yours to write. `other` is the file for kinds of work that have no reference of their own:
-it opens with one line for each kind that has a file, and its entries stand under a heading naming their kind. A file that is already there is left as it is. Run it in the project's root,
-where AGENTS.md is.
+A convention file holds how one kind of work is done in this project, and carries the name of the reference it
+adds to. add writes it in the form sync keeps: a title and the line that sends the reader to the reference first;
+the entries under it are yours to write. `rules` makes the project's rules file instead: what the thing the project
+builds must be, and rules for kinds of work that have no reference; it opens with the script's lines, which list
+the kinds below. A file that is already there is left as it is. Run it in the project's root, where AGENTS.md is.
 
-KIND is the name of a reference of the skill, the two about the skill itself left out: {kinds}
+KIND is `rules`, or the name of a reference that takes a convention file:
+{kinds}
 
 stdout: one JSON line, {{code: "ok", file, created}}; created is false when the file was already there, and with -n
 the line adds dry_run: true and nothing is written.
@@ -455,38 +521,37 @@ Exit status: 0 = the file is there; 2 = cannot go on: nothing was written, and s
   write_failed            the file could not be written
   usage                   the command line cannot be read
 
-Example:
+Examples:
   hww.py add experiments
+  hww.py add rules
 """
 
 
 def add(argv):
     known = kinds()
-    first, _, rest = ADD.format(kinds=", ".join(known)).strip().partition("\n")
+    first, _, rest = ADD.format(kinds="\n".join("  " + row[2:] for row in kind_rows())).strip().partition("\n")
     p = Parser(prog=f"{SELF} add", description=first, epilog=rest.strip(),
                formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("-n", "--dry-run", action="store_true", help="say what would be made, and write nothing")
-    p.add_argument("kind", metavar="KIND", help="the kind of work, by the name of its reference")
+    p.add_argument("kind", metavar="KIND", help="`rules`, or the kind of work by the name of its reference")
     args = p.parse_intermixed_args(argv)
 
-    if args.kind not in known:
+    if args.kind != RULES and args.kind not in known:
         raise Stop("unknown_kind", "A convention file adds to a reference of the skill and carries its name: `kinds` "
-                                   "lists them. A rule for a kind of work that has no reference goes into other.md "
-                                   f"(`{SELF} add other`), under a heading that names the kind. Nothing was written.",
-                   kind=args.kind, kinds=known)
+                                   f"lists them. A rule none of them covers goes into the rules file (`{SELF} add "
+                                   f"{RULES}`). Nothing was written.", kind=args.kind, kinds=known)
     if not Path("AGENTS.md").is_file():
         raise Stop("file_not_found", "Run add in the project's root, where AGENTS.md is. Nothing was written.",
                    file="AGENTS.md")
-    path = CONVENTIONS / f"{args.kind}.md"
+    path = RULES_FILE if args.kind == RULES else CONVENTIONS / f"{args.kind}.md"
     done = {"code": "ok", "file": str(path), "created": not path.exists()}
     if done["created"]:
         if args.dry_run:
             done["dry_run"] = True
         else:
             title = args.kind.replace("-", " ").capitalize()
-            text = f"# {title}: this project\n\n{REFERENCE_LINE.format(kind=args.kind)}\n"
-            if args.kind == OTHER:
-                text += f"\n{kinds_lines()}\n"
+            text = f"# {title}: this project\n\n" + (
+                f"{list_lines()}\n" if args.kind == RULES else f"{REFERENCE_LINE.format(kind=args.kind)}\n")
             try:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(text, encoding="utf-8", newline="")

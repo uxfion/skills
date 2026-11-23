@@ -13,7 +13,7 @@ The common block in the project's `AGENTS.md` says which record takes what; this
 The user steers several projects and comes back to each after days or months; a later session picks the work up with no memory of this one. Both find a thing by where it is and what it is called, without opening it. Two things therefore hold everywhere:
 
 - **One home per kind of thing.** A kind of content lives in one place, and a file lands in the home of its kind the moment it is created. Files left where they were made are what the user has to stop and ask about: 「现在各种根目录下的 MD 文件都很散落，我觉得应该是放在 docs 下面的」; 「为什么在项目根目录下会有 local API 这些东西啊？乱放啊？」
-- **`README.md` holds the project's only directory map.** `AGENTS.md` holds rules, `docs/goal.md` the direction; neither repeats the map. (An existing project whose records are not in the default places names those few places in its `AGENTS.md`, outside the block: the adopting reference.) A place that is not on the map does not exist for the next reader.
+- **`README.md` holds the project's only directory map.** `AGENTS.md` holds the common block and nothing of the project's, `docs/goal.md` the direction; neither repeats the map. (An existing project whose records are not in the default places names those few places in its `docs/conventions/layout.md`: the adopting reference.) A place that is not on the map does not exist for the next reader.
 
 ## The default map
 
@@ -23,7 +23,7 @@ The last column says whether git tracks the thing. For the inside of an experime
 
 | What | Where | In git |
 |---|---|---|
-| Rules for agents: the common block and the project's own rules | `AGENTS.md` | yes |
+| The common block of rules, under the project's title | `AGENTS.md` | yes |
 | What the project is; the only directory map, with this column; the list of upstream repositories | `README.md` | yes |
 | The project's direction: goal, scope and constraints, completion criteria | `docs/goal.md` | yes |
 | What is to be done and what it waits on; the user's passing ideas | `docs/todo.md` | yes |
@@ -33,8 +33,9 @@ The last column says whether git tracks the thing. For the inside of an experime
 | An unattended run: its goal, its record, what waits for the user | `docs/goals/<YYYYMMDD>-<topic>.md` (the unattended reference of this skill) | yes |
 | A problem met in code, tools or workflow | `docs/issues/<YYYYMMDD>-<topic>.md`; closed ones in `docs/issues/archive/` | yes |
 | An issue's working material: reports, drafts, prototypes, data | `docs/issues/<the issue's file name without .md>-reference/`, beside the issue; when the issue closes, to `archive/<YYYYMMDD>/` (the records reference, *Issues*) | no |
-| The user's words behind a rule of the project's own | `docs/rules-sources.md` | yes |
-| What this project adds to a reference of this skill | `docs/conventions/<name>.md` | yes |
+| The project's own rules: what the thing it builds must be, how that is designed and changed, and rules for kinds of work no reference covers | `docs/rules.md` (the project-rules reference of this skill) | yes |
+| How one kind of work that has a reference is done in this project | `docs/conventions/<name>.md` | yes |
+| Where the project's rules came from: the date, the scene, the user's words | `docs/rules-sources.md` | yes |
 | Each technical problem: the directions tried, their state, what blocks them | `docs/exploration-tree.md` | yes |
 | The ledger of all experiments | `docs/experiment-log.md` | yes |
 | External datasets, one met during a literature search included; the training servers | `docs/datasets.md`; `docs/servers.md` | yes |

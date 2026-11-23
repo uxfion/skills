@@ -59,7 +59,7 @@ Two corrections from the user pull in opposite directions. The kind of question 
 - The project's own choices do not narrow it: 「你在调研文献的时候，不应该被我的这个决定给局限住，你的调研还是一样查文献的。」
 - Starting points for sources, to extend as the question needs: papers.cool; Google Scholar and publishers, reached the way paper-fetch reaches a page; Hugging Face (`hf`) and GitHub (`gh`) for models and code; the field's guidelines and handbooks for a question of practice (how the field's practitioners delineate, measure or grade something).
 
-**A question about named things keeps their size.** When the user asks about particular papers (ones they sent, ones named in a meeting, "the main few"), find those first, read them deeply, and skim what surrounds them. The amount of material at hand does not set the size of the task. The case: the same question about datasets, where the agent, once in the library, treated every paper in it alike and delivered a library-wide survey where a table of the few named papers was wanted. 「也不是说查所有相关的文献，就是我们头部几个比较重要的，应该我们提到过吧？就重点参考那几篇论文」 「你要分得清主次嘛.重要的，和我们比较相关的，那就主要看；其他的，大致过一下就好」
+**A question about named things keeps their size.** When the user asks about particular papers (ones they sent, ones named in a meeting, "the main few"), find those first, read them deeply, and skim what surrounds them. The amount of material at hand does not set the size of the task. The case: the same question about datasets, where the agent, once in the library, treated every paper in it alike and delivered a library-wide survey where a table of the few named papers was wanted. 「你要分得清主次嘛.重要的，和我们比较相关的，那就主要看；其他的，大致过一下就好」
 
 A paper the user sends as an example of a direction is both kinds: read it, then look for its neighbours. 「也不仅仅是指我发给你这篇，你也可以去 papers cool 上或者其他地方去查一些相关的内容」
 
@@ -115,7 +115,7 @@ Whether a paper is read through or only looked up, and how, is paper-read's. Wha
 
 ### An important paper with public code is read against its code
 
-This applies when the project will build on the paper (a baseline to retrain and change, a method to borrow parts from) and its repository is public. 「特别重要的，然后也有GitHub仓库的，对照着看，同时做好research的笔记。」 The reason: 「因为后面我们肯定要改 baseline 或者优化我们的 baseline，然后逐渐形成方法。」 The aim is to know how they built it, not to port it: 「而是知道它的一些方法实现，然后为我们所用的，对我们完成这个任务有帮助的，可以吸收借鉴的」.
+This applies when the project will build on the paper (a baseline to retrain and change, a method to borrow parts from) and its repository is public. 「特别重要的，然后也有GitHub仓库的，对照着看，同时做好research的笔记。」 The reason: 「因为后面我们肯定要改 baseline 或者优化我们的 baseline，然后逐渐形成方法。」 The aim is to know how they built it, not to port it.
 
 What the reading brings back, as a starting set to extend for the paper in hand:
 

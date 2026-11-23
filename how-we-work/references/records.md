@@ -1,6 +1,6 @@
 ---
 name: records
-description: "What an entry of each record holds and how a record stays current: decisions, the to-do list, issues, specs, what others said, the experiment log, the convention files. The project's file holds where it changes a record's format, with the reason. Where a record lives belongs to `layout`."
+description: "What an entry of each record holds and how a record stays current: decisions, the to-do list, issues, specs, what others said, the experiment log. The project's file holds where it changes a record's format, with the reason. Where a record lives belongs to `layout`; how a rule of the project's own is written belongs to `project-rules`."
 trigger: "before setting up a record file, before writing an entry whose format no file header gives you, and before closing an issue, freezing or superseding a spec, or correcting a record."
 ---
 
@@ -36,8 +36,8 @@ A later session starts with no memory of this one, and the user comes back to a 
 | Issues | `docs/issues/<YYYYMMDD>-<topic>.md` | Chinese | rewriting, one file per problem |
 | Specs | `docs/specs/<YYYYMMDD>-<topic>-spec.md` | Chinese | rewriting until built, then frozen |
 | An unattended run | `docs/goals/<YYYYMMDD>-<topic>.md` | Chinese | as the unattended reference of this skill says; its parts are there |
-| The user's words behind a rule | `docs/rules-sources.md` | Chinese | appending |
-| What the project adds to a reference of this skill | `docs/conventions/<name>.md` | English, quoting the user in Chinese: agents read it | rewriting |
+| The project's own rules | `docs/rules.md`; `docs/conventions/<name>.md` | English: agents read them | rewriting; the project-rules reference of this skill has the entry and where each rule goes |
+| Where the project's rules came from | `docs/rules-sources.md` | Chinese | appending; a bullet moves with its rule (the project-rules reference) |
 | Exploration tree | `docs/exploration-tree.md` | Chinese | rewriting |
 | Experiment log | `docs/experiment-log.md` | by the common block's rule: Chinese where the user reads it, English where only agents do; an existing log keeps its language | appending |
 
@@ -110,7 +110,7 @@ An open technical problem is a node of the exploration tree; the to-do row is th
 
 ### What others said: `docs/meetings.md`
 
-Takes everything said about the project by someone other than the user: a supervisor, a doctor, a reviewer, a collaborator, a data provider. It is recorded however it arrives: the notes of a meeting, a chat log the user pastes, one sentence the user relays in passing. A rule that said "group-meeting notes" left a supervisor's relayed sentence unrecorded until the user asked: 「这些东西你要都要记入到meeting里面,这也相当于一次沟通了」; and of a chat log: 「其实这些东西就相当于是meeting内容」.
+Takes everything said about the project by someone other than the user: a supervisor, a doctor, a reviewer, a collaborator, a data provider. It is recorded however it arrives: the notes of a meeting, a chat log the user pastes, one sentence the user relays in passing. A rule that said "group-meeting notes" left a supervisor's relayed sentence unrecorded until the user asked: 「这些东西你要都要记入到meeting里面,这也相当于一次沟通了」.
 
 Two parts:
 
@@ -191,39 +191,9 @@ A spec is a snapshot. While it is being built, an error in it is corrected in pl
 
 Current behaviour is read from the code and the rules, not from an old spec.
 
-### The user's words behind a rule: `docs/rules-sources.md`
+### The project's own rules and their sources
 
-Takes any exchange behind a rule of the project's own that is longer than the entry's `From:` holds, for an entry in `AGENTS.md` outside the block and in `docs/conventions/` alike; the entry then names the date. A sentence or two of the user's stays in the entry's `From:` and is not copied here. The words behind the common rules are kept with this skill, not in the project. The user asked for rules and their sources to be kept apart: 「我说的话应该放在 source 里面，然后具体的 to do 和其他内容你就另外放」.
-
-Grouped by where the rule lives. One bullet per source: the date, the scene, the words in 「」; where a decision entry holds the full exchange, its id. A rule that has no words of the user's says who proposed it and from which case. A bullet is appended when the user approves or changes a rule.
-
-It is consulted to check where a rule came from, or how wide it was meant when its wording is in doubt; the rule text is what is followed.
-
-### What the project adds to a reference: `docs/conventions/<name>.md`
-
-One file per kind of work, named as the reference it adds to: `docs/conventions/experiments.md` adds to `references/experiments.md`. It holds this project's rules for that kind of work and the facts that work needs. Where an entry differs from the reference, the entry holds for this project; one that departs from a common rule on purpose says which rule and why. Agents read the file, so it is in English and quotes the user in Chinese.
-
-The script owns the file's name and its first line under the title. `hww.py add <name>`, run in the project's root, makes the file; it refuses a name that is no reference of the skill. The sync writes the line into a file that lacks it, and lists a file named for no reference: what such a file holds moves to the kind it belongs to, to `other.md` (a rule for a kind of work that has no reference), to `AGENTS.md` outside the block (a rule for every task), or to the project's documents (any other fact).
-
-`docs/conventions/other.md` differs in two ways: the script also writes the list of kinds that opens it, and its entries stand under a heading per kind of work. The other reference of this skill says how it is written.
-
-Under the line, one bullet per rule or fact. The same form serves an entry in `AGENTS.md` outside the block:
-
-```markdown
-# Experiments: this project
-
-Read `~/.agents/skills/how-we-work/references/experiments.md` first; this file adds to it, and holds for this project where the two differ.
-
-- **<the rule, one sentence>.** From: <the date, and the user's words in 「」 or the case>.
-```
-
-An invented entry (the project and the case are made up):
-
-```markdown
-- **Photos from the two greenhouse cameras are scored apart from the field photos.** From: 2026-03-25, the comparison in `experiments/20260324-source-gap/`.
-```
-
-A file made before 2026-11-12 may carry the headings `## This project only` and `## To promote`. They may stay, below the line; nothing reads them.
+An entry in the rules file (`docs/rules.md`) or in a convention file (`docs/conventions/<name>.md`), and a bullet of `docs/rules-sources.md`: their forms, and which of the two a rule goes to, are in the project-rules reference of this skill.
 
 ### Exploration tree and experiment log
 
