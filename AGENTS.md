@@ -1,9 +1,5 @@
 # AGENTS.md
 
-Personal agent skills plus the source files for global agent instructions. See README.md for the layout.
-
-You are the owner and long-term maintainer of this codebase, and its design is up to you: decide, do, then report. At the key points, ask the user first: a change to what the rules say (this repository's root `AGENTS.md`, `docs/design-principles.md`, `agent-instructions/`, the rules a skill gives its agents), and a major or directional decision.
-
 <!-- how-we-work:begin rev 2026-11-23 — synced from the how-we-work skill; do not edit inside this block. Nothing of the project's goes in this file: its own rules stand in `docs/rules.md` and `docs/conventions/`. -->
 
 # How we work
@@ -118,15 +114,3 @@ A reference is `~/.agents/skills/how-we-work/references/<name>.md`, with the nam
 - **How a rule grows.** What you learn, a correction or a preference of the user's included, goes to `.memory/` first and takes effect from there; memory is yours to keep. It moves into the project's files once it has proved itself: the user comes back to it, or it decides the work a second time, and it holds whatever the harness. How one kind of work is done here goes to that kind's `docs/conventions/<name>.md`; every other rule goes to the rules file (`docs/rules.md`); the project-rules reference has the form and examples. Nothing of the project's goes into `AGENTS.md`. A rule the user stated you write, and say in a line where it went; one of your own devising you propose to them first. Once in the project's files, it leaves memory.
 
 <!-- how-we-work:end -->
-
-## This project only
-
-- The how-we-work block above and the references it points to are the installed skill's, synced here as in any project, with the installed `hww.py`. The `how-we-work/` directory of this tree is the version under development: it governs nothing until it is pushed and reinstalled, and it is read as the thing being changed. After a release, run the sync here as well.
-- Read `docs/design-principles.md` before designing, changing, running or testing a skill. An issue's topic starts with the skill's name.
-- In a `SKILL.md`, use paths relative to the skill directory — never agent-specific ones (e.g. `.claude/skills/`).
-- Every script a skill's docs or its entry run, the entry itself included, opens with `#!/usr/bin/env -S uv run --quiet --script`, then its PEP 723 block, `dependencies = []` when there are none: the block is what keeps uv out of the caller's project, so `--no-project` adds nothing, and `--quiet` keeps uv's install lines off stderr. Each is executable in git: the docs reach the entry through PATH (`docs/design-principles.md` §3, *The Unix/Linux philosophy*), and the other scripts sit on that same PATH. Since this checkout has `core.fileMode` off, `git update-index --chmod=+x` sets the bit.
-- After changing a skill's commands — options, operands, output, help — or the letter table in `docs/design-principles.md` §3, run the conventions check from the repo root, `uv run tests/check_conventions.py`: it holds every skill not on its `NOT_YET` list to that section, *The Unix/Linux philosophy*; take a skill off the list once it is brought over.
-- When adding or removing a skill, update the list in README.md.
-- The repo is public. Institution and personal values in committed files are placeholders: `<institution>`, `<proxy-domain>` (a proxied host is the host with dots as dashes, then `.<proxy-domain>`: `ieeexplore-ieee-org.<proxy-domain>`), `<sso-host>`, `<discovery-host>`, `<accountid>`, `<email>`, `<user>`; the real values live in local config outside the repo. The scan before a push covers everything the push publishes: files and commit messages.
-- The global instruction sources are `agent-instructions/CLAUDE.md`, `AGENTS.md` and `HERMES.md`; once a change to them is confirmed, sync the global copies (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.hermes/skills/agent-instructions/SKILL.md`). `HERMES.md` is `AGENTS.md` plus frontmatter and one `**In Hermes**` paragraph after the first Auto memory paragraph: after any change to `AGENTS.md`, regenerate it so that removing those two leaves `AGENTS.md` byte for byte. Change the Auto memory section only per `agent-instructions/auto-memory-update.md`.
-- `agent-instructions/references/` is a checksummed source archive — don't edit it.

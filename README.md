@@ -18,7 +18,7 @@
 
 Claude Code 的 auto memory 由自身 harness 管理；AGENTS.md 的记忆规则用于补齐缺少该机制的 harness。共享记忆位于各项目的 `.memory/`，全局 Git ignore 应包含 `**/.memory/` 和 `**/.claude/settings.local.json`。
 
-配置只使用表中的源文件；根目录 AGENTS.md 是本仓库的项目说明，`references/` 是来源存档。
+配置只使用表中的源文件；根目录 AGENTS.md 只有 how-we-work 的通用块，本仓库自己的规则在 `docs/rules.md`，`references/` 是来源存档。
 
 ## Skills
 
