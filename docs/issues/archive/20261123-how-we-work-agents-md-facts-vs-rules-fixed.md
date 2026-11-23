@@ -1,3 +1,5 @@
+> 已解决（2026-11-23）：`adopting.md`、通用块、`layout.md` 三处说法统一了：项目的事实回项目的文档，`AGENTS.md` 块外什么都不放（D20261123-8，通用块 rev 2026-11-23，提交 `379f987`）。和另外两张并成一件事，经过记在 `docs/issues/archive/20261117-how-we-work-project-design-rules-not-conventions-fixed.md`。留下的：发布和各项目块外的清理，在待办 B3。
+
 # how-we-work：`adopting.md` 让项目的事实进 `AGENTS.md`，和通用块、`layout.md` 的说法不一致
 
 - **来源 · 日期**：`Hub/network` 项目的会话，用户问 `AGENTS.md` 为什么放了这么多东西 · 2026-11-23。
@@ -10,6 +12,6 @@
   - 三处对「项目的事实放不放 `AGENTS.md`」说法不一。主因在执行：agent 把状态当规则写、一条写成一段，`references/records.md` 的「一句规则加简短 `From:`」和通用块「做完用 writing-for-agents 再过一遍」都没照做。之前的会话有没有读到 adopting 这一行，不能确定（推测它给了「事实也能放」的口子）。
 - **为什么要紧**：`AGENTS.md` 每轮都在上下文里。状态放进去就会过时；冗余挤掉了真正要的规则：这个项目「读配置时遮掉密钥」的规则只写在待办里，当天 agent 读配置时就把一个控制接口密码打印了出来。
 - **方向**：adopting 这一行改成和通用块一致：每个任务都要知道的事实（如「保存即上线」）写成 `AGENTS.md` 的一条规则；会变的状态和其余事实放项目自己的文档。没拍板。
-- **相关**：`AGENTS.md` 条目带用户原话的问题另记在 `20261123-how-we-work-agents-md-carries-user-quotes.md`。
+- **相关**：`AGENTS.md` 条目带用户原话的问题另记在 `20261123-how-we-work-agents-md-carries-user-quotes-fixed.md`。
 - **设计**：和另外两张并成一件事，写在 `docs/specs/20261123-how-we-work-project-rules-spec.md`（2026-11-23，等用户说可以开始改）；决定 D20261123-1 到 -6。
-- **状态**：open
+- **状态**：已解决

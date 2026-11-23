@@ -1,9 +1,9 @@
 # how-we-work：项目自己的规则放哪
 
-- **状态**：已实现，没发布。决定 D20261123-1 到 -9（`docs/decisions/202611.md`），块外放什么以 -8 为准。脚本、参考、测试和通用块都已改完，通用块的措辞用户逐处看过（-9）；参考里明显多余的原话清了 14 句；提交前的最后检查做过（设计原则、writing-for-agents、`/doctor prompt-audit`）。发布和各项目的清理见六节，还等用户的见七节。
+- **状态**：已冻结（2026-11-23 建成，提交 `379f987`）。没发布，发布和各项目的清理在待办 B3。决定 D20261123-1 到 -9（`docs/decisions/202611.md`），块外放什么以 -8 为准。脚本、参考、测试和通用块都已改完，通用块的措辞用户逐处看过（-9）；参考里明显多余的原话清了 14 句；提交前的最后检查做过（设计原则、writing-for-agents、`/doctor prompt-audit`）。发布和各项目的清理见六节，还等用户的见七节。
 - **入口**：一到四节是设计，读这四节就够。五节是要改的文件，六节是发布，七节是还等用户的。
 - **不用读的**：八节是被放弃的方案，查来历时才读。
-- **来源**：三张 issue（`docs/issues/20261117-how-we-work-project-design-rules-not-conventions.md`、`20261123-how-we-work-agents-md-facts-vs-rules.md`、`20261123-how-we-work-agents-md-carries-user-quotes.md`）。
+- **来源**：三张 issue（`docs/issues/archive/20261117-how-we-work-project-design-rules-not-conventions-fixed.md`、`20261123-how-we-work-agents-md-facts-vs-rules-fixed.md`、`20261123-how-we-work-agents-md-carries-user-quotes-fixed.md`）。
 
 ## 一、问题
 

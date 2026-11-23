@@ -38,6 +38,10 @@
 
 改 `SKILL.md` 和 `adopting.md` 的文字是规则文字的改动，要先问用户；改脚本的输出字段属于代码，由 skills 仓库的会话直接做。
 
+## 同一个命令的另一个毛病（2026-11-23 并进来）
+
+2026-11-18 对照 OpenAI 官方建议的那次调研复现过：在临时目录里放一个旧的块，跑 `hww.py sync -n`，输出里同时有 `block: updated`、`dry_run: true` 和提示「The block changed: read it again from the file」，而 `AGENTS.md` 前后的 SHA-256 相同，什么都没写。试运行时这句提示和磁盘上的状态不符。测试没拦住，因为试运行的用例把 `hint` 去掉了再比。经过在已归档的 `docs/issues/archive/20261118-how-we-work-codex-configuration-wontfix.md` 和它的参考材料 `hww-review.md` 里。改法：`-n` 时不带这句提示，或者换成「会变」的说法；和登记失败的输出一起改。没拍板。
+
 ## 状态
 
 open

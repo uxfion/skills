@@ -1,3 +1,5 @@
+> 已解决（2026-11-23）：项目自己的规则有了位置。`AGENTS.md` 只有标题和通用块；规则进规则文件 `docs/rules.md`（接替 `conventions/other.md`，已有的 `guideline.md`、`design-principles.md` 保留原名）或约定文件。设计在 `docs/specs/20261123-how-we-work-project-rules-spec.md`，决定 D20261123-1 到 -9，通用块 rev 2026-11-23（提交 `379f987`）。留下的：发布和各项目块外的清理，在待办 B3。参考材料（规则文字各版草稿、两轮盲测、审阅发现）在 git 不跟踪的 `archive/20261123/20261117-how-we-work-project-design-rules-not-conventions-reference/`。
+
 # how-we-work：项目本身的设计准则被通用块归进了 `docs/conventions/`
 
 - **来源 · 日期**：`Hub/network` 项目的会话 · 2026-11-17。
@@ -57,4 +59,4 @@ main agent 读通用块后，把它们当成"某一类工作（代理配置）�
 
 - 用户对「块外不放规则，只放四样」的回应（2026-11-23），是倾向，不是决定：「A 另外我有一点担心，块外这个是不是根本就没有必要？A和我刚才的那个担心点，都是我的一个倾向，不是最终决定，和我讨论」。
 
-- **状态**：open
+- **状态**：已解决
